@@ -17,12 +17,12 @@ int main ()
 
     while (0 != (cnt = ece391_read (fd, buf, SBUFSIZE-1))) {
         if (-1 == cnt) {
-	        ece391_fdputs (1, (uint8_t*)"directory entry read failed\n");
-	        return 3;
-	    }
-	    buf[cnt] = '\n';
-	    if (-1 == ece391_write (1, buf, cnt + 1))
-	        return 3;
+            ece391_fdputs (1, (uint8_t*)"directory entry read failed\n");
+            return 3;
+        }
+        buf[cnt] = '\n';
+        if (-1 == ece391_write (1, buf, cnt + 1))
+            return 3;
     }
 
     return 0;

@@ -1,7 +1,6 @@
 /* types.h - Defines to use the familiar explicitly-sized types in this
  * OS (uint32_t, int8_t, etc.).  This is necessary because we don't want
  * to include <stdint.h> when building this OS
- * vim:ts=4 noexpandtab
  */
 
 #ifndef _TYPES_H

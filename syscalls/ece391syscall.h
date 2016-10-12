@@ -23,12 +23,12 @@ extern int32_t ece391_set_handler (int32_t signum, void* handler);
 extern int32_t ece391_sigreturn (void);
 
 enum signums {
-	DIV_ZERO = 0,
-	SEGFAULT,
-	INTERRUPT,
-	ALARM,
-	USER1,
-	NUM_SIGNALS
+    DIV_ZERO = 0,
+    SEGFAULT,
+    INTERRUPT,
+    ALARM,
+    USER1,
+    NUM_SIGNALS
 };
 
 #endif /* ECE391SYSCALL_H */

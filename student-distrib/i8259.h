@@ -1,6 +1,5 @@
 /* i8259.h - Defines used in interactions with the 8259 interrupt
  * controller
- * vim:ts=4 noexpandtab
  */
 
 #ifndef _I8259_H
