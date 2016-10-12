@@ -1,5 +1,5 @@
 
-.data                   # section declaration
+.data					# section declaration
 
         # Useful offset constants for accessing members of a 
         # struct mp1_blink_struct structure
@@ -24,7 +24,7 @@ call_table:
         .long   mp1_ioctl_find
         .long   mp1_ioctl_sync
 
-.text                   # section declaration
+.text					# section declaration
 
 # Export the function symbol names
 
@@ -53,7 +53,7 @@ mp1_rtc_tasklet:
 
         pushl   %esi
         pushl   %edi
-    pushl   %ebx
+	pushl	%ebx
 
         movl    mp1_list_head, %ebx
         
@@ -91,7 +91,7 @@ next_loop:
 
 tasklet_end:
 
-    popl    %ebx
+	popl	%ebx
         popl    %edi
         popl    %esi
 
@@ -141,8 +141,8 @@ mp1_ioctl_add:
         pushl   $STRUCT_SIZE
         call    mp1_malloc
         add     $4, %esp
-    cmpl    $0, %eax
-    je  add_fail_return
+	cmpl	$0, %eax
+	je	add_fail_return
 
         # Save EAX
         pushl   %eax
@@ -349,13 +349,13 @@ find_leave:
         ret
 
 mp1_find_helper:
-        pushl   %ebp
-        movl    %esp, %ebp
+        pushl	%ebp
+        movl	%esp, %ebp
 
         pushl   %ebx
 
-        movw    8(%ebp), %ax
-        movl    mp1_list_head, %ebx
+        movw	8(%ebp), %ax
+        movl	mp1_list_head, %ebx
 loop:
         cmpl    $0, %ebx
         je      helper_fail_return

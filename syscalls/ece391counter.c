@@ -22,7 +22,7 @@ int main ()
         return 0;
     } else {
         switch (buf[0]) {
-            case '0':
+	        case '0':
                 max = 100;
                 break;
             case '1':

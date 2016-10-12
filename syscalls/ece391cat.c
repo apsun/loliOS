@@ -10,21 +10,21 @@ int main ()
 
     if (0 != ece391_getargs (buf, 1024)) {
         ece391_fdputs (1, (uint8_t*)"could not read arguments\n");
-    return 3;
+	return 3;
     }
 
     if (-1 == (fd = ece391_open (buf))) {
         ece391_fdputs (1, (uint8_t*)"file not found\n");
-    return 2;
+	return 2;
     }
 
     while (0 != (cnt = ece391_read (fd, buf, 1024))) {
         if (-1 == cnt) {
-        ece391_fdputs (1, (uint8_t*)"file read failed\n");
-        return 3;
-    }
-    if (-1 == ece391_write (1, buf, cnt))
-        return 3;
+	    ece391_fdputs (1, (uint8_t*)"file read failed\n");
+	    return 3;
+	}
+	if (-1 == ece391_write (1, buf, cnt))
+	    return 3;
     }
 
     return 0;

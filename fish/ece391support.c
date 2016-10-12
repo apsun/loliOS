@@ -30,9 +30,9 @@ ece391_strcmp (const uint8_t* s1, const uint8_t* s2)
 {
     while (*s1 == *s2) {
         if (*s1 == '\0')
-        return 0;
-    s1++;
-    s2++;
+	    return 0;
+	s1++;
+	s2++;
     }
     return ((int32_t)*s1) - ((int32_t)*s2);
 }
@@ -41,12 +41,12 @@ int32_t
 ece391_strncmp (const uint8_t* s1, const uint8_t* s2, uint32_t n)
 {
     if (0 == n)
-    return 0;
+	return 0;
     while (*s1 == *s2) {
         if (*s1 == '\0' || --n == 0)
-        return 0;
-    s1++;
-    s2++;
+	    return 0;
+	s1++;
+	s2++;
     }
     return ((int32_t)*s1) - ((int32_t)*s2);
 }

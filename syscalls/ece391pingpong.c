@@ -25,7 +25,7 @@ int main ()
     
     // Clear buffer
     for(i = 0; i < BUFMAX; i++)
-        buf[i]=' ';
+	    buf[i]=' ';
 
     // Initialize buffer with walls
     buf[BUFMAX-1]='\0';
@@ -40,50 +40,50 @@ int main ()
 
     while(1)
     {
-    // Move out
-    for(j = STARTLOOP; j < LOOPMAX; j++)
-    {
-        // Clear inner portion of world
-        for(i = STARTLOOP; i < LOOPMAX; i++)
-        {
-            buf[i]=' ';
-        }
+	// Move out
+	for(j = STARTLOOP; j < LOOPMAX; j++)
+	{
+		// Clear inner portion of world
+		for(i = STARTLOOP; i < LOOPMAX; i++)
+		{
+			buf[i]=' ';
+		}
 
-        // Draw character
-        buf[j] = curchar;
-        ece391_fdputs (1, buf);
+		// Draw character
+		buf[j] = curchar;
+		ece391_fdputs (1, buf);
 
-        // Wait for RTC tick
-        ece391_read(rtc_fd, &garbage, 4);
-    }
-    
-    // Bounce back
-        for(j = LOOPMAX - 1; j >= STARTLOOP; j--)
-        {
-        // Clear inner portion of the world
-        for(i = STARTLOOP; i < LOOPMAX; i++)
-        {
-            buf[i]=' ';
-        }
+		// Wait for RTC tick
+		ece391_read(rtc_fd, &garbage, 4);
+	}
+	
+	// Bounce back
+    	for(j = LOOPMAX - 1; j >= STARTLOOP; j--)
+    	{
+		// Clear inner portion of the world
+		for(i = STARTLOOP; i < LOOPMAX; i++)
+		{
+			buf[i]=' ';
+		}
 
-        // Draw character
-        buf[j] = curchar;
-        ece391_fdputs (1, buf);
+		// Draw character
+		buf[j] = curchar;
+		ece391_fdputs (1, buf);
 
-        // Wait for RTC tick
-        ece391_read(rtc_fd, &garbage, 4);
-        }
+		// Wait for RTC tick
+		ece391_read(rtc_fd, &garbage, 4);
+    	}
 
-    // Edge case on characters
-    if(curchar == ENDCHAR)
-    {
-        curchar = STARTCHAR;
-    }
-    else
-    {
-        // Update current character
-        curchar = curchar + update;
-    }
+	// Edge case on characters
+	if(curchar == ENDCHAR)
+	{
+		curchar = STARTCHAR;
+	}
+	else
+	{
+		// Update current character
+		curchar = curchar + update;
+	}
     }
     return 0;
 }
