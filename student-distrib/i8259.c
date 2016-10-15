@@ -4,32 +4,76 @@
 #include "i8259.h"
 #include "lib.h"
 
+#define MASK_ALL 0xff
+#define SLAVE_IRQ_INDEX 2
+
 /* Interrupt masks to determine which interrupts
  * are enabled and disabled */
-uint8_t master_mask; /* IRQs 0-7 */
-uint8_t slave_mask; /* IRQs 8-15 */
+uint8_t master_mask = MASK_ALL & ~(1 << 2); /* IRQs 0-7 */
+uint8_t slave_mask  = MASK_ALL;             /* IRQs 8-15 */
 
 /* Initialize the 8259 PIC */
 void
 i8259_init(void)
 {
+    /* mask interrupts */
+    outb(MASK_ALL, MASTER_8259_PORT_DATA);
+    outb(MASK_ALL, SLAVE_8259_PORT_DATA);
+
+    /* init master PIC */
+    outb(ICW1,        MASTER_8259_PORT_CMD);
+    outb(ICW2_MASTER, MASTER_8259_PORT_DATA);
+    outb(ICW3_MASTER, MASTER_8259_PORT_DATA);
+    outb(ICW4,        MASTER_8259_PORT_DATA);
+
+    /* init slave PIC */
+    outb(ICW1,       SLAVE_8259_PORT_CMD);
+    outb(ICW2_SLAVE, SLAVE_8259_PORT_DATA);
+    outb(ICW3_SLAVE, SLAVE_8259_PORT_DATA);
+    outb(ICW4,       SLAVE_8259_PORT_DATA);
+
+    /* unmask interrupts */
+    outb(master_mask, MASTER_8259_PORT_DATA);
+    outb(slave_mask,  SLAVE_8259_PORT_DATA);
 }
 
 /* Enable (unmask) the specified IRQ */
 void
 enable_irq(uint32_t irq_num)
 {
+    if (irq_num >= 0 && irq_num < 8) {
+        master_mask &= ~(1 << irq_num);
+        outb(master_mask, MASTER_8259_PORT_DATA);
+    } else if (irq_num >= 8 && irq_num < 16) {
+        uint32_t slave_irq_num = irq_num - 8;
+        slave_mask &= ~(1 << slave_irq_num);
+        outb(slave_mask, SLAVE_8259_PORT_DATA);
+    }
 }
 
 /* Disable (mask) the specified IRQ */
 void
 disable_irq(uint32_t irq_num)
 {
+    if (irq_num >= 0 && irq_num < 8) {
+        master_mask |= (1 << irq_num);
+        outb(master_mask, MASTER_8259_PORT_DATA);
+    } else if (irq_num >= 8 && irq_num < 16) {
+        uint32_t slave_irq_num = irq_num - 8;
+        slave_mask |= (1 << slave_irq_num);
+        outb(slave_mask, SLAVE_8259_PORT_DATA);
+    }
 }
 
 /* Send end-of-interrupt signal for the specified IRQ */
 void
 send_eoi(uint32_t irq_num)
 {
+    if (irq_num >= 0 && irq_num < 8) {
+        outb(irq_num | EOI, MASTER_8259_PORT_CMD);
+    } else if (irq_num >= 8 && irq_num < 16) {
+        uint32_t slave_irq_num = irq_num - 8;
+        outb(slave_irq_num | EOI, SLAVE_8259_PORT_CMD);
+        outb(SLAVE_IRQ_INDEX | EOI, MASTER_8259_PORT_CMD);
+    }
 }
-
