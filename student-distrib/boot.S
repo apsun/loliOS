@@ -5,6 +5,7 @@
 #include "multiboot.h"
 #include "x86_desc.h"
 
+
 .text
 
     # Multiboot header (required for GRUB to boot us)
@@ -24,6 +25,7 @@ _start:
 
 continue:
     # Load the GDT
+    lgdt    gdt_desc_ptr
 
     # Load CS with the new descriptor value
     ljmp    $KERNEL_CS, $keep_going
