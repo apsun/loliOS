@@ -21,6 +21,9 @@
 /* Number of vectors in the interrupt descriptor table (IDT) */
 #define NUM_VEC 256
 
+/* Number of exceptions in the IDT */
+#define NUM_EXC 32
+
 #ifndef ASM
 
 /* This structure is used to load descriptor base registers
@@ -167,10 +170,10 @@ extern idt_desc_t idt[NUM_VEC];
 extern x86_desc_t idt_desc_ptr;
 
 /* Sets runtime parameters for an IDT entry */
-#define SET_IDT_ENTRY(str, handler) \
-do { \
+#define SET_IDT_ENTRY(str, handler)                              \
+do {                                                             \
     str.offset_31_16 = ((uint32_t)(handler) & 0xFFFF0000) >> 16; \
-        str.offset_15_00 = ((uint32_t)(handler) & 0xFFFF); \
+    str.offset_15_00 = ((uint32_t)(handler) & 0xFFFF);           \
 } while(0)
 
 /* Load task register.  This macro takes a 16-bit index into the GDT,
