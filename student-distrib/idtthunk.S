@@ -8,6 +8,7 @@
         pushl $ code;                \
         jmp handle_int_thunk_common
 
+
 .text
 
 /* Generate interrupt handlers */
@@ -37,8 +38,6 @@ MAKE_INT_HANDLER(handle_int_unknown, INT_UNKNOWN)
 /* Common interrupt handler routine */
 handle_int_thunk_common:
     // Save all registers
-    // This must correspond to the member order
-    // in int_regs_t.
     pushw %gs
     pushw %fs
     pushw %es
@@ -51,7 +50,9 @@ handle_int_thunk_common:
     pushl %ebx
     pushl %eax
 
-    // Call C interrupt handler with "register struct" as argument
+    // Call C interrupt handler, the stack is reinterpreted
+    // as an instance of int_regs_t (so do not change the
+    // ordering of either one!)
     pushl %esp
     call handle_interrupt
     addl $4, %esp

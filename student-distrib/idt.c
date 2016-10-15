@@ -2,6 +2,7 @@
 #include "x86_desc.h"
 #include "lib.h"
 
+
 exc_info_t exc_info_table[20] = {
     {EXC_DE, "Divide Error Exception"},
     {EXC_DB, "Debug Exception"},
@@ -25,26 +26,52 @@ exc_info_t exc_info_table[20] = {
     {EXC_XF, "SIMD Floating-Point Exception"},
 };
 
+
 #define WRITE_IDT_ENTRY(i, name)               \
 do {                                           \
-    extern uint32_t name;                      \
+    extern void name(void);                    \
     SET_IDT_ENTRY(idt[i], name);               \
 } while (0)
 
 
 void
+dump_registers(int_regs_t *regs)
+{
+    printf("int_num: %x                            \n", regs->int_num);
+    printf("eax: %x                                \n", regs->eax);
+    printf("ebx: %x                                \n", regs->ebx);
+    printf("ecx: %x                                \n", regs->ecx);
+    printf("edx: %x                                \n", regs->edx);
+    printf("esi: %x                                \n", regs->esi);
+    printf("edi: %x                                \n", regs->edi);
+    printf("ebp: %x                                \n", regs->ebp);
+    printf("esp: %x                                \n", regs->esp);
+    printf("eip: %x                                \n", regs->eip);
+    printf("eflags: %x                             \n", regs->eflags);
+    printf("cs: %x                                 \n", regs->cs);
+    printf("ds: %x                                 \n", regs->ds);
+    printf("es: %x                                 \n", regs->es);
+    printf("fs: %x                                 \n", regs->fs);
+    printf("gs: %x                                 \n", regs->gs);
+    printf("ss: %x                                 \n", regs->ss);
+}
+
+
+void
 handle_interrupt(int_regs_t *regs)
 {
+    dump_registers(regs);
     if (regs->int_num == INT_SYSCALL) {
         printf("Syscall!\n");
     } else if (regs->int_num < NUM_EXC) {
-        printf("%s\n", exc_info_table[regs->int_num]);
+        printf("Exception: %s\n", exc_info_table[regs->int_num].desc);
         while (1) {
             // Freeze on exception
         }
     } else {
         printf("Unknown interrupt: %d\n", regs->int_num);
     }
+    while (1);
 }
 
 
