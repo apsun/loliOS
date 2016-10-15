@@ -2,21 +2,43 @@
 #include "x86_desc.h"
 #include "lib.h"
 
+exc_info_t exc_info_table[20] = {
+    {EXC_DE, "Divide Error Exception"},
+    {EXC_DB, "Debug Exception"},
+    {EXC_NI, "Nonmaskable Interrupt"},
+    {EXC_BP, "Breakpoint Exception"},
+    {EXC_OF, "Overflow Exception"},
+    {EXC_BR, "BOUND Range Exceeded Exception"},
+    {EXC_UD, "Invalid Opcode Exception"},
+    {EXC_NM, "Device Not Available Exception"},
+    {EXC_DF, "Double Fault Exception"},
+    {EXC_CO, "Coprocessor Segment Overrun"},
+    {EXC_TS, "Invalid TSS Exception"},
+    {EXC_NP, "Segment Not Present"},
+    {EXC_SS, "Stack Fault Exception"},
+    {EXC_GP, "General Protection Exception"},
+    {EXC_PF, "Page-Fault Exception"},
+    {EXC_RE, "Entry Reserved"},
+    {EXC_MF, "Floating-Point Error"},
+    {EXC_AC, "Alignment Check Exception"},
+    {EXC_MC, "Machine-Check Exception"},
+    {EXC_XF, "SIMD Floating-Point Exception"},
+};
 
-#define WRITE_IDT_ENTRY(i, id)                     \
-do {                                               \
-    extern uint32_t handle_int_thunk_##id;         \
-    SET_IDT_ENTRY(idt[i], handle_int_thunk_##id);  \
+#define WRITE_IDT_ENTRY(i, name)               \
+do {                                           \
+    extern uint32_t name;                      \
+    SET_IDT_ENTRY(idt[i], name);               \
 } while (0)
 
 
 void
-handle_int(int_regs_t *regs)
+handle_interrupt(int_regs_t *regs)
 {
     if (regs->int_num == INT_SYSCALL) {
         printf("Syscall!\n");
     } else if (regs->int_num < NUM_EXC) {
-        printf("%s\n", exception_table[regs->int_num]);
+        printf("%s\n", exc_info_table[regs->int_num]);
         while (1) {
             // Freeze on exception
         }
@@ -55,36 +77,36 @@ idt_init(void)
     }
 
     /* Write exception handlers */
-    WRITE_IDT_ENTRY(0,  EXC_DE);
-    WRITE_IDT_ENTRY(1,  EXC_DB);
-    WRITE_IDT_ENTRY(2,  EXC_NI);
-    WRITE_IDT_ENTRY(3,  EXC_BP);
-    WRITE_IDT_ENTRY(4,  EXC_OF);
-    WRITE_IDT_ENTRY(5,  EXC_BR);
-    WRITE_IDT_ENTRY(6,  EXC_UD);
-    WRITE_IDT_ENTRY(7,  EXC_NM);
-    WRITE_IDT_ENTRY(8,  EXC_DF);
-    WRITE_IDT_ENTRY(9,  EXC_CO);
-    WRITE_IDT_ENTRY(10, EXC_TS);
-    WRITE_IDT_ENTRY(11, EXC_NP);
-    WRITE_IDT_ENTRY(12, EXC_SS);
-    WRITE_IDT_ENTRY(13, EXC_GP);
-    WRITE_IDT_ENTRY(14, EXC_PF);
-    WRITE_IDT_ENTRY(15, EXC_RE);
-    WRITE_IDT_ENTRY(16, EXC_MF);
-    WRITE_IDT_ENTRY(17, EXC_AC);
-    WRITE_IDT_ENTRY(18, EXC_MC);
-    WRITE_IDT_ENTRY(19, EXC_XF);
+    WRITE_IDT_ENTRY(EXC_DE, handle_exc_de);
+    WRITE_IDT_ENTRY(EXC_DB, handle_exc_db);
+    WRITE_IDT_ENTRY(EXC_NI, handle_exc_ni);
+    WRITE_IDT_ENTRY(EXC_BP, handle_exc_bp);
+    WRITE_IDT_ENTRY(EXC_OF, handle_exc_of);
+    WRITE_IDT_ENTRY(EXC_BR, handle_exc_br);
+    WRITE_IDT_ENTRY(EXC_UD, handle_exc_ud);
+    WRITE_IDT_ENTRY(EXC_NM, handle_exc_nm);
+    WRITE_IDT_ENTRY(EXC_DF, handle_exc_df);
+    WRITE_IDT_ENTRY(EXC_CO, handle_exc_co);
+    WRITE_IDT_ENTRY(EXC_TS, handle_exc_ts);
+    WRITE_IDT_ENTRY(EXC_NP, handle_exc_np);
+    WRITE_IDT_ENTRY(EXC_SS, handle_exc_ss);
+    WRITE_IDT_ENTRY(EXC_GP, handle_exc_gp);
+    WRITE_IDT_ENTRY(EXC_PF, handle_exc_pf);
+    WRITE_IDT_ENTRY(EXC_RE, handle_exc_re);
+    WRITE_IDT_ENTRY(EXC_MF, handle_exc_mf);
+    WRITE_IDT_ENTRY(EXC_AC, handle_exc_ac);
+    WRITE_IDT_ENTRY(EXC_MC, handle_exc_mc);
+    WRITE_IDT_ENTRY(EXC_XF, handle_exc_xf);
 
     /* Initialize interrupt gates */
     desc.reserved3 = 0;
     for (; i < NUM_VEC; ++i) {
         idt[i] = desc;
-        WRITE_IDT_ENTRY(i, INT_UNKNOWN);
+        WRITE_IDT_ENTRY(i, handle_int_unknown);
     }
 
     /* Initialize syscall interrupt gate */
     idt[INT_SYSCALL].dpl = 3;
     idt[INT_SYSCALL].reserved3 = 0;
-    WRITE_IDT_ENTRY(INT_SYSCALL, INT_SYSCALL);
+    WRITE_IDT_ENTRY(INT_SYSCALL, handle_int_syscall);
 }

@@ -27,36 +27,17 @@
 #define INT_SYSCALL 0x80
 #define INT_UNKNOWN -1
 
+#ifndef ASM
+
 /* Exception info */
 typedef struct
 {
     uint8_t index;
     const char *desc;
-} exception_info_t;
+} exc_info_t;
 
 /* Exception info table */
-exception_info_t exception_table[20] = {
-    {EXC_DE, "Divide Error Exception"},
-    {EXC_DB, "Debug Exception"},
-    {EXC_NI, "Nonmaskable Interrupt"},
-    {EXC_BP, "Breakpoint Exception"},
-    {EXC_OF, "Overflow Exception"},
-    {EXC_BR, "BOUND Range Exceeded Exception"},
-    {EXC_UD, "Invalid Opcode Exception"},
-    {EXC_NM, "Device Not Available Exception"},
-    {EXC_DF, "Double Fault Exception"},
-    {EXC_CO, "Coprocessor Segment Overrun"},
-    {EXC_TS, "Invalid TSS Exception"},
-    {EXC_NP, "Segment Not Present"},
-    {EXC_SS, "Stack Fault Exception"},
-    {EXC_GP, "General Protection Exception"},
-    {EXC_PF, "Page-Fault Exception"},
-    {EXC_RE, "Entry Reserved"},
-    {EXC_MF, "Floating-Point Error"},
-    {EXC_AC, "Alignment Check Exception"},
-    {EXC_MC, "Machine-Check Exception"},
-    {EXC_XF, "SIMD Floating-Point Exception"},
-};
+extern exc_info_t exc_info_table[20];
 
 /* Interrupt registers */
 typedef struct
@@ -86,7 +67,10 @@ typedef struct
 } int_regs_t;
 
 /* Initializes the IDT */
-void
-idt_init(void);
+extern void idt_init(void);
 
+/* Interrupt handler */
+extern void handle_interrupt(int_regs_t *regs);
+
+#endif
 #endif
