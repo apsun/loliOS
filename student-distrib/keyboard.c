@@ -113,6 +113,7 @@ keycode_to_char(uint8_t keycode)
 {
     /* Check if the keycode was out of range */
     if (keycode >= NUM_KEYS) {
+        debugf("Unknown keycode: %x\n", keycode);
         return '\0';
     }
 
@@ -131,8 +132,7 @@ keycode_to_char(uint8_t keycode)
     case KMOD_CAPS | KMOD_SHIFT:
         return keycode_map[3][keycode];
     default:
-        /* Unhandled modifier combination */
-        debugf("Unknown keycode: %x\n", keycode);
+        debugf("Unhandled modifier combination: %x\n", modifiers);
         return '\0';
     }
 }
