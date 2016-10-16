@@ -6,6 +6,8 @@
 
 #ifndef ASM
 
+#include "lib.h"
+
 /* Set to 1 for debug mode */
 #define DEBUG 0
 

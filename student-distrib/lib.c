@@ -575,3 +575,13 @@ test_interrupts(void)
         video_mem[i<<1]++;
     }
 }
+
+/*
+ * void halt(void)
+ *   Freezes the processor.
+ */
+void
+halt(void)
+{
+    asm volatile(".1: hlt; jmp .1;");
+}

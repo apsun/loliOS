@@ -8,7 +8,7 @@
 #include "debug.h"
 #include "idt.h"
 #include "keyboard.h"
-#include "page.h"
+#include "paging.h"
 
 /* Macros. */
 /* Check if the bit BIT in FLAGS is set. */
@@ -91,19 +91,18 @@ entry (unsigned long magic, unsigned long addr)
 
         printf ("mmap_addr = 0x%#x, mmap_length = 0x%x\n",
                 (unsigned) mbi->mmap_addr, (unsigned) mbi->mmap_length);
-        // for (mmap = (memory_map_t *) mbi->mmap_addr;
-        //         (unsigned long) mmap < mbi->mmap_addr + mbi->mmap_length;
-        //         mmap = (memory_map_t *) ((unsigned long) mmap
-        //             + mmap->size + sizeof (mmap->size)))
-        //     printf (" size = 0x%x,     base_addr = 0x%#x%#x\n"
-        //             "     type = 0x%x,  length    = 0x%#x%#x\n",
-        //             (unsigned) mmap->size,
-        //             (unsigned) mmap->base_addr_high,
-        //             (unsigned) mmap->base_addr_low,
-        //             (unsigned) mmap->type,
-        //             (unsigned) mmap->length_high,
-        //             (unsigned) mmap->length_low);
-
+        for (mmap = (memory_map_t *) mbi->mmap_addr;
+                (unsigned long) mmap < mbi->mmap_addr + mbi->mmap_length;
+                mmap = (memory_map_t *) ((unsigned long) mmap
+                    + mmap->size + sizeof (mmap->size)))
+            printf (" size = 0x%x,     base_addr = 0x%#x%#x\n"
+                    "     type = 0x%x,  length    = 0x%#x%#x\n",
+                    (unsigned) mmap->size,
+                    (unsigned) mmap->base_addr_high,
+                    (unsigned) mmap->base_addr_low,
+                    (unsigned) mmap->type,
+                    (unsigned) mmap->length_high,
+                    (unsigned) mmap->length_low);
     }
 
     /* Construct an LDT entry in the GDT */
@@ -147,45 +146,47 @@ entry (unsigned long magic, unsigned long addr)
         ltr(KERNEL_TSS);
     }
 
-    /* Init the PIC */
+    clear();
+
+    /* Initialize the PIC */
+    printf("Initializing PIC...\n");
     i8259_init();
 
     /* Initialize devices, memory, filesystem, enable device interrupts on the
      * PIC, any other initialization stuff... */
+    printf("Initializing keyboard...\n");
     keyboard_init();
+
+    printf("Initializing RTC...\n");
     /* rtc_init(); */
 
-    /* Init IDT */
+    /* Initialize IDT */
+    printf("Initializing IDT...\n");
     idt_init();
 
-    
-
-    /* Init page */
-    printf("Enabling Paging\n");
-    page_init();
-
+    /* Enable paging */
+    printf("Enabling paging...\n");
+    paging_enable();
 
     /* Enable interrupts */
     /* Do not enable the following until after you have set up your
      * IDT correctly otherwise QEMU will triple fault and simple close
      * without showing you any output */
-    printf("Enabling Interrupts\n");
+    printf("Enabling interrupts...\n");
     sti();
 
-    // printf("%d\n",1/0);
-    printf("Dereferencing 0x00500000\n");
-    uint32_t * test_addr = 0x00500000;
-    uint32_t number = *test_addr;
-    printf("d\n",number);
-    printf("Dereferencing 0x80000000\n");
-    test_addr = 0x80000000;
-    number = *test_addr;
-    printf("d\n",number);
-    // asm volatile("movl %%eax, 0x80000000;" : : :"eax");
+    /* We made it! */
+    printf("Boot successful!\n");
+    clear();
+
+    /* Raise page fault (for debugging) */
+    // printf("%d\n", *(volatile int *)0xdeadface);
+
+    /* Raise divide by zero (for debugging) */
+    // printf("%d\n", 1 / 0);
 
     /* Execute the first program (`shell') ... */
 
     /* Spin (nicely, so we don't chew up cycles) */
-    asm volatile(".1: hlt; jmp .1;");
+    halt();
 }
-

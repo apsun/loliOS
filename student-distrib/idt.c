@@ -8,26 +8,26 @@ static irq_handler_t irq_handlers[16];
 
 /* Exception info table */
 static exc_info_t exc_info_table[20] = {
-    {EXC_DE, "Divide Error Exception"},
-    {EXC_DB, "Debug Exception"},
-    {EXC_NI, "Nonmaskable Interrupt"},
-    {EXC_BP, "Breakpoint Exception"},
-    {EXC_OF, "Overflow Exception"},
-    {EXC_BR, "BOUND Range Exceeded Exception"},
-    {EXC_UD, "Invalid Opcode Exception"},
-    {EXC_NM, "Device Not Available Exception"},
-    {EXC_DF, "Double Fault Exception"},
-    {EXC_CO, "Coprocessor Segment Overrun"},
-    {EXC_TS, "Invalid TSS Exception"},
-    {EXC_NP, "Segment Not Present"},
-    {EXC_SS, "Stack Fault Exception"},
-    {EXC_GP, "General Protection Exception"},
-    {EXC_PF, "Page-Fault Exception"},
-    {EXC_RE, "Entry Reserved"},
-    {EXC_MF, "Floating-Point Error"},
-    {EXC_AC, "Alignment Check Exception"},
-    {EXC_MC, "Machine-Check Exception"},
-    {EXC_XF, "SIMD Floating-Point Exception"},
+    {EXC_DE, "Divide error exception"},
+    {EXC_DB, "Debug exception"},
+    {EXC_NI, "Nonmaskable interrupt"},
+    {EXC_BP, "Breakpoint exception"},
+    {EXC_OF, "Overflow exception"},
+    {EXC_BR, "Bound range exceeded exception"},
+    {EXC_UD, "Invalid opcode exception"},
+    {EXC_NM, "Device not available exception"},
+    {EXC_DF, "Double fault exception"},
+    {EXC_CO, "Coprocessor segment overrun"},
+    {EXC_TS, "Invalid TSS exception"},
+    {EXC_NP, "Segment not present"},
+    {EXC_SS, "Stack fault exception"},
+    {EXC_GP, "General protection exception"},
+    {EXC_PF, "Page-fault exception"},
+    {EXC_RE, "Entry reserved"},
+    {EXC_MF, "Floating-point error"},
+    {EXC_AC, "Alignment check exception"},
+    {EXC_MC, "Machine-check exception"},
+    {EXC_XF, "SIMD floating-point exception"},
 };
 
 /* Convenience wrapper around SET_IDT_ENTRY */
@@ -59,6 +59,10 @@ dump_registers(int_regs_t *regs)
     printf("fs:         0x%#x\n", regs->fs);
     printf("gs:         0x%#x\n", regs->gs);
     printf("ss:         0x%#x\n", regs->ss);
+    printf("cr0:        0x%#x\n", regs->cr0);
+    printf("cr2:        0x%#x\n", regs->cr2);
+    printf("cr3:        0x%#x\n", regs->cr3);
+    printf("cr4:        0x%#x\n", regs->cr4);
 }
 
 /* Exception handler */
@@ -70,7 +74,7 @@ handle_exception(int_regs_t *regs)
     printf("Exception: %s\n", exc_info_table[regs->int_num].desc);
     printf("****************************************\n");
     dump_registers(regs);
-    while (1);
+    halt();
 }
 
 /* IRQ handler */
@@ -170,7 +174,14 @@ idt_init(void)
 
     /* Initialize exception (trap) gates */
     desc.dpl = 0;
-    desc.reserved3 = 1;
+
+    /* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+     * Use 0 (interrupt gate) for now. In order
+     * to switch to an actual trap gate in the
+     * future, change this from 0 to 1
+     * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+     */
+    desc.reserved3 = 0;
     for (i = 0; i < NUM_EXC; ++i) {
         idt[i] = desc;
     }

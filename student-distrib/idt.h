@@ -67,6 +67,10 @@ typedef struct
 typedef struct
 {
     /* Pushed by handle_int_thunk_common */
+    uint32_t cr0;
+    uint32_t cr2;
+    uint32_t cr3;
+    uint32_t cr4;
     uint32_t eax;
     uint32_t ebx;
     uint32_t ecx;

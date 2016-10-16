@@ -11,7 +11,7 @@
 .globl  gdt_ptr, gdt_desc_ptr
 .globl  idt_desc_ptr, idt
 
-.globl  page_dir_table, page_table
+.globl  page_dir, page_table
 
 .align 4
 
@@ -115,8 +115,8 @@ idt_bottom:
 
 /* align on 4kB boundry for page dir table */
     .align 4096
-page_dir_table:
-_page_dir_table:
+page_dir:
+_page_dir:
     .rept NUM_PDE
     .long 0
     .endr
