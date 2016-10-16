@@ -3,8 +3,11 @@
 #include "debug.h"
 #include "x86_desc.h"
 
+/* IRQ handler array */
+static irq_handler_t irq_handlers[16];
+
 /* Exception info table */
-exc_info_t exc_info_table[20] = {
+static exc_info_t exc_info_table[20] = {
     {EXC_DE, "Divide Error Exception"},
     {EXC_DB, "Debug Exception"},
     {EXC_NI, "Nonmaskable Interrupt"},

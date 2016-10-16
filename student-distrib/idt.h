@@ -95,12 +95,6 @@ typedef struct
     uint16_t ss;
 } int_regs_t;
 
-/* Exception info table */
-exc_info_t exc_info_table[20];
-
-/* Array of IRQ handlers */
-irq_handler_t irq_handlers[16];
-
 /* Initializes the IDT */
 void idt_init(void);
 
