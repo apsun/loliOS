@@ -109,7 +109,7 @@ keycode_to_char(uint8_t keycode)
 {
     /* Check if the keycode was out of range */
     if (keycode >= NUM_KEYS) {
-        debugf("Unknown keycode: %x\n", keycode);
+        debugf("Unknown keycode: 0x%#x\n", keycode);
         return '\0';
     }
 
@@ -128,7 +128,7 @@ keycode_to_char(uint8_t keycode)
     case KMOD_CAPS | KMOD_SHIFT:
         return keycode_map[3][keycode];
     default:
-        debugf("Unhandled modifier combination: %x\n", modifiers);
+        debugf("Unhandled modifier combination: 0x%#x\n", modifiers);
         return '\0';
     }
 }
@@ -153,7 +153,7 @@ process_packet(uint8_t packet)
                 toggle_modifier_bit(mod);
             }
         } else {
-            debugf("Set modifier %x -> %d\n", mod, status);
+            debugf("Set modifier 0x%#x -> %d\n", mod, status);
             set_modifier_bit(status, mod);
         }
         return '\0';

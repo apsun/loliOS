@@ -39,24 +39,24 @@ do {                                           \
 static void
 dump_registers(int_regs_t *regs)
 {
-    debugf("int_num: %x                            \n", regs->int_num);
-    debugf("error_code: %x                         \n", regs->error_code);
-    debugf("eax: %x                                \n", regs->eax);
-    debugf("ebx: %x                                \n", regs->ebx);
-    debugf("ecx: %x                                \n", regs->ecx);
-    debugf("edx: %x                                \n", regs->edx);
-    debugf("esi: %x                                \n", regs->esi);
-    debugf("edi: %x                                \n", regs->edi);
-    debugf("ebp: %x                                \n", regs->ebp);
-    debugf("esp: %x                                \n", regs->esp);
-    debugf("eip: %x                                \n", regs->eip);
-    debugf("eflags: %x                             \n", regs->eflags);
-    debugf("cs: %x                                 \n", regs->cs);
-    debugf("ds: %x                                 \n", regs->ds);
-    debugf("es: %x                                 \n", regs->es);
-    debugf("fs: %x                                 \n", regs->fs);
-    debugf("gs: %x                                 \n", regs->gs);
-    debugf("ss: %x                                 \n", regs->ss);
+    debugf("int_num: 0x%#x              \n", regs->int_num);
+    debugf("error_code: 0x%#x           \n", regs->error_code);
+    debugf("eax: 0x%#x                  \n", regs->eax);
+    debugf("ebx: 0x%#x                  \n", regs->ebx);
+    debugf("ecx: 0x%#x                  \n", regs->ecx);
+    debugf("edx: 0x%#x                  \n", regs->edx);
+    debugf("esi: 0x%#x                  \n", regs->esi);
+    debugf("edi: 0x%#x                  \n", regs->edi);
+    debugf("ebp: 0x%#x                  \n", regs->ebp);
+    debugf("esp: 0x%#x                  \n", regs->esp);
+    debugf("eip: 0x%#x                  \n", regs->eip);
+    debugf("eflags: 0x%#x               \n", regs->eflags);
+    debugf("cs: 0x%#x                   \n", regs->cs);
+    debugf("ds: 0x%#x                   \n", regs->ds);
+    debugf("es: 0x%#x                   \n", regs->es);
+    debugf("fs: 0x%#x                   \n", regs->fs);
+    debugf("gs: 0x%#x                   \n", regs->gs);
+    debugf("ss: 0x%#x                   \n", regs->ss);
 }
 
 /* Exception handler */
