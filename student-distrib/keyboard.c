@@ -52,15 +52,16 @@ static char keycode_map[4][NUM_KEYS] = {
 void
 keyboard_init(void)
 {
+    cli();
     /* Enable keyboard IRQ */
     enable_irq(IRQ_KEYBOARD);
 }
 
 /* Sets a keyboard modifier bit */
 static void
-set_modifier_bit(uint8_t bit, kbd_modifiers_t mask)
+set_modifier_bit(uint8_t bit, kbd_modifiers_t mask) //for non-caps
 {
-    if (bit) {
+    if (bit) { //if pressed
         modifiers |= mask;
     } else {
         modifiers &= ~mask;
@@ -69,9 +70,9 @@ set_modifier_bit(uint8_t bit, kbd_modifiers_t mask)
 
 /* Toggles a keyboard modifier bit */
 static void
-toggle_modifier_bit(kbd_modifiers_t mask) {
+toggle_modifier_bit(kbd_modifiers_t mask) { //for caps
     if (modifiers & mask) {
-        modifiers &= ~mask;
+        modifiers &= ~mask; //if already toggled, turn off
     } else {
         modifiers |= mask;
     }
@@ -147,7 +148,7 @@ process_packet(uint8_t packet)
 {
     /* 1 if key was pressed, 0 if key was released */
     uint8_t status = !(packet & 0x80);
-    uint8_t keycode = packet & 0x7f;
+    uint8_t keycode = packet & 0x7F;
     kbd_modifiers_t mod = keycode_to_modifier(keycode);
     if (mod != KMOD_NONE) {
         /* Key pressed was a modifier */
@@ -174,6 +175,7 @@ process_packet(uint8_t packet)
 void
 keyboard_handle_interrupt(void)
 {
+    cli();
     /*
      * Most significant bit is 1 if the key was released, 0 if pressed.
      * Remaining 7 bits represent the keycode of the character.
@@ -190,4 +192,5 @@ keyboard_handle_interrupt(void)
 
     /* Unmask keyboard interrupts */
     send_eoi(IRQ_KEYBOARD);
+    sti();
 }
