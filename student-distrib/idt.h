@@ -42,7 +42,7 @@ extern exc_info_t exc_info_table[20];
 /* Interrupt registers */
 typedef struct
 {
-    /* Pushed by handle_int_common */
+    /* Pushed by handle_int_thunk_common */
     uint32_t eax;
     uint32_t ebx;
     uint32_t ecx;
@@ -55,8 +55,9 @@ typedef struct
     uint16_t fs;
     uint16_t gs;
 
-    /* Pushed by handle_int_{ID} */
+    /* Pushed by per-interrupt handle_* thunk */
     uint32_t int_num;
+    uint32_t error_code;
 
     /* Pushed automatically by processor */
     uint32_t eip;

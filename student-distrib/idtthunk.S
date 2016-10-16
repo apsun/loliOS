@@ -1,39 +1,46 @@
 #define ASM 1
 #include "idt.h"
 
-/* Laziness is a virtue */
-#define MAKE_INT_HANDLER(name, code) \
-    .globl name;                     \
-    name:                            \
-        pushl $ code;                \
+/* Interrupt handler thunk without error code */
+#define MAKE_THUNK(code, name) \
+    .globl name;                                 \
+    name:                                        \
+        pushl $0; /* Dummy value */              \
+        pushl $ code;                            \
         jmp handle_int_thunk_common
 
+/* Interrupt handler thunk with error code */
+#define MAKE_THUNK_WITH_ERR(code, name)    \
+    .globl name;                                 \
+    name:                                        \
+        pushl $ code;                            \
+        jmp handle_int_thunk_common
 
 .text
 
 /* Generate interrupt handlers */
-MAKE_INT_HANDLER(handle_exc_de, EXC_DE)
-MAKE_INT_HANDLER(handle_exc_db, EXC_DB)
-MAKE_INT_HANDLER(handle_exc_ni, EXC_NI)
-MAKE_INT_HANDLER(handle_exc_bp,	EXC_BP)
-MAKE_INT_HANDLER(handle_exc_of, EXC_OF)
-MAKE_INT_HANDLER(handle_exc_br, EXC_BR)
-MAKE_INT_HANDLER(handle_exc_ud, EXC_UD)
-MAKE_INT_HANDLER(handle_exc_nm, EXC_NM)
-MAKE_INT_HANDLER(handle_exc_df, EXC_DF)
-MAKE_INT_HANDLER(handle_exc_co, EXC_CO)
-MAKE_INT_HANDLER(handle_exc_ts, EXC_TS)
-MAKE_INT_HANDLER(handle_exc_np, EXC_NP)
-MAKE_INT_HANDLER(handle_exc_ss, EXC_SS)
-MAKE_INT_HANDLER(handle_exc_gp, EXC_GP)
-MAKE_INT_HANDLER(handle_exc_pf, EXC_PF)
-MAKE_INT_HANDLER(handle_exc_re, EXC_RE)
-MAKE_INT_HANDLER(handle_exc_mf, EXC_MF)
-MAKE_INT_HANDLER(handle_exc_ac, EXC_AC)
-MAKE_INT_HANDLER(handle_exc_mc, EXC_MC)
-MAKE_INT_HANDLER(handle_exc_xf, EXC_XF)
-MAKE_INT_HANDLER(handle_int_syscall, INT_SYSCALL)
-MAKE_INT_HANDLER(handle_int_unknown, INT_UNKNOWN)
+MAKE_THUNK         (EXC_DE, handle_exc_de)
+MAKE_THUNK         (EXC_DB, handle_exc_db)
+MAKE_THUNK         (EXC_NI, handle_exc_ni)
+MAKE_THUNK         (EXC_BP, handle_exc_bp)
+MAKE_THUNK         (EXC_OF, handle_exc_of)
+MAKE_THUNK         (EXC_BR, handle_exc_br)
+MAKE_THUNK         (EXC_UD, handle_exc_ud)
+MAKE_THUNK         (EXC_NM, handle_exc_nm)
+MAKE_THUNK_WITH_ERR(EXC_DF, handle_exc_df)
+MAKE_THUNK         (EXC_CO, handle_exc_co)
+MAKE_THUNK_WITH_ERR(EXC_TS, handle_exc_ts)
+MAKE_THUNK_WITH_ERR(EXC_NP, handle_exc_np)
+MAKE_THUNK_WITH_ERR(EXC_SS, handle_exc_ss)
+MAKE_THUNK_WITH_ERR(EXC_GP, handle_exc_gp)
+MAKE_THUNK_WITH_ERR(EXC_PF, handle_exc_pf)
+MAKE_THUNK         (EXC_RE, handle_exc_re)
+MAKE_THUNK         (EXC_MF, handle_exc_mf)
+MAKE_THUNK_WITH_ERR(EXC_AC, handle_exc_ac)
+MAKE_THUNK         (EXC_MC, handle_exc_mc)
+MAKE_THUNK         (EXC_XF, handle_exc_xf)
+MAKE_THUNK         (INT_SYSCALL, handle_int_syscall)
+MAKE_THUNK         (INT_UNKNOWN, handle_int_unknown)
 
 /* Common interrupt handler routine */
 handle_int_thunk_common:
@@ -70,8 +77,8 @@ handle_int_thunk_common:
     popw %fs
     popw %gs
 
-    // Pop IRQ vector number
-    addl $4, %esp
+    // Pop IRQ vector number and error code
+    addl $8, %esp
 
     // Return from interrupt
     iret

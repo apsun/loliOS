@@ -2,7 +2,7 @@
 #include "x86_desc.h"
 #include "lib.h"
 
-
+/* Exception info table */
 exc_info_t exc_info_table[20] = {
     {EXC_DE, "Divide Error Exception"},
     {EXC_DB, "Debug Exception"},
@@ -26,18 +26,19 @@ exc_info_t exc_info_table[20] = {
     {EXC_XF, "SIMD Floating-Point Exception"},
 };
 
-
+/* Convenience wrapper around SET_IDT_ENTRY */
 #define WRITE_IDT_ENTRY(i, name)               \
 do {                                           \
     extern void name(void);                    \
     SET_IDT_ENTRY(idt[i], name);               \
 } while (0)
 
-
+/* Prints all interrupt registers */
 void
 dump_registers(int_regs_t *regs)
 {
     printf("int_num: %x                            \n", regs->int_num);
+    printf("error_code: %x                         \n", regs->error_code);
     printf("eax: %x                                \n", regs->eax);
     printf("ebx: %x                                \n", regs->ebx);
     printf("ecx: %x                                \n", regs->ecx);
@@ -56,7 +57,7 @@ dump_registers(int_regs_t *regs)
     printf("ss: %x                                 \n", regs->ss);
 }
 
-
+/* Called when an interrupt occurs */
 void
 handle_interrupt(int_regs_t *regs)
 {
@@ -74,7 +75,7 @@ handle_interrupt(int_regs_t *regs)
     while (1);
 }
 
-
+/* Initializes the IDT */
 void
 idt_init(void)
 {
