@@ -177,13 +177,10 @@ idt_init(void)
     }
 
     /* Handle IRQ1 (keyboard) and IRQ8 (RTC) */
-    desc.dpl = 0;
-    desc.reserved3 = 0;
     WRITE_IDT_ENTRY(INT_IRQ1, handle_int_irq1);
     WRITE_IDT_ENTRY(INT_IRQ8, handle_int_irq8);
 
     /* Initialize syscall interrupt gate */
     idt[INT_SYSCALL].dpl = 3;
-    idt[INT_SYSCALL].reserved3 = 0;
     WRITE_IDT_ENTRY(INT_SYSCALL, handle_int_syscall);
 }

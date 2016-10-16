@@ -52,16 +52,15 @@ static char keycode_map[4][NUM_KEYS] = {
 void
 keyboard_init(void)
 {
-    cli();
     /* Enable keyboard IRQ */
     enable_irq(IRQ_KEYBOARD);
 }
 
 /* Sets a keyboard modifier bit */
 static void
-set_modifier_bit(uint8_t bit, kbd_modifiers_t mask) //for non-caps
+set_modifier_bit(uint8_t bit, kbd_modifiers_t mask)
 {
-    if (bit) { //if pressed
+    if (bit) {
         modifiers |= mask;
     } else {
         modifiers &= ~mask;
@@ -70,12 +69,8 @@ set_modifier_bit(uint8_t bit, kbd_modifiers_t mask) //for non-caps
 
 /* Toggles a keyboard modifier bit */
 static void
-toggle_modifier_bit(kbd_modifiers_t mask) { //for caps
-    if (modifiers & mask) {
-        modifiers &= ~mask; //if already toggled, turn off
-    } else {
-        modifiers |= mask;
-    }
+toggle_modifier_bit(kbd_modifiers_t mask) {
+    modifiers ^= mask;
 }
 
 /*
@@ -85,7 +80,7 @@ toggle_modifier_bit(kbd_modifiers_t mask) { //for caps
 static kbd_modifiers_t
 keycode_to_modifier(uint8_t keycode)
 {
-    switch (keycode & 0x7f) {
+    switch (keycode) {
     case KC_LCTRL:
         return KMOD_LCTRL;
     case KC_RCTRL:
@@ -153,7 +148,7 @@ process_packet(uint8_t packet)
     if (mod != KMOD_NONE) {
         /* Key pressed was a modifier */
         if (mod == KMOD_CAPS) {
-            if (status == 0) {
+            if (status == 1) {
                 debugf("Toggled caps lock\n");
                 toggle_modifier_bit(mod);
             }
@@ -162,11 +157,11 @@ process_packet(uint8_t packet)
             set_modifier_bit(status, mod);
         }
         return '\0';
-    } else if (status == 0) {
-        /* Key released, return keystroke */
+    } else if (status == 1) {
+        /* Key pressed, return keystroke */
         return keycode_to_char(keycode);
     } else {
-        /* We don't handle anything on key down */
+        /* We don't handle anything on key up */
         return '\0';
     }
 }
@@ -175,7 +170,6 @@ process_packet(uint8_t packet)
 void
 keyboard_handle_interrupt(void)
 {
-    cli();
     /*
      * Most significant bit is 1 if the key was released, 0 if pressed.
      * Remaining 7 bits represent the keycode of the character.
@@ -192,5 +186,4 @@ keyboard_handle_interrupt(void)
 
     /* Unmask keyboard interrupts */
     send_eoi(IRQ_KEYBOARD);
-    sti();
 }
