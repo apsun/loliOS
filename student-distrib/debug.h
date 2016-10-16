@@ -6,9 +6,14 @@
 
 #ifndef ASM
 
-/* #define DEBUG */
+/* Set to 1 for debug mode */
+#define DEBUG 0
 
-#ifdef DEBUG
+#ifndef DEBUG
+#define DEBUG 0
+#endif
+
+#if DEBUG
 
 #define ASSERT(EXP)            \
 do {                           \
