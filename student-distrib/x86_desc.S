@@ -1,6 +1,6 @@
-# x86_desc.S - Set up x86 segment descriptors, descriptor tables 
+# x86_desc.S - Set up x86 segment descriptors, descriptor tables
 
-#define ASM     1
+#define ASM 1
 #include "x86_desc.h"
 
 .text
@@ -10,11 +10,9 @@
 .globl  tss, tss_desc_ptr, ldt, ldt_desc_ptr
 .globl  gdt_ptr, gdt_desc_ptr
 .globl  idt_desc_ptr, idt
-
 .globl  page_dir, page_table
 
 .align 4
-
 
 tss_size:
     .long tss_bottom - tss - 1
@@ -41,10 +39,10 @@ _gdt:
 
     # First GDT entry cannot be used
     .quad 0
-    
+
     # NULL entry
     .quad 0
-    
+
     # Segmentation will not be used
     # CS and DS both are 0-4GB r/w segments
     #
@@ -61,7 +59,7 @@ _gdt:
     # | Base 15:0                          | Segment Limit 15:0              |
     # |                                    |                                 |
     # |----------------------------------------------------------------------|
-    
+
 gdt_ptr:
     # Set up an entry for kernel CS
     .quad 0x00CF9A000000FFFF
@@ -85,7 +83,6 @@ ldt_desc_ptr:
 
 gdt_bottom:
 
-/* data for lgdt */
 gdt_desc_ptr:
     .word gdt_bottom - gdt - 1
     .long gdt
@@ -97,12 +94,11 @@ ldt:
     .endr
 ldt_bottom:
 
-.align 4
+    .align 4
     .word 0 # Padding
 idt_desc_ptr:
     .word idt_bottom - idt - 1
     .long idt
-    
 
     .align  16
 idt:
@@ -113,7 +109,6 @@ _idt:
 
 idt_bottom:
 
-/* align on 4kB boundry for page dir table */
     .align 4096
 page_dir:
 _page_dir:
@@ -124,6 +119,6 @@ _page_dir:
     .align 4096
 page_table:
 _page_table:
-    .rept NUM_PDE
+    .rept NUM_PTE
     .long 0
     .endr

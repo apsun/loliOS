@@ -70,4 +70,4 @@ void paging_enable(void);
 
 #endif /* ASM */
 
-#endif /* _PAGE_H */
+#endif /* _PAGING_H */
