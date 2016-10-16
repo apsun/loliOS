@@ -2,7 +2,6 @@
 #include "lib.h"
 #include "debug.h"
 #include "x86_desc.h"
-#include "keyboard.h"
 
 /* Exception info table */
 exc_info_t exc_info_table[20] = {
@@ -77,19 +76,16 @@ handle_syscall(int_regs_t *regs)
     }
 }
 
-/* Keyboard interrupt handler */
+/* IRQ handler */
 static void
-handle_keyboard(int_regs_t *regs)
+handle_irq(int_regs_t *regs)
 {
-    debugf("Keyboard interrupt\n");
-    keyboard_handle_interrupt();
-}
-
-/* RTC interrupt handler */
-static void
-handle_rtc(int_regs_t *regs)
-{
-    debugf("RTC interrupt\n");
+    uint32_t irq_num = regs->int_num - INT_IRQ0;
+    irq_handler_t handler = irq_handlers[irq_num];
+    if (handler.callback != NULL) {
+        handler.callback();
+    }
+    send_eoi(irq_num);
 }
 
 /*
@@ -101,17 +97,37 @@ void
 handle_interrupt(int_regs_t *regs)
 {
     dump_registers(regs);
-    if (regs->int_num == INT_SYSCALL) {
-        handle_syscall(regs);
-    } else if (regs->int_num == INT_IRQ1) {
-        handle_keyboard(regs);
-    } else if (regs->int_num == INT_IRQ8) {
-        handle_rtc(regs);
-    } else if (regs->int_num < NUM_EXC) {
+    if (regs->int_num < NUM_EXC) {
         handle_exception(regs);
+    } else if (regs->int_num >= INT_IRQ0 && regs->int_num <= INT_IRQ15) {
+        handle_irq(regs);
+    } else if (regs->int_num == INT_SYSCALL) {
+        handle_syscall(regs);
     } else {
         debugf("Unknown interrupt: %d\n", regs->int_num);
     }
+}
+
+/*
+ * Registers an IRQ handler.
+ *
+ * Currently only one handler can be registered per IRQ line.
+ */
+void
+register_irq_handler(uint8_t irq_num, void (*callback)(void))
+{
+    irq_handlers[irq_num].callback = callback;
+    enable_irq(irq_num);
+}
+
+/*
+ * Unregisters a IRQ handler.
+ */
+void
+unregister_irq_handler(uint8_t irq_num)
+{
+    disable_irq(irq_num);
+    irq_handlers[irq_num].callback = NULL;
 }
 
 /*

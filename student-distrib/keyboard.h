@@ -2,6 +2,7 @@
 #define _KEYBOARD_H
 
 #include "i8259.h"
+#include "idt.h"
 #include "types.h"
 #include "lib.h"
 
@@ -39,9 +40,6 @@ typedef enum {
 
 /* Initializes keyboard interrupts */
 void keyboard_init(void);
-
-/* Handles a keyboard interrupt */
-void keyboard_handle_interrupt(void);
 
 #endif /* ASM */
 

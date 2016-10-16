@@ -46,10 +46,20 @@
 
 #ifndef ASM
 
+/* IRQ handler */
+typedef struct irq_handler_t
+{
+    /* Callback to run when the interrupt occurs */
+    void (*callback)(void);
+} irq_handler_t;
+
 /* Exception info */
 typedef struct
 {
+    /* Interrupt vector number */
     uint8_t index;
+
+    /* Human-readable description of the exception */
     const char *desc;
 } exc_info_t;
 
@@ -71,6 +81,10 @@ typedef struct
 
     /* Pushed by per-interrupt handle_* thunk */
     uint32_t int_num;
+
+    /* Pushed automatically by processor for some
+     * interrupts, for other ones we manually push
+     * a dummy value (0x0) */
     uint32_t error_code;
 
     /* Pushed automatically by processor */
@@ -84,8 +98,17 @@ typedef struct
 /* Exception info table */
 exc_info_t exc_info_table[20];
 
+/* Array of IRQ handlers */
+irq_handler_t irq_handlers[16];
+
 /* Initializes the IDT */
 void idt_init(void);
+
+/* Registers an IRQ handler. */
+void register_irq_handler(uint8_t irq_num, void (*callback)(void));
+
+/* Unregisters an IRQ handler */
+void unregister_irq_handler(uint8_t irq_num);
 
 /* Interrupt handler routine */
 void handle_interrupt(int_regs_t *regs);

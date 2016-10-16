@@ -48,13 +48,6 @@ static char keycode_map[4][NUM_KEYS] = {
     },
 };
 
-/* Initializes keyboard interrupts */
-void
-keyboard_init(void)
-{
-    /* Enable keyboard IRQ */
-    enable_irq(IRQ_KEYBOARD);
-}
 
 /* Sets a keyboard modifier bit */
 static void
@@ -167,8 +160,8 @@ process_packet(uint8_t packet)
 }
 
 /* Handles keyboard interrupts from the PIC */
-void
-keyboard_handle_interrupt(void)
+static void
+handle_keyboard_irq(void)
 {
     /*
      * Most significant bit is 1 if the key was released, 0 if pressed.
@@ -183,7 +176,12 @@ keyboard_handle_interrupt(void)
     if (print_char != '\0') {
         putc(print_char);
     }
+}
 
-    /* Unmask keyboard interrupts */
-    send_eoi(IRQ_KEYBOARD);
+/* Initializes keyboard interrupts */
+void
+keyboard_init(void)
+{
+    /* Dynamically register keyboard IRQ handler */
+    register_irq_handler(IRQ_KEYBOARD, handle_keyboard_irq);
 }
