@@ -26,6 +26,10 @@ clear(void)
         *(uint8_t *)(video_mem + (i << 1)) = ' ';
         *(uint8_t *)(video_mem + (i << 1) + 1) = ATTRIB;
     }
+
+    /* Reset cursor to top-left position */
+    screen_x = 0;
+    screen_y = 0;
 }
 
 /* Standard printf().

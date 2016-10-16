@@ -38,32 +38,53 @@ do {                                           \
 static void
 dump_registers(int_regs_t *regs)
 {
-    debugf("int_num: 0x%#x              \n", regs->int_num);
-    debugf("error_code: 0x%#x           \n", regs->error_code);
-    debugf("eax: 0x%#x                  \n", regs->eax);
-    debugf("ebx: 0x%#x                  \n", regs->ebx);
-    debugf("ecx: 0x%#x                  \n", regs->ecx);
-    debugf("edx: 0x%#x                  \n", regs->edx);
-    debugf("esi: 0x%#x                  \n", regs->esi);
-    debugf("edi: 0x%#x                  \n", regs->edi);
-    debugf("ebp: 0x%#x                  \n", regs->ebp);
-    debugf("esp: 0x%#x                  \n", regs->esp);
-    debugf("eip: 0x%#x                  \n", regs->eip);
-    debugf("eflags: 0x%#x               \n", regs->eflags);
-    debugf("cs: 0x%#x                   \n", regs->cs);
-    debugf("ds: 0x%#x                   \n", regs->ds);
-    debugf("es: 0x%#x                   \n", regs->es);
-    debugf("fs: 0x%#x                   \n", regs->fs);
-    debugf("gs: 0x%#x                   \n", regs->gs);
-    debugf("ss: 0x%#x                   \n", regs->ss);
+    printf("int_num:    0x%#x\n", regs->int_num);
+    printf("error_code: 0x%#x\n", regs->error_code);
+    printf("eax:        0x%#x\n", regs->eax);
+    printf("ebx:        0x%#x\n", regs->ebx);
+    printf("ecx:        0x%#x\n", regs->ecx);
+    printf("edx:        0x%#x\n", regs->edx);
+    printf("esi:        0x%#x\n", regs->esi);
+    printf("edi:        0x%#x\n", regs->edi);
+    printf("ebp:        0x%#x\n", regs->ebp);
+    printf("esp:        0x%#x\n", regs->esp);
+    printf("eip:        0x%#x\n", regs->eip);
+    printf("eflags:     0x%#x\n", regs->eflags);
+    printf("cs:         0x%#x\n", regs->cs);
+    printf("ds:         0x%#x\n", regs->ds);
+    printf("es:         0x%#x\n", regs->es);
+    printf("fs:         0x%#x\n", regs->fs);
+    printf("gs:         0x%#x\n", regs->gs);
+    printf("ss:         0x%#x\n", regs->ss);
 }
 
 /* Exception handler */
 static void
 handle_exception(int_regs_t *regs)
 {
-    debugf("Exception: %s\n", exc_info_table[regs->int_num].desc);
+    clear();
+    printf("****************************************\n");
+    printf("Exception: %s\n", exc_info_table[regs->int_num].desc);
+    printf("****************************************\n");
+    dump_registers(regs);
     while (1);
+}
+
+/* IRQ handler */
+static void
+handle_irq(int_regs_t *regs)
+{
+    uint32_t irq_num = regs->int_num - INT_IRQ0;
+    irq_handler_t handler = irq_handlers[irq_num];
+    debugf("IRQ interrupt: %d\n", irq_num);
+
+    /* Run callback if it's registered */
+    if (handler.callback != NULL) {
+        handler.callback();
+    }
+
+    /* Clear interrupt flag on PIC */
+    send_eoi(irq_num);
 }
 
 /* Syscall handler */
@@ -76,18 +97,6 @@ handle_syscall(int_regs_t *regs)
     }
 }
 
-/* IRQ handler */
-static void
-handle_irq(int_regs_t *regs)
-{
-    uint32_t irq_num = regs->int_num - INT_IRQ0;
-    irq_handler_t handler = irq_handlers[irq_num];
-    if (handler.callback != NULL) {
-        handler.callback();
-    }
-    send_eoi(irq_num);
-}
-
 /*
  * Called when an interrupt occurs (from idtthunk.S).
  * The registers in regs should not be modified unless
@@ -96,7 +105,6 @@ handle_irq(int_regs_t *regs)
 void
 handle_interrupt(int_regs_t *regs)
 {
-    dump_registers(regs);
     if (regs->int_num < NUM_EXC) {
         handle_exception(regs);
     } else if (regs->int_num >= INT_IRQ0 && regs->int_num <= INT_IRQ15) {
@@ -114,8 +122,9 @@ handle_interrupt(int_regs_t *regs)
  * Currently only one handler can be registered per IRQ line.
  */
 void
-register_irq_handler(uint8_t irq_num, void (*callback)(void))
+register_irq_handler(uint32_t irq_num, void (*callback)(void))
 {
+    ASSERT(irq_num >= 0 && irq_num < 16);
     irq_handlers[irq_num].callback = callback;
     enable_irq(irq_num);
 }
@@ -124,8 +133,9 @@ register_irq_handler(uint8_t irq_num, void (*callback)(void))
  * Unregisters a IRQ handler.
  */
 void
-unregister_irq_handler(uint8_t irq_num)
+unregister_irq_handler(uint32_t irq_num)
 {
+    ASSERT(irq_num >= 0 && irq_num < 16);
     disable_irq(irq_num);
     irq_handlers[irq_num].callback = NULL;
 }
@@ -192,9 +202,23 @@ idt_init(void)
         WRITE_IDT_ENTRY(i, handle_int_unknown);
     }
 
-    /* Handle IRQ1 (keyboard) and IRQ8 (RTC) */
+    /* Initialize IRQ interrupt gates */
+    WRITE_IDT_ENTRY(INT_IRQ0, handle_int_irq0);
     WRITE_IDT_ENTRY(INT_IRQ1, handle_int_irq1);
+    WRITE_IDT_ENTRY(INT_IRQ2, handle_int_irq2);
+    WRITE_IDT_ENTRY(INT_IRQ3, handle_int_irq3);
+    WRITE_IDT_ENTRY(INT_IRQ4, handle_int_irq4);
+    WRITE_IDT_ENTRY(INT_IRQ5, handle_int_irq5);
+    WRITE_IDT_ENTRY(INT_IRQ6, handle_int_irq6);
+    WRITE_IDT_ENTRY(INT_IRQ7, handle_int_irq7);
     WRITE_IDT_ENTRY(INT_IRQ8, handle_int_irq8);
+    WRITE_IDT_ENTRY(INT_IRQ9, handle_int_irq9);
+    WRITE_IDT_ENTRY(INT_IRQ10, handle_int_irq10);
+    WRITE_IDT_ENTRY(INT_IRQ11, handle_int_irq11);
+    WRITE_IDT_ENTRY(INT_IRQ12, handle_int_irq12);
+    WRITE_IDT_ENTRY(INT_IRQ13, handle_int_irq13);
+    WRITE_IDT_ENTRY(INT_IRQ14, handle_int_irq14);
+    WRITE_IDT_ENTRY(INT_IRQ15, handle_int_irq15);
 
     /* Initialize syscall interrupt gate */
     idt[INT_SYSCALL].dpl = 3;

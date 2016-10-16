@@ -105,10 +105,10 @@ irq_handler_t irq_handlers[16];
 void idt_init(void);
 
 /* Registers an IRQ handler. */
-void register_irq_handler(uint8_t irq_num, void (*callback)(void));
+void register_irq_handler(uint32_t irq_num, void (*callback)(void));
 
 /* Unregisters an IRQ handler */
-void unregister_irq_handler(uint8_t irq_num);
+void unregister_irq_handler(uint32_t irq_num);
 
 /* Interrupt handler routine */
 void handle_interrupt(int_regs_t *regs);

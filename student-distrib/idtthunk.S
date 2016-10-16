@@ -39,8 +39,22 @@ MAKE_THUNK         (EXC_MF, handle_exc_mf)
 MAKE_THUNK_WITH_ERR(EXC_AC, handle_exc_ac)
 MAKE_THUNK         (EXC_MC, handle_exc_mc)
 MAKE_THUNK         (EXC_XF, handle_exc_xf)
+MAKE_THUNK         (INT_IRQ0, handle_int_irq0)
 MAKE_THUNK         (INT_IRQ1, handle_int_irq1)
+MAKE_THUNK         (INT_IRQ2, handle_int_irq2)
+MAKE_THUNK         (INT_IRQ3, handle_int_irq3)
+MAKE_THUNK         (INT_IRQ4, handle_int_irq4)
+MAKE_THUNK         (INT_IRQ5, handle_int_irq5)
+MAKE_THUNK         (INT_IRQ6, handle_int_irq6)
+MAKE_THUNK         (INT_IRQ7, handle_int_irq7)
 MAKE_THUNK         (INT_IRQ8, handle_int_irq8)
+MAKE_THUNK         (INT_IRQ9, handle_int_irq9)
+MAKE_THUNK         (INT_IRQ10, handle_int_irq10)
+MAKE_THUNK         (INT_IRQ11, handle_int_irq11)
+MAKE_THUNK         (INT_IRQ12, handle_int_irq12)
+MAKE_THUNK         (INT_IRQ13, handle_int_irq13)
+MAKE_THUNK         (INT_IRQ14, handle_int_irq14)
+MAKE_THUNK         (INT_IRQ15, handle_int_irq15)
 MAKE_THUNK         (INT_SYSCALL, handle_int_syscall)
 MAKE_THUNK         (INT_UNKNOWN, handle_int_unknown)
 
@@ -63,9 +77,7 @@ handle_int_thunk_common:
     pushl %ebx
     pushl %eax
 
-    /*
-     * Call the actual interrupt handler routine.
-     */
+    /* Call the actual interrupt handler routine */
     pushl %esp
     call handle_interrupt
     addl $4, %esp
