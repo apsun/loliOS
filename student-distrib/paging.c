@@ -87,9 +87,10 @@ paging_enable(void)
         /* Enable caching of page directory */
         /* Enable write-back caching */
         "movl $page_dir, %%eax;"
-        "andl $0xffffffe7, %%eax;"
+        "movl %%cr3, %%ecx;"
+        "andl $0x00000fe7, %%ecx;"
+        "orl  %%ecx, %%eax;"
         "movl %%eax, %%cr3;"
-
         /* Enable 4MB pages */
         "movl %%cr4, %%eax;"
         "orl $0x00000010, %%eax;"
@@ -101,5 +102,5 @@ paging_enable(void)
         "movl %%eax, %%cr0;"
         :
         :
-        : "eax", "cc");
+        : "eax", "ecx", "cc");
 }
