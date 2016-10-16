@@ -91,18 +91,19 @@ entry (unsigned long magic, unsigned long addr)
 
         printf ("mmap_addr = 0x%#x, mmap_length = 0x%x\n",
                 (unsigned) mbi->mmap_addr, (unsigned) mbi->mmap_length);
-        for (mmap = (memory_map_t *) mbi->mmap_addr;
-                (unsigned long) mmap < mbi->mmap_addr + mbi->mmap_length;
-                mmap = (memory_map_t *) ((unsigned long) mmap
-                    + mmap->size + sizeof (mmap->size)))
-            printf (" size = 0x%x,     base_addr = 0x%#x%#x\n"
-                    "     type = 0x%x,  length    = 0x%#x%#x\n",
-                    (unsigned) mmap->size,
-                    (unsigned) mmap->base_addr_high,
-                    (unsigned) mmap->base_addr_low,
-                    (unsigned) mmap->type,
-                    (unsigned) mmap->length_high,
-                    (unsigned) mmap->length_low);
+        // for (mmap = (memory_map_t *) mbi->mmap_addr;
+        //         (unsigned long) mmap < mbi->mmap_addr + mbi->mmap_length;
+        //         mmap = (memory_map_t *) ((unsigned long) mmap
+        //             + mmap->size + sizeof (mmap->size)))
+        //     printf (" size = 0x%x,     base_addr = 0x%#x%#x\n"
+        //             "     type = 0x%x,  length    = 0x%#x%#x\n",
+        //             (unsigned) mmap->size,
+        //             (unsigned) mmap->base_addr_high,
+        //             (unsigned) mmap->base_addr_low,
+        //             (unsigned) mmap->type,
+        //             (unsigned) mmap->length_high,
+        //             (unsigned) mmap->length_low);
+
     }
 
     /* Construct an LDT entry in the GDT */
@@ -157,9 +158,12 @@ entry (unsigned long magic, unsigned long addr)
     /* Init IDT */
     idt_init();
 
+    
+
     /* Init page */
     printf("Enabling Paging\n");
     page_init();
+
 
     /* Enable interrupts */
     /* Do not enable the following until after you have set up your
@@ -167,6 +171,17 @@ entry (unsigned long magic, unsigned long addr)
      * without showing you any output */
     printf("Enabling Interrupts\n");
     sti();
+
+    // printf("%d\n",1/0);
+    printf("Dereferencing 0x00500000\n");
+    uint32_t * test_addr = 0x00500000;
+    uint32_t number = *test_addr;
+    printf("d\n",number);
+    printf("Dereferencing 0x80000000\n");
+    test_addr = 0x80000000;
+    number = *test_addr;
+    printf("d\n",number);
+    // asm volatile("movl %%eax, 0x80000000;" : : :"eax");
 
     /* Execute the first program (`shell') ... */
 

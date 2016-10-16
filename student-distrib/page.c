@@ -28,13 +28,13 @@ void page_init(void)
 		| 31 			    12 | 11  		0 |
 		| 20 bits 			   | 12 bits	  |
 		| 11111111111111111111 | 000000000000 |
-		| 0xfff 			   | 0x000 		  |
+		| 0xfffff 			   | 0x000 		  |
 	 */
 	pdek_ptr->base_addr = (page_table & 0xfffff000) >> 12;
 	
 	/* pde_ptr now points to the second entry of pdt */
 	/* 4 is the size of one entry of page directory entry */
-	pdem_t * pdem_ptr = (pdem_t *) (pdt_ptr + 4);
+	pdem_t * pdem_ptr = (pdem_t *) (pdt_ptr + 1);
 	pdem_ptr->present = 1;
 	pdem_ptr->write = 1;
 	pdem_ptr->user = 0;
@@ -53,8 +53,9 @@ void page_init(void)
 	uint32_t * pt_ptr = (uint32_t *) page_table;
 	for (i = 0; i < NUM_PTE; ++i)
 	{
-		/* not present in memory */
-		pt_ptr[i] = 0;
+		/* not present in memory and write to 1 */
+		pt_ptr[i] = 0x2;
+		pt_ptr[i] |= (i << 12);
 	}
 	
 	uint32_t video_mem_idx = VIDEO >> 12; /* most significant 10 bit is 0 for this addr */
@@ -71,16 +72,17 @@ void page_init(void)
 	video_mem_ptr->avail = 0;
 	video_mem_ptr->base_addr = video_mem_idx; /* addr = video_mem >> 12 */
 
+	/* enable paging */
 	asm volatile(
+		"movl $page_dir_table, %%eax;"
+		"andl 0xffffffe7,%%eax;"
+		"movl %%eax, %%cr3;"
 		"movl %%cr0, %%eax;"
 		"orl 0x80000000, %%eax;"
 		"movl %%eax, %%cr0;"
 		"movl %%cr4, %%eax;"
 		"orl 0x00000010, %%eax;"
-		"movl %%eax, %%cr4;"
-		"movl $page_dir_table, %%eax;"
-		"andl 0xffffffe7,%%eax;"
-		"movl %%eax, %%cr3;"
+		"movl %%eax, %%cr4;"		
 		: 
 		: 
 		: "eax", "cc");
