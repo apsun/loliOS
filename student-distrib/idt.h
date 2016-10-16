@@ -2,6 +2,7 @@
 #define _IDT_H
 
 #include "types.h"
+#include "i8259.h"
 
 /* Interrupt codes */
 #define EXC_DE 0
@@ -24,8 +25,9 @@
 #define EXC_AC 17
 #define EXC_MC 18
 #define EXC_XF 19
-#define INT_KEYBOARD 0x21
-#define INT_RTC 0x28
+#define INT_IRQ 0x20
+#define INT_KEYBOARD (INT_IRQ + IRQ_KEYBOARD)
+#define INT_RTC (INT_IRQ + IRQ_RTC)
 #define INT_SYSCALL 0x80
 #define INT_UNKNOWN -1
 

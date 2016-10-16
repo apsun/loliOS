@@ -4,20 +4,14 @@
 #include "i8259.h"
 #include "lib.h"
 
-/* Constant for masking all interrupts */
-#define MASK_ALL 0xf
-
-/* Index of slave on master PIC */
-#define SLAVE_IRQ_INDEX 2
-
 /*
  * Interrupt masks to determine which interrupts
- * are enabled and disabled. Master always has
- * IRQ line 2 enabled since that controls the
- * slave PIC.
+ * are enabled and disabled. Master always has the
+ * slave IRQ line enabled since we treat the slave
+ * as part of the master PIC.
  */
-uint8_t master_mask = MASK_ALL & ~(1 << SLAVE_IRQ_INDEX);
-uint8_t slave_mask  = MASK_ALL;
+static uint8_t master_mask = MASK_ALL & ~(1 << IRQ_SLAVE);
+static uint8_t slave_mask  = MASK_ALL;
 
 /* Initializes the 8259 PIC */
 void
@@ -81,6 +75,6 @@ send_eoi(uint32_t irq_num)
     } else if (irq_num >= 8 && irq_num < 16) {
         uint32_t slave_irq_num = irq_num - 8;
         outb(slave_irq_num | EOI, SLAVE_8259_PORT_CMD);
-        outb(SLAVE_IRQ_INDEX | EOI, MASTER_8259_PORT_CMD);
+        outb(IRQ_SLAVE | EOI, MASTER_8259_PORT_CMD);
     }
 }

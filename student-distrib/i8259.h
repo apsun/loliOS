@@ -26,15 +26,19 @@
 /* Constant for masking all interrupts */
 #define MASK_ALL 0xff
 
-/* Index of slave on master PIC */
-#define SLAVE_IRQ_INDEX 2
+/* IRQ constants */
+#define IRQ_KEYBOARD 1
+#define IRQ_SLAVE    2
+#define IRQ_RTC      8
 
 /* End-of-interrupt byte.  This gets OR'd with
  * the interrupt number and sent out to the PIC
  * to declare the interrupt finished */
-#define EOI           0x60
+#define EOI 0x60
 
 /* Externally-visible functions */
+
+#ifndef ASM
 
 /* Initialize both PICs */
 void i8259_init(void);
@@ -47,5 +51,7 @@ void disable_irq(uint32_t irq_num);
 
 /* Send end-of-interrupt signal for the specified IRQ */
 void send_eoi(uint32_t irq_num);
+
+#endif /* ASM */
 
 #endif /* _I8259_H */
