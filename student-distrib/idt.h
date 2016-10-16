@@ -1,5 +1,5 @@
-#ifndef IDT_H
-#define IDT_H
+#ifndef _IDT_H
+#define _IDT_H
 
 #include "types.h"
 
@@ -24,6 +24,8 @@
 #define EXC_AC 17
 #define EXC_MC 18
 #define EXC_XF 19
+#define INT_KEYBOARD 0x21
+#define INT_RTC 0x28
 #define INT_SYSCALL 0x80
 #define INT_UNKNOWN -1
 
@@ -35,9 +37,6 @@ typedef struct
     uint8_t index;
     const char *desc;
 } exc_info_t;
-
-/* Exception info table */
-extern exc_info_t exc_info_table[20];
 
 /* Interrupt registers */
 typedef struct
@@ -67,11 +66,15 @@ typedef struct
     uint16_t ss;
 } int_regs_t;
 
+/* Exception info table */
+exc_info_t exc_info_table[20];
+
 /* Initializes the IDT */
-extern void idt_init(void);
+void idt_init(void);
 
-/* Interrupt handler */
-extern void handle_interrupt(int_regs_t *regs);
+/* Interrupt handler routine */
+void handle_interrupt(int_regs_t *regs);
 
-#endif
-#endif
+#endif /* ASM */
+
+#endif /* _IDT_H */

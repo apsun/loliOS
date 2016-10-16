@@ -34,12 +34,12 @@ static inline uint32_t inb(port)
 {
     uint32_t val;
     asm volatile("xorl %0, %0\n \
-            inb   (%w1), %b0" 
+            inb   (%w1), %b0"
             : "=a"(val)
             : "d"(port)
             : "memory" );
     return val;
-} 
+}
 
 /* Reads two bytes from two consecutive ports, starting at "port",
  * concatenates them little-endian style, and returns them zero-extended

@@ -4,35 +4,42 @@
 #include "i8259.h"
 #include "lib.h"
 
-#define MASK_ALL 0xff
+/* Constant for masking all interrupts */
+#define MASK_ALL 0xf
+
+/* Index of slave on master PIC */
 #define SLAVE_IRQ_INDEX 2
 
-/* Interrupt masks to determine which interrupts
- * are enabled and disabled */
-uint8_t master_mask = MASK_ALL & ~(1 << 2); /* IRQs 0-7 */
-uint8_t slave_mask  = MASK_ALL;             /* IRQs 8-15 */
+/*
+ * Interrupt masks to determine which interrupts
+ * are enabled and disabled. Master always has
+ * IRQ line 2 enabled since that controls the
+ * slave PIC.
+ */
+uint8_t master_mask = MASK_ALL & ~(1 << SLAVE_IRQ_INDEX);
+uint8_t slave_mask  = MASK_ALL;
 
-/* Initialize the 8259 PIC */
+/* Initializes the 8259 PIC */
 void
 i8259_init(void)
 {
-    /* mask interrupts */
+    /* Mask interrupts */
     outb(MASK_ALL, MASTER_8259_PORT_DATA);
     outb(MASK_ALL, SLAVE_8259_PORT_DATA);
 
-    /* init master PIC */
+    /* Init master PIC */
     outb(ICW1,        MASTER_8259_PORT_CMD);
     outb(ICW2_MASTER, MASTER_8259_PORT_DATA);
     outb(ICW3_MASTER, MASTER_8259_PORT_DATA);
     outb(ICW4,        MASTER_8259_PORT_DATA);
 
-    /* init slave PIC */
+    /* Init slave PIC */
     outb(ICW1,       SLAVE_8259_PORT_CMD);
     outb(ICW2_SLAVE, SLAVE_8259_PORT_DATA);
     outb(ICW3_SLAVE, SLAVE_8259_PORT_DATA);
     outb(ICW4,       SLAVE_8259_PORT_DATA);
 
-    /* unmask interrupts */
+    /* Unmask interrupts */
     outb(master_mask, MASTER_8259_PORT_DATA);
     outb(slave_mask,  SLAVE_8259_PORT_DATA);
 }

@@ -23,6 +23,12 @@
 #define ICW3_SLAVE    0x02
 #define ICW4          0x01
 
+/* Constant for masking all interrupts */
+#define MASK_ALL 0xff
+
+/* Index of slave on master PIC */
+#define SLAVE_IRQ_INDEX 2
+
 /* End-of-interrupt byte.  This gets OR'd with
  * the interrupt number and sent out to the PIC
  * to declare the interrupt finished */
@@ -32,10 +38,13 @@
 
 /* Initialize both PICs */
 void i8259_init(void);
+
 /* Enable (unmask) the specified IRQ */
 void enable_irq(uint32_t irq_num);
+
 /* Disable (mask) the specified IRQ */
 void disable_irq(uint32_t irq_num);
+
 /* Send end-of-interrupt signal for the specified IRQ */
 void send_eoi(uint32_t irq_num);
 

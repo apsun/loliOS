@@ -2,7 +2,7 @@
 #include "idt.h"
 
 /* Interrupt handler thunk without error code */
-#define MAKE_THUNK(code, name) \
+#define MAKE_THUNK(code, name)                   \
     .globl name;                                 \
     name:                                        \
         pushl $0; /* Dummy value */              \
@@ -10,7 +10,7 @@
         jmp handle_int_thunk_common
 
 /* Interrupt handler thunk with error code */
-#define MAKE_THUNK_WITH_ERR(code, name)    \
+#define MAKE_THUNK_WITH_ERR(code, name)          \
     .globl name;                                 \
     name:                                        \
         pushl $ code;                            \
@@ -44,7 +44,11 @@ MAKE_THUNK         (INT_UNKNOWN, handle_int_unknown)
 
 /* Common interrupt handler routine */
 handle_int_thunk_common:
-    // Save all registers
+    /*
+     * Save all registers. The order must correspond to the
+     * ordering in int_regs_t, since the stack is interpreted
+     * as an instance of that struct.
+     */
     pushw %gs
     pushw %fs
     pushw %es
@@ -57,14 +61,14 @@ handle_int_thunk_common:
     pushl %ebx
     pushl %eax
 
-    // Call C interrupt handler, the stack is reinterpreted
-    // as an instance of int_regs_t (so do not change the
-    // ordering of either one!)
+    /*
+     * Call the actual interrupt handler routine.
+     */
     pushl %esp
     call handle_interrupt
     addl $4, %esp
 
-    // Restore all registers
+    /* Restore all registers */
     popl %eax
     popl %ebx
     popl %ecx
@@ -77,8 +81,8 @@ handle_int_thunk_common:
     popw %fs
     popw %gs
 
-    // Pop IRQ vector number and error code
+    /* Pop IRQ vector number and error code */
     addl $8, %esp
 
-    // Return from interrupt
+    /* Return from interrupt */
     iret
