@@ -7,6 +7,7 @@
 #include "i8259.h"
 #include "debug.h"
 #include "idt.h"
+#include "keyboard.h"
 
 /* Macros. */
 /* Check if the bit BIT in FLAGS is set. */
@@ -149,6 +150,8 @@ entry (unsigned long magic, unsigned long addr)
 
     /* Initialize devices, memory, filesystem, enable device interrupts on the
      * PIC, any other initialization stuff... */
+    keyboard_init();
+    /* rtc_init(); */
 
     /* Init IDT */
     idt_init();

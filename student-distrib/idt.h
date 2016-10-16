@@ -25,9 +25,22 @@
 #define EXC_AC 17
 #define EXC_MC 18
 #define EXC_XF 19
-#define INT_IRQ 0x20
-#define INT_KEYBOARD (INT_IRQ + IRQ_KEYBOARD)
-#define INT_RTC (INT_IRQ + IRQ_RTC)
+#define INT_IRQ0 0x20
+#define INT_IRQ1 0x21
+#define INT_IRQ2 0x22
+#define INT_IRQ3 0x23
+#define INT_IRQ4 0x24
+#define INT_IRQ5 0x25
+#define INT_IRQ6 0x26
+#define INT_IRQ7 0x27
+#define INT_IRQ8 0x28
+#define INT_IRQ9 0x29
+#define INT_IRQ10 0x2A
+#define INT_IRQ11 0x2B
+#define INT_IRQ12 0x2C
+#define INT_IRQ13 0x2D
+#define INT_IRQ14 0x2E
+#define INT_IRQ15 0x2F
 #define INT_SYSCALL 0x80
 #define INT_UNKNOWN -1
 

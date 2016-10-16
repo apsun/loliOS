@@ -1,79 +1,193 @@
 /*
-* keyboard input handler
-* "Copyright (c) 2016 by Emre Ulusoy."
-*/
+ * keyboard input handler
+ * "Copyright (c) 2016 by Emre Ulusoy."
+ */
+
 #include "keyboard.h"
+#include "debug.h"
 
-int caps_flag;  //both are binary
-int shift_flag;
+/* Current pressed/toggled modifier key state */
+static kbd_modifiers_t modifiers;
 
-char keyboard_reference[232] = { //58 each
-	'\0', '\0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=',
-	'\b', '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']',
-	'\n', '\0', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`',
-	'\0', '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', '\0', '*',
-	'\0', ' ',
-	'\0', '\0', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', //shift
-	'\b', '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}',
-	'\n', '\0', 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~',
-	'\0', '|', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', '\0', '*',
-	'\0', ' ',
-	'\0', '\0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', //caps
-	'\b', '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '[', ']',
-	'\n', '\0', 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ';', '\'', '`',
-	'\0', '\\', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', ',', '.', '/', '\0', '*',
-	'\0', ' ',
-	'\0', '\0', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', //shift and caps
-	'\b', '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '{', '}',
-	'\n', '\0', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ':', '"', '~',
-	'\0', '|', 'z', 'x', 'c', 'v', 'b', 'n', 'm', '<', '>', '?', '\0', '*',
-	'\0', ' ',
+/* Maps keycode values to printable characters */
+static char keycode_map[4][NUM_KEYS] = {
+    /* Neutral */
+    {
+        '\0', '\0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=',
+        '\b', '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']',
+        '\n', '\0', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`',
+        '\0', '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', '\0', '*',
+        '\0', ' ',
+    },
+
+    /* Shift */
+    {
+        '\0', '\0', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+',
+        '\b', '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}',
+        '\n', '\0', 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~',
+        '\0', '|', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', '\0', '*',
+        '\0', ' ',
+    },
+
+    /* Caps */
+    {
+        '\0', '\0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=',
+        '\b', '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '[', ']',
+        '\n', '\0', 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ';', '\'', '`',
+        '\0', '\\', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', ',', '.', '/', '\0', '*',
+        '\0', ' ',
+    },
+
+    /* Shift and caps */
+    {
+        '\0', '\0', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+',
+        '\b', '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '{', '}',
+        '\n', '\0', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ':', '"', '~',
+        '\0', '|', 'z', 'x', 'c', 'v', 'b', 'n', 'm', '<', '>', '?', '\0', '*',
+        '\0', ' ',
+    },
 };
 
-void keyboard_init(){
-	//or use cli() ??
-	enable_irq(1); //should match a previous disable_irq
-	//not really because cli() already disabled interrupts for ALL processors
-	// we enabled line 1 (maybe fix magic #)
+/* Initializes keyboard interrupts */
+void
+keyboard_init(void)
+{
+    /* Enable keyboard IRQ */
+    enable_irq(IRQ_KEYBOARD);
 }
 
-void keyboard_input_handler(){
-	/* Clear interrupt flag - disables interrupts on this processor */
-	cli();
-	
-	int print_char = '\0';
-	int input = inb(KEYBOARD_PORT);
-	if(input == '\0')
-		return;
-	if(input > 58){
-		printf("Out of range.\n");
-		return;
-	}
-	switch(input){
-		case ESC:
-			printf("Successfully escaped!\n");
-			break;
-		//case BACKSPACE:
+/* Sets a keyboard modifier bit */
+static void
+set_modifier_bit(uint8_t bit, kbd_modifiers_t mask)
+{
+    if (bit) {
+        modifiers |= mask;
+    } else {
+        modifiers &= ~mask;
+    }
+}
 
-		//case TAB: //    '\t' means tab
+/* Toggles a keyboard modifier bit */
+static void
+toggle_modifier_bit(kbd_modifiers_t mask) {
+    if (modifiers & mask) {
+        modifiers &= ~mask;
+    } else {
+        modifiers |= mask;
+    }
+}
 
-		//case ENTER:
+/*
+ * Maps a keycode to a modifier key.
+ * Returns KMOD_NONE if the keycode is not a modifier.
+ */
+static kbd_modifiers_t
+keycode_to_modifier(uint8_t keycode)
+{
+    switch (keycode & 0x7f) {
+    case KC_LCTRL:
+        return KMOD_LCTRL;
+    case KC_RCTRL:
+        return KMOD_RCTRL;
+    case KC_LSHIFT:
+        return KMOD_LSHIFT;
+    case KC_RSHIFT:
+        return KMOD_RSHIFT;
+    case KC_LALT:
+        return KMOD_LALT;
+    case KC_RALT:
+        return KMOD_RALT;
+    case KC_CAPS_LOCK:
+        return KMOD_CAPS;
+    default:
+        return KMOD_NONE;
+    }
+}
 
-		//case LCTRL:
-		//case RCTRL:
+/*
+ * Maps a keycode to a printable character.
+ * Returns '\0' if the key is not printable.
+ */
+static uint8_t
+keycode_to_char(uint8_t keycode)
+{
+    /* Check if the keycode was out of range */
+    if (keycode >= NUM_KEYS) {
+        return '\0';
+    }
 
-		case LSHIFT:
-		case RSHIFT:
-			shift_flag = ~shift_flag;
-		//case SPACE:
+    /* Map the keycode to the appropriate character */
+    switch ((int)modifiers) {
+    case KMOD_NONE:
+        return keycode_map[0][keycode];
+    case KMOD_LSHIFT:
+    case KMOD_RSHIFT:
+    case KMOD_SHIFT:
+        return keycode_map[1][keycode];
+    case KMOD_CAPS:
+        return keycode_map[2][keycode];
+    case KMOD_CAPS | KMOD_LSHIFT:
+    case KMOD_CAPS | KMOD_RSHIFT:
+    case KMOD_CAPS | KMOD_SHIFT:
+        return keycode_map[3][keycode];
+    default:
+        /* Unhandled modifier combination */
+        debugf("Unknown keycode: %x\n", keycode);
+        return '\0';
+    }
+}
 
-		case CAPS_LOCK:
-			~caps_flag;
-		default:
-			print_char = keyboard_reference[input + (shift_flag*SHIFT_OFF) + (caps_flag*CAPS_OFF)];
+/*
+ * Processes a keyboard packet. Returns the printable character
+ * corresponding to the packet (taking into consideration the
+ * current modifier state), or '\0' if the key cannot be printed.
+ */
+static uint8_t
+process_packet(uint8_t packet)
+{
+    /* 1 if key was pressed, 0 if key was released */
+    uint8_t status = !(packet & 0x80);
+    uint8_t keycode = packet & 0x7f;
+    kbd_modifiers_t mod = keycode_to_modifier(keycode);
+    if (mod != KMOD_NONE) {
+        /* Key pressed was a modifier */
+        if (mod == KMOD_CAPS) {
+            if (status == 0) {
+                debugf("Toggled caps lock\n");
+                toggle_modifier_bit(mod);
+            }
+        } else {
+            debugf("Set modifier %x -> %d\n", mod, status);
+            set_modifier_bit(status, mod);
+        }
+        return '\0';
+    } else if (status == 0) {
+        /* Key released, return keystroke */
+        return keycode_to_char(keycode);
+    } else {
+        /* We don't handle anything on key down */
+        return '\0';
+    }
+}
 
-	}
-	send_eoi(1);
-	sti();
-	//asm??
+/* Handles keyboard interrupts from the PIC */
+void
+keyboard_handle_interrupt(void)
+{
+    /*
+     * Most significant bit is 1 if the key was released, 0 if pressed.
+     * Remaining 7 bits represent the keycode of the character.
+     */
+    uint8_t packet = inb(KEYBOARD_PORT);
+
+    /* Process packet, updating internal state if necessary */
+    uint8_t print_char = process_packet(packet);
+
+    /* Echo character to screen if it's printable */
+    if (print_char != '\0') {
+        putc(print_char);
+    }
+
+    /* Unmask keyboard interrupts */
+    send_eoi(IRQ_KEYBOARD);
 }

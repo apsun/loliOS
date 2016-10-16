@@ -6,6 +6,8 @@
 
 #ifndef ASM
 
+/* #define DEBUG */
+
 #ifdef DEBUG
 
 #define ASSERT(EXP)            \

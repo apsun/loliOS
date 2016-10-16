@@ -2,6 +2,7 @@
 #include "lib.h"
 #include "debug.h"
 #include "x86_desc.h"
+#include "keyboard.h"
 
 /* Exception info table */
 exc_info_t exc_info_table[20] = {
@@ -35,7 +36,7 @@ do {                                           \
 } while (0)
 
 /* Prints all interrupt registers */
-void
+static void
 dump_registers(int_regs_t *regs)
 {
     debugf("int_num: %x                            \n", regs->int_num);
@@ -81,6 +82,7 @@ static void
 handle_keyboard(int_regs_t *regs)
 {
     debugf("Keyboard interrupt\n");
+    keyboard_handle_interrupt();
 }
 
 /* RTC interrupt handler */
@@ -101,9 +103,9 @@ handle_interrupt(int_regs_t *regs)
     dump_registers(regs);
     if (regs->int_num == INT_SYSCALL) {
         handle_syscall(regs);
-    } else if (regs->int_num == INT_KEYBOARD) {
+    } else if (regs->int_num == INT_IRQ1) {
         handle_keyboard(regs);
-    } else if (regs->int_num == INT_RTC) {
+    } else if (regs->int_num == INT_IRQ8) {
         handle_rtc(regs);
     } else if (regs->int_num < NUM_EXC) {
         handle_exception(regs);
@@ -138,6 +140,7 @@ idt_init(void)
     lidt(idt_desc_ptr);
 
     /* Initialize exception (trap) gates */
+    desc.dpl = 0;
     desc.reserved3 = 1;
     for (i = 0; i < NUM_EXC; ++i) {
         idt[i] = desc;
@@ -166,11 +169,18 @@ idt_init(void)
     WRITE_IDT_ENTRY(EXC_XF, handle_exc_xf);
 
     /* Initialize interrupt gates */
+    desc.dpl = 0;
     desc.reserved3 = 0;
     for (; i < NUM_VEC; ++i) {
         idt[i] = desc;
         WRITE_IDT_ENTRY(i, handle_int_unknown);
     }
+
+    /* Handle IRQ1 (keyboard) and IRQ8 (RTC) */
+    desc.dpl = 0;
+    desc.reserved3 = 0;
+    WRITE_IDT_ENTRY(INT_IRQ1, handle_int_irq1);
+    WRITE_IDT_ENTRY(INT_IRQ8, handle_int_irq8);
 
     /* Initialize syscall interrupt gate */
     idt[INT_SYSCALL].dpl = 3;

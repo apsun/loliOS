@@ -39,6 +39,8 @@ MAKE_THUNK         (EXC_MF, handle_exc_mf)
 MAKE_THUNK_WITH_ERR(EXC_AC, handle_exc_ac)
 MAKE_THUNK         (EXC_MC, handle_exc_mc)
 MAKE_THUNK         (EXC_XF, handle_exc_xf)
+MAKE_THUNK         (INT_IRQ1, handle_int_irq1)
+MAKE_THUNK         (INT_IRQ8, handle_int_irq8)
 MAKE_THUNK         (INT_SYSCALL, handle_int_syscall)
 MAKE_THUNK         (INT_UNKNOWN, handle_int_unknown)
 
