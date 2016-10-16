@@ -15,6 +15,11 @@
 #define KERNEL_TSS 0x0030
 #define KERNEL_LDT 0x0038
 
+/* number of entries in page directory */
+#define NUM_PDE 1024
+/* number of entries in page table */
+#define NUM_PTE 1024
+
 /* Size of the task state segment (TSS) */
 #define TSS_SIZE 104
 
@@ -125,6 +130,9 @@ extern uint32_t ldt;
 extern uint32_t tss_size;
 extern seg_desc_t tss_desc_ptr;
 extern tss_t tss;
+
+extern uint32_t page_dir_table;
+extern uint32_t page_table;
 
 /* Sets runtime-settable parameters in the GDT entry for the LDT */
 #define SET_LDT_PARAMS(str, addr, lim) \

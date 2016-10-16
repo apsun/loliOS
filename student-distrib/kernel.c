@@ -8,6 +8,7 @@
 #include "debug.h"
 #include "idt.h"
 #include "keyboard.h"
+#include "page.h"
 
 /* Macros. */
 /* Check if the bit BIT in FLAGS is set. */
@@ -155,6 +156,10 @@ entry (unsigned long magic, unsigned long addr)
 
     /* Init IDT */
     idt_init();
+
+    /* Init page */
+    printf("Enabling Paging\n");
+    page_init();
 
     /* Enable interrupts */
     /* Do not enable the following until after you have set up your
