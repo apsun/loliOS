@@ -144,6 +144,9 @@ keycode_to_input(uint8_t keycode)
     case KMOD_LCTRL:
     case KMOD_RCTRL:
     case KMOD_CTRL:
+    case KMOD_CAPS | KMOD_LCTRL:
+    case KMOD_CAPS | KMOD_RCTRL:
+    case KMOD_CAPS | KMOD_CTRL:
         input.type = KTYP_CTRL;
         input.value.control = keycode_to_ctrl(keycode);
         break;
@@ -202,7 +205,7 @@ send_keyboard_ctrl(kbd_input_ctrl_t ctrl)
         clear();
         break;
     default:
-        debugf("Invalid control sequence: %d\n", input.value.control);
+        debugf("Invalid control sequence: %d\n", ctrl);
         break;
     }
 }
