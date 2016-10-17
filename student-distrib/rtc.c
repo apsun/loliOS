@@ -25,7 +25,7 @@ handle_rtc_irq(void)
     read_reg(RTC_REG_C);
 
     /* For RTC testing */
-    test_interrupts();
+    // test_interrupts();
 }
 
 /*

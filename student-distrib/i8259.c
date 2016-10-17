@@ -1,6 +1,3 @@
-/* i8259.c - Functions to interact with the 8259 interrupt controller
- */
-
 #include "i8259.h"
 #include "lib.h"
 #include "debug.h"

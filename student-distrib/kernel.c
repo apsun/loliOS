@@ -1,6 +1,3 @@
-/* kernel.c - the C part of the kernel
- */
-
 #include "multiboot.h"
 #include "x86_desc.h"
 #include "lib.h"
@@ -179,7 +176,7 @@ entry (unsigned long magic, unsigned long addr)
     clear();
 
     /* Raise page fault (for debugging) */
-    // printf("%d\n", *(volatile int *)0xdeadface);
+    // printf("%d\n", *(volatile int *)NULL);
 
     /* Raise divide by zero (for debugging) */
     // printf("%d\n", 1 / 0);
