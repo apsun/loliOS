@@ -1,6 +1,3 @@
-/* debug.h - Useful macros for debugging
- */
-
 #ifndef _DEBUG_H
 #define _DEBUG_H
 

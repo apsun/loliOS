@@ -1,7 +1,3 @@
-/* x86_desc.h - Defines for various x86 descriptors, descriptor tables, 
- * and selectors
- */
-
 #ifndef _X86_DESC_H
 #define _X86_DESC_H
 

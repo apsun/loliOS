@@ -126,6 +126,9 @@ handle_interrupt(int_regs_t *regs)
 /*
  * Registers an IRQ handler.
  *
+ * irq_num should be one of the IRQ_* constants, NOT the
+ * INT_IRQ* constants!
+ *
  * Currently only one handler can be registered per IRQ line.
  */
 void
@@ -138,6 +141,9 @@ register_irq_handler(uint32_t irq_num, void (*callback)(void))
 
 /*
  * Unregisters a IRQ handler.
+ *
+ * irq_num should be one of the IRQ_* constants, NOT the
+ * INT_IRQ* constants!
  */
 void
 unregister_irq_handler(uint32_t irq_num)

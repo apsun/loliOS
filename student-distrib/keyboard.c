@@ -1,8 +1,3 @@
-/*
- * keyboard input handler
- * "Copyright (c) 2016 by Emre Ulusoy."
- */
-
 #include "keyboard.h"
 #include "debug.h"
 
@@ -94,50 +89,88 @@ keycode_to_modifier(uint8_t keycode)
 }
 
 /*
- * Maps a keycode to a printable character.
- * Returns '\0' if the key is not printable.
+ * Maps a keycode to the corresponding control sequence,
+ * or KCTL_NONE if it does not correspond to anything.
  */
-static uint8_t
-keycode_to_char(uint8_t keycode)
+static kbd_input_ctrl_t
+keycode_to_ctrl(uint8_t keycode) {
+    switch (keycode) {
+    case KC_L: /* CTRL-L */
+        return KCTL_CLEAR;
+    default:
+        return KCTL_NONE;
+    }
+}
+
+/*
+ * Maps a keycode to an input value (taking into consideration
+ * currently pressed/toggled modifier keys).
+ */
+static kbd_input_t
+keycode_to_input(uint8_t keycode)
 {
+    kbd_input_t input;
+    input.type = KTYP_NONE;
+
     /* Check if the keycode was out of range */
     if (keycode >= NUM_KEYS) {
         debugf("Unknown keycode: 0x%#x\n", keycode);
-        return '\0';
+        return input;
     }
 
     /* Map the keycode to the appropriate character */
     switch ((int)modifiers) {
     case KMOD_NONE:
-        return keycode_map[0][keycode];
+        input.type = KTYP_CHAR;
+        input.value.character = keycode_map[0][keycode];
+        break;
     case KMOD_LSHIFT:
     case KMOD_RSHIFT:
     case KMOD_SHIFT:
-        return keycode_map[1][keycode];
+        input.type = KTYP_CHAR;
+        input.value.character = keycode_map[1][keycode];
+        break;
     case KMOD_CAPS:
-        return keycode_map[2][keycode];
+        input.type = KTYP_CHAR;
+        input.value.character = keycode_map[2][keycode];
+        break;
     case KMOD_CAPS | KMOD_LSHIFT:
     case KMOD_CAPS | KMOD_RSHIFT:
     case KMOD_CAPS | KMOD_SHIFT:
-        return keycode_map[3][keycode];
+        input.type = KTYP_CHAR;
+        input.value.character = keycode_map[3][keycode];
+        break;
+    case KMOD_LCTRL:
+    case KMOD_RCTRL:
+    case KMOD_CTRL:
+        input.type = KTYP_CTRL;
+        input.value.control = keycode_to_ctrl(keycode);
+        break;
     default:
         debugf("Unhandled modifier combination: 0x%#x\n", modifiers);
-        return '\0';
     }
+    return input;
 }
 
 /*
- * Processes a keyboard packet. Returns the printable character
- * corresponding to the packet (taking into consideration the
- * current modifier state), or '\0' if the key cannot be printed.
+ * Processes a keyboard packet, updating internal state
+ * as necessary.
+ *
+ * The returned struct has type set to KTYP_CHAR if the
+ * keycode and modifier combination corresponds to a printable
+ * character, KTYP_CTRL if it corresponds to a control sequence,
+ * and KTYP_NONE if it corresponds to neither (and can be ignored).
  */
-static uint8_t
+static kbd_input_t
 process_packet(uint8_t packet)
 {
-    /* 1 if key was pressed, 0 if key was released */
+    /* Top bit is 1 if key was pressed, 0 if key was released */
     uint8_t status = !(packet & 0x80);
     uint8_t keycode = packet & 0x7F;
     kbd_modifiers_t mod = keycode_to_modifier(keycode);
+    kbd_input_t input;
+    input.type = KTYP_NONE;
+
     if (mod != KMOD_NONE) {
         /* Key pressed was a modifier */
         if (mod == KMOD_CAPS) {
@@ -149,13 +182,26 @@ process_packet(uint8_t packet)
             debugf("Set modifier 0x%#x -> %d\n", mod, status);
             set_modifier_bit(status, mod);
         }
-        return '\0';
     } else if (status == 1) {
         /* Key pressed, return keystroke */
-        return keycode_to_char(keycode);
+        input = keycode_to_input(keycode);
     } else {
         /* We don't handle anything on key up */
-        return '\0';
+    }
+    return input;
+}
+
+/* Handles a keyboard control sequence */
+static void
+send_keyboard_ctrl(kbd_input_ctrl_t ctrl)
+{
+    switch (ctrl) {
+    case KCTL_CLEAR:
+        clear();
+        break;
+    default:
+        debugf("Invalid control sequence: %d\n", input.value.control);
+        break;
     }
 }
 
@@ -170,11 +216,22 @@ handle_keyboard_irq(void)
     uint8_t packet = inb(KEYBOARD_PORT);
 
     /* Process packet, updating internal state if necessary */
-    uint8_t print_char = process_packet(packet);
+    kbd_input_t input = process_packet(packet);
 
     /* Echo character to screen if it's printable */
-    if (print_char != '\0') {
-        putc(print_char);
+    /* Handle it if it's a control sequence */
+    switch (input.type) {
+    case KTYP_CHAR:
+        putc(input.value.character);
+        break;
+    case KTYP_CTRL:
+        send_keyboard_ctrl(input.value.control);
+        break;
+    case KTYP_NONE:
+        break;
+    default:
+        debugf("Invalid input type: %d\n", input.type);
+        break;
     }
 }
 
@@ -182,6 +239,6 @@ handle_keyboard_irq(void)
 void
 keyboard_init(void)
 {
-    /* Dynamically register keyboard IRQ handler */
+    /* Register keyboard IRQ handler, enable interrupts */
     register_irq_handler(IRQ_KEYBOARD, handle_keyboard_irq);
 }

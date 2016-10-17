@@ -1,6 +1,4 @@
-# boot.S - start point for the kernel after GRUB gives us control
-
-#define ASM     1
+#define ASM 1
 
 #include "multiboot.h"
 #include "x86_desc.h"

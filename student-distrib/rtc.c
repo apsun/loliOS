@@ -21,11 +21,11 @@ write_reg(uint8_t reg, uint8_t value)
 static void
 handle_rtc_irq(void)
 {
-    /* Read from port, ignore value */
+    /* Read from register C, ignore value */
     read_reg(RTC_REG_C);
 
     /* For RTC testing */
-	// test_interrupts();
+    // test_interrupts();
 }
 
 void

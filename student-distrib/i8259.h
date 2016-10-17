@@ -1,7 +1,3 @@
-/* i8259.h - Defines used in interactions with the 8259 interrupt
- * controller
- */
-
 #ifndef _I8259_H
 #define _I8259_H
 
