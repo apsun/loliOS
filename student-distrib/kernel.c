@@ -1,8 +1,8 @@
 #include "multiboot.h"
-#include "x86_desc.h"
 #include "lib.h"
-#include "i8259.h"
 #include "debug.h"
+#include "x86_desc.h"
+#include "i8259.h"
 #include "idt.h"
 #include "paging.h"
 #include "keyboard.h"
@@ -144,22 +144,20 @@ entry (unsigned long magic, unsigned long addr)
         ltr(KERNEL_TSS);
     }
 
-    clear();
-
     printf("Initializing PIC...\n");
     i8259_init();
 
     /* Initialize devices, memory, filesystem, enable device interrupts on the
      * PIC, any other initialization stuff... */
 
+    printf("Initializing IDT...\n");
+    idt_init();
+
     printf("Initializing keyboard...\n");
     keyboard_init();
 
     printf("Initializing RTC...\n");
     rtc_init();
-
-    printf("Initializing IDT...\n");
-    idt_init();
 
     printf("Enabling paging...\n");
     paging_enable();
@@ -173,7 +171,7 @@ entry (unsigned long magic, unsigned long addr)
 
     /* We made it! */
     printf("Boot successful!\n");
-    clear();
+    // clear();
 
     /* Raise page fault (for debugging) */
     // printf("%d\n", *(volatile int *)NULL);

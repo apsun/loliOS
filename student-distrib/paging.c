@@ -9,14 +9,11 @@
 #define TO_4MB_BASE(x) (((uint32_t)x) >> 22)
 #define TO_4KB_BASE(x) (((uint32_t)x) >> 12)
 
-void
-paging_enable(void)
+/* Initializes the page directory entries */
+static void
+paging_init_dir(void)
 {
     int i;
-
-    /* Ensure page dir and table are 4096-byte aligned */
-    ASSERT(((uint32_t)page_table & 0xfff) == 0);
-    ASSERT(((uint32_t)page_dir & 0xfff) == 0);
 
     /* Initialize directory for first 4MB of memory */
     page_dir[0].dir_4kb.present = 1;
@@ -61,6 +58,13 @@ paging_enable(void)
         page_dir[i].dir_4kb.avail = 0;
         page_dir[i].dir_4kb.base_addr = 0;
     }
+}
+
+/* Initializes the page table entries */
+static void
+paging_init_table(void)
+{
+    int i;
 
     /* Initialize all 4KB pages in first 4MB of memory */
     for (i = 0; i < NUM_PTE; ++i) {
@@ -76,12 +80,28 @@ paging_enable(void)
         page_table[i].avail = 0;
         page_table[i].base_addr = TO_4KB_BASE(KB(i * 4));
     }
+}
 
+/*
+ * Initializes the video memory page table entry.
+ * This must be called after paging_init_table().
+ */
+static void
+paging_init_video_page(void)
+{
     /* Set video memory page to present, and
-     * disable caching since it's memory-mapped */
+     * disable caching since it's memory-mapped I/O */
     page_table[TO_4KB_BASE(VIDEO_ADDR)].present = 1;
     page_table[TO_4KB_BASE(VIDEO_ADDR)].cache_disabled = 1;
+}
 
+/*
+ * Sets the control registers to enable paging.
+ * This must be called *after* all the setup is complete.
+ */
+static void
+paging_init_registers(void)
+{
     asm volatile(
         /* Point PDR to page directory */
         /* Enable caching of page directory */
@@ -96,11 +116,32 @@ paging_enable(void)
         "orl $0x00000010, %%eax;"
         "movl %%eax, %%cr4;"
 
-        /* Enable paging! */
+        /* Enable paging (this must come last!) */
         "movl %%cr0, %%eax;"
         "orl $0x80000000, %%eax;"
         "movl %%eax, %%cr0;"
         :
         :
         : "eax", "cc");
+}
+
+/* Enables memory paging. */
+void
+paging_enable(void)
+{
+    /* Ensure page dir and table are 4096-byte aligned */
+    ASSERT(((uint32_t)page_table & 0xfff) == 0);
+    ASSERT(((uint32_t)page_dir   & 0xfff) == 0);
+
+    /* Initialize page directory entries */
+    paging_init_dir();
+
+    /* Initialize page table entries */
+    paging_init_table();
+
+    /* Initialize video page */
+    paging_init_video_page();
+
+    /* Set control registers */
+    paging_init_registers();
 }

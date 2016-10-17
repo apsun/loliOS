@@ -2,9 +2,7 @@
 #include "lib.h"
 #include "debug.h"
 #include "x86_desc.h"
-
-/* IRQ handler array */
-static irq_handler_t irq_handlers[16];
+#include "irq.h"
 
 /* Exception info table */
 static exc_info_t exc_info_table[20] = {
@@ -82,16 +80,8 @@ static void
 handle_irq(int_regs_t *regs)
 {
     uint32_t irq_num = regs->int_num - INT_IRQ0;
-    irq_handler_t handler = irq_handlers[irq_num];
     debugf("IRQ interrupt: %d\n", irq_num);
-
-    /* Run callback if it's registered */
-    if (handler.callback != NULL) {
-        handler.callback();
-    }
-
-    /* Clear interrupt flag on PIC */
-    send_eoi(irq_num);
+    irq_handle_interrupt(irq_num);
 }
 
 /* Syscall handler */
@@ -110,7 +100,7 @@ handle_syscall(int_regs_t *regs)
  * the interrupt is a syscall.
  */
 void
-handle_interrupt(int_regs_t *regs)
+idt_handle_interrupt(int_regs_t *regs)
 {
     if (regs->int_num < NUM_EXC) {
         handle_exception(regs);
@@ -121,36 +111,6 @@ handle_interrupt(int_regs_t *regs)
     } else {
         debugf("Unknown interrupt: %d\n", regs->int_num);
     }
-}
-
-/*
- * Registers an IRQ handler.
- *
- * irq_num should be one of the IRQ_* constants, NOT the
- * INT_IRQ* constants!
- *
- * Currently only one handler can be registered per IRQ line.
- */
-void
-register_irq_handler(uint32_t irq_num, void (*callback)(void))
-{
-    ASSERT(irq_num >= 0 && irq_num < 16);
-    irq_handlers[irq_num].callback = callback;
-    enable_irq(irq_num);
-}
-
-/*
- * Unregisters a IRQ handler.
- *
- * irq_num should be one of the IRQ_* constants, NOT the
- * INT_IRQ* constants!
- */
-void
-unregister_irq_handler(uint32_t irq_num)
-{
-    ASSERT(irq_num >= 0 && irq_num < 16);
-    disable_irq(irq_num);
-    irq_handlers[irq_num].callback = NULL;
 }
 
 /*
@@ -193,54 +153,54 @@ idt_init(void)
     }
 
     /* Write exception handlers */
-    WRITE_IDT_ENTRY(EXC_DE, handle_exc_de);
-    WRITE_IDT_ENTRY(EXC_DB, handle_exc_db);
-    WRITE_IDT_ENTRY(EXC_NI, handle_exc_ni);
-    WRITE_IDT_ENTRY(EXC_BP, handle_exc_bp);
-    WRITE_IDT_ENTRY(EXC_OF, handle_exc_of);
-    WRITE_IDT_ENTRY(EXC_BR, handle_exc_br);
-    WRITE_IDT_ENTRY(EXC_UD, handle_exc_ud);
-    WRITE_IDT_ENTRY(EXC_NM, handle_exc_nm);
-    WRITE_IDT_ENTRY(EXC_DF, handle_exc_df);
-    WRITE_IDT_ENTRY(EXC_CO, handle_exc_co);
-    WRITE_IDT_ENTRY(EXC_TS, handle_exc_ts);
-    WRITE_IDT_ENTRY(EXC_NP, handle_exc_np);
-    WRITE_IDT_ENTRY(EXC_SS, handle_exc_ss);
-    WRITE_IDT_ENTRY(EXC_GP, handle_exc_gp);
-    WRITE_IDT_ENTRY(EXC_PF, handle_exc_pf);
-    WRITE_IDT_ENTRY(EXC_RE, handle_exc_re);
-    WRITE_IDT_ENTRY(EXC_MF, handle_exc_mf);
-    WRITE_IDT_ENTRY(EXC_AC, handle_exc_ac);
-    WRITE_IDT_ENTRY(EXC_MC, handle_exc_mc);
-    WRITE_IDT_ENTRY(EXC_XF, handle_exc_xf);
+    WRITE_IDT_ENTRY(EXC_DE, idt_handle_exc_de);
+    WRITE_IDT_ENTRY(EXC_DB, idt_handle_exc_db);
+    WRITE_IDT_ENTRY(EXC_NI, idt_handle_exc_ni);
+    WRITE_IDT_ENTRY(EXC_BP, idt_handle_exc_bp);
+    WRITE_IDT_ENTRY(EXC_OF, idt_handle_exc_of);
+    WRITE_IDT_ENTRY(EXC_BR, idt_handle_exc_br);
+    WRITE_IDT_ENTRY(EXC_UD, idt_handle_exc_ud);
+    WRITE_IDT_ENTRY(EXC_NM, idt_handle_exc_nm);
+    WRITE_IDT_ENTRY(EXC_DF, idt_handle_exc_df);
+    WRITE_IDT_ENTRY(EXC_CO, idt_handle_exc_co);
+    WRITE_IDT_ENTRY(EXC_TS, idt_handle_exc_ts);
+    WRITE_IDT_ENTRY(EXC_NP, idt_handle_exc_np);
+    WRITE_IDT_ENTRY(EXC_SS, idt_handle_exc_ss);
+    WRITE_IDT_ENTRY(EXC_GP, idt_handle_exc_gp);
+    WRITE_IDT_ENTRY(EXC_PF, idt_handle_exc_pf);
+    WRITE_IDT_ENTRY(EXC_RE, idt_handle_exc_re);
+    WRITE_IDT_ENTRY(EXC_MF, idt_handle_exc_mf);
+    WRITE_IDT_ENTRY(EXC_AC, idt_handle_exc_ac);
+    WRITE_IDT_ENTRY(EXC_MC, idt_handle_exc_mc);
+    WRITE_IDT_ENTRY(EXC_XF, idt_handle_exc_xf);
 
     /* Initialize interrupt gates */
     desc.dpl = 0;
     desc.reserved3 = 0;
     for (; i < NUM_VEC; ++i) {
         idt[i] = desc;
-        WRITE_IDT_ENTRY(i, handle_int_unknown);
+        WRITE_IDT_ENTRY(i, idt_handle_int_unknown);
     }
 
     /* Initialize IRQ interrupt gates */
-    WRITE_IDT_ENTRY(INT_IRQ0, handle_int_irq0);
-    WRITE_IDT_ENTRY(INT_IRQ1, handle_int_irq1);
-    WRITE_IDT_ENTRY(INT_IRQ2, handle_int_irq2);
-    WRITE_IDT_ENTRY(INT_IRQ3, handle_int_irq3);
-    WRITE_IDT_ENTRY(INT_IRQ4, handle_int_irq4);
-    WRITE_IDT_ENTRY(INT_IRQ5, handle_int_irq5);
-    WRITE_IDT_ENTRY(INT_IRQ6, handle_int_irq6);
-    WRITE_IDT_ENTRY(INT_IRQ7, handle_int_irq7);
-    WRITE_IDT_ENTRY(INT_IRQ8, handle_int_irq8);
-    WRITE_IDT_ENTRY(INT_IRQ9, handle_int_irq9);
-    WRITE_IDT_ENTRY(INT_IRQ10, handle_int_irq10);
-    WRITE_IDT_ENTRY(INT_IRQ11, handle_int_irq11);
-    WRITE_IDT_ENTRY(INT_IRQ12, handle_int_irq12);
-    WRITE_IDT_ENTRY(INT_IRQ13, handle_int_irq13);
-    WRITE_IDT_ENTRY(INT_IRQ14, handle_int_irq14);
-    WRITE_IDT_ENTRY(INT_IRQ15, handle_int_irq15);
+    WRITE_IDT_ENTRY(INT_IRQ0, idt_handle_int_irq0);
+    WRITE_IDT_ENTRY(INT_IRQ1, idt_handle_int_irq1);
+    WRITE_IDT_ENTRY(INT_IRQ2, idt_handle_int_irq2);
+    WRITE_IDT_ENTRY(INT_IRQ3, idt_handle_int_irq3);
+    WRITE_IDT_ENTRY(INT_IRQ4, idt_handle_int_irq4);
+    WRITE_IDT_ENTRY(INT_IRQ5, idt_handle_int_irq5);
+    WRITE_IDT_ENTRY(INT_IRQ6, idt_handle_int_irq6);
+    WRITE_IDT_ENTRY(INT_IRQ7, idt_handle_int_irq7);
+    WRITE_IDT_ENTRY(INT_IRQ8, idt_handle_int_irq8);
+    WRITE_IDT_ENTRY(INT_IRQ9, idt_handle_int_irq9);
+    WRITE_IDT_ENTRY(INT_IRQ10, idt_handle_int_irq10);
+    WRITE_IDT_ENTRY(INT_IRQ11, idt_handle_int_irq11);
+    WRITE_IDT_ENTRY(INT_IRQ12, idt_handle_int_irq12);
+    WRITE_IDT_ENTRY(INT_IRQ13, idt_handle_int_irq13);
+    WRITE_IDT_ENTRY(INT_IRQ14, idt_handle_int_irq14);
+    WRITE_IDT_ENTRY(INT_IRQ15, idt_handle_int_irq15);
 
     /* Initialize syscall interrupt gate */
     idt[INT_SYSCALL].dpl = 3;
-    WRITE_IDT_ENTRY(INT_SYSCALL, handle_int_syscall);
+    WRITE_IDT_ENTRY(INT_SYSCALL, idt_handle_int_syscall);
 }

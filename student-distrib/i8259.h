@@ -23,9 +23,7 @@
 #define MASK_ALL 0xff
 
 /* IRQ constants */
-#define IRQ_KEYBOARD 1
-#define IRQ_SLAVE    2
-#define IRQ_RTC      8
+#define IRQ_SLAVE 2
 
 /* End-of-interrupt byte.  This gets OR'd with
  * the interrupt number and sent out to the PIC
@@ -40,13 +38,13 @@
 void i8259_init(void);
 
 /* Enable (unmask) the specified IRQ */
-void enable_irq(uint32_t irq_num);
+void i8259_enable_irq(uint32_t irq_num);
 
 /* Disable (mask) the specified IRQ */
-void disable_irq(uint32_t irq_num);
+void i8259_disable_irq(uint32_t irq_num);
 
 /* Send end-of-interrupt signal for the specified IRQ */
-void send_eoi(uint32_t irq_num);
+void i8259_send_eoi(uint32_t irq_num);
 
 #endif /* ASM */
 

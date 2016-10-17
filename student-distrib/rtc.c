@@ -1,9 +1,12 @@
 #include "rtc.h"
-#include "i8259.h"
-#include "idt.h"
+#include "irq.h"
 #include "lib.h"
 #include "debug.h"
 
+/*
+ * Reads the value of a RTC register. The reg
+ * param must be one of the RTC_REG_* constants.
+ */
 static uint8_t
 read_reg(uint8_t reg)
 {
@@ -11,6 +14,10 @@ read_reg(uint8_t reg)
     return inb(RTC_PORT_DATA);
 }
 
+/*
+ * Writes the value of a RTC register. The reg
+ * param must be one of the RTC_REG_* constants.
+ */
 static void
 write_reg(uint8_t reg, uint8_t value)
 {
@@ -18,6 +25,7 @@ write_reg(uint8_t reg, uint8_t value)
     outb(value, RTC_PORT_DATA);
 }
 
+/* RTC IRQ handler callback */
 static void
 handle_rtc_irq(void)
 {
@@ -30,9 +38,8 @@ handle_rtc_irq(void)
 
 /*
  * Maps an integer frequency value to one of the
- * RTC_A_RS_* constants. Returns RTC_A_RS_NONE if
- * the frequency exceeds 1024Hz or is not a power
- * of 2.
+ * RTC_A_RS_* constants. Returns RTC_A_RS_NONE if the
+ * frequency is not a power of 2 between 2 and 1024.
  */
 static uint8_t
 rtc_freq_to_rs(uint32_t freq)
@@ -69,22 +76,30 @@ rtc_freq_to_rs(uint32_t freq)
 
 /*
  * Sets the interrupt frequency of the RTC.
- * The input must be a power of 2 and not greater
- * than 1024.
+ * The input must be a power of 2 between 2
+ * and 1024.
  *
  * Returns -1 on error, 0 on success.
  */
 int
 rtc_set_frequency(uint32_t freq)
 {
-    uint8_t rs = rtc_freq_to_rs(freq);
     uint8_t reg_a;
+
+    /* Convert the integer to an enum value */
+    uint8_t rs = rtc_freq_to_rs(freq);
     if (rs == RTC_A_RS_NONE) {
         return -1;
     }
+
+    /* Read register A */
     reg_a = read_reg(RTC_REG_A);
+
+    /* Set frequency control bits */
     reg_a &= ~RTC_A_RS;
     reg_a |= rs;
+
+    /* Write register A */
     write_reg(RTC_REG_A, reg_a);
     return 0;
 }
@@ -109,5 +124,5 @@ rtc_init(void)
     rtc_set_frequency(2);
 
     /* Register RTC IRQ handler and enable interrupts */
-    register_irq_handler(IRQ_RTC, handle_rtc_irq);
+    irq_register_handler(IRQ_RTC, handle_rtc_irq);
 }

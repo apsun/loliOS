@@ -1,10 +1,7 @@
 #ifndef _KEYBOARD_H
 #define _KEYBOARD_H
 
-#include "i8259.h"
-#include "idt.h"
 #include "types.h"
-#include "lib.h"
 
 /* Various special keycodes */
 #define KC_ESC       0x01

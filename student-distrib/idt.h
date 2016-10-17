@@ -2,7 +2,6 @@
 #define _IDT_H
 
 #include "types.h"
-#include "i8259.h"
 
 /* Interrupt codes */
 #define EXC_DE 0
@@ -45,13 +44,6 @@
 #define INT_UNKNOWN -1
 
 #ifndef ASM
-
-/* IRQ handler */
-typedef struct irq_handler_t
-{
-    /* Callback to run when the interrupt occurs */
-    void (*callback)(void);
-} irq_handler_t;
 
 /* Exception info */
 typedef struct
@@ -102,14 +94,8 @@ typedef struct
 /* Initializes the IDT */
 void idt_init(void);
 
-/* Registers an IRQ handler. */
-void register_irq_handler(uint32_t irq_num, void (*callback)(void));
-
-/* Unregisters an IRQ handler */
-void unregister_irq_handler(uint32_t irq_num);
-
 /* Interrupt handler routine */
-void handle_interrupt(int_regs_t *regs);
+void idt_handle_interrupt(int_regs_t *regs);
 
 #endif /* ASM */
 

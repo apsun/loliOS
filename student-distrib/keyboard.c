@@ -1,4 +1,6 @@
 #include "keyboard.h"
+#include "irq.h"
+#include "lib.h"
 #include "debug.h"
 
 /* Current pressed/toggled modifier key state */
@@ -164,7 +166,7 @@ keycode_to_input(uint8_t keycode)
 static kbd_input_t
 process_packet(uint8_t packet)
 {
-    /* Top bit is 1 if key was pressed, 0 if key was released */
+    /* Status is 1 if key was pressed, 0 if key was released */
     uint8_t status = !(packet & 0x80);
     uint8_t keycode = packet & 0x7F;
     kbd_modifiers_t mod = keycode_to_modifier(keycode);
@@ -240,5 +242,5 @@ void
 keyboard_init(void)
 {
     /* Register keyboard IRQ handler, enable interrupts */
-    register_irq_handler(IRQ_KEYBOARD, handle_keyboard_irq);
+    irq_register_handler(IRQ_KEYBOARD, handle_keyboard_irq);
 }
