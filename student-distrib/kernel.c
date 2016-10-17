@@ -171,7 +171,7 @@ entry (unsigned long magic, unsigned long addr)
 
     /* We made it! */
     printf("Boot successful!\n");
-    // clear();
+    clear();
 
     /* Raise page fault (for debugging) */
     // printf("%d\n", *(volatile int *)NULL);

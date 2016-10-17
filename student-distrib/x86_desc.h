@@ -13,6 +13,7 @@
 
 /* number of entries in page directory */
 #define NUM_PDE 1024
+
 /* number of entries in page table */
 #define NUM_PTE 1024
 
