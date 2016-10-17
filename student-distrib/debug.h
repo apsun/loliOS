@@ -21,6 +21,7 @@
 do {                           \
     if(!(EXP)) {               \
         printf(__FILE__ ":%u: Assertion `" #EXP "\' failed.\n", __LINE__);  \
+        halt();                \
     }                          \
 } while(0)
 

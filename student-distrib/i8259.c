@@ -3,6 +3,7 @@
 
 #include "i8259.h"
 #include "lib.h"
+#include "debug.h"
 
 /*
  * Interrupt masks to determine which interrupts
@@ -42,6 +43,7 @@ i8259_init(void)
 void
 enable_irq(uint32_t irq_num)
 {
+    debugf("Enabling IRQ#%d\n", irq_num);
     if (irq_num >= 0 && irq_num < 8) {
         master_mask &= ~(1 << irq_num);
         outb(master_mask, MASTER_8259_PORT_DATA);
@@ -56,6 +58,7 @@ enable_irq(uint32_t irq_num)
 void
 disable_irq(uint32_t irq_num)
 {
+    debugf("Disabling IRQ#%d\n", irq_num);
     if (irq_num >= 0 && irq_num < 8) {
         master_mask |= (1 << irq_num);
         outb(master_mask, MASTER_8259_PORT_DATA);
@@ -70,6 +73,7 @@ disable_irq(uint32_t irq_num)
 void
 send_eoi(uint32_t irq_num)
 {
+    debugf("Sending EOI for IRQ#%d\n", irq_num);
     if (irq_num >= 0 && irq_num < 8) {
         outb(irq_num | EOI, MASTER_8259_PORT_CMD);
     } else if (irq_num >= 8 && irq_num < 16) {

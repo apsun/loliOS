@@ -7,8 +7,9 @@
 #include "i8259.h"
 #include "debug.h"
 #include "idt.h"
-#include "keyboard.h"
 #include "paging.h"
+#include "keyboard.h"
+#include "rtc.h"
 
 /* Macros. */
 /* Check if the bit BIT in FLAGS is set. */
@@ -148,23 +149,21 @@ entry (unsigned long magic, unsigned long addr)
 
     clear();
 
-    /* Initialize the PIC */
     printf("Initializing PIC...\n");
     i8259_init();
 
     /* Initialize devices, memory, filesystem, enable device interrupts on the
      * PIC, any other initialization stuff... */
+
     printf("Initializing keyboard...\n");
     keyboard_init();
 
     printf("Initializing RTC...\n");
-    /* rtc_init(); */
+    rtc_init();
 
-    /* Initialize IDT */
     printf("Initializing IDT...\n");
     idt_init();
 
-    /* Enable paging */
     printf("Enabling paging...\n");
     paging_enable();
 

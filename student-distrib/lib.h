@@ -30,6 +30,9 @@ int32_t safe_strncpy(int8_t* dest, const int8_t* src, int32_t n);
 /* Freezes the processor */
 void halt(void);
 
+/* For testing the RTC */
+void test_interrupts(void);
+
 /* Port read functions */
 /* Inb reads a byte and returns its value as a zero-extended 32-bit
  * unsigned int */
