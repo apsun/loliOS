@@ -94,13 +94,31 @@ keycode_to_modifier(uint8_t keycode)
  * or KCTL_NONE if it does not correspond to anything.
  */
 static kbd_input_ctrl_t
-keycode_to_ctrl(uint8_t keycode) {
+keycode_to_ctrl(uint8_t keycode)
+{
     switch (keycode) {
     case KC_L: /* CTRL-L */
         return KCTL_CLEAR;
     default:
         return KCTL_NONE;
     }
+}
+
+/*
+ * Gets the currently pressed modifier state,
+ * with left and right modifiers consolidated
+ * (i.e. if either KMOD_LCTRL or KMOD_RCTRL are
+ * 1, both bits will be set to 1 so you can just
+ * test against KMOD_CTRL).
+ */
+static int
+get_modifiers(void)
+{
+    kbd_modifiers_t mod = modifiers;
+    if (mod & (KMOD_CTRL))  mod |= KMOD_CTRL;
+    if (mod & (KMOD_SHIFT)) mod |= KMOD_SHIFT;
+    if (mod & (KMOD_ALT))   mod |= KMOD_ALT;
+    return (int)mod;
 }
 
 /*
@@ -120,13 +138,11 @@ keycode_to_input(uint8_t keycode)
     }
 
     /* Map the keycode to the appropriate character */
-    switch ((int)modifiers) {
+    switch (get_modifiers()) {
     case KMOD_NONE:
         input.type = KTYP_CHAR;
         input.value.character = keycode_map[0][keycode];
         break;
-    case KMOD_LSHIFT:
-    case KMOD_RSHIFT:
     case KMOD_SHIFT:
         input.type = KTYP_CHAR;
         input.value.character = keycode_map[1][keycode];
@@ -135,17 +151,11 @@ keycode_to_input(uint8_t keycode)
         input.type = KTYP_CHAR;
         input.value.character = keycode_map[2][keycode];
         break;
-    case KMOD_CAPS | KMOD_LSHIFT:
-    case KMOD_CAPS | KMOD_RSHIFT:
     case KMOD_CAPS | KMOD_SHIFT:
         input.type = KTYP_CHAR;
         input.value.character = keycode_map[3][keycode];
         break;
-    case KMOD_LCTRL:
-    case KMOD_RCTRL:
     case KMOD_CTRL:
-    case KMOD_CAPS | KMOD_LCTRL:
-    case KMOD_CAPS | KMOD_RCTRL:
     case KMOD_CAPS | KMOD_CTRL:
         input.type = KTYP_CTRL;
         input.value.control = keycode_to_ctrl(keycode);
