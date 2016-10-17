@@ -11,7 +11,7 @@
 #define RTC_REG_C 0x8C
 
 /* RTC A register bits */
-#define RTC_A_RS   0x0f /* Rate selector (see RTC_RATE_*) */
+#define RTC_A_RS   0x0f /* Rate selector */
 #define RTC_A_DV   0x70 /* Oscillator */
 #define RTC_A_UIP  0x80 /* Update in progress */
 
