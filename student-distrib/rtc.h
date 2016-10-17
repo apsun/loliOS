@@ -1,6 +1,8 @@
 #ifndef _RTC_H
 #define _RTC_H
 
+#include "types.h"
+
 /* RTC memory-mapped ports */
 #define RTC_PORT_INDEX 0x70
 #define RTC_PORT_DATA 0x71
@@ -42,6 +44,9 @@
 #define RTC_A_RS_2    0xF
 
 #ifndef ASM
+
+/* Sets the frequency of RTC interrupts */
+int rtc_set_frequency(uint32_t freq);
 
 /* Initializes real-time clock interrupts */
 void rtc_init(void);

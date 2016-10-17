@@ -25,22 +25,76 @@ handle_rtc_irq(void)
     read_reg(RTC_REG_C);
 
     /* For RTC testing */
-    // test_interrupts();
+    test_interrupts();
 }
 
+/*
+ * Maps an integer frequency value to one of the
+ * RTC_A_RS_* constants. Returns RTC_A_RS_NONE if
+ * the frequency exceeds 1024Hz or is not a power
+ * of 2.
+ */
+static uint8_t
+rtc_freq_to_rs(uint32_t freq)
+{
+    switch (freq) {
+    case 8192:
+    case 4096:
+    case 2048:
+        return RTC_A_RS_NONE;
+    case 1024:
+        return RTC_A_RS_1024;
+    case 512:
+        return RTC_A_RS_512;
+    case 256:
+        return RTC_A_RS_256;
+    case 128:
+        return RTC_A_RS_128;
+    case 64:
+        return RTC_A_RS_64;
+    case 32:
+        return RTC_A_RS_32;
+    case 16:
+        return RTC_A_RS_16;
+    case 8:
+        return RTC_A_RS_8;
+    case 4:
+        return RTC_A_RS_4;
+    case 2:
+        return RTC_A_RS_2;
+    default:
+        return RTC_A_RS_NONE;
+    }
+}
+
+/*
+ * Sets the interrupt frequency of the RTC.
+ * The input must be a power of 2 and not greater
+ * than 1024.
+ *
+ * Returns -1 on error, 0 on success.
+ */
+int
+rtc_set_frequency(uint32_t freq)
+{
+    uint8_t rs = rtc_freq_to_rs(freq);
+    uint8_t reg_a;
+    if (rs == RTC_A_RS_NONE) {
+        return -1;
+    }
+    reg_a = read_reg(RTC_REG_A);
+    reg_a &= ~RTC_A_RS;
+    reg_a |= rs;
+    write_reg(RTC_REG_A, reg_a);
+    return 0;
+}
+
+/* Initializes the RTC and enables interrupts */
 void
 rtc_init(void)
 {
-    /* Read RTC registers */
-    uint8_t reg_a = read_reg(RTC_REG_A);
+    /* Read RTC register B */
     uint8_t reg_b = read_reg(RTC_REG_B);
-
-    debugf("RTC register A: 0x%#x\n", reg_a);
-    debugf("RTC register B: 0x%#x\n", reg_b);
-
-    /* Set periodic interrupt rate to 2Hz */
-    reg_a &= ~RTC_A_RS;
-    reg_a |= RTC_A_RS_2;
 
     /* Enable periodic interrupts */
     reg_b |= RTC_B_PIE;
@@ -48,9 +102,11 @@ rtc_init(void)
     /* Use binary format */
     reg_b |= RTC_B_DM;
 
-    /* Write RTC registers */
-    write_reg(RTC_REG_A, reg_a);
+    /* Write RTC register B */
     write_reg(RTC_REG_B, reg_b);
+
+    /* Set the interrupt frequency to 2Hz by default */
+    rtc_set_frequency(2);
 
     /* Register RTC IRQ handler and enable interrupts */
     register_irq_handler(IRQ_RTC, handle_rtc_irq);

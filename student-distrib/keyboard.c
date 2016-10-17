@@ -43,7 +43,6 @@ static char keycode_map[4][NUM_KEYS] = {
     },
 };
 
-
 /* Sets a keyboard modifier bit */
 static void
 set_modifier_bit(uint8_t bit, kbd_modifiers_t mask)
@@ -148,6 +147,7 @@ keycode_to_input(uint8_t keycode)
         break;
     default:
         debugf("Unhandled modifier combination: 0x%#x\n", modifiers);
+        break;
     }
     return input;
 }
