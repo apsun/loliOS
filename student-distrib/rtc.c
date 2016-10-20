@@ -2,7 +2,6 @@
 #include "irq.h"
 #include "lib.h"
 #include "debug.h"
-#include "syscall.h"
 
 /* Whether we are waiting for an interrupt to occur */
 volatile int32_t waiting_interrupt = 0;

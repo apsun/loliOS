@@ -2,9 +2,10 @@
 #include "irq.h"
 #include "lib.h"
 #include "debug.h"
+#include "terminal.h"
 
 /* Current pressed/toggled modifier key state */
-static kbd_modifiers_t modifiers;
+static kbd_modifiers_t modifiers = KMOD_NONE;
 
 /* Maps keycode values to printable characters */
 static char keycode_map[4][NUM_KEYS] = {
@@ -206,20 +207,6 @@ process_packet(uint8_t packet)
     return input;
 }
 
-/* Handles a keyboard control sequence */
-static void
-send_keyboard_ctrl(kbd_input_ctrl_t ctrl)
-{
-    switch (ctrl) {
-    case KCTL_CLEAR:
-        clear();
-        break;
-    default:
-        debugf("Invalid control sequence: %d\n", ctrl);
-        break;
-    }
-}
-
 /* Handles keyboard interrupts from the PIC */
 static void
 handle_keyboard_irq(void)
@@ -233,21 +220,8 @@ handle_keyboard_irq(void)
     /* Process packet, updating internal state if necessary */
     kbd_input_t input = process_packet(packet);
 
-    /* Echo character to screen if it's printable */
-    /* Handle it if it's a control sequence */
-    switch (input.type) {
-    case KTYP_CHAR:
-        putc(input.value.character);
-        break;
-    case KTYP_CTRL:
-        send_keyboard_ctrl(input.value.control);
-        break;
-    case KTYP_NONE:
-        break;
-    default:
-        debugf("Invalid input type: %d\n", input.type);
-        break;
-    }
+    /* Send it to the terminal for processing */
+    terminal_handle_input(input);
 }
 
 /* Initializes keyboard interrupts */
