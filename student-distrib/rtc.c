@@ -2,6 +2,10 @@
 #include "irq.h"
 #include "lib.h"
 #include "debug.h"
+#include "syscall.h"
+
+/* Whether we are waiting for an interrupt to occur */
+volatile int32_t waiting_interrupt = 0;
 
 /*
  * Reads the value of a RTC register. The reg
@@ -32,6 +36,9 @@ handle_rtc_irq(void)
     /* Read from register C, ignore value */
     read_reg(RTC_REG_C);
 
+    /* Notify any read calls that we got an interrupt */
+    waiting_interrupt = 0;
+
     /* For RTC testing */
     // test_interrupts();
 }
@@ -42,7 +49,7 @@ handle_rtc_irq(void)
  * frequency is not a power of 2 between 2 and 1024.
  */
 static uint8_t
-rtc_freq_to_rs(uint32_t freq)
+rtc_freq_to_rs(int32_t freq)
 {
     switch (freq) {
     case 8192:
@@ -81,8 +88,8 @@ rtc_freq_to_rs(uint32_t freq)
  *
  * Returns -1 on error, 0 on success.
  */
-int
-rtc_set_frequency(uint32_t freq)
+static int32_t
+rtc_set_frequency(int32_t freq)
 {
     uint8_t reg_a;
 
@@ -101,6 +108,68 @@ rtc_set_frequency(uint32_t freq)
 
     /* Write register A */
     write_reg(RTC_REG_A, reg_a);
+    return 0;
+}
+
+/*
+ * Open syscall for RTC. Does nothing.
+ */
+int32_t
+rtc_open(const uint8_t *filename)
+{
+    return 0;
+}
+
+/*
+ * Read syscall for RTC. Waits for the next periodic interrupt
+ * to occur, then returns success.
+ *
+ * buf and nbytes are ignored.
+ */
+int32_t
+rtc_read(int32_t fd, void *buf, int32_t nbytes)
+{
+    /* Wait for the interrupt handler to set this flag to 0 */
+    waiting_interrupt = 1;
+    while (waiting_interrupt);
+    return 0;
+}
+
+/*
+ * Write syscall for RTC. Sets the global periodic interrupt
+ * frequency for the RTC. This change will be visible to other
+ * programs.
+ *
+ * buf must point to a int32_t containing the desired frequency,
+ * nbytes must equal sizeof(int32_t). The frequency must be a
+ * power of 2 between 2 and 1024.
+ */
+int32_t
+rtc_write(int32_t fd, const void *buf, int32_t nbytes)
+{
+    int32_t freq;
+
+    /* Check if we're writing the appropriate size */
+    if (nbytes != sizeof(int32_t)) {
+        return -1;
+    }
+
+    /* Ensure buffer is valid */
+    if (buf == NULL) {
+        return -1;
+    }
+
+    /* Set frequency */
+    freq = *(int32_t *)buf;
+    return rtc_set_frequency(freq);
+}
+
+/*
+ * Close syscall for RTC. Does nothing.
+ */
+int32_t
+rtc_close(int32_t fd)
+{
     return 0;
 }
 

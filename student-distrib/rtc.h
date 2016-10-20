@@ -45,8 +45,11 @@
 
 #ifndef ASM
 
-/* Sets the frequency of RTC interrupts */
-int rtc_set_frequency(uint32_t freq);
+/* RTC syscall handlers */
+int32_t rtc_open(const uint8_t *filename);
+int32_t rtc_read(int32_t fd, void *buf, int32_t nbytes);
+int32_t rtc_write(int32_t fd, const void *buf, int32_t nbytes);
+int32_t rtc_close(int32_t fd);
 
 /* Initializes real-time clock interrupts */
 void rtc_init(void);
