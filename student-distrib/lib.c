@@ -2,14 +2,7 @@
  */
 
 #include "lib.h"
-#define VIDEO 0xB8000
-#define NUM_COLS 80
-#define NUM_ROWS 25
-#define ATTRIB 0x7
-
-static int screen_x;
-static int screen_y;
-static char* video_mem = (char *)VIDEO;
+#include "terminal.h"
 
 /*
 * void clear(void);
@@ -21,15 +14,7 @@ static char* video_mem = (char *)VIDEO;
 void
 clear(void)
 {
-    int32_t i;
-    for(i=0; i<NUM_ROWS*NUM_COLS; i++) {
-        *(uint8_t *)(video_mem + (i << 1)) = ' ';
-        *(uint8_t *)(video_mem + (i << 1) + 1) = ATTRIB;
-    }
-
-    /* Reset cursor to top-left position */
-    screen_x = 0;
-    screen_y = 0;
+    terminal_clear();
 }
 
 /* Standard printf().
@@ -190,22 +175,7 @@ puts(int8_t* s)
 void
 putc(uint8_t c)
 {
-    if(c == '\n' || c == '\r') {
-        screen_y++;
-        screen_x=0;
-    } else if (c == '\b') {
-        screen_x = (screen_x - 1 + NUM_COLS) % NUM_COLS;
-        *(uint8_t *)(video_mem + ((NUM_COLS*screen_y + screen_x) << 1)) = ' ';
-        *(uint8_t *)(video_mem + ((NUM_COLS*screen_y + screen_x) << 1) + 1) = ATTRIB;
-    } else if (c == '\t') {
-        puts("    ");
-    } else {
-        *(uint8_t *)(video_mem + ((NUM_COLS*screen_y + screen_x) << 1)) = c;
-        *(uint8_t *)(video_mem + ((NUM_COLS*screen_y + screen_x) << 1) + 1) = ATTRIB;
-        screen_x++;
-        screen_x %= NUM_COLS;
-        screen_y = (screen_y + (screen_x / NUM_COLS)) % NUM_ROWS;
-    }
+    terminal_putc(c);
 }
 
 /*
@@ -558,22 +528,6 @@ strncpy(int8_t* dest, const int8_t* src, uint32_t n)
     }
 
     return dest;
-}
-
-/*
-* void test_interrupts(void)
-*   Inputs: void
-*   Return Value: void
-*   Function: increments video memory. To be used to test rtc
-*/
-
-void
-test_interrupts(void)
-{
-    int32_t i;
-    for (i=0; i < NUM_ROWS*NUM_COLS; i++) {
-        video_mem[i<<1]++;
-    }
 }
 
 /*

@@ -7,7 +7,9 @@
 /* Current pressed/toggled modifier key state */
 static kbd_modifiers_t modifiers = KMOD_NONE;
 
-/* Maps keycode values to printable characters */
+/* Maps keycode values to printable characters. Data from:
+ * http://www.comptechdoc.org/os/linux/howlinuxworks/linux_hlkeycodes.html
+ */
 static char keycode_map[4][NUM_KEYS] = {
     /* Neutral */
     {
@@ -91,21 +93,6 @@ keycode_to_modifier(uint8_t keycode)
 }
 
 /*
- * Maps a keycode to the corresponding control sequence,
- * or KCTL_NONE if it does not correspond to anything.
- */
-static kbd_input_ctrl_t
-keycode_to_ctrl(uint8_t keycode)
-{
-    switch (keycode) {
-    case KC_L: /* CTRL-L */
-        return KCTL_CLEAR;
-    default:
-        return KCTL_NONE;
-    }
-}
-
-/*
  * Gets the currently pressed modifier state,
  * with left and right modifiers consolidated
  * (i.e. if either KMOD_LCTRL or KMOD_RCTRL are
@@ -120,6 +107,36 @@ get_modifiers(void)
     if (mod & (KMOD_SHIFT)) mod |= KMOD_SHIFT;
     if (mod & (KMOD_ALT))   mod |= KMOD_ALT;
     return (int)mod;
+}
+
+/*
+ * Maps a keycode to the corresponding control sequence,
+ * or KCTL_NONE if it does not correspond to anything.
+ * Note that despite the name, this function handles
+ * ALT key combinations too.
+ */
+static kbd_input_ctrl_t
+keycode_to_ctrl(uint8_t keycode)
+{
+    switch (get_modifiers() & ~KMOD_CAPS) {
+    case KMOD_CTRL:
+        switch (keycode) {
+        case KC_L: /* CTRL-L */
+            return KCTL_CLEAR;
+        }
+        break;
+    case KMOD_ALT:
+        switch (keycode) {
+        case KC_F1: /* ALT-F1 */
+            return KCTL_TERM1;
+        case KC_F2: /* ALT-F2 */
+            return KCTL_TERM2;
+        case KC_F3: /* ALT-F3 */
+            return KCTL_TERM3;
+        }
+        break;
+    }
+    return KCTL_NONE;
 }
 
 /*
@@ -158,6 +175,8 @@ keycode_to_input(uint8_t keycode)
         break;
     case KMOD_CTRL:
     case KMOD_CAPS | KMOD_CTRL:
+    case KMOD_ALT:
+    case KMOD_CAPS | KMOD_ALT:
         input.type = KTYP_CTRL;
         input.value.control = keycode_to_ctrl(keycode);
         break;

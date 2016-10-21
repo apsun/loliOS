@@ -7,6 +7,7 @@
 #include "paging.h"
 #include "keyboard.h"
 #include "rtc.h"
+#include "terminal.h"
 
 /* Macros. */
 /* Check if the bit BIT in FLAGS is set. */
