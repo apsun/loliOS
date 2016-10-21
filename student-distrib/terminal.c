@@ -5,22 +5,10 @@
 #include "keyboard.h"
 
 /* Holds information about each terminal */
-static terminal_state_t terminal_states[NUM_TERMINALS] = {
-    {
-        /* First terminal initially points directly to the VGA buffer */
-        .video_mem = (uint8_t *)VIDEO_MEM
-    },
-    {
-        /* Remaining terminals point to their backing buffers */
-        .video_mem = terminal_states[1].backing_mem
-    },
-    {
-        .video_mem = terminal_states[2].backing_mem
-    },
-};
+static terminal_state_t terminal_states[NUM_TERMINALS];
 
 /* Index of the currently displayed terminal */
-static int32_t display_terminal = 0;
+static int32_t display_terminal;
 
 /* VGA video memory */
 static uint8_t *global_video_mem = (uint8_t *)VIDEO_MEM;
@@ -33,7 +21,7 @@ static uint8_t *global_video_mem = (uint8_t *)VIDEO_MEM;
 terminal_state_t *
 get_executing_terminal(void)
 {
-    /* TODO: Change this in CP5 */
+    /* TODO: Change this in a future CP */
     return &terminal_states[display_terminal];
 }
 
@@ -61,8 +49,9 @@ vga_set_register(uint8_t index, uint8_t value)
 
 /*
  * Sets the VGA cursor position to the cursor position
- * in the specified terminal. Only has an effect if the
- * terminal is currently displayed.
+ * in the specified terminal. You must check if the terminal
+ * is currently displayed (term == get_display_terminal())
+ * before calling this!
  */
 static void
 terminal_update_cursor(terminal_state_t *term)
@@ -73,12 +62,27 @@ terminal_update_cursor(terminal_state_t *term)
     vga_set_register(VGA_REG_CURSOR_HI, (pos >> 8) & 0xff);
 }
 
+/* Clears out a region of VGA memory (overwrites it with spaces) */
+static void
+vga_clear_region(uint8_t *ptr, int32_t num_chars)
+{
+    /*
+     * Screen clear memset pattern, same as [0] = ' ', [1] = ATTRIB
+     * Why not a simple for loop? Because I can.
+     */
+    int32_t pattern = (' ' << 0) | (ATTRIB << 8);
+    memset_word(ptr, pattern, num_chars);
+}
+
 /*
  * Swaps the VGA video memory buffers.
  */
 static void
 terminal_swap_buffer(terminal_state_t *old, terminal_state_t *new)
 {
+    /* Old terminal must have been the display terminal */
+    ASSERT(old->video_mem == global_video_mem);
+
     /*
      * The code works fine if we don't check this edge case,
      * it's just an optimization to prevent 2 pointless memcpys.
@@ -112,13 +116,13 @@ static void
 terminal_scroll_down(terminal_state_t *term)
 {
     int32_t bytes_per_row = NUM_COLS << 1;
-    int32_t shift_count = ((NUM_COLS * NUM_ROWS) << 1) - bytes_per_row;
+    int32_t shift_count = VIDEO_MEM_SIZE - bytes_per_row;
 
     /* Shift rows forward by one row */
     memmove(term->video_mem, term->video_mem + bytes_per_row, shift_count);
 
     /* Clear out last row */
-    memset(term->video_mem + shift_count, 0, bytes_per_row);
+    vga_clear_region(term->video_mem + shift_count, bytes_per_row / 2);
 }
 
 /*
@@ -189,7 +193,9 @@ terminal_putc_impl(terminal_state_t *term, uint8_t c)
     }
 
     /* Update cursor position */
-    terminal_update_cursor(term);
+    if (term == get_display_terminal()) {
+        terminal_update_cursor(term);
+    }
 }
 
 /*
@@ -199,13 +205,8 @@ terminal_putc_impl(terminal_state_t *term, uint8_t c)
 static void
 terminal_clear_impl(terminal_state_t *term)
 {
-    int32_t i;
-
-    /* Clear characters */
-    for (i = 0; i < NUM_ROWS * NUM_COLS; ++i) {
-        term->video_mem[(i << 1) + 0] = ' ';
-        term->video_mem[(i << 1) + 1] = ATTRIB;
-    }
+    /* Clear screen */
+    vga_clear_region(term->video_mem, VIDEO_MEM_SIZE / 2);
 
     /* Reset cursor to top-left position */
     term->cursor.logical_x = 0;
@@ -213,7 +214,9 @@ terminal_clear_impl(terminal_state_t *term)
     term->cursor.screen_y = 0;
 
     /* Update cursor position */
-    terminal_update_cursor(term);
+    if (term == get_display_terminal()) {
+        terminal_update_cursor(term);
+    }
 }
 
 /*
@@ -231,7 +234,10 @@ set_display_terminal(int32_t index)
     display_terminal = index;
     new = get_display_terminal();
 
+    /* Swap active VGA memory buffers */
     terminal_swap_buffer(old, new);
+
+    /* Update the cursor position for the new terminal screen */
     terminal_update_cursor(new);
 }
 
@@ -413,5 +419,33 @@ terminal_handle_input(kbd_input_t input)
     default:
         debugf("Invalid input type: %d\n", input.type);
         break;
+    }
+}
+
+/*
+ * Initialize all terminals. This must be called before
+ * any printing functions! (Okay well technically it doesn't,
+ * but calling this has the side effect of clearing the
+ * terminal)
+ */
+void
+terminal_init(void)
+{
+    int i;
+
+    /* Set initially displayed terminal to first one */
+    display_terminal = 0;
+
+    /* First terminal's active video memory points to global VGA memory */
+    terminal_states[0].video_mem = global_video_mem;
+
+    /* Remaining terminal active video memory points to internal backing buffer */
+    for (i = 1; i < NUM_TERMINALS; ++i) {
+        terminal_states[i].video_mem = terminal_states[i].backing_mem;
+    }
+
+    /* Clear all the terminal memory regions */
+    for (i = 0; i < NUM_TERMINALS; ++i) {
+        vga_clear_region(terminal_states[i].backing_mem, VIDEO_MEM_SIZE / 2);
     }
 }

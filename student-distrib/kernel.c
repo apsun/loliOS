@@ -20,6 +20,9 @@ entry (unsigned long magic, unsigned long addr)
 {
     multiboot_info_t *mbi;
 
+    /* Initialize terminals */
+    terminal_init();
+
     /* Clear the screen. */
     clear();
 
@@ -181,7 +184,7 @@ entry (unsigned long magic, unsigned long addr)
     for (i = 0; i < 16; ++i) {
         terminal_write(0, "\rLoading ", 9);
         terminal_write(0, spinner[i % 4], 1);
-        for (j = 0; j < 20000000; ++j);
+        for (j = 0; j < 10000000; ++j);
     }
     terminal_write(0, "\n", 1);
 
@@ -191,14 +194,14 @@ entry (unsigned long magic, unsigned long addr)
         uint8_t buf[256];
         int32_t count = terminal_read(0, buf, 255);
         buf[count] = '\0';
-        printf("You typed: %s\n", buf);
+        if (!strncmp("fault\n", buf, 7)) {
+            printf("%d\n", *(volatile int *)NULL);
+        } else if (!strncmp("nyaa\n", buf, 6)) {
+            printf("Nyaa~\n");
+        } else {
+            printf("Sorry, didn't get that\n");
+        }
     }
-
-    /* Raise page fault (for debugging) */
-    // printf("%d\n", *(volatile int *)NULL);
-
-    /* Raise divide by zero (for debugging) */
-    // printf("%d\n", 1 / 0);
 
     /* Execute the first program (`shell') ... */
 

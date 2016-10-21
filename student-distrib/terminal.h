@@ -14,10 +14,10 @@
 #define VIDEO_MEM_SIZE (NUM_ROWS * NUM_COLS * 2)
 
 /* VGA registers */
-#define VGA_REG_CURSOR_HI  0x0E
-#define VGA_REG_CURSOR_LO  0x0F
-#define VGA_PORT_INDEX     0x3D4
-#define VGA_PORT_DATA      0x3D5
+#define VGA_REG_CURSOR_HI 0x0E
+#define VGA_REG_CURSOR_LO 0x0F
+#define VGA_PORT_INDEX    0x3D4
+#define VGA_PORT_DATA     0x3D5
 
 #ifndef ASM
 
@@ -57,7 +57,7 @@ typedef struct {
     cursor_pos_t cursor;
 
     /* Backing video memory */
-    uint8_t backing_mem[NUM_ROWS * NUM_COLS * 2];
+    uint8_t backing_mem[VIDEO_MEM_SIZE];
 
     /* Pointer to the video memory where the contents
      * of this terminal should be displayed. Either points
@@ -77,11 +77,14 @@ void set_display_terminal(int32_t index);
 /* Prints a character to the curently executing terminal */
 void terminal_putc(uint8_t c);
 
-/* Clears the curently executing terminal screen */
+/* Clears the curently executing terminal */
 void terminal_clear(void);
 
 /* Handles keyboard input */
 void terminal_handle_input(kbd_input_t input);
+
+/* Initializes the terminal */
+void terminal_init(void);
 
 #endif /* ASM */
 

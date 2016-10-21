@@ -37,9 +37,6 @@ handle_rtc_irq(void)
 
     /* Notify any read calls that we got an interrupt */
     waiting_interrupt = 0;
-
-    /* For RTC testing */
-    // test_interrupts();
 }
 
 /*
