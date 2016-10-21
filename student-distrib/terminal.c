@@ -32,7 +32,7 @@ static char* video_mem = (char *)VIDEO;
 static volatile input_buf_t *
 get_current_input_buf(void)
 {
-    /* TODO: Change this */
+    /* TODO: Change this in CP5 */
     return &input_buffers[0];
 }
 
@@ -52,6 +52,27 @@ scroll_down(void)
     /* TODO */
 }
 
+static void
+terminal_handle_backspace(void)
+{
+    /* TODO */
+    screen_x = (screen_x - 1 + NUM_COLS) % NUM_COLS;
+    *(uint8_t *)(video_mem + ((NUM_COLS*screen_y + screen_x) << 1)) = ' ';
+    *(uint8_t *)(video_mem + ((NUM_COLS*screen_y + screen_x) << 1) + 1) = ATTRIB;
+}
+
+static void
+terminal_handle_delete(void)
+{
+    /* TODO */
+}
+
+static void
+terminal_handle_tab(void)
+{
+    /* TODO */
+}
+
 /* Prints a character to the currently active terminal */
 void
 terminal_putc(uint8_t c)
@@ -59,12 +80,6 @@ terminal_putc(uint8_t c)
     if(c == '\n' || c == '\r') {
         screen_y = (screen_y + 1) % NUM_ROWS;
         screen_x=0;
-    } else if (c == '\b') {
-        screen_x = (screen_x - 1 + NUM_COLS) % NUM_COLS;
-        *(uint8_t *)(video_mem + ((NUM_COLS*screen_y + screen_x) << 1)) = ' ';
-        *(uint8_t *)(video_mem + ((NUM_COLS*screen_y + screen_x) << 1) + 1) = ATTRIB;
-    } else if (c == '\t') {
-        puts("    ");
     } else {
         *(uint8_t *)(video_mem + ((NUM_COLS*screen_y + screen_x) << 1)) = c;
         *(uint8_t *)(video_mem + ((NUM_COLS*screen_y + screen_x) << 1) + 1) = ATTRIB;
@@ -180,6 +195,15 @@ static void
 handle_ctrl_input(kbd_input_ctrl_t ctrl)
 {
     switch (ctrl) {
+    case KCTL_BACKSPACE:
+        terminal_handle_backspace();
+        break;
+    case KCTL_DELETE:
+        terminal_handle_delete();
+        break;
+    case KCTL_TAB:
+        terminal_handle_tab();
+        break;
     case KCTL_CLEAR:
         terminal_clear();
         break;

@@ -16,6 +16,9 @@
 #define KC_F1        0x3B
 #define KC_F2        0x3C
 #define KC_F3        0x3D
+#define KC_BACKSPACE 0x0E
+#define KC_DELETE    0x53
+#define KC_TAB       0x0F
 
 /* Memory port of the keyboard */
 #define KEYBOARD_PORT 0x60
@@ -49,11 +52,14 @@ typedef enum {
 
 /* Keyboard control sequences */
 typedef enum {
-    KCTL_NONE,  /* Invalid control sequence */
-    KCTL_CLEAR, /* Clear the current terminal */
-    KCTL_TERM1, /* Switch to terminal 1 */
-    KCTL_TERM2, /* Switch to terminal 2 */
-    KCTL_TERM3, /* Switch to terminal 3 */
+    KCTL_NONE,      /* Invalid control sequence */
+    KCTL_BACKSPACE, /* Backspace */
+    KCTL_DELETE,    /* Delete */
+    KCTL_TAB,       /* Tab */
+    KCTL_CLEAR,     /* Clear the current terminal */
+    KCTL_TERM1,     /* Switch to terminal 1 */
+    KCTL_TERM2,     /* Switch to terminal 2 */
+    KCTL_TERM3,     /* Switch to terminal 3 */
 } kbd_input_ctrl_t;
 
 /* Keyboard input struct */

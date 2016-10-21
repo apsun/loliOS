@@ -119,6 +119,16 @@ static kbd_input_ctrl_t
 keycode_to_ctrl(uint8_t keycode)
 {
     switch (get_modifiers() & ~KMOD_CAPS) {
+    case KMOD_NONE:
+        switch (keycode) {
+        case KC_BACKSPACE:
+            return KCTL_BACKSPACE;
+        case KC_DELETE:
+            return KCTL_DELETE;
+        case KC_TAB:
+            return KCTL_TAB;
+        }
+        break;
     case KMOD_CTRL:
         switch (keycode) {
         case KC_L: /* CTRL-L */
@@ -140,6 +150,27 @@ keycode_to_ctrl(uint8_t keycode)
 }
 
 /*
+ * Maps a keycode to the corresponding printable character,
+ * or '\0' if the character cannot be printed.
+ */
+static uint8_t
+keycode_to_char(uint8_t keycode)
+{
+    switch (get_modifiers()) {
+    case KMOD_NONE:
+        return keycode_map[0][keycode];
+    case KMOD_SHIFT:
+        return keycode_map[1][keycode];
+    case KMOD_CAPS:
+        return keycode_map[2][keycode];
+    case KMOD_CAPS | KMOD_SHIFT:
+        return keycode_map[3][keycode];
+    default:
+        return '\0';
+    }
+}
+
+/*
  * Maps a keycode to an input value (taking into consideration
  * currently pressed/toggled modifier keys).
  */
@@ -147,6 +178,8 @@ static kbd_input_t
 keycode_to_input(uint8_t keycode)
 {
     kbd_input_t input;
+    kbd_input_ctrl_t ctrl;
+    uint8_t c;
     input.type = KTYP_NONE;
 
     /* Check if the keycode was out of range */
@@ -155,35 +188,23 @@ keycode_to_input(uint8_t keycode)
         return input;
     }
 
-    /* Map the keycode to the appropriate character */
-    switch (get_modifiers()) {
-    case KMOD_NONE:
-        input.type = KTYP_CHAR;
-        input.value.character = keycode_map[0][keycode];
-        break;
-    case KMOD_SHIFT:
-        input.type = KTYP_CHAR;
-        input.value.character = keycode_map[1][keycode];
-        break;
-    case KMOD_CAPS:
-        input.type = KTYP_CHAR;
-        input.value.character = keycode_map[2][keycode];
-        break;
-    case KMOD_CAPS | KMOD_SHIFT:
-        input.type = KTYP_CHAR;
-        input.value.character = keycode_map[3][keycode];
-        break;
-    case KMOD_CTRL:
-    case KMOD_CAPS | KMOD_CTRL:
-    case KMOD_ALT:
-    case KMOD_CAPS | KMOD_ALT:
+    /* Check if it's a known control sequence */
+    ctrl = keycode_to_ctrl(keycode);
+    if (ctrl != KCTL_NONE) {
         input.type = KTYP_CTRL;
-        input.value.control = keycode_to_ctrl(keycode);
-        break;
-    default:
-        debugf("Unhandled modifier combination: 0x%#x\n", modifiers);
-        break;
+        input.value.control = ctrl;
+        return input;
     }
+
+    /* Check if it's a printable character */
+    c = keycode_to_char(keycode);
+    if (c != '\0') {
+        input.type = KTYP_CHAR;
+        input.value.character = c;
+        return input;
+    }
+
+    /* None of the above */
     return input;
 }
 
