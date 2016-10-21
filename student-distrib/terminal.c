@@ -87,7 +87,7 @@ terminal_putc(uint8_t c)
 {
     terminal_state_t *term = get_executing_terminal();
 
-    if (c == '\n' || c == '\r') {
+    if (c == '\n') {
         /* Reset x position, increment y position */
         term->cursor.logical_x = 0;
         term->cursor.screen_x = 0;
@@ -98,6 +98,10 @@ terminal_putc(uint8_t c)
             terminal_scroll_down();
             term->cursor.screen_y--;
         }
+    } else if (c == '\r') {
+        /* Just reset x position */
+        term->cursor.logical_x = 0;
+        term->cursor.screen_x = 0;
     } else if (c == '\b') {
         /* Only allow when there's something on this logical line */
         if (term->cursor.logical_x > 0) {
@@ -291,7 +295,7 @@ handle_char_input(uint8_t c)
 {
     terminal_state_t *term = get_executing_terminal();
     volatile input_buf_t *input_buf = &term->input;
-    if (c == '\b' && input_buf->count > 0) {
+    if (c == '\b' && input_buf->count > 0 && term->cursor.logical_x > 0) {
         input_buf->count--;
         terminal_putc(c);
     } else if (c != '\b' && input_buf->count < TERMINAL_BUF_SIZE) {

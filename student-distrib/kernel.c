@@ -174,6 +174,17 @@ entry (unsigned long magic, unsigned long addr)
     printf("Boot successful!\n");
     clear();
 
+    /* Silly loading spinner thing because why not? */
+    int i;
+    volatile int j;
+    uint8_t *spinner[4] = {"|", "/", "-", "\\"};
+    for (i = 0; i < 16; ++i) {
+        terminal_write(0, "\rLoading ", 9);
+        terminal_write(0, spinner[i % 4], 1);
+        for (j = 0; j < 20000000; ++j);
+    }
+    terminal_write(0, "\n", 1);
+
     /* Terminal test */
     while (1) {
         printf("loliOS> ");
