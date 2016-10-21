@@ -174,6 +174,15 @@ entry (unsigned long magic, unsigned long addr)
     printf("Boot successful!\n");
     clear();
 
+    /* Terminal test */
+    while (1) {
+        printf("loliOS> ");
+        uint8_t buf[256];
+        int32_t count = terminal_read(0, buf, 255);
+        buf[count] = '\0';
+        printf("You typed: %s\n", buf);
+    }
+
     /* Raise page fault (for debugging) */
     // printf("%d\n", *(volatile int *)NULL);
 

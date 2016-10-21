@@ -119,16 +119,6 @@ static kbd_input_ctrl_t
 keycode_to_ctrl(uint8_t keycode)
 {
     switch (get_modifiers() & ~KMOD_CAPS) {
-    case KMOD_NONE:
-        switch (keycode) {
-        case KC_BACKSPACE:
-            return KCTL_BACKSPACE;
-        case KC_DELETE:
-            return KCTL_DELETE;
-        case KC_TAB:
-            return KCTL_TAB;
-        }
-        break;
     case KMOD_CTRL:
         switch (keycode) {
         case KC_L: /* CTRL-L */
@@ -151,7 +141,8 @@ keycode_to_ctrl(uint8_t keycode)
 
 /*
  * Maps a keycode to the corresponding printable character,
- * or '\0' if the character cannot be printed.
+ * or '\0' if the character cannot be printed. Note that
+ * '\n', '\t', and '\b' are considered "printable characters".
  */
 static uint8_t
 keycode_to_char(uint8_t keycode)
