@@ -7,56 +7,110 @@
 /* Holds information about each terminal */
 static terminal_state_t terminal_states[NUM_TERMINALS] = {
     {
-        .input = {
-            .buf = {0},
-            .count = 0,
-        },
-        .cursor = {
-            .logical_x = 0,
-            .screen_x = 0,
-            .screen_y = 0,
-        },
-        .video_mem = (uint8_t *)VIDEO,
-    }
+        /* First terminal initially points directly to the VGA buffer */
+        .video_mem = (uint8_t *)VIDEO_MEM
+    },
+    {
+        /* Remaining terminals point to their backing buffers */
+        .video_mem = terminal_states[1].backing_mem
+    },
+    {
+        .video_mem = terminal_states[2].backing_mem
+    },
 };
 
 /* Index of the currently displayed terminal */
 static int32_t display_terminal = 0;
+
+/* VGA video memory */
+static uint8_t *global_video_mem = (uint8_t *)VIDEO_MEM;
 
 /*
  * Returns the terminal corresponding to the currently
  * executing process. Note that THIS IS NOT NECESSARILY
  * THE DISPLAY TERMINAL!
  */
-static terminal_state_t *
+terminal_state_t *
 get_executing_terminal(void)
 {
     /* TODO: Change this in CP5 */
-    return &terminal_states[0];
+    return &terminal_states[display_terminal];
 }
 
 /*
- * Sets the index of the DISPLAYED terminal. This is
- * NOT the same as the EXECUTING terminal! The index
- * must be in the range [0, NUM_TERMINALS).
+ * Returns the terminal that is currently displayed on
+ * the screen.
  */
-static void
-set_display_terminal(int32_t index)
+terminal_state_t *
+get_display_terminal(void)
 {
-    ASSERT(index >= 0 && index < NUM_TERMINALS);
-    display_terminal = index;
-    /* TODO: Swap display buffers */
+    return &terminal_states[display_terminal];
 }
 
 /*
- * Scrolls the executing terminal down. This does
- * NOT decrement the screen y position!
+ * Sets the contents of a VGA register.
+ * index - the register index
+ * value - the new contents of the register
  */
 static void
-terminal_scroll_down(void)
+vga_set_register(uint8_t index, uint8_t value)
 {
-    terminal_state_t *term = get_executing_terminal();
+    outb(index, VGA_PORT_INDEX);
+    outb(value, VGA_PORT_DATA);
+}
 
+/*
+ * Sets the VGA cursor position to the cursor position
+ * in the specified terminal. Only has an effect if the
+ * terminal is currently displayed.
+ */
+static void
+terminal_update_cursor(terminal_state_t *term)
+{
+    /* Write the position to the VGA cursor position registers */
+    uint16_t pos = term->cursor.screen_y * NUM_COLS + term->cursor.screen_x;
+    vga_set_register(VGA_REG_CURSOR_LO, (pos >> 0) & 0xff);
+    vga_set_register(VGA_REG_CURSOR_HI, (pos >> 8) & 0xff);
+}
+
+/*
+ * Swaps the VGA video memory buffers.
+ */
+static void
+terminal_swap_buffer(terminal_state_t *old, terminal_state_t *new)
+{
+    /*
+     * The code works fine if we don't check this edge case,
+     * it's just an optimization to prevent 2 pointless memcpys.
+     */
+    if (old == new) {
+        return;
+    }
+
+    /*
+     * Copy the global VGA memory to the previously displayed
+     * terminal's backing buffer, then point its active video
+     * memory to the backing buffer
+     */
+    memcpy(old->backing_mem, global_video_mem, VIDEO_MEM_SIZE);
+    old->video_mem = old->backing_mem;
+
+    /*
+     * Copy the contents of the new terminal's backing buffer
+     * into global VGA memory, then point its active video
+     * memory to the global VGA memory
+     */
+    memcpy(global_video_mem, new->backing_mem, VIDEO_MEM_SIZE);
+    new->video_mem = global_video_mem;
+}
+
+/*
+ * Scrolls the specified terminal down. This does
+ * NOT decrement the cursor y position!
+ */
+static void
+terminal_scroll_down(terminal_state_t *term)
+{
     int32_t bytes_per_row = NUM_COLS << 1;
     int32_t shift_count = ((NUM_COLS * NUM_ROWS) << 1) - bytes_per_row;
 
@@ -69,8 +123,8 @@ terminal_scroll_down(void)
 
 /*
  * Writes a character at the current cursor position
- * in the terminal. This does NOT increment the cursor
- * position!
+ * in the specified terminal. This does NOT increment
+ * the cursor position!
  */
 static void
 terminal_write_char(terminal_state_t *term, uint8_t c)
@@ -81,12 +135,10 @@ terminal_write_char(terminal_state_t *term, uint8_t c)
     term->video_mem[((y * NUM_COLS + x) << 1) + 1] = ATTRIB;
 }
 
-/* Prints a character to the executing terminal */
-void
-terminal_putc(uint8_t c)
+/* Prints a character to the specified terminal */
+static void
+terminal_putc_impl(terminal_state_t *term, uint8_t c)
 {
-    terminal_state_t *term = get_executing_terminal();
-
     if (c == '\n') {
         /* Reset x position, increment y position */
         term->cursor.logical_x = 0;
@@ -95,7 +147,7 @@ terminal_putc(uint8_t c)
 
         /* Scroll if we're at the bottom */
         if (term->cursor.screen_y >= NUM_ROWS) {
-            terminal_scroll_down();
+            terminal_scroll_down(term);
             term->cursor.screen_y--;
         }
     } else if (c == '\r') {
@@ -131,20 +183,22 @@ terminal_putc(uint8_t c)
 
         /* Scroll if we wrapped some text at the bottom */
         if (term->cursor.screen_y >= NUM_ROWS) {
-            terminal_scroll_down();
+            terminal_scroll_down(term);
             term->cursor.screen_y--;
         }
     }
+
+    /* Update cursor position */
+    terminal_update_cursor(term);
 }
 
 /*
- * Clears the executing terminal and resets the cursor
+ * Clears the specified terminal and resets the cursor
  * position. This does NOT clear the input buffer.
  */
-void
-terminal_clear(void)
+static void
+terminal_clear_impl(terminal_state_t *term)
 {
-    terminal_state_t *term = get_executing_terminal();
     int32_t i;
 
     /* Clear characters */
@@ -157,6 +211,44 @@ terminal_clear(void)
     term->cursor.logical_x = 0;
     term->cursor.screen_x = 0;
     term->cursor.screen_y = 0;
+
+    /* Update cursor position */
+    terminal_update_cursor(term);
+}
+
+/*
+ * Sets the index of the DISPLAYED terminal. This is
+ * NOT the same as the EXECUTING terminal! The index
+ * must be in the range [0, NUM_TERMINALS).
+ */
+void
+set_display_terminal(int32_t index)
+{
+    terminal_state_t *old = get_display_terminal();
+    terminal_state_t *new;
+
+    ASSERT(index >= 0 && index < NUM_TERMINALS);
+    display_terminal = index;
+    new = get_display_terminal();
+
+    terminal_swap_buffer(old, new);
+    terminal_update_cursor(new);
+}
+
+/* Prints a character to the currently executing terminal */
+void
+terminal_putc(uint8_t c)
+{
+    terminal_state_t *term = get_executing_terminal();
+    terminal_putc_impl(term, c);
+}
+
+/* Clears the curently executing terminal screen */
+void
+terminal_clear(void)
+{
+    terminal_state_t *term = get_executing_terminal();
+    terminal_clear_impl(term);
 }
 
 /*
@@ -258,10 +350,11 @@ terminal_read(int32_t fd, void *buf, int32_t nbytes)
 int32_t
 terminal_write(int32_t fd, const void *buf, int32_t nbytes)
 {
+    terminal_state_t *term = get_executing_terminal();
     int32_t i;
     const uint8_t *src = (const uint8_t *)buf;
     for (i = 0; i < nbytes; ++i) {
-        terminal_putc(src[i]);
+        terminal_putc_impl(term, src[i]);
     }
     return nbytes;
 }
@@ -278,10 +371,10 @@ handle_ctrl_input(kbd_input_ctrl_t ctrl)
         set_display_terminal(0);
         break;
     case KCTL_TERM2:
-        /* set_display_terminal(1); */
+        set_display_terminal(1);
         break;
     case KCTL_TERM3:
-        /* set_display_terminal(2); */
+        set_display_terminal(2);
         break;
     default:
         debugf("Invalid control sequence: %d\n", ctrl);
@@ -297,10 +390,10 @@ handle_char_input(uint8_t c)
     volatile input_buf_t *input_buf = &term->input;
     if (c == '\b' && input_buf->count > 0 && term->cursor.logical_x > 0) {
         input_buf->count--;
-        terminal_putc(c);
+        terminal_putc_impl(term, c);
     } else if (c != '\b' && input_buf->count < TERMINAL_BUF_SIZE) {
         input_buf->buf[input_buf->count++] = c;
-        terminal_putc(c);
+        terminal_putc_impl(term, c);
     }
 }
 

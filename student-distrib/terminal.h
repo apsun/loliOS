@@ -5,12 +5,19 @@
 #include "keyboard.h"
 
 #define TERMINAL_BUF_SIZE 128
-#define NUM_TERMINALS 1 /* TODO: Support 3 of these */
+#define NUM_TERMINALS 3
 
-#define VIDEO 0xB8000
-#define NUM_COLS 80
-#define NUM_ROWS 25
-#define ATTRIB 0x7
+#define VIDEO_MEM 0xB8000
+#define NUM_COLS  80
+#define NUM_ROWS  25
+#define ATTRIB    0x7
+#define VIDEO_MEM_SIZE (NUM_ROWS * NUM_COLS * 2)
+
+/* VGA registers */
+#define VGA_REG_CURSOR_HI  0x0E
+#define VGA_REG_CURSOR_LO  0x0F
+#define VGA_PORT_INDEX     0x3D4
+#define VGA_PORT_DATA      0x3D5
 
 #ifndef ASM
 
@@ -49,7 +56,14 @@ typedef struct {
     /* Cursor position */
     cursor_pos_t cursor;
 
-    /* Video memory base pointer */
+    /* Backing video memory */
+    uint8_t backing_mem[NUM_ROWS * NUM_COLS * 2];
+
+    /* Pointer to the video memory where the contents
+     * of this terminal should be displayed. Either points
+     * to the global VGA video memory or to the per-terminal
+     * backing_mem field.
+     */
     uint8_t *video_mem;
 } terminal_state_t;
 
@@ -57,10 +71,13 @@ typedef struct {
 int32_t terminal_read(int32_t fd, void *buf, int32_t nbytes);
 int32_t terminal_write(int32_t fd, const void *buf, int32_t nbytes);
 
-/* Prints a character to the terminal */
+/* Sets the currently displayed terminal */
+void set_display_terminal(int32_t index);
+
+/* Prints a character to the curently executing terminal */
 void terminal_putc(uint8_t c);
 
-/* Clears the terminal screen */
+/* Clears the curently executing terminal screen */
 void terminal_clear(void);
 
 /* Handles keyboard input */
