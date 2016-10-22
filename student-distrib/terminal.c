@@ -3,6 +3,7 @@
 #include "lib.h"
 #include "debug.h"
 #include "keyboard.h"
+#include "test.h"
 
 /* Holds information about each terminal */
 static terminal_state_t terminal_states[NUM_TERMINALS];
@@ -18,7 +19,7 @@ static uint8_t *global_video_mem = (uint8_t *)VIDEO_MEM;
  * executing process. Note that THIS IS NOT NECESSARILY
  * THE DISPLAY TERMINAL!
  */
-terminal_state_t *
+static terminal_state_t *
 get_executing_terminal(void)
 {
     /* TODO: Change this in a future CP */
@@ -29,7 +30,7 @@ get_executing_terminal(void)
  * Returns the terminal that is currently displayed on
  * the screen.
  */
-terminal_state_t *
+static terminal_state_t *
 get_display_terminal(void)
 {
     return &terminal_states[display_terminal];
@@ -246,7 +247,10 @@ void
 terminal_putc(uint8_t c)
 {
     terminal_state_t *term = get_executing_terminal();
+    uint32_t flags;
+    cli_and_save(flags);
     terminal_putc_impl(term, c);
+    restore_flags(flags);
 }
 
 /* Clears the curently executing terminal screen */
@@ -254,7 +258,10 @@ void
 terminal_clear(void)
 {
     terminal_state_t *term = get_executing_terminal();
+    uint32_t flags;
+    cli_and_save(flags);
     terminal_clear_impl(term);
+    restore_flags(flags);
 }
 
 /*
@@ -319,13 +326,18 @@ terminal_read(int32_t fd, void *buf, int32_t nbytes)
     volatile input_buf_t *input_buf = &term->input;
     uint8_t *dest = (uint8_t *)buf;
     int32_t i;
+    uint32_t flags;
 
     /* Only allow reads up to the end of the buffer */
     if (nbytes > TERMINAL_BUF_SIZE) {
         nbytes = TERMINAL_BUF_SIZE;
     }
 
-    /* Wait until we can read everything in one go */
+    /* Wait until we can read everything in one go
+     * Interrupts must be disabled upon entry, and
+     * will be disabled upon return.
+     */
+    cli_and_save(flags);
     nbytes = wait_until_readable(input_buf, nbytes);
 
     /* Copy from input buffer to dest buffer */
@@ -340,6 +352,9 @@ terminal_read(int32_t fd, void *buf, int32_t nbytes)
      */
     memmove((void *)&input_buf->buf[0], (void *)&input_buf->buf[i], i);
     input_buf->count -= i;
+
+    /* Restore original interrupt flags */
+    restore_flags(flags);
 
     /* i holds the number of characters read */
     return i;
@@ -359,9 +374,12 @@ terminal_write(int32_t fd, const void *buf, int32_t nbytes)
     terminal_state_t *term = get_executing_terminal();
     int32_t i;
     const uint8_t *src = (const uint8_t *)buf;
+    uint32_t flags;
+    cli_and_save(flags);
     for (i = 0; i < nbytes; ++i) {
         terminal_putc_impl(term, src[i]);
     }
+    restore_flags(flags);
     return nbytes;
 }
 
@@ -374,13 +392,16 @@ handle_ctrl_input(kbd_input_ctrl_t ctrl)
         terminal_clear();
         break;
     case KCTL_TERM1:
-        set_display_terminal(0);
-        break;
     case KCTL_TERM2:
-        set_display_terminal(1);
-        break;
     case KCTL_TERM3:
-        set_display_terminal(2);
+        set_display_terminal(ctrl - KCTL_TERM1);
+        break;
+    case KCTL_TEST1:
+    case KCTL_TEST2:
+    case KCTL_TEST3:
+    case KCTL_TEST4:
+    case KCTL_TEST5:
+        test_execute(ctrl - KCTL_TEST1);
         break;
     default:
         debugf("Invalid control sequence: %d\n", ctrl);
@@ -424,9 +445,7 @@ terminal_handle_input(kbd_input_t input)
 
 /*
  * Initialize all terminals. This must be called before
- * any printing functions! (Okay well technically it doesn't,
- * but calling this has the side effect of clearing the
- * terminal)
+ * any printing functions!
  */
 void
 terminal_init(void)

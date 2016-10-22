@@ -88,12 +88,16 @@ static int32_t
 rtc_set_frequency(int32_t freq)
 {
     uint8_t reg_a;
+    uint32_t flags;
 
     /* Convert the integer to an enum value */
     uint8_t rs = rtc_freq_to_rs(freq);
     if (rs == RTC_A_RS_NONE) {
         return -1;
     }
+
+    /* Begin critical section */
+    cli_and_save(flags);
 
     /* Read register A */
     reg_a = read_reg(RTC_REG_A);
@@ -104,15 +108,20 @@ rtc_set_frequency(int32_t freq)
 
     /* Write register A */
     write_reg(RTC_REG_A, reg_a);
+
+    /* End critical section */
+    restore_flags(flags);
+
     return 0;
 }
 
 /*
- * Open syscall for RTC. Does nothing.
+ * Open syscall for RTC. Sets the frequency to 2Hz.
  */
 int32_t
 rtc_open(const uint8_t *filename)
 {
+    rtc_set_frequency(2);
     return 0;
 }
 

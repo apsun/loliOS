@@ -11,13 +11,13 @@ irq_handle_interrupt(uint32_t irq_num)
 {
     irq_handler_t handler = irq_handlers[irq_num];
 
+    /* Clear interrupt flag on PIC */
+    i8259_send_eoi(irq_num);
+
     /* Run callback if it's registered */
     if (handler.callback != NULL) {
         handler.callback();
     }
-
-    /* Clear interrupt flag on PIC */
-    i8259_send_eoi(irq_num);
 }
 
 /*

@@ -25,6 +25,7 @@ entry (unsigned long magic, unsigned long addr)
 
     /* Initialize terminals */
     terminal_init();
+
     /* Clear the screen. */
     clear();
 
@@ -57,24 +58,25 @@ entry (unsigned long magic, unsigned long addr)
     if (CHECK_FLAG (mbi->flags, 3)) {
         int mod_count = 0;
         int i;
-        module_t* mod = (module_t*)mbi->mods_addr;
-        /* hardcode the file system mode as mods_addr 
+        module_t *mod = (module_t *)mbi->mods_addr;
+        /* hardcode the file system mode as mods_addr
          * since right now we have only one module loaded
          */
         fsmod = mod;
 
-        while(mod_count < mbi->mods_count) {
+        while (mod_count < mbi->mods_count) {
             printf("Module %d loaded at address: 0x%#x\n", mod_count, (unsigned int)mod->mod_start);
             printf("Module %d ends at address: 0x%#x\n", mod_count, (unsigned int)mod->mod_end);
             printf("First few bytes of module:\n");
-            for(i = 0; i<16; i++) {
-                printf("0x%x ", *((char*)(mod->mod_start+i)));
+            for (i = 0; i < 16; i++) {
+                printf("0x%x ", *((uint8_t *)(mod->mod_start + i)));
             }
             printf("\n");
             mod_count++;
             mod++;
         }
     }
+
     /* Bits 4 and 5 are mutually exclusive! */
     if (CHECK_FLAG (mbi->flags, 4) && CHECK_FLAG (mbi->flags, 5))
     {
@@ -170,7 +172,7 @@ entry (unsigned long magic, unsigned long addr)
     printf("Initializing RTC...\n");
     rtc_init();
 
-    /* reading from mod has to be done before enabling paging*/
+    /* Reading from mod has to be done before enabling paging */
     printf("Initializing filesystem...\n");
     filesys_init((boot_block_t *)fsmod->mod_start);
 
@@ -182,60 +184,11 @@ entry (unsigned long magic, unsigned long addr)
      * IDT correctly otherwise QEMU will triple fault and simple close
      * without showing you any output */
     printf("Enabling interrupts...\n");
-    // sti();
+    sti();
 
     /* We made it! */
     printf("Boot successful!\n");
-    // clear();
-
-    /* Silly loading spinner thing because why not? */
-    int i;
-    volatile int j;
-    uint8_t *spinner[4] = {"|", "/", "-", "\\"};
-    for (i = 0; i < 16; ++i) {
-        terminal_write(0, "\rLoading ", 9);
-        terminal_write(0, spinner[i % 4], 1);
-        for (j = 0; j < 20000000; ++j);
-    }
-    terminal_write(0, "\n", 1);
-    /* test file system */
-    // dentry_t dentry[17];
-    // uint8_t buf[4096];
-    // uint32_t bytes_read;
-
-    // read_dentry_by_name("frame0.txt", dentry + 0);
-    //     /* ignore if ftype is not a file */
-    // if (dentry[0].ftype == FTYPE_FILE) {
-    //     bytes_read = read_data(dentry[0].inode_idx, 0, buf, 4095);
-    //     terminal_write(0, buf, bytes_read);            
-    // }
-    // read_dentry_by_name("frame1.txt", dentry + 1);
-    // if (dentry[1].ftype == FTYPE_FILE) {
-    //     bytes_read = read_data(dentry[1].inode_idx, 0, buf, 4095);
-    //     terminal_write(0, buf, bytes_read);            
-    // }
-    // read_dentry_by_name("verylargetextwithverylongname.tx", dentry + 2);
-    // bytes_read = 0;
-    // uint32_t curr_bytes_read = 0;
-    // if (dentry[2].ftype == FTYPE_FILE) {
-    //     do {
-    //         curr_bytes_read = read_data(dentry[2].inode_idx, bytes_read, buf, 4095);
-    //         bytes_read += curr_bytes_read;
-    //         terminal_write(0, buf, curr_bytes_read);    
-    //     } while (bytes_read);
-                
-    // }
-
-    /* Terminal test */
-    while (1) {
-        printf("loliOS> ");
-        uint8_t buf[256];
-        int32_t count = terminal_read(0, buf, 255);
-        buf[count] = '\0';
-        printf("You typed: %s\n", buf);
-    }
-
-    
+    clear();
 
     /* Raise page fault (for debugging) */
     // printf("%d\n", *(volatile int *)0x7ffff0);
