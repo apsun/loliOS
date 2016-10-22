@@ -63,13 +63,11 @@ read_dentry_by_name (const uint8_t* fname, dentry_t* dentry)
 int32_t
 read_dentry_by_index (uint32_t index, dentry_t* dentry)
 {
-	uint32_t i;
-	for (i = 0; i < NUM_DENTRY; ++i) {		
-		dentry_t* curr_dentry = (boot_block->dentry_arr) + i;
-		if (index == curr_dentry->inode_idx) {
-			memcpy((void *)dentry, (void *)curr_dentry, DIR_ENTRY_SIZE);
-			return 0;
-		}
+	if (index < NUM_DENTRY)
+	{
+		dentry_t* curr_dentry = (boot_block->dentry_arr) + index;
+		memcpy((void *)dentry, (void *)curr_dentry, DIR_ENTRY_SIZE);
+		return 0;
 	}
 	return -1;
 }

@@ -18,6 +18,11 @@
 /* max number of inode entries */
 #define INODE_CAPACITY (BLOCK_SIZE / INODE_ENTRY_SIZE)
 
+#define FTYPE_RTC 0
+#define FTYPE_DIR 1
+#define FTYPE_FILE 2
+
+
 /* 64 Byte struct for directory entry */
 typedef struct dentry_t {
 	/* 32 char for file name */
