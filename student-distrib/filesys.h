@@ -1,5 +1,8 @@
+#ifndef _FILESYS_H
+#define _FILESYS_H
+
 #include "lib.h"
-#include "type.h"
+#include "types.h"
 
 #define KB(x) ((x) * 1024)
 /* size of boot block, inode block and data block */
@@ -14,12 +17,6 @@
 #define INODE_ENTRY_SIZE 4
 /* max number of inode entries */
 #define INODE_CAPACITY (BLOCK_SIZE / INODE_ENTRY_SIZE)
-
-/* function declaration, see specification of each function */
-int32_t read_dentry_by_name (const uint8_t* fname, dentry_t* dentry);
-int32_t read_dentry_by_index (uint32_t index, dentry_t* dentry);
-int32_t read_data (uint32_t inode, uint32_t offset, uint8_t buf, uint32_t length);
-void filesys_init(void* fs_start_addr);
 
 /* 64 Byte struct for directory entry */
 typedef struct dentry_t {
@@ -67,3 +64,11 @@ typedef struct data_block_t {
 	/* the data block is of size 4kB */
 	uint8_t data[BLOCK_SIZE];
 } data_block_t;
+
+/* function declaration, see specification of each function */
+int32_t read_dentry_by_name (const uint8_t* fname, dentry_t* dentry);
+int32_t read_dentry_by_index (uint32_t index, dentry_t* dentry);
+int32_t read_data (uint32_t inode, uint32_t offset, uint8_t* buf, uint32_t length);
+void filesys_init(void* fs_start_addr);
+
+#endif

@@ -8,10 +8,13 @@
 #include "keyboard.h"
 #include "rtc.h"
 #include "terminal.h"
+#include "filesys.h"
 
 /* Macros. */
 /* Check if the bit BIT in FLAGS is set. */
 #define CHECK_FLAG(flags,bit)   ((flags) & (1 << (bit)))
+
+uint32_t filesys_addr;
 
 /* Check if MAGIC is valid and print the Multiboot information structure
    pointed by ADDR. */
@@ -20,8 +23,7 @@ entry (unsigned long magic, unsigned long addr)
 {
     multiboot_info_t *mbi;
 
-    /* Initialize terminals */
-    terminal_init();
+    module_t* fsmod;
 
     /* Clear the screen. */
     clear();
@@ -56,6 +58,11 @@ entry (unsigned long magic, unsigned long addr)
         int mod_count = 0;
         int i;
         module_t* mod = (module_t*)mbi->mods_addr;
+        /* hardcode the file system mode as mods_addr 
+         * since right now we have only one module loaded
+         */
+        fsmod = mod;
+
         while(mod_count < mbi->mods_count) {
             printf("Module %d loaded at address: 0x%#x\n", mod_count, (unsigned int)mod->mod_start);
             printf("Module %d ends at address: 0x%#x\n", mod_count, (unsigned int)mod->mod_end);
@@ -163,6 +170,10 @@ entry (unsigned long magic, unsigned long addr)
     printf("Initializing RTC...\n");
     rtc_init();
 
+    /* reading from mod has to be done before enabling paging*/
+    printf("Initializing filesystem...\n");
+    filesys_init((boot_block_t *)fsmod->mod_start);
+
     printf("Enabling paging...\n");
     paging_enable();
 
@@ -175,7 +186,7 @@ entry (unsigned long magic, unsigned long addr)
 
     /* We made it! */
     printf("Boot successful!\n");
-    clear();
+    // clear();
 
     /* Silly loading spinner thing because why not? */
     int i;
@@ -184,9 +195,18 @@ entry (unsigned long magic, unsigned long addr)
     for (i = 0; i < 16; ++i) {
         terminal_write(0, "\rLoading ", 9);
         terminal_write(0, spinner[i % 4], 1);
-        for (j = 0; j < 10000000; ++j);
+        for (j = 0; j < 20000000; ++j);
     }
     terminal_write(0, "\n", 1);
+    dentry_t dentry[3];
+    uint8_t buf[4096];
+    uint32_t bytes_read;
+    for (i = 0; i < 3; ++i)
+    {
+        read_dentry_by_index(i, dentry + i);
+        bytes_read = read_data(dentry->inode_idx, 0, buf, 4095);
+        terminal_write(0, buf, bytes_read);
+    }
 
     /* Terminal test */
     while (1) {
@@ -194,14 +214,16 @@ entry (unsigned long magic, unsigned long addr)
         uint8_t buf[256];
         int32_t count = terminal_read(0, buf, 255);
         buf[count] = '\0';
-        if (!strncmp("fault\n", buf, 7)) {
-            printf("%d\n", *(volatile int *)NULL);
-        } else if (!strncmp("nyaa\n", buf, 6)) {
-            printf("Nyaa~\n");
-        } else {
-            printf("Sorry, didn't get that\n");
-        }
+        printf("You typed: %s\n", buf);
     }
+
+    
+
+    /* Raise page fault (for debugging) */
+    // printf("%d\n", *(volatile int *)0x7ffff0);
+
+    /* Raise divide by zero (for debugging) */
+    // printf("%d\n", 1 / 0);
 
     /* Execute the first program (`shell') ... */
 
