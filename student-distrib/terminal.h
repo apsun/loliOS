@@ -42,10 +42,10 @@ typedef struct {
     /* The cursor x-position in the current screen line.
      * This value must be less than NUM_COLS.
      */
-    int screen_x;
+    int32_t screen_x;
 
     /* The cursor y-position in the current screen line. */
-    int screen_y;
+    int32_t screen_y;
 } cursor_pos_t;
 
 /* Combined terminal state information */

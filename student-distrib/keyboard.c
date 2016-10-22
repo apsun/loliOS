@@ -61,7 +61,8 @@ set_modifier_bit(uint8_t bit, kbd_modifiers_t mask)
 
 /* Toggles a keyboard modifier bit */
 static void
-toggle_modifier_bit(kbd_modifiers_t mask) {
+toggle_modifier_bit(kbd_modifiers_t mask)
+{
     modifiers ^= mask;
 }
 

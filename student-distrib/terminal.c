@@ -269,7 +269,7 @@ terminal_clear(void)
 static int32_t
 wait_until_readable(volatile input_buf_t *input_buf, int32_t nbytes)
 {
-    int i;
+    int32_t i;
 
     /*
      * If nbytes <= number of chars in the buffer, we just
@@ -431,7 +431,7 @@ terminal_handle_input(kbd_input_t input)
 void
 terminal_init(void)
 {
-    int i;
+    int32_t i;
 
     /* Set initially displayed terminal to first one */
     display_terminal = 0;
