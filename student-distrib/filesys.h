@@ -17,7 +17,7 @@
 #define INODE_ENTRY_SIZE 4
 /* max number of inode entries */
 #define INODE_CAPACITY (BLOCK_SIZE / INODE_ENTRY_SIZE)
-
+/* constants for file type */
 #define FTYPE_RTC 0
 #define FTYPE_DIR 1
 #define FTYPE_FILE 2
@@ -57,7 +57,7 @@ typedef struct boot_block_t {
 
 /* 4kB inode block structure */
 typedef struct inode_t {
-    /* actual number of data block numbers */
+    /* number of bytes of the file */
     uint32_t len;
     /* array for data_block_numbers;
      * deduct 1 because the first entry for len

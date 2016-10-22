@@ -1,11 +1,11 @@
 #include "filesys.h"
-
+/* macro to get info from statistic entry */
 #define NUM_DENTRY (boot_block->stat_entry.num_dentry)
 #define NUM_INODE_BLOCK (boot_block->stat_entry.num_inode)
 #define NUM_DATA_BLOCK (boot_block->stat_entry.num_data_block)
-
-#define DATA_BLOCK_ARR ((data_block_t *)(boot_block + NUM_INODE_BLOCK + 1))
+/* starting address of data block and inode array */
 #define INODE_BLOCK_ARR ((inode_t *)(boot_block + 1))
+#define DATA_BLOCK_ARR ((data_block_t *)(boot_block + NUM_INODE_BLOCK + 1))
 
 /* global pointer to store the address of the boot_block */
 static boot_block_t* boot_block = NULL;
@@ -122,13 +122,17 @@ read_data(uint32_t inode, uint32_t offset, uint8_t* buf, uint32_t length)
     uint32_t bytes_to_read = BLOCK_SIZE - start_offset;
     data_block_t* tgt_data_block;
 
-    while (curr_entry != end_entry) {
+    while (curr_entry <= end_entry) {
         /* get the data block pointer with given inode and
          * its entry which contain the index to data_block_array
          */
         tgt_data_block = fs_get_data_block(tgt_inode, curr_entry);
         if (!tgt_data_block) return -1;
 
+        /* if current entry is the same with end entry, we are reading the final block */
+        if (curr_entry == end_entry)
+        	bytes_to_read = end_offset - curr_offset;
+        
         /* copy the data to the buffer */
         fs_copy_within_block(tgt_data_block, curr_offset, buf + bytes_read, bytes_to_read);
 
@@ -138,17 +142,6 @@ read_data(uint32_t inode, uint32_t offset, uint8_t* buf, uint32_t length)
         bytes_to_read = BLOCK_SIZE;
         curr_entry++;
     }
-
-    /* check if the data block index in the givne inode entry is valid*/
-    tgt_data_block = fs_get_data_block(tgt_inode, curr_entry);
-    if (!tgt_data_block) return -1;
-
-    /* compute number of bytes to read in last entry
-     * and copy them to the buffer
-     */
-    bytes_to_read = end_offset - curr_offset;
-    fs_copy_within_block(tgt_data_block, curr_offset, buf + bytes_read, bytes_to_read);
-    bytes_read += bytes_to_read;
     return bytes_read;
 }
 
