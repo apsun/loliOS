@@ -1,8 +1,10 @@
 #include "filesys.h"
+
 /* macro to get info from statistic entry */
 #define NUM_DENTRY (boot_block->stat_entry.num_dentry)
 #define NUM_INODE_BLOCK (boot_block->stat_entry.num_inode)
 #define NUM_DATA_BLOCK (boot_block->stat_entry.num_data_block)
+
 /* starting address of data block and inode array */
 #define INODE_BLOCK_ARR ((inode_t *)(boot_block + 1))
 #define DATA_BLOCK_ARR ((data_block_t *)(boot_block + NUM_INODE_BLOCK + 1))
@@ -41,7 +43,6 @@ read_dentry_by_name(const uint8_t* fname, dentry_t* dentry)
         uint8_t* curr_fname = curr_dentry->fname;
         if (fs_cmp_fname(fname, curr_fname) == 0) {
             *dentry = *curr_dentry;
-            // memcpy((void *)dentry, (void *)curr_dentry, DIR_ENTRY_SIZE);
             return 0;
         }
     }
@@ -61,8 +62,6 @@ read_dentry_by_index(uint32_t index, dentry_t* dentry)
 {
     if (index < NUM_DENTRY) {
         *dentry = boot_block->dentry_arr[index];
-        //dentry_t* curr_dentry = boot_block->dentry_arr + index;
-        //memcpy((void *)dentry, (void *)curr_dentry, DIR_ENTRY_SIZE);
         return 0;
     }
     return -1;
@@ -131,8 +130,8 @@ read_data(uint32_t inode, uint32_t offset, uint8_t* buf, uint32_t length)
 
         /* if current entry is the same with end entry, we are reading the final block */
         if (curr_entry == end_entry)
-        	bytes_to_read = end_offset - curr_offset;
-        
+            bytes_to_read = end_offset - curr_offset;
+
         /* copy the data to the buffer */
         fs_copy_within_block(tgt_data_block, curr_offset, buf + bytes_read, bytes_to_read);
 
