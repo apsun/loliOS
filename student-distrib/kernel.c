@@ -14,8 +14,6 @@
 /* Check if the bit BIT in FLAGS is set. */
 #define CHECK_FLAG(flags,bit)   ((flags) & (1 << (bit)))
 
-uint32_t filesys_addr;
-
 /* Check if MAGIC is valid and print the Multiboot information structure
    pointed by ADDR. */
 void
@@ -25,6 +23,8 @@ entry (unsigned long magic, unsigned long addr)
 
     module_t* fsmod;
 
+    /* Initialize terminals */
+    terminal_init();
     /* Clear the screen. */
     clear();
 
@@ -182,7 +182,7 @@ entry (unsigned long magic, unsigned long addr)
      * IDT correctly otherwise QEMU will triple fault and simple close
      * without showing you any output */
     printf("Enabling interrupts...\n");
-    sti();
+    // sti();
 
     /* We made it! */
     printf("Boot successful!\n");
@@ -197,16 +197,16 @@ entry (unsigned long magic, unsigned long addr)
         terminal_write(0, spinner[i % 4], 1);
         for (j = 0; j < 20000000; ++j);
     }
-    terminal_write(0, "\n", 1);
-    dentry_t dentry[3];
-    uint8_t buf[4096];
-    uint32_t bytes_read;
-    for (i = 0; i < 3; ++i)
-    {
-        read_dentry_by_index(i, dentry + i);
-        bytes_read = read_data(dentry->inode_idx, 0, buf, 4095);
-        terminal_write(0, buf, bytes_read);
-    }
+    // terminal_write(0, "\n", 1);
+    // dentry_t dentry[3];
+    // uint8_t buf[4096];
+    // uint32_t bytes_read;
+    // for (i = 0; i < 3; ++i)
+    // {
+    //     read_dentry_by_index(i, dentry + i);
+    //     bytes_read = read_data(dentry->inode_idx, 0, buf, 4095);
+    //     terminal_write(0, buf, bytes_read);
+    // }
 
     /* Terminal test */
     while (1) {
