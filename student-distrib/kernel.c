@@ -197,15 +197,33 @@ entry (unsigned long magic, unsigned long addr)
         terminal_write(0, spinner[i % 4], 1);
         for (j = 0; j < 20000000; ++j);
     }
-    // terminal_write(0, "\n", 1);
-    // dentry_t dentry[3];
+    terminal_write(0, "\n", 1);
+    /* test file system */
+    // dentry_t dentry[17];
     // uint8_t buf[4096];
     // uint32_t bytes_read;
-    // for (i = 0; i < 3; ++i)
-    // {
-    //     read_dentry_by_index(i, dentry + i);
-    //     bytes_read = read_data(dentry->inode_idx, 0, buf, 4095);
-    //     terminal_write(0, buf, bytes_read);
+
+    // read_dentry_by_name("frame0.txt", dentry + 0);
+    //     /* ignore if ftype is not a file */
+    // if (dentry[0].ftype == FTYPE_FILE) {
+    //     bytes_read = read_data(dentry[0].inode_idx, 0, buf, 4095);
+    //     terminal_write(0, buf, bytes_read);            
+    // }
+    // read_dentry_by_name("frame1.txt", dentry + 1);
+    // if (dentry[1].ftype == FTYPE_FILE) {
+    //     bytes_read = read_data(dentry[1].inode_idx, 0, buf, 4095);
+    //     terminal_write(0, buf, bytes_read);            
+    // }
+    // read_dentry_by_name("verylargetextwithverylongname.tx", dentry + 2);
+    // bytes_read = 0;
+    // uint32_t curr_bytes_read = 0;
+    // if (dentry[2].ftype == FTYPE_FILE) {
+    //     do {
+    //         curr_bytes_read = read_data(dentry[2].inode_idx, bytes_read, buf, 4095);
+    //         bytes_read += curr_bytes_read;
+    //         terminal_write(0, buf, curr_bytes_read);    
+    //     } while (bytes_read);
+                
     // }
 
     /* Terminal test */

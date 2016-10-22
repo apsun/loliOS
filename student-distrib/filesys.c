@@ -99,6 +99,13 @@ read_data (uint32_t inode, uint32_t offset, uint8_t* buf, uint32_t length)
 	 * deduct 1 for num_entry itself
 	 */
 	if (num_entry > INODE_CAPACITY - 1) return -1;
+	/* invalid offset */
+	if (offset > tgt_inode->len) return -1;
+	/* if length exceed the end of the file 
+	 * reset the length such that offset + length reach the last byte of file
+	 */	
+	if (offset + length > tgt_inode->len)	
+		length = tgt_inode->len - offset;
 	/* compute the start and end position in terms of data block index
 	 * and start and end offset in start and end data block
 	 */
@@ -106,15 +113,6 @@ read_data (uint32_t inode, uint32_t offset, uint8_t* buf, uint32_t length)
 	uint32_t start_offset = offset % BLOCK_SIZE;
 	uint32_t end_entry = (offset + length) / BLOCK_SIZE;
 	uint32_t end_offset = (offset + length) % BLOCK_SIZE;
-	/* invalid inode entry index */
-	if (start_entry >= num_entry) return -1;
-	/* if length exceed the end of the file 
-	 * set end entry the last entry and end offset the last byte
-	 */	
-	if (end_entry >= num_entry) {
-		end_entry = num_entry - 1;
-		end_offset = tgt_inode->len % BLOCK_SIZE ;
-	}
 	/* prepare to loop through entries */
 	uint32_t curr_entry = start_entry;
 	uint32_t curr_offset = start_offset;
@@ -131,8 +129,8 @@ read_data (uint32_t inode, uint32_t offset, uint8_t* buf, uint32_t length)
 		fs_copy_within_block(tgt_data_block, curr_offset, buf + bytes_read, bytes_to_read);
 		/* loop tail */
 		curr_offset = 0;
-		bytes_to_read = BLOCK_SIZE;
 		bytes_read += bytes_to_read;
+		bytes_to_read = BLOCK_SIZE;
 		curr_entry ++;
 	}
 	/* check if the data block index in the givne inode entry is valid*/
@@ -179,7 +177,7 @@ fs_get_data_block(inode_t* inode, uint32_t entry_idx)
  */
 static int32_t
 fs_compute_num_block(uint32_t file_size, uint32_t block_size) {	
-	return file_size / block_size + (file_size % block_size ? 0 : 1);
+	return file_size / block_size + (file_size % block_size ? 1 : 0);
 }
 /*
  * fs_copy_within_block(data_block_t* data_block, uint32_t offset, uint8_t buf, uint32_t length)
