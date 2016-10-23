@@ -3,6 +3,8 @@
 #include "debug.h"
 #include "terminal.h"
 #include "rtc.h"
+/* number of space in the space padding buf */
+#define SPACE_PADDING 2
 
 volatile int32_t stop_rtc_test = 0;
 
@@ -27,6 +29,9 @@ test_list_all_files(void)
     dentry_t dentry;
     int32_t res = 0;
     uint32_t i = 0;
+    /* buffer of space for paddin */
+    uint8_t space_padding[SPACE_PADDING];
+    memset(space_padding, ' ', SPACE_PADDING);
 
     /* Clear screen first */
     clear();
@@ -41,15 +46,19 @@ test_list_all_files(void)
         }
 
         /* Print file name */
+        printf("%s", "file_name: ");
         terminal_write(0, dentry.fname, FNAME_LEN);
         terminal_write(0, " ", 1);
 
         /* Print file type */
+        printf("%s", "file_type: ");
         printf("%d", dentry.ftype);
+
+        /* pad SPACE_PADDING spaces */
+        terminal_write(0, space_padding, SPACE_PADDING);
+        printf("%s", "file_size: ");
+        printf("%d", filesys_get_fsize(&dentry));
         terminal_write(0, "\n", 1);
-
-        /* TODO: Print file size */
-
         /* Next file */
         i++;
     }
