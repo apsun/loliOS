@@ -147,8 +147,7 @@ read_data(uint32_t inode, uint32_t offset, uint8_t* buf, uint32_t length)
 /* private utility functions */
 
 /*
- * Inputs: data_block_t* data_block_arr = data block array
- *         inode_t* inode = the inode where we get block index from
+ * Inputs: inode_t* inode = the inode where we get block index from
  *         uint32_t entry_idx = index of the target data block
  * Return Value: pointer to target data block
  * Function: get pointer the data block of the given index.
@@ -166,13 +165,10 @@ fs_get_data_block(inode_t* inode, uint32_t entry_idx)
 }
 
 /*
- * Inputs: data_block_t* data_block_arr = data block array
- *         inode_t* inode = the inode where we get block index from
- *         uint32_t entry_idx = index of the target data block
- * Return Value: pointer to target data block
- * Function: get pointer the data block of the given index.
- *           return NULL if the index of the target block is
- *           out of boundry
+ * Inputs: uint32_t file_size = Size of the file
+ *		   uint32_t block_size = Size of a block
+ * Function: Returns the number of blocks file_size would fit in as an 
+ *			 integer.
  */
 static int32_t
 fs_compute_num_block(uint32_t file_size, uint32_t block_size)
@@ -183,7 +179,7 @@ fs_compute_num_block(uint32_t file_size, uint32_t block_size)
 /*
  * Inputs: data_block_t* data_block = pointer to the data block that we copy from
  *         uint32_t offset = the offset of the start of the data that we copy from
- *         uint32_t buf = the buffer that we copy to
+ *         uint32_t *buf = the buffer that we copy to
  *         uint32_t length = length of the copied data in bytes
  * Return Value: none
  * Function: copies the specified length of data from the data_block_t struct into buffer
@@ -196,11 +192,20 @@ fs_copy_within_block(data_block_t* data_block, uint32_t offset, uint8_t* buf, ui
 }
 
 /*
+<<<<<<< .mine
+ * fs_strncmp(const int8_t* tgt_fname, const int8_t* src_fname, uint32_t n)
+ *   Inputs: int8_t* tgt_fname = target array
+ *           int8_t* src_fname = source array
+ *           uint32_t n = number of values to compare
+ *   Return Value: 0 for success, -1 or any non-zero number on failure
+ *   Function: string compare function similar to the one in lib.c but handles more than 32 bits.
+=======
  * Inputs: int8_t* tgt_fname = target array
  *         int8_t* src_fname = source array
- *         uint32_t n =
+ *         
  * Return Value: 0 for success, -1 or any non-zero number on failure
  * Function: filename comparison function (adapted from strncmp)
+>>>>>>> .r9845
  */
 static int32_t
 fs_cmp_fname(const uint8_t* tgt_fname, const uint8_t* src_fname)
