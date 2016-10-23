@@ -26,7 +26,6 @@ filesys_init(void* boot_block_addr)
 }
 
 /*
- * uint32_t filesys_get_fsize(dentry_t* dentry)
  * Inputs: a pointer to dentry struct of the file we want to read
  * Return Value: return the file size
  * Function: get the size in Byte of this file
@@ -204,20 +203,11 @@ fs_copy_within_block(data_block_t* data_block, uint32_t offset, uint8_t* buf, ui
 }
 
 /*
-<<<<<<< .mine
- * fs_strncmp(const int8_t* tgt_fname, const int8_t* src_fname, uint32_t n)
- *   Inputs: int8_t* tgt_fname = target array
- *           int8_t* src_fname = source array
- *           uint32_t n = number of values to compare
- *   Return Value: 0 for success, -1 or any non-zero number on failure
- *   Function: string compare function similar to the one in lib.c but handles more than 32 bits.
-=======
  * Inputs: int8_t* tgt_fname = target array
  *         int8_t* src_fname = source array
  *         
  * Return Value: 0 for success, -1 or any non-zero number on failure
  * Function: filename comparison function (adapted from strncmp)
->>>>>>> .r9845
  */
 static int32_t
 fs_cmp_fname(const uint8_t* tgt_fname, const uint8_t* src_fname)
