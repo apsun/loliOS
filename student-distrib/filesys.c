@@ -26,6 +26,18 @@ filesys_init(void* boot_block_addr)
 }
 
 /*
+ * uint32_t filesys_get_fsize(dentry_t* dentry)
+ * Inputs: a pointer to dentry struct of the file we want to read
+ * Return Value: return the file size
+ * Function: get the size in Byte of this file
+ */
+uint32_t filesys_get_fsize(dentry_t* dentry){
+	inode_t* tgt_inode = INODE_BLOCK_ARR + dentry->inode_idx;
+	return tgt_inode->len;
+}
+
+
+/*
  * Inputs: A pointer fname to the string of characters of the name
  *         of the file we need, and a dentry_t struct.
  * Return Value: 0 on success and -1 on failure
