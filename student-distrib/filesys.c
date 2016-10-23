@@ -204,8 +204,7 @@ fs_copy_within_block(data_block_t* data_block, uint32_t offset, uint8_t* buf, ui
 
 /*
  * Inputs: int8_t* tgt_fname = target array
- *         int8_t* src_fname = source array
- *         
+ *         int8_t* src_fname = source array   
  * Return Value: 0 for success, -1 or any non-zero number on failure
  * Function: filename comparison function (adapted from strncmp)
  */
