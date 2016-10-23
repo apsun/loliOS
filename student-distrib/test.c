@@ -21,6 +21,11 @@ test_print_file(dentry_t *dentry)
         total_bytes_read += bytes_read;
         terminal_write(0, buf, bytes_read);
     } while (bytes_read > 0);
+
+    /* print file name */
+    printf("\n%s", "file_name: ");
+    terminal_write(0, dentry->fname, FNAME_LEN);
+    printf("\n");
 }
 
 static void
