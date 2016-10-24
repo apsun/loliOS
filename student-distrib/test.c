@@ -65,20 +65,39 @@ test_read_file_by_name(const char *name)
 {
     dentry_t dentry;
     int32_t res;
-
-    /* Read the dentry */
-    res = read_dentry_by_name((const uint8_t *)name, &dentry);
-
-    /* Whoops, can't read that */
-    if (res < 0) {
-        return;
-    }
+    uint8_t fname[33] = {0};
+    int32_t count;
 
     /* Clear screen */
     clear();
 
-    /* Echo file to terminal */
-    test_print_file(&dentry);
+    while (1) {
+        /* Prompt for file name */
+        printf("Enter file name: ");
+        count = terminal_read(0, fname, 32);
+
+        /* Chop off newline if we didn't read full 32 chars */
+        if (fname[count - 1] == '\n') {
+            fname[count - 1] = '\0';
+        }
+
+        /* Stop when no filename entered */
+        if (fname[0] == '\0') {
+            break;
+        }
+
+        /* Read the dentry */
+        res = read_dentry_by_name(fname, &dentry);
+
+        /* Whoops, can't read that */
+        if (res < 0) {
+            printf("File not found: %s\n", fname);
+            continue;
+        }
+
+        /* Echo file to terminal */
+        test_print_file(&dentry);
+    }
 }
 
 static void
