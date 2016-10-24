@@ -150,7 +150,7 @@ format_char_switch:
 * int32_t puts(int8_t* s);
 *   Inputs: int_8* s = pointer to a string of characters
 *   Return Value: Number of bytes written
-*   Function: Output a string to the console 
+*   Function: Output a string to the console
 */
 
 int32_t
@@ -169,13 +169,51 @@ puts(int8_t* s)
 * void putc(uint8_t c);
 *   Inputs: uint_8* c = character to print
 *   Return Value: void
-*   Function: Output a character to the console 
+*   Function: Output a character to the console
 */
 
 void
 putc(uint8_t c)
 {
     terminal_putc(c);
+}
+
+/*
+ * int32_t *atoi_s(const int8_t *str, int32_t *out_result);
+ *   Inputs: str = string to convert
+ *           out_result = output number
+ *   Return Value: out_result if conversion was OK, NULL otherwise
+ */
+int32_t *
+atoi_s(const int8_t *str, int32_t *out_result)
+{
+    int32_t res = 0;
+    int32_t sign = 1;
+
+    /* Check empty string (not a number) */
+    if (*str == '\0') {
+        return NULL;
+    }
+
+    /* Negative sign check */
+    if (*str == '-') {
+        sign = -1;
+        str++;
+    }
+
+    while (*str != '\0') {
+        int8_t c = *str;
+        if (c < '0' || c > '9') {
+            return NULL;
+        }
+
+        res *= 10;
+        res += (c - '0');
+        str++;
+    }
+
+    *out_result = res * sign;
+    return out_result;
 }
 
 /*
@@ -454,11 +492,11 @@ memmove(void* dest, const void* src, uint32_t n)
 *   Inputs: const int8_t* s1 = first string to compare
 *           const int8_t* s2 = second string to compare
 *           uint32_t n = number of bytes to compare
-*   Return Value: A zero value indicates that the characters compared 
+*   Return Value: A zero value indicates that the characters compared
 *                   in both strings form the same string.
-*               A value greater than zero indicates that the first 
-*                   character that does not match has a greater value 
-*                   in str1 than in str2; And a value less than zero 
+*               A value greater than zero indicates that the first
+*                   character that does not match has a greater value
+*                   in str1 than in str2; And a value less than zero
 *                   indicates the opposite.
 *   Function: compares string 1 and string 2 for equality
 */
@@ -481,6 +519,28 @@ strncmp(const int8_t* s1, const int8_t* s2, uint32_t n)
         }
     }
     return 0;
+}
+
+/*
+ * int32_t strcmp(const int8_t* s1, const int8_t* s2)
+ *   Inputs: const int8_t* s1 = first string to compare
+ *           const int8_t* s2 = second string to compare
+ *   Return Value: A zero value indicates that the characters compared
+ *                   in both strings form the same string.
+ *               A value greater than zero indicates that the first
+ *                   character that does not match has a greater value
+ *                   in str1 than in str2; And a value less than zero
+ *                   indicates the opposite.
+ *   Function: compares string 1 and string 2 for equality
+ */
+int32_t
+strcmp(const int8_t *s1, const int8_t *s2)
+{
+    while (*s1 && (*s1 == *s2)) {
+        s1++;
+        s2++;
+    }
+    return *(uint8_t *)s1 - *(uint8_t *)s2;
 }
 
 /*
@@ -529,6 +589,8 @@ strncpy(int8_t* dest, const int8_t* src, uint32_t n)
 
     return dest;
 }
+
+
 
 /*
  * void halt(void)

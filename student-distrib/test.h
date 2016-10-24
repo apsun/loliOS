@@ -8,6 +8,9 @@
 /* Executes the specified test number */
 void test_execute(int32_t test_num);
 
+/* Testing "shell" */
+void test_shell(void);
+
 #endif /* ASM */
 
 #endif /* _TEST_H */

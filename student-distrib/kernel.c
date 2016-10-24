@@ -9,6 +9,7 @@
 #include "rtc.h"
 #include "terminal.h"
 #include "filesys.h"
+#include "test.h"
 
 /* Macros. */
 /* Check if the bit BIT in FLAGS is set. */
@@ -189,6 +190,8 @@ entry (unsigned long magic, unsigned long addr)
     /* We made it! */
     printf("Boot successful!\n");
     clear();
+
+    test_shell();
 
     /* Raise page fault (for debugging) */
     // printf("%d\n", *(volatile int *)0x7ffff0);
