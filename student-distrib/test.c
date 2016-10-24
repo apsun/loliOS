@@ -79,7 +79,7 @@ test_read_file_by_name(const char *fname)
     test_print_file(&dentry);
 }
 
-static void
+static int32_t
 test_read_file_by_index(int32_t index)
 {
     dentry_t dentry;
@@ -91,11 +91,12 @@ test_read_file_by_index(int32_t index)
     /* Whoops, invalid index */
     if (res < 0) {
         printf("Invalid file index: %d\n", index);
-        return;
+        return 0;
     }
 
     /* Echo file to terminal */
     test_print_file(&dentry);
+    return 1;
 }
 
 static void
@@ -170,13 +171,21 @@ test_execute(int32_t test_num)
 {
     switch (test_num) {
     case 0:
+        clear();
         test_list_all_files();
         break;
     case 1:
+        clear();
         test_read_file_by_name("frame0.txt");
         break;
     case 2:
-        test_read_file_by_index(next_findex++);
+        clear();
+        if (!test_read_file_by_index(next_findex++)) {
+            /* Start over */
+            clear();
+            next_findex = 0;
+            test_read_file_by_index(next_findex++);
+        }
         break;
     case 3:
         if (rtc_fd < 0) {
