@@ -383,6 +383,18 @@ terminal_write(int32_t fd, const void *buf, int32_t nbytes)
     return nbytes;
 }
 
+int32_t
+terminal_open(const uint8_t *filename)
+{
+    return 0;
+}
+
+int32_t
+terminal_close(int32_t fd)
+{
+    return 0;
+}
+
 /* Handles a keyboard control sequence */
 static void
 handle_ctrl_input(kbd_input_ctrl_t ctrl)

@@ -99,12 +99,14 @@ filesys_dir_read(file_obj_t *fo, void *buf, int32_t nbytes)
 
     /* Copy filename to output buffer */
     for (i = 0; i < nbytes; ++i) {
-        if ((out[i] = fo->dentry.fname[i]) == '\0') {
+        uint8_t c = file_dentry.fname[i];
+        if (c == '\0') {
             break;
         }
+        out[i] = c;
     }
 
-    /* i = number of chars read */
+    /* i = number of chars read, excluding NUL terminator */
     return i;
 }
 
@@ -125,7 +127,7 @@ filesys_file_read(file_obj_t *fo, void *buf, int32_t nbytes)
 int32_t
 filesys_read(int32_t fd, void *buf, int32_t nbytes)
 {
-    file_obj_t fo;
+    file_obj_t *fo;
 
     /* Check that descriptor is valid */
     if (fd < 0 || fd >= MAX_FDS) {
@@ -133,8 +135,8 @@ filesys_read(int32_t fd, void *buf, int32_t nbytes)
     }
 
     /* Check that file is actually open */
-    fo = open_files[fd];
-    if (!fo.valid) {
+    fo = &open_files[fd];
+    if (!fo->valid) {
         return -1;
     }
 
@@ -148,13 +150,13 @@ filesys_read(int32_t fd, void *buf, int32_t nbytes)
     }
 
     /* Delegate to filetype-specific read function */
-    switch (fo.dentry.ftype) {
+    switch (fo->dentry.ftype) {
     case FTYPE_RTC:
-        return filesys_rtc_read(&fo, buf, nbytes);
+        return filesys_rtc_read(fo, buf, nbytes);
     case FTYPE_DIR:
-        return filesys_dir_read(&fo, buf, nbytes);
+        return filesys_dir_read(fo, buf, nbytes);
     case FTYPE_FILE:
-        return filesys_file_read(&fo, buf, nbytes);
+        return filesys_file_read(fo, buf, nbytes);
     default:
         /* Unknown file type */
         return -1;
@@ -164,7 +166,7 @@ filesys_read(int32_t fd, void *buf, int32_t nbytes)
 int32_t
 filesys_write(int32_t fd, const void *buf, int32_t nbytes)
 {
-    file_obj_t fo;
+    file_obj_t *fo;
 
     /* Check that descriptor is valid */
     if (fd < 0 || fd >= MAX_FDS) {
@@ -172,8 +174,8 @@ filesys_write(int32_t fd, const void *buf, int32_t nbytes)
     }
 
     /* Check that file is actually open */
-    fo = open_files[fd];
-    if (!fo.valid) {
+    fo = &open_files[fd];
+    if (!fo->valid) {
         return -1;
     }
 
@@ -184,7 +186,7 @@ filesys_write(int32_t fd, const void *buf, int32_t nbytes)
         return terminal_write(fd, buf, nbytes);
     }
 
-    switch (fo.dentry.ftype) {
+    switch (fo->dentry.ftype) {
     case FTYPE_RTC:
         return rtc_write(fd, buf, nbytes);
     default:
