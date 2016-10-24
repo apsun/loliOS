@@ -31,8 +31,8 @@ filesys_init(void* boot_block_addr)
  * Function: get the size in Byte of this file
  */
 uint32_t filesys_get_fsize(dentry_t* dentry){
-	inode_t* tgt_inode = INODE_BLOCK_ARR + dentry->inode_idx;
-	return tgt_inode->len;
+    inode_t* tgt_inode = INODE_BLOCK_ARR + dentry->inode_idx;
+    return tgt_inode->len;
 }
 
 
@@ -177,9 +177,9 @@ fs_get_data_block(inode_t* inode, uint32_t entry_idx)
 
 /*
  * Inputs: uint32_t file_size = Size of the file
- *		   uint32_t block_size = Size of a block
- * Function: Returns the number of blocks file_size would fit in as an 
- *			 integer.
+ *         uint32_t block_size = Size of a block
+ * Function: Returns the number of blocks file_size would fit in as an
+ *           integer.
  */
 static int32_t
 fs_compute_num_block(uint32_t file_size, uint32_t block_size)
@@ -204,7 +204,7 @@ fs_copy_within_block(data_block_t* data_block, uint32_t offset, uint8_t* buf, ui
 
 /*
  * Inputs: int8_t* tgt_fname = target array
- *         int8_t* src_fname = source array   
+ *         int8_t* src_fname = source array
  * Return Value: 0 for success, -1 or any non-zero number on failure
  * Function: filename comparison function (adapted from strncmp)
  */

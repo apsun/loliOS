@@ -3,8 +3,6 @@
 #include "debug.h"
 #include "terminal.h"
 #include "rtc.h"
-/* number of space in the space padding buf */
-#define SPACE_PADDING 2
 
 volatile int32_t stop_rtc_test = 0;
 
@@ -22,8 +20,8 @@ test_print_file(dentry_t *dentry)
         terminal_write(0, buf, bytes_read);
     } while (bytes_read > 0);
 
-    /* print file name */
-    printf("\n%s", "file_name: ");
+    /* Print file name */
+    printf("\nfile_name: ");
     terminal_write(0, dentry->fname, FNAME_LEN);
     printf("\n");
 }
@@ -34,9 +32,6 @@ test_list_all_files(void)
     dentry_t dentry;
     int32_t res = 0;
     uint32_t i = 0;
-    /* buffer of space for paddin */
-    uint8_t space_padding[SPACE_PADDING];
-    memset(space_padding, ' ', SPACE_PADDING);
 
     /* Clear screen first */
     clear();
@@ -51,19 +46,15 @@ test_list_all_files(void)
         }
 
         /* Print file name */
-        printf("%s", "file_name: ");
+        printf("file_name: ");
         terminal_write(0, dentry.fname, FNAME_LEN);
-        terminal_write(0, " ", 1);
 
         /* Print file type */
-        printf("%s", "file_type: ");
-        printf("%d", dentry.ftype);
+        printf("  file_type: %d", dentry.ftype);
 
-        /* pad SPACE_PADDING spaces */
-        terminal_write(0, space_padding, SPACE_PADDING);
-        printf("%s", "file_size: ");
-        printf("%d", filesys_get_fsize(&dentry));
-        terminal_write(0, "\n", 1);
+        /* Print file size */
+        printf("  file_size: %d\n", filesys_get_fsize(&dentry));
+
         /* Next file */
         i++;
     }
@@ -117,18 +108,18 @@ test_read_file_by_index(void)
 static void
 test_rtc_start(void)
 {
-    /* If this is >= 0, we're already executing the test */
     static int32_t fd = -1;
     static int32_t freq = 2;
 
+    /* If this is >= 0, we're already executing the test */
     if (fd >= 0) {
         /* Double the frequency */
-        int32_t res = rtc_write(fd, &freq, sizeof(int32_t));
         freq <<= 1;
+        int32_t res = rtc_write(fd, &freq, sizeof(int32_t));
 
         /* Frequency is too damn high! Let's go back to 2Hz */
         if (res < 0) {
-            freq = 2;
+            freq = 1;
             test_rtc_start();
             return;
         }
@@ -140,11 +131,11 @@ test_rtc_start(void)
     /* Sets fd to 0, frequency to 2Hz */
     fd = rtc_open((uint8_t *)">implying I have a filename for this");
 
-    /* Initialization finished, interrupts are OK now */
-    sti();
-
     /* Clear screen */
     clear();
+
+    /* Initialization finished, interrupts are OK now */
+    sti();
 
     while (!stop_rtc_test) {
         /* Wait for clock cycle */
@@ -154,16 +145,17 @@ test_rtc_start(void)
         terminal_write(0, "1", 1);
     }
 
-    /* Clear again on exit */
-    clear();
-
     /* Better not interrupt during cleanup */
     cli();
+
+    /* Clear again on exit */
+    clear();
 
     /* Everyone, get out of here! */
     stop_rtc_test = 0;
     rtc_close(fd);
     fd = -1;
+    freq = 2;
 }
 
 static void
