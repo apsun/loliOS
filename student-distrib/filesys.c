@@ -1,4 +1,6 @@
 #include "filesys.h"
+#include "rtc.h"
+#include "terminal.h"
 
 /* macro to get info from statistic entry */
 #define NUM_DENTRY (boot_block->stat_entry.num_dentry)
@@ -18,11 +20,198 @@ static int32_t fs_compute_num_block(uint32_t file_size, uint32_t block_size);
 static void fs_copy_within_block(data_block_t* data_block, uint32_t offset, uint8_t* buf, uint32_t length);
 static int32_t fs_cmp_fname(const uint8_t* tgt_fname, const uint8_t* src_fname);
 
+/* File object struct */
+typedef struct {
+    int32_t fd;
+    uint32_t offset;
+    dentry_t dentry;
+    int8_t valid;
+} file_obj_t;
+
+/* Array of open file objects, first 2 reserved for stdin/stdout */
+static file_obj_t open_files[MAX_FDS];
+
 /* save the starting address of the file system */
 void
 filesys_init(void* boot_block_addr)
 {
     boot_block = (boot_block_t *)boot_block_addr;
+
+    /* Initialize stdin/stdout */
+    open_files[FD_STDIN].valid = 1;
+    open_files[FD_STDOUT].valid = 1;
+}
+
+/* Opens a file */
+int32_t
+filesys_open(const uint8_t *filename)
+{
+    int32_t i;
+    dentry_t dentry;
+
+    /* Skip i = 0 (stdin) and i = 1 (stdout) */
+    for (i = 2; i < MAX_FDS; ++i) {
+        /* Check if we have an open spot */
+        if (!open_files[i].valid) {
+            if (read_dentry_by_name(filename, &dentry) != 0) {
+                return -1;
+            }
+            open_files[i].dentry = dentry;
+            open_files[i].offset = 0;
+            open_files[i].fd = i;
+            open_files[i].valid = 1;
+            return i;
+        }
+    }
+
+    /* Too many files open */
+    return -1;
+}
+
+int32_t
+filesys_rtc_read(file_obj_t *fo, void *buf, int32_t nbytes)
+{
+    return rtc_read(fo->fd, buf, nbytes);
+}
+
+int32_t
+filesys_dir_read(file_obj_t *fo, void *buf, int32_t nbytes)
+{
+    dentry_t file_dentry;
+    uint8_t *out = (uint8_t *)buf;
+    int32_t i;
+
+    /* Validate args */
+    if (buf == NULL || nbytes < 0) {
+        return -1;
+    }
+
+    /* Read next file dentry */
+    /* If no more files, return 0 */
+    if (read_dentry_by_index(fo->offset++, &file_dentry) != 0) {
+        return 0;
+    }
+
+    /* Limit to 32 chars */
+    if (nbytes > FNAME_LEN) {
+        nbytes = FNAME_LEN;
+    }
+
+    /* Copy filename to output buffer */
+    for (i = 0; i < nbytes; ++i) {
+        if ((out[i] = fo->dentry.fname[i]) == '\0') {
+            break;
+        }
+    }
+
+    /* i = number of chars read */
+    return i;
+}
+
+int32_t
+filesys_file_read(file_obj_t *fo, void *buf, int32_t nbytes)
+{
+    /* Validate args */
+    if (buf == NULL || nbytes < 0) {
+        return -1;
+    }
+
+    uint32_t offset = fo->offset;
+    uint32_t read_count = read_data(fo->dentry.inode_idx, offset, buf, (uint32_t)nbytes);
+    fo->offset += read_count;
+    return read_count;
+}
+
+int32_t
+filesys_read(int32_t fd, void *buf, int32_t nbytes)
+{
+    file_obj_t fo;
+
+    /* Check that descriptor is valid */
+    if (fd < 0 || fd >= MAX_FDS) {
+        return -1;
+    }
+
+    /* Check that file is actually open */
+    fo = open_files[fd];
+    if (!fo.valid) {
+        return -1;
+    }
+
+    /* If descriptor refers to stdin/stdout, delegate to those */
+    if (fd == FD_STDIN) {
+        /* Read from terminal */
+        return terminal_read(fd, buf, nbytes);
+    } else if (fd == FD_STDOUT) {
+        /* Can't read from stdout */
+        return -1;
+    }
+
+    /* Delegate to filetype-specific read function */
+    switch (fo.dentry.ftype) {
+    case FTYPE_RTC:
+        return filesys_rtc_read(&fo, buf, nbytes);
+    case FTYPE_DIR:
+        return filesys_dir_read(&fo, buf, nbytes);
+    case FTYPE_FILE:
+        return filesys_file_read(&fo, buf, nbytes);
+    default:
+        /* Unknown file type */
+        return -1;
+    }
+}
+
+int32_t
+filesys_write(int32_t fd, const void *buf, int32_t nbytes)
+{
+    file_obj_t fo;
+
+    /* Check that descriptor is valid */
+    if (fd < 0 || fd >= MAX_FDS) {
+        return -1;
+    }
+
+    /* Check that file is actually open */
+    fo = open_files[fd];
+    if (!fo.valid) {
+        return -1;
+    }
+
+    /* If descriptor refers to stdin/stdout, delegate to those */
+    if (fd == FD_STDIN) {
+        return -1;
+    } else if (fd == FD_STDOUT) {
+        return terminal_write(fd, buf, nbytes);
+    }
+
+    switch (fo.dentry.ftype) {
+    case FTYPE_RTC:
+        return rtc_write(fd, buf, nbytes);
+    default:
+        /* Can't write to other types */
+        return -1;
+    }
+}
+
+int32_t
+filesys_close(int32_t fd)
+{
+    /* Check that descriptor is valid */
+    /* Can't close stdin/stdout */
+    if (fd < 2 || fd >= MAX_FDS) {
+        return -1;
+    }
+
+    /* Check that file is actually open */
+    if (!open_files[fd].valid) {
+        return -1;
+    }
+
+    /* Invalidate file object */
+    open_files[fd].valid = 0;
+
+    /* No need to do anything since all our close functions do nothing */
+    return 0;
 }
 
 /*
@@ -30,11 +219,11 @@ filesys_init(void* boot_block_addr)
  * Return Value: return the file size
  * Function: get the size in Byte of this file
  */
-uint32_t filesys_get_fsize(dentry_t* dentry){
+uint32_t filesys_get_fsize(dentry_t* dentry)
+{
     inode_t* tgt_inode = INODE_BLOCK_ARR + dentry->inode_idx;
     return tgt_inode->len;
 }
-
 
 /*
  * Inputs: A pointer fname to the string of characters of the name

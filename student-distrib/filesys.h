@@ -22,6 +22,10 @@
 #define FTYPE_DIR 1
 #define FTYPE_FILE 2
 
+#define FD_STDIN 0
+#define FD_STDOUT 1
+#define MAX_FDS 8
+
 #ifndef ASM
 
 /* 64 Byte struct for directory entry */
@@ -77,6 +81,13 @@ int32_t read_dentry_by_index(uint32_t index, dentry_t* dentry);
 int32_t read_data(uint32_t inode, uint32_t offset, uint8_t* buf, uint32_t length);
 void filesys_init(void* fs_start_addr);
 uint32_t filesys_get_fsize(dentry_t* dentry);
+
+/* Syscall interface */
+int32_t filesys_open(const uint8_t *filename);
+int32_t filesys_read(int32_t fd, void *buf, int32_t nbytes);
+int32_t filesys_write(int32_t fd, const void *buf, int32_t nbytes);
+int32_t filesys_close(int32_t fd);
+
 #endif /* ASM */
 
 #endif /* _FILESYS_H */
