@@ -316,11 +316,12 @@ wait_until_readable(volatile input_buf_t *input_buf, int32_t nbytes)
  * This call will block until the requested number of
  * characters are available or a newline is encountered.
  *
+ * file - ignored.
  * buf - must point to a uint8_t array.
  * nbytes - the maximum number of chars to read.
  */
 int32_t
-terminal_read(int32_t fd, void *buf, int32_t nbytes)
+terminal_stdin_read(file_obj_t *file, void *buf, int32_t nbytes)
 {
     terminal_state_t *term = get_executing_terminal();
     volatile input_buf_t *input_buf = &term->input;
@@ -365,11 +366,12 @@ terminal_read(int32_t fd, void *buf, int32_t nbytes)
  * in buf to the terminal. The buffer should not contain any
  * NUL characters. Returns the number of characters written.
  *
+ * file - ignored.
  * buf - must point to a uint8_t array
  * nbytes - the number of characters to write to the terminal
  */
 int32_t
-terminal_write(int32_t fd, const void *buf, int32_t nbytes)
+terminal_stdout_write(file_obj_t *file, const void *buf, int32_t nbytes)
 {
     terminal_state_t *term = get_executing_terminal();
     int32_t i;
@@ -383,16 +385,41 @@ terminal_write(int32_t fd, const void *buf, int32_t nbytes)
     return nbytes;
 }
 
+/*
+ * Open syscall for the stdin/stdout. Always succeeds.
+ */
 int32_t
-terminal_open(const uint8_t *filename)
+terminal_open(const uint8_t *filename, file_obj_t *file)
 {
     return 0;
 }
 
+/*
+ * Close syscall for stdin/stdout. Always fails.
+ */
 int32_t
-terminal_close(int32_t fd)
+terminal_close(file_obj_t *file)
 {
-    return 0;
+    /* Can't close the terminals */
+    return -1;
+}
+
+/*
+ * Write syscall for stdin. Always fails.
+ */
+int32_t
+terminal_stdin_write(file_obj_t *file, const void *buf, int32_t nbytes)
+{
+    return -1;
+}
+
+/*
+ * Read syscall for stdout. Always fails.
+ */
+int32_t
+terminal_stdout_read(file_obj_t *file, void *buf, int32_t nbytes)
+{
+    return -1;
 }
 
 /* Handles a keyboard control sequence */
@@ -425,7 +452,10 @@ handle_ctrl_input(kbd_input_ctrl_t ctrl)
 static void
 handle_char_input(uint8_t c)
 {
-    terminal_state_t *term = get_executing_terminal();
+    /* We should insert characters into the currently displayed
+     * terminal's input stream, not the currently executing terminal.
+     */
+    terminal_state_t *term = get_display_terminal();
     volatile input_buf_t *input_buf = &term->input;
     if (c == '\b' && input_buf->count > 0 && term->cursor.logical_x > 0) {
         input_buf->count--;

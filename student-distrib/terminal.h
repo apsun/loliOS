@@ -3,6 +3,7 @@
 
 #include "types.h"
 #include "keyboard.h"
+#include "filesys.h"
 
 #define TERMINAL_BUF_SIZE 128
 #define NUM_TERMINALS 3
@@ -68,10 +69,12 @@ typedef struct {
 } terminal_state_t;
 
 /* Terminal syscall functions */
-int32_t terminal_open(const uint8_t *filename);
-int32_t terminal_read(int32_t fd, void *buf, int32_t nbytes);
-int32_t terminal_write(int32_t fd, const void *buf, int32_t nbytes);
-int32_t terminal_close(int32_t fd);
+int32_t terminal_open(const uint8_t *filename, file_obj_t *file);
+int32_t terminal_stdin_read(file_obj_t *file, void *buf, int32_t nbytes);
+int32_t terminal_stdin_write(file_obj_t *file, const void *buf, int32_t nbytes);
+int32_t terminal_stdout_read(file_obj_t *file, void *buf, int32_t nbytes);
+int32_t terminal_stdout_write(file_obj_t *file, const void *buf, int32_t nbytes);
+int32_t terminal_close(file_obj_t *file);
 
 /* Sets the currently displayed terminal */
 void set_display_terminal(int32_t index);

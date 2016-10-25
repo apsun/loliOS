@@ -3,6 +3,7 @@
 
 #include "lib.h"
 #include "types.h"
+#include "file.h"
 
 #define KB(x) ((x) * 1024)
 /* size of boot block, inode block and data block */
@@ -21,10 +22,6 @@
 #define FTYPE_RTC 0
 #define FTYPE_DIR 1
 #define FTYPE_FILE 2
-
-#define FD_STDIN 0
-#define FD_STDOUT 1
-#define MAX_FDS 8
 
 #ifndef ASM
 
@@ -61,7 +58,7 @@ typedef struct boot_block_t {
 
 /* 4kB inode block structure */
 typedef struct inode_t {
-    /* number of bytes of the file */
+    /* number of bytes in the file */
     uint32_t len;
     /* array for data_block_numbers;
      * deduct 1 because the first entry for len
@@ -75,18 +72,22 @@ typedef struct data_block_t {
     uint8_t data[BLOCK_SIZE];
 } data_block_t;
 
+
 /* function declaration, see specification of each function */
 int32_t read_dentry_by_name(const uint8_t* fname, dentry_t* dentry);
 int32_t read_dentry_by_index(uint32_t index, dentry_t* dentry);
 int32_t read_data(uint32_t inode, uint32_t offset, uint8_t* buf, uint32_t length);
+
 void filesys_init(void* fs_start_addr);
 uint32_t filesys_get_fsize(dentry_t* dentry);
 
-/* Syscall interface */
-int32_t filesys_open(const uint8_t *filename);
-int32_t filesys_read(int32_t fd, void *buf, int32_t nbytes);
-int32_t filesys_write(int32_t fd, const void *buf, int32_t nbytes);
-int32_t filesys_close(int32_t fd);
+/* Filesystem syscall interface */
+int32_t filesys_open(const uint8_t *filename, file_obj_t *file);
+int32_t filesys_file_read(file_obj_t *file, void *buf, int32_t nbytes);
+int32_t filesys_file_write(file_obj_t *file, const void *buf, int32_t nbytes);
+int32_t filesys_dir_read(file_obj_t *file, void *buf, int32_t nbytes);
+int32_t filesys_dir_write(file_obj_t *file, const void *buf, int32_t nbytes);
+int32_t filesys_close(file_obj_t *file);
 
 #endif /* ASM */
 

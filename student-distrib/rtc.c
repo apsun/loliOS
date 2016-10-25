@@ -116,23 +116,23 @@ rtc_set_frequency(int32_t freq)
 }
 
 /*
- * Open syscall for RTC. Sets the frequency to 2Hz.
+ * Open syscall for RTC. Does nothing.
+ *
+ * filename - ignored
+ * file - ignored
  */
 int32_t
-rtc_open(const uint8_t *filename)
+rtc_open(const uint8_t *filename, file_obj_t *file)
 {
-    rtc_set_frequency(2);
     return 0;
 }
 
 /*
  * Read syscall for RTC. Waits for the next periodic interrupt
  * to occur, then returns success.
- *
- * buf and nbytes are ignored.
  */
 int32_t
-rtc_read(int32_t fd, void *buf, int32_t nbytes)
+rtc_read(file_obj_t *file, void *buf, int32_t nbytes)
 {
     /* Wait for the interrupt handler to set this flag to 0 */
     waiting_interrupt = 1;
@@ -147,10 +147,10 @@ rtc_read(int32_t fd, void *buf, int32_t nbytes)
  *
  * buf must point to a int32_t containing the desired frequency,
  * nbytes must equal sizeof(int32_t). The frequency must be a
- * power of 2 between 2 and 1024.
+ * power of 2 between 2 and 1024. file is ignored.
  */
 int32_t
-rtc_write(int32_t fd, const void *buf, int32_t nbytes)
+rtc_write(file_obj_t *file, const void *buf, int32_t nbytes)
 {
     int32_t freq;
 
@@ -171,9 +171,11 @@ rtc_write(int32_t fd, const void *buf, int32_t nbytes)
 
 /*
  * Close syscall for RTC. Does nothing.
+ *
+ * file - ignored
  */
 int32_t
-rtc_close(int32_t fd)
+rtc_close(file_obj_t *file)
 {
     return 0;
 }

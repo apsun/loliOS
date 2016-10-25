@@ -2,6 +2,7 @@
 #define _RTC_H
 
 #include "types.h"
+#include "filesys.h"
 
 /* RTC memory-mapped ports */
 #define RTC_PORT_INDEX 0x70
@@ -46,10 +47,10 @@
 #ifndef ASM
 
 /* RTC syscall handlers */
-int32_t rtc_open(const uint8_t *filename);
-int32_t rtc_read(int32_t fd, void *buf, int32_t nbytes);
-int32_t rtc_write(int32_t fd, const void *buf, int32_t nbytes);
-int32_t rtc_close(int32_t fd);
+int32_t rtc_open(const uint8_t *filename, file_obj_t *file);
+int32_t rtc_read(file_obj_t *file, void *buf, int32_t nbytes);
+int32_t rtc_write(file_obj_t *file, const void *buf, int32_t nbytes);
+int32_t rtc_close(file_obj_t *file);
 
 /* Initializes real-time clock interrupts */
 void rtc_init(void);
