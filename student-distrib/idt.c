@@ -3,6 +3,7 @@
 #include "debug.h"
 #include "x86_desc.h"
 #include "irq.h"
+#include "syscall.h"
 
 /* Exception info table */
 static exc_info_t exc_info_table[20] = {
@@ -89,9 +90,8 @@ static void
 handle_syscall(int_regs_t *regs)
 {
     debugf("Syscall: %d\n", regs->eax);
-    switch (regs->eax) {
-        /* TODO */
-    }
+    regs->eax = syscall_handle(regs->eax, regs->ebx, regs->ecx, regs->edx);
+    debugf("Return value: 0x%#x\n", regs->eax);
 }
 
 /*
