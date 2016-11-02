@@ -2,7 +2,6 @@
 #define _SYSCALL_H
 
 #include "types.h"
-#include "idt.h"
 
 #define SYS_HALT        1
 #define SYS_EXECUTE     2
