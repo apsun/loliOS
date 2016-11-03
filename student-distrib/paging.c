@@ -3,6 +3,9 @@
 
 #define VIDEO_ADDR 0xB8000
 
+#define SIZE_4KB 0
+#define SIZE_4MB 1
+
 #define KB(x) ((x) * 1024)
 #define MB(x) ((x) * 1024 * 1024)
 
@@ -23,7 +26,7 @@ paging_init_dir(void)
     page_dir[0].dir_4kb.cache_disabled = 0;
     page_dir[0].dir_4kb.accessed = 0;
     page_dir[0].dir_4kb.reserved = 0;
-    page_dir[0].dir_4kb.size = 0;
+    page_dir[0].dir_4kb.size = SIZE_4KB;
     page_dir[0].dir_4kb.global = 0;
     page_dir[0].dir_4kb.avail = 0;
     page_dir[0].dir_4kb.base_addr = TO_4KB_BASE(page_table);
@@ -36,7 +39,7 @@ paging_init_dir(void)
     page_dir[1].dir_4mb.cache_disabled = 0;
     page_dir[1].dir_4mb.accessed = 0;
     page_dir[1].dir_4mb.dirty = 0;
-    page_dir[1].dir_4mb.size = 1;
+    page_dir[1].dir_4mb.size = SIZE_4MB;
     page_dir[1].dir_4mb.global = 1;
     page_dir[1].dir_4mb.avail = 0;
     page_dir[1].dir_4mb.page_attr_idx = 0;
@@ -53,7 +56,7 @@ paging_init_dir(void)
         page_dir[i].dir_4kb.cache_disabled = 0;
         page_dir[i].dir_4kb.accessed = 0;
         page_dir[i].dir_4kb.reserved = 0;
-        page_dir[i].dir_4kb.size = 0;
+        page_dir[i].dir_4kb.size = SIZE_4KB;
         page_dir[i].dir_4kb.global = 0;
         page_dir[i].dir_4kb.avail = 0;
         page_dir[i].dir_4kb.base_addr = 0;
@@ -93,6 +96,25 @@ paging_init_video_page(void)
      * disable caching since it's memory-mapped I/O */
     page_table[TO_4KB_BASE(VIDEO_ADDR)].present = 1;
     page_table[TO_4KB_BASE(VIDEO_ADDR)].cache_disabled = 1;
+}
+
+/* Initializes the 4MB process page (base address 128MB) */
+static void
+paging_init_process_page(void)
+{
+    int32_t index = TO_4MB_BASE(MB(128));
+    page_dir[index].dir_4mb.present = 1;
+    page_dir[index].dir_4mb.write = 1;
+    page_dir[index].dir_4mb.user = 1;
+    page_dir[index].dir_4mb.write_through = 0;
+    page_dir[index].dir_4mb.cache_disabled = 0;
+    page_dir[index].dir_4mb.accessed = 0;
+    page_dir[index].dir_4mb.dirty = 0;
+    page_dir[index].dir_4mb.size = SIZE_4MB;
+    page_dir[index].dir_4mb.global = 0;
+    page_dir[index].dir_4mb.avail = 0;
+    page_dir[index].dir_4mb.page_attr_idx = 0;
+    page_dir[index].dir_4mb.reserved = 0;
 }
 
 /*
@@ -142,6 +164,34 @@ paging_enable(void)
     /* Initialize video page */
     paging_init_video_page();
 
+    /* Initialize process page */
+    paging_init_process_page();
+
     /* Set control registers */
     paging_init_registers();
+}
+
+/*
+ * Updates the process page to point to the block of
+ * physical memory corresponding to the specified process.
+ */
+void
+paging_update_process_page(int32_t pid)
+{
+    /* Each process page is mapped starting from 8MB, each 4MB */
+    uint32_t phys_addr = MB(pid * 4 + 8);
+
+    /* Virtual address starts at 128MB */
+    int32_t index = TO_4MB_BASE(MB(128));
+
+    /* 128MB~132MB now points to the physical 4MB page */
+    page_dir[index].dir_4mb.base_addr = TO_4MB_BASE(phys_addr);
+
+    /* Flush the TLB */
+    asm volatile(
+                 "movl %%cr3, %%eax;"
+                 "movl %%eax, %%cr3;"
+                 :
+                 :
+                 : "eax");
 }

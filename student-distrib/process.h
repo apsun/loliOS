@@ -1,10 +1,12 @@
 #ifndef _PROCESS_H
 #define _PROCESS_H
 
+#include "types.h"
 #include "file.h"
 
 #define MAX_ARGS_LEN 1024
 #define MAX_PROCESSES 8
+#define EXE_MAGIC 0x464c457f
 
 #ifndef ASM
 
@@ -27,7 +29,7 @@ typedef struct {
 
     /*
      * Kernel ESP of the parent. Used to jump back to the parent
-     * kernel stack frame after the child calls IRET. Invalid if
+     * kernel stack frame after the child calls halt(). Invalid if
      * the process has no parent (i.e. parent_pid < 0).
      */
     uint32_t parent_esp;

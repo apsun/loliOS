@@ -170,4 +170,13 @@ do {                                    \
             );                      \
 } while(0)
 
+/*
+ * Read the contents of the specified register
+ * and stores it into dest.
+ */
+#define read_register(name, dest)                       \
+do {                                                    \
+    asm volatile("movl %%" name ", %0" : "=g"(dest));   \
+} while (0)
+
 #endif /* _LIB_H */

@@ -68,6 +68,9 @@ extern page_table_entry_4kb_t page_table[NUM_PTE];
 /* Enables paging */
 void paging_enable(void);
 
+/* Updates the process page */
+void paging_update_process_page(int32_t pid);
+
 #endif /* ASM */
 
 #endif /* _PAGING_H */

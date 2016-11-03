@@ -13,7 +13,7 @@ static terminal_state_t terminal_states[NUM_TERMINALS];
 static int32_t display_terminal;
 
 /* VGA video memory */
-static uint8_t *global_video_mem = (uint8_t *)VIDEO_MEM;
+static uint8_t * const global_video_mem = (uint8_t *)VIDEO_MEM;
 
 /*
  * Returns the terminal corresponding to the currently

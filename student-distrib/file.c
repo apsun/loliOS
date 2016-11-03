@@ -110,6 +110,11 @@ file_init(void)
 int32_t
 file_open(const uint8_t *filename)
 {
+    /* TODO: How do we check that the filename is valid? */
+    if (filename == NULL) {
+        return -1;
+    }
+
     dentry_t dentry;
     int32_t i;
     file_obj_t *files = get_executing_file_objs();
