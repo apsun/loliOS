@@ -1,6 +1,9 @@
 #ifndef _PAGING_H
 #define _PAGING_H
 
+#define USER_PAGE_START 0x80000000
+#define USER_PAGE_END 0x8400000
+
 #ifndef ASM
 
 #include "x86_desc.h"

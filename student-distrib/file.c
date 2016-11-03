@@ -110,8 +110,9 @@ file_init(void)
 int32_t
 file_open(const uint8_t *filename)
 {
-    /* TODO: How do we check that the filename is valid? */
-    if (filename == NULL) {
+    /* Basically just ensures the filename string isn't bad */
+    uint8_t filename_safe[FNAME_LEN + 1];
+    if (!strncpy_from_user(filename_safe, filename, sizeof(filename_safe))) {
         return -1;
     }
 
@@ -121,7 +122,6 @@ file_open(const uint8_t *filename)
 
     /* Skip fd = 0 (stdin) and fd = 1 (stdout) */
     for (i = 2; i < MAX_FILES; ++i) {
-        /* Check for an open file object slot */
         if (!files[i].valid) {
             /* Try to read filesystem entry */
             if (read_dentry_by_name(filename, &dentry) != 0) {
@@ -133,6 +133,7 @@ file_open(const uint8_t *filename)
 
             /* Perform post-initialization setup */
             if (files[i].ops_table->open(filename, &files[i]) != 0) {
+                /* Abandon ship! */
                 files[i].valid = 0;
                 return -1;
             }

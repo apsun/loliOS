@@ -2,6 +2,7 @@
  */
 
 #include "lib.h"
+#include "paging.h"
 #include "terminal.h"
 
 /*
@@ -594,16 +595,67 @@ strncpy(int8_t* dest, const int8_t* src, uint32_t n)
 bool
 is_user_readable(const void *user_buf, int32_t n)
 {
-    /* TODO: CHANGE */
-    return user_buf != NULL && n >= 0;
+    /* Buffer size must be non-negative */
+    if (n < 0) {
+        return false;
+    }
+
+    /*
+     * Buffer must start and end inside the user page.
+     * This is kind of a hacky way to determine whether the
+     * buffer is valid, but the only other alternative is
+     * EAFP which is much worse.
+     */
+    if (user_buf < USER_PAGE_START || user_buf + n >= USER_PAGE_END) {
+        return false;
+    }
+
+    return true;
 }
 
 /* Checks whether a userspace buffer is writable */
 bool
 is_user_writable(const void *user_buf, int32_t n)
 {
-    /* TODO: CHANGE */
-    return user_buf != NULL && n >= 0;
+    /*
+     * Everything is in one massive R/W/X page, so we don't
+     * distingush readable and writable memory blocks
+     */
+    return is_user_readable(user_buf, n);
+}
+
+/*
+ * Copies a string from userspace, with page boundary checking.
+ * Returns true if the buffer was big enough and the source string
+ * could be fully copied to the buffer. Returns false otherwise.
+ * This does NOT pad excess chars in dest with zeros!
+ */
+bool
+strncpy_from_user(uint8_t *dest, const uint8_t *src, uint32_t n)
+{
+    /*
+     * Make sure we start in the user page
+     * (The upper bound check is in the loop)
+     */
+    if (src < USER_PAGE_START) {
+        return false;
+    }
+
+    uint32_t i;
+    for (i = 0; i < n; ++i) {
+        /* Stop at the end of the user page */
+        if (src + i >= USER_PAGE_END) {
+            return false;
+        }
+
+        /* Copy character, stop after reaching NUL terminator */
+        if ((dest[i] = src[i]) == '\0') {
+            return true;
+        }
+    }
+
+    /* Didn't reach the terminator before n characters */
+    return false;
 }
 
 /*

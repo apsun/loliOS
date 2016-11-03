@@ -5,7 +5,7 @@
 #include "debug.h"
 
 /* The virtual address that the process should be copied to */
-static uint8_t * const process_vaddr = (uint8_t *)0x8048000;
+static uint8_t * const process_vaddr = (uint8_t *)(USER_PAGE_START + 0x48000);
 
 /* Process control blocks */
 static pcb_t process_info[MAX_PROCESSES];
@@ -44,17 +44,11 @@ process_new_pcb(void)
 /*
  * Ensures that the given file is a valid executable file.
  * On success, writes the inode index of the file to out_inode_idx,
- * the starting address of the arguments to out_args, and returns 0.
- * Otherwise, returns -1.
+ * the arguments to out_args, and returns 0. Otherwise, returns -1.
  */
 static int32_t
-process_parse_exe(const uint8_t *command, uint32_t *out_inode_idx, const uint8_t **out_args)
+process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_args)
 {
-    /* TODO: What if the pointer is invalid? */
-    if (command == NULL) {
-        return -1;
-    }
-
     /*
      * Scan for the end of the exe filename
      * (@ == \0 in this diagram)
@@ -73,22 +67,58 @@ process_parse_exe(const uint8_t *command, uint32_t *out_inode_idx, const uint8_t
      * ccccccccccccaaaaaaaaaaaattttttttt myfile.txt@
      *                                  |___________ i = FNAME_LEN + 1
      */
-    int32_t i;
-    uint8_t filename[FNAME_LEN + 1];
-    for (i = 0; i <= FNAME_LEN; ++i) {
-        if (command[i] == ' ' || command[i] == '\0') {
-            break;
-        }
-        filename[i] = command[i];
+
+    if (command < USER_PAGE_START) {
+        return -1;
     }
 
-    /* Filename too long! */
+    /* Read the filename (up to 33 chars with NUL terminator) */
+    uint8_t filename[FNAME_LEN + 1];
+    uint32_t i;
+    for (i = 0; i < FNAME_LEN + 1; ++i) {
+        if (command + i >= USER_PAGE_END) {
+            return -1;
+        }
+        uint8_t c = command[i];
+        if (c == ' ' || c == '\0') {
+            filename[i] = '\0';
+            break;
+        }
+        filename[i] = c;
+    }
+
+    /* If we didn't break out of the loop, the filename is too long */
     if (i == FNAME_LEN + 1) {
         return -1;
     }
 
-    /* NUL-terminate the filename */
-    filename[i] = '\0';
+    /* Strip leading whitespace */
+    while (command[i] == ' ') {
+        i++;
+        if (command + i >= USER_PAGE_END) {
+            return -1;
+        }
+    }
+
+    /* Now copy the arguments to the arg buffer */
+    int32_t dest_i;
+    for (dest_i = 0; dest_i < MAX_ARG_LEN; ++dest_i) {
+        out_args[dest_i] = command[i];
+        if (command[i] == '\0') {
+            break;
+        }
+
+        /* TODO: this looks wrong */
+        i++;
+        if (command + i >= USER_PAGE_END) {
+            return -1;
+        }
+    }
+
+    /* Args are too long */
+    if (dest_i == MAX_ARG_LEN) {
+        return -1;
+    }
 
     /* Read dentry for the file */
     dentry_t dentry;
@@ -96,7 +126,7 @@ process_parse_exe(const uint8_t *command, uint32_t *out_inode_idx, const uint8_t
         return -1;
     }
 
-    /* Can't load directories... */
+    /* Can only execute files, obviously */
     if (dentry.ftype != FTYPE_FILE) {
         return -1;
     }
@@ -115,19 +145,7 @@ process_parse_exe(const uint8_t *command, uint32_t *out_inode_idx, const uint8_t
     /* Write inode index */
     *out_inode_idx = dentry.inode_idx;
 
-    /* Write starting address of args, skipping leading spaces */
-    while (command[i] == ' ') {
-        i++;
-    }
-    *out_args = &command[i];
-
     return 0;
-}
-
-static int32_t
-process_init_pcb(void)
-{
-    
 }
 
 /*
@@ -171,10 +189,10 @@ int32_t
 process_execute(const uint8_t *command)
 {
     uint32_t inode;
-    const uint8_t *args;
+    uint8_t args[MAX_ARGS_LEN];
 
     /* First make sure we have a valid executable... */
-    if (process_parse_exe(command, &inode, &args) != 0) {
+    if (process_parse_cmd(command, &inode, args) != 0) {
         return -1;
     }
 
