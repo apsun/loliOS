@@ -26,6 +26,7 @@ int8_t* strcpy(int8_t* dest, const int8_t*src);
 int8_t* strncpy(int8_t* dest, const int8_t*src, uint32_t n);
 bool is_user_readable(const void *user_buf, int32_t n);
 bool is_user_writable(const void *user_buf, int32_t n);
+bool is_user_readable_string(const uint8_t *str);
 bool strncpy_from_user(uint8_t *dest, const uint8_t *src, uint32_t n);
 int32_t copy_from_user(void *dest, const void *src, int32_t n);
 int32_t copy_to_user(void *dest, const void *src, int32_t n);

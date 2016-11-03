@@ -75,11 +75,14 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
     /* Read the filename (up to 33 chars with NUL terminator) */
     uint8_t filename[FNAME_LEN + 1];
     uint32_t i;
+    int32_t c;
+
     for (i = 0; i < FNAME_LEN + 1; ++i) {
-        if (command + i >= USER_PAGE_END) {
+        if ((c = read_char_from_user(command + i)) < 0) {
             return -1;
         }
-        uint8_t c = command[i];
+
+        /* Stop after space/NUL (command[i] still points to space/NUL) */
         if (c == ' ' || c == '\0') {
             filename[i] = '\0';
             break;
@@ -92,31 +95,31 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
         return -1;
     }
 
-    /* Strip leading whitespace */
-    while (command[i] == ' ') {
+    /*
+     * Strip leading whitespace
+     * We already know that the current char is space/NUL, so skip it.
+     */
+    while (c == ' ') {
         i++;
-        if (command + i >= USER_PAGE_END) {
+        if ((c = read_char_from_user(command + i)) < 0) {
             return -1;
         }
     }
 
     /* Now copy the arguments to the arg buffer */
     int32_t dest_i;
-    for (dest_i = 0; dest_i < MAX_ARG_LEN; ++dest_i) {
-        out_args[dest_i] = command[i];
-        if (command[i] == '\0') {
-            break;
+    for (dest_i = 0; dest_i < MAX_ARGS_LEN; ++dest_i, ++i) {
+        if ((c = read_char_from_user(command + i)) < 0) {
+            return -1;
         }
 
-        /* TODO: this looks wrong */
-        i++;
-        if (command + i >= USER_PAGE_END) {
-            return -1;
+        if ((out_args[dest_i] = c) == '\0') {
+            break;
         }
     }
 
     /* Args are too long */
-    if (dest_i == MAX_ARG_LEN) {
+    if (dest_i == MAX_ARGS_LEN) {
         return -1;
     }
 

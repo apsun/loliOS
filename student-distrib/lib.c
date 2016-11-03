@@ -606,7 +606,8 @@ is_user_readable(const void *user_buf, int32_t n)
      * buffer is valid, but the only other alternative is
      * EAFP which is much worse.
      */
-    if (user_buf < USER_PAGE_START || user_buf + n >= USER_PAGE_END) {
+    if ((uint32_t)(user_buf) < USER_PAGE_START ||
+        (uint32_t)(user_buf + n) >= USER_PAGE_END) {
         return false;
     }
 
@@ -625,6 +626,21 @@ is_user_writable(const void *user_buf, int32_t n)
 }
 
 /*
+ * Reads a single char from userspace. The return value is a
+ * signed integer; if it is negative, the read failed; otherwise,
+ * it succeeded and the character is the truncated return value.
+ */
+int32_t
+read_char_from_user(const uint8_t *ptr)
+{
+    if ((uint32_t)ptr < USER_PAGE_START ||
+        (uint32_t)ptr >= USER_PAGE_START) {
+        return -1;
+    }
+    return *ptr;
+}
+
+/*
  * Copies a string from userspace, with page boundary checking.
  * Returns true if the buffer was big enough and the source string
  * could be fully copied to the buffer. Returns false otherwise.
@@ -637,14 +653,14 @@ strncpy_from_user(uint8_t *dest, const uint8_t *src, uint32_t n)
      * Make sure we start in the user page
      * (The upper bound check is in the loop)
      */
-    if (src < USER_PAGE_START) {
+    if ((uint32_t)src < USER_PAGE_START) {
         return false;
     }
 
     uint32_t i;
     for (i = 0; i < n; ++i) {
         /* Stop at the end of the user page */
-        if (src + i >= USER_PAGE_END) {
+        if ((uint32_t)(src + i) >= USER_PAGE_END) {
             return false;
         }
 
