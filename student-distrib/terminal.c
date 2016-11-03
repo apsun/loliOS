@@ -242,22 +242,22 @@ set_display_terminal(int32_t index)
     terminal_update_cursor(new);
 }
 
-/* Prints a character to the currently executing terminal */
+/* Prints a character to the currently displayed terminal */
 void
 terminal_putc(uint8_t c)
 {
-    terminal_state_t *term = get_executing_terminal();
+    terminal_state_t *term = get_display_terminal();
     uint32_t flags;
     cli_and_save(flags);
     terminal_putc_impl(term, c);
     restore_flags(flags);
 }
 
-/* Clears the curently executing terminal screen */
+/* Clears the curently displayed terminal screen */
 void
 terminal_clear(void)
 {
-    terminal_state_t *term = get_executing_terminal();
+    terminal_state_t *term = get_display_terminal();
     uint32_t flags;
     cli_and_save(flags);
     terminal_clear_impl(term);

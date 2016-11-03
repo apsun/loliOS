@@ -68,15 +68,11 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
      *                                  |___________ i = FNAME_LEN + 1
      */
 
-    if (command < USER_PAGE_START) {
-        return -1;
-    }
-
-    /* Read the filename (up to 33 chars with NUL terminator) */
-    uint8_t filename[FNAME_LEN + 1];
     uint32_t i;
     int32_t c;
 
+    /* Read the filename (up to 33 chars with NUL terminator) */
+    uint8_t filename[FNAME_LEN + 1];
     for (i = 0; i < FNAME_LEN + 1; ++i) {
         if ((c = read_char_from_user(command + i)) < 0) {
             return -1;
@@ -97,12 +93,15 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
 
     /*
      * Strip leading whitespace
-     * We already know that the current char is space/NUL, so skip it.
+     * After the loop, command[i] points to the first non-space char
      */
-    while (c == ' ') {
-        i++;
+    for (;; i++) {
         if ((c = read_char_from_user(command + i)) < 0) {
             return -1;
+        }
+
+        if (c != ' ') {
+            break;
         }
     }
 
@@ -113,7 +112,8 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
             return -1;
         }
 
-        if ((out_args[dest_i] = c) == '\0') {
+        out_args[dest_i] = c;
+        if (c == '\0') {
             break;
         }
     }
@@ -139,6 +139,9 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
     if (read_data(dentry.inode_idx, 0, (uint8_t *)&magic, 4) != 4) {
         return -1;
     }
+
+    uint8_t asdf[1024];
+    asdf[read_data(dentry.inode_idx, 0, asdf, 20)] = '\0';
 
     /* Ensure it's an executable file */
     if (magic != EXE_MAGIC) {
@@ -193,6 +196,7 @@ process_execute(const uint8_t *command)
 {
     uint32_t inode;
     uint8_t args[MAX_ARGS_LEN];
+
 
     /* First make sure we have a valid executable... */
     if (process_parse_cmd(command, &inode, args) != 0) {
@@ -273,5 +277,8 @@ process_getargs(uint8_t *buf, int32_t nbytes)
 void
 process_init(void)
 {
-    /* TODO */
+    int32_t i;
+    for (i = 0; i < MAX_PROCESSES; ++i) {
+        process_info[i].pid = -1;
+    }
 }

@@ -200,16 +200,10 @@ entry (unsigned long magic, unsigned long addr)
     printf("Boot successful!\n");
     clear();
 
-    /* Fake shell for testing */
-    test_shell();
-
-    /* Raise page fault (for debugging) */
-    // printf("%d\n", *(volatile int *)0x7ffff0);
-
-    /* Raise divide by zero (for debugging) */
-    // printf("%d\n", 1 / 0);
-
     /* Execute the first program (`shell') ... */
+    process_execute("shell");
+
+    printf("Shouldn't get here...\n");
 
     /* Spin (nicely, so we don't chew up cycles) */
     loop();
