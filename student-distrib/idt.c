@@ -73,7 +73,7 @@ handle_exception(int_regs_t *regs)
     printf("Exception: %s\n", exc_info_table[regs->int_num].desc);
     printf("****************************************\n");
     dump_registers(regs);
-    halt();
+    loop();
 }
 
 /* IRQ handler */

@@ -5,6 +5,7 @@
 #include "i8259.h"
 #include "idt.h"
 #include "paging.h"
+#include "process.h"
 #include "keyboard.h"
 #include "rtc.h"
 #include "terminal.h"
@@ -24,6 +25,9 @@ entry (unsigned long magic, unsigned long addr)
     multiboot_info_t *mbi;
 
     module_t* fsmod;
+
+    /* Initialize processes */
+    process_init();
 
     /* Initialize terminals */
     terminal_init();
@@ -208,5 +212,5 @@ entry (unsigned long magic, unsigned long addr)
     /* Execute the first program (`shell') ... */
 
     /* Spin (nicely, so we don't chew up cycles) */
-    halt();
+    loop();
 }

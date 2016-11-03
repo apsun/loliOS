@@ -1,66 +1,61 @@
 #include "syscall.h"
 #include "file.h"
 #include "idt.h"
+#include "process.h"
 
-#define cdecl __attribute__((cdecl))
+#define __cdecl __attribute__((cdecl))
 
 /* halt syscall dispatch function */
-static cdecl int32_t
+static __cdecl int32_t
 syscall_halt(uint32_t status)
 {
-    /* Only the least-significant byte is valid */
-    status &= 0xff;
-
-    /* TODO: CP3 */
-    return -1;
+    return process_halt(status & 0xff);
 }
 
 /* execute syscall dispatch function */
-static cdecl int32_t
+static __cdecl int32_t
 syscall_execute(const uint8_t* command)
 {
-    /* TODO: CP3 */
-    return -1;
+    return process_execute(command);
 }
 
 /* read syscall dispatch function */
-static cdecl int32_t
+static __cdecl int32_t
 syscall_read(int32_t fd, void* buf, int32_t nbytes)
 {
     return file_read(fd, buf, nbytes);
 }
 
 /* write syscall dispatch function */
-static cdecl int32_t
+static __cdecl int32_t
 syscall_write(int32_t fd, const void* buf, int32_t nbytes)
 {
     return file_write(fd, buf, nbytes);
 }
 
 /* open syscall dispatch function */
-static cdecl int32_t
+static __cdecl int32_t
 syscall_open(const uint8_t* filename)
 {
     return file_open(filename);
 }
 
 /* close syscall dispatch function */
-static cdecl int32_t
+static __cdecl int32_t
 syscall_close(int32_t fd)
 {
     return file_close(fd);
 }
 
 /* getargs syscall dispatch function */
-static cdecl int32_t
+static __cdecl int32_t
 syscall_getargs(uint8_t* buf, int32_t nbytes)
 {
-    /* TODO: CP4 */
-    return -1;
+    return process_getargs(buf, nbytes);
 }
 
 /* vidmap syscall dispatch function */
-static cdecl int32_t
+static __cdecl int32_t
 syscall_vidmap(uint8_t** screen_start)
 {
     /* TODO: CP4 */
@@ -68,18 +63,16 @@ syscall_vidmap(uint8_t** screen_start)
 }
 
 /* set_handler syscall dispatch function */
-static cdecl int32_t
+static __cdecl int32_t
 syscall_set_handler(int32_t signum, void* handler)
 {
-    /* TODO: CP4 */
     return -1;
 }
 
 /* sigreturn syscall dispatch function */
-static cdecl int32_t
+static __cdecl int32_t
 syscall_sigreturn(void)
 {
-    /* TODO: CP4 */
     return -1;
 }
 
@@ -89,7 +82,7 @@ syscall_sigreturn(void)
  * This relies on the x86 cdecl calling convention, so that
  * excess paramters are ignored.
  */
-typedef cdecl int32_t (*syscall_func)(uint32_t, uint32_t, uint32_t);
+typedef __cdecl int32_t (*syscall_func)(uint32_t, uint32_t, uint32_t);
 static syscall_func syscall_funcs[10] = {
     (syscall_func)syscall_halt,
     (syscall_func)syscall_execute,

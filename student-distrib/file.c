@@ -3,6 +3,7 @@
 #include "rtc.h"
 #include "filesys.h"
 #include "terminal.h"
+#include "process.h"
 
 /* Terminal stdin file ops */
 static file_ops_t fops_stdin = {
@@ -44,9 +45,6 @@ static file_ops_t fops_rtc = {
     .close = rtc_close
 };
 
-/* Array of open files */
-static file_obj_t open_files[MAX_FILES];
-
 /* Initializes the file object from the given dentry */
 static void
 init_file_obj(file_obj_t *file, dentry_t *dentry)
@@ -68,9 +66,16 @@ init_file_obj(file_obj_t *file, dentry_t *dentry)
     }
 }
 
+/* Gets the file object array for the executing process */
+static file_obj_t *
+get_executing_file_objs(void)
+{
+    return get_executing_pcb()->files;
+}
+
 /* Gets the file object corresponding to the given descriptor */
 static file_obj_t *
-get_file_obj(int32_t fd)
+get_executing_file_obj(int32_t fd)
 {
     file_obj_t *file;
 
@@ -80,7 +85,7 @@ get_file_obj(int32_t fd)
     }
 
     /* Get file object, check that it's open */
-    file = &open_files[fd];
+    file = &get_executing_file_objs()[fd];
     if (!file->valid) {
         return NULL;
     }
@@ -94,10 +99,11 @@ get_file_obj(int32_t fd)
 void
 file_init(void)
 {
-    open_files[FD_STDIN].valid = 1;
-    open_files[FD_STDIN].ops_table = &fops_stdin;
-    open_files[FD_STDOUT].valid = 1;
-    open_files[FD_STDOUT].ops_table = &fops_stdout;
+    file_obj_t *files = get_executing_file_objs();
+    files[FD_STDIN].valid = 1;
+    files[FD_STDIN].ops_table = &fops_stdin;
+    files[FD_STDOUT].valid = 1;
+    files[FD_STDOUT].ops_table = &fops_stdout;
 }
 
 /* open() syscall handler */
@@ -106,22 +112,23 @@ file_open(const uint8_t *filename)
 {
     dentry_t dentry;
     int32_t i;
+    file_obj_t *files = get_executing_file_objs();
 
     /* Skip fd = 0 (stdin) and fd = 1 (stdout) */
     for (i = 2; i < MAX_FILES; ++i) {
         /* Check for an open file object slot */
-        if (!open_files[i].valid) {
+        if (!files[i].valid) {
             /* Try to read filesystem entry */
             if (read_dentry_by_name(filename, &dentry) != 0) {
                 return -1;
             }
 
             /* Initialize file object */
-            init_file_obj(&open_files[i], &dentry);
+            init_file_obj(&files[i], &dentry);
 
             /* Perform post-initialization setup */
-            if (open_files[i].ops_table->open(filename, &open_files[i]) != 0) {
-                open_files[i].valid = 0;
+            if (files[i].ops_table->open(filename, &files[i]) != 0) {
+                files[i].valid = 0;
                 return -1;
             }
 
@@ -138,7 +145,7 @@ file_open(const uint8_t *filename)
 int32_t
 file_read(int32_t fd, void *buf, int32_t nbytes)
 {
-    file_obj_t *file = get_file_obj(fd);
+    file_obj_t *file = get_executing_file_obj(fd);
     if (file == NULL) {
         return -1;
     }
@@ -149,7 +156,7 @@ file_read(int32_t fd, void *buf, int32_t nbytes)
 int32_t
 file_write(int32_t fd, const void *buf, int32_t nbytes)
 {
-    file_obj_t *file = get_file_obj(fd);
+    file_obj_t *file = get_executing_file_obj(fd);
     if (file == NULL) {
         return -1;
     }
@@ -160,7 +167,7 @@ file_write(int32_t fd, const void *buf, int32_t nbytes)
 int32_t
 file_close(int32_t fd)
 {
-    file_obj_t *file = get_file_obj(fd);
+    file_obj_t *file = get_executing_file_obj(fd);
     if (file == NULL) {
         return -1;
     }

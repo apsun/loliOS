@@ -3,6 +3,7 @@
 #include "lib.h"
 #include "debug.h"
 #include "keyboard.h"
+#include "process.h"
 #include "test.h"
 
 /* Holds information about each terminal */
@@ -22,8 +23,7 @@ static uint8_t *global_video_mem = (uint8_t *)VIDEO_MEM;
 static terminal_state_t *
 get_executing_terminal(void)
 {
-    /* TODO: Change this in a future CP */
-    return &terminal_states[display_terminal];
+    return &terminal_states[get_executing_pcb()->terminal];
 }
 
 /*
@@ -323,10 +323,13 @@ wait_until_readable(volatile input_buf_t *input_buf, int32_t nbytes)
 int32_t
 terminal_stdin_read(file_obj_t *file, void *buf, int32_t nbytes)
 {
+    /* Ensure buffer is valid */
+    if (!is_user_writable(buf, nbytes)) {
+        return -1;
+    }
+
     terminal_state_t *term = get_executing_terminal();
     volatile input_buf_t *input_buf = &term->input;
-    uint8_t *dest = (uint8_t *)buf;
-    int32_t i;
     uint32_t flags;
 
     /* Only allow reads up to the end of the buffer */
@@ -334,16 +337,22 @@ terminal_stdin_read(file_obj_t *file, void *buf, int32_t nbytes)
         nbytes = TERMINAL_BUF_SIZE;
     }
 
-    /* Wait until we can read everything in one go
+    /*
+     * Wait until we can read everything in one go
      * Interrupts must be disabled upon entry, and
      * will be disabled upon return.
      */
     cli_and_save(flags);
     nbytes = wait_until_readable(input_buf, nbytes);
 
-    /* Copy from input buffer to dest buffer */
-    for (i = 0; i < nbytes; ++i) {
-        *dest++ = input_buf->buf[i];
+    /*
+     * Copy from input buffer to dest buffer. Note that
+     * this can never fail (even if we were pre-empted during
+     * the wait_until_readable call, since there's no way
+     * for the process to die except from sudoku).
+     */
+    if (copy_to_user(buf, (void *)input_buf->buf, nbytes) < nbytes) {
+        ASSERT(0);
     }
 
     /*
@@ -351,14 +360,14 @@ terminal_stdin_read(file_obj_t *file, void *buf, int32_t nbytes)
      * Interrupts are cleared at this point so no need to worry
      * about discarding the volatile qualifier
      */
-    memmove((void *)&input_buf->buf[0], (void *)&input_buf->buf[i], i);
-    input_buf->count -= i;
+    memmove((void *)&input_buf->buf[0], (void *)&input_buf->buf[nbytes], nbytes);
+    input_buf->count -= nbytes;
 
     /* Restore original interrupt flags */
     restore_flags(flags);
 
-    /* i holds the number of characters read */
-    return i;
+    /* nbytes holds the number of characters read */
+    return nbytes;
 }
 
 /*
@@ -373,15 +382,24 @@ terminal_stdin_read(file_obj_t *file, void *buf, int32_t nbytes)
 int32_t
 terminal_stdout_write(file_obj_t *file, const void *buf, int32_t nbytes)
 {
-    terminal_state_t *term = get_executing_terminal();
-    int32_t i;
+    /*
+     * Ensure the entire buffer is readable
+     * before we begin, since we shouldn't have
+     * partial writes to the terminal
+     */
+    if (!is_user_readable(buf, nbytes)) {
+        return -1;
+    }
+
     const uint8_t *src = (const uint8_t *)buf;
-    uint32_t flags;
-    cli_and_save(flags);
+    terminal_state_t *term = get_executing_terminal();
+
+    /* Print characters to the terminal */
+    int32_t i;
     for (i = 0; i < nbytes; ++i) {
         terminal_putc_impl(term, src[i]);
     }
-    restore_flags(flags);
+
     return nbytes;
 }
 
@@ -443,7 +461,7 @@ handle_ctrl_input(kbd_input_ctrl_t ctrl)
         test_execute(ctrl - KCTL_TEST1);
         break;
     default:
-        debugf("Invalid control sequence: %d\n", ctrl);
+        ASSERT(0);
         break;
     }
 }
@@ -480,7 +498,7 @@ terminal_handle_input(kbd_input_t input)
     case KTYP_NONE:
         break;
     default:
-        debugf("Invalid input type: %d\n", input.type);
+        ASSERT(0);
         break;
     }
 }

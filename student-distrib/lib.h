@@ -24,13 +24,17 @@ int32_t strcmp(const int8_t* s1, const int8_t* s2);
 int32_t strncmp(const int8_t* s1, const int8_t* s2, uint32_t n);
 int8_t* strcpy(int8_t* dest, const int8_t*src);
 int8_t* strncpy(int8_t* dest, const int8_t*src, uint32_t n);
+int32_t is_user_readable(const void *user_buf, int32_t n);
+int32_t is_user_writable(const void *user_buf, int32_t n);
+int32_t copy_from_user(void *dest, const void *src, int32_t n);
+int32_t copy_to_user(void *dest, const void *src, int32_t n);
 
 /* Userspace address-check functions */
 int32_t bad_userspace_addr(const void* addr, int32_t len);
 int32_t safe_strncpy(int8_t* dest, const int8_t* src, int32_t n);
 
-/* Freezes the processor */
-void halt(void);
+/* Puts the processor into an infinite loop */
+void loop(void);
 
 /* Port read functions */
 /* Inb reads a byte and returns its value as a zero-extended 32-bit
@@ -121,6 +125,20 @@ do {                                    \
             :                       \
             : "memory", "cc"        \
             );                      \
+} while(0)
+
+/* Save flags and then set interrupt flag
+ * Saves the EFLAGS register into the variable "flags", and then
+ * enables interrupts on this processor */
+#define sti_and_save(flags)             \
+do {                                    \
+    asm volatile("pushfl        \n      \
+                popl %0         \n      \
+                sti"                    \
+            : "=r"(flags)              \
+            :                          \
+            : "memory", "cc"           \
+            );                         \
 } while(0)
 
 /* Set interrupt flag - enable interrupts on this processor */

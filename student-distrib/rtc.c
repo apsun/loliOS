@@ -136,7 +136,10 @@ rtc_read(file_obj_t *file, void *buf, int32_t nbytes)
 {
     /* Wait for the interrupt handler to set this flag to 0 */
     waiting_interrupt = 1;
+    uint32_t flags;
+    sti_and_save(flags);
     while (waiting_interrupt);
+    restore_flags(flags);
     return 0;
 }
 
@@ -154,18 +157,16 @@ rtc_write(file_obj_t *file, const void *buf, int32_t nbytes)
 {
     int32_t freq;
 
-    /* Check if we're writing the appropriate size */
+    /* Check if we're reading the appropriate size */
     if (nbytes != sizeof(int32_t)) {
         return -1;
     }
 
-    /* Ensure buffer is valid */
-    if (buf == NULL) {
+    /* Read the frequency */
+    if (copy_from_user(&freq, buf, 4) < 4) {
         return -1;
     }
 
-    /* Set frequency */
-    freq = *(int32_t *)buf;
     return rtc_set_frequency(freq);
 }
 

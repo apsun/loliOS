@@ -590,14 +590,64 @@ strncpy(int8_t* dest, const int8_t* src, uint32_t n)
     return dest;
 }
 
+/* Checks whether a userspace buffer is readable */
+bool
+is_user_readable(const void *user_buf, int32_t n)
+{
+    /* TODO: CHANGE */
+    return user_buf != NULL && n >= 0;
+}
+
+/* Checks whether a userspace buffer is writable */
+bool
+is_user_writable(const void *user_buf, int32_t n)
+{
+    /* TODO: CHANGE */
+    return user_buf != NULL && n >= 0;
+}
+
+/*
+ * Copies a buffer from userspace to kernelspace, checking
+ * that the source buffer is a valid userspace buffer (that is,
+ * it lies entirely within the userspace page). Returns the
+ * number of bytes copied (if this is less than n, the copy failed).
+ */
+int32_t
+copy_from_user(void *dest, const void *src, int32_t n)
+{
+    if (!is_user_readable(src, n)) {
+        return 0;
+    }
+
+    memcpy(dest, src, n);
+    return n;
+}
 
 
 /*
- * void halt(void)
- *   Freezes the processor.
+ * Copies a buffer from kernelspace to userspace, checking
+ * that the destination buffer is a valid userspace buffer.
+ * Returns the number of bytes copied (if this is less than n,
+ * the copy failed).
+ */
+int32_t
+copy_to_user(void *dest, const void *src, int32_t n)
+{
+    if (!is_user_writable(dest, n)) {
+        return 0;
+    }
+
+    memcpy(dest, src, n);
+    return n;
+}
+
+
+/*
+ * Puts the processor into an infinite loop. Interrupts may still
+ * be received and handled (unless IF is cleared, of course).
  */
 void
-halt(void)
+loop(void)
 {
     asm volatile(".1: hlt; jmp .1;");
 }

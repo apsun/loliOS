@@ -1,6 +1,7 @@
 #include "filesys.h"
 #include "rtc.h"
 #include "terminal.h"
+#include "debug.h"
 
 /* macro to get info from statistic entry */
 #define NUM_DENTRY (boot_block->stat_entry.num_dentry)
@@ -53,8 +54,8 @@ filesys_dir_read(file_obj_t *file, void *buf, int32_t nbytes)
     uint8_t *out = (uint8_t *)buf;
     int32_t i;
 
-    /* Validate args */
-    if (buf == NULL || nbytes < 0) {
+    /* Ensure buffer is valid */
+    if (!is_user_writable(buf, nbytes)) {
         return -1;
     }
 
@@ -63,15 +64,12 @@ filesys_dir_read(file_obj_t *file, void *buf, int32_t nbytes)
         return 0;
     }
 
-    /* Increment offset for next read */
-    file->offset++;
-
     /* Limit to 32 chars */
     if (nbytes > FNAME_LEN) {
         nbytes = FNAME_LEN;
     }
 
-    /* Copy filename to output buffer */
+    /* Copy filename directly to userspace buffer */
     for (i = 0; i < nbytes; ++i) {
         uint8_t c = file_dentry.fname[i];
         if (c == '\0') {
@@ -79,6 +77,9 @@ filesys_dir_read(file_obj_t *file, void *buf, int32_t nbytes)
         }
         out[i] = c;
     }
+
+    /* Increment offset for next read */
+    file->offset++;
 
     /* i = number of chars read, excluding NUL terminator */
     return i;
@@ -96,16 +97,13 @@ filesys_dir_read(file_obj_t *file, void *buf, int32_t nbytes)
 int32_t
 filesys_file_read(file_obj_t *file, void *buf, int32_t nbytes)
 {
-    /* Validate args */
-    if (buf == NULL || nbytes < 0) {
+    /* Ensure buffer is valid */
+    if (!is_user_writable(buf, nbytes)) {
         return -1;
     }
 
-    /* Byte offset within file */
-    uint32_t offset = file->offset;
-
-    /* Read contents of buffer */
-    uint32_t read_count = read_data(file->inode_idx, offset, buf, nbytes);
+    /* Read contents of file directly into userspace buffer */
+    uint32_t read_count = read_data(file->inode_idx, file->offset, buf, nbytes);
 
     /* Increment byte offset for next read */
     file->offset += read_count;
