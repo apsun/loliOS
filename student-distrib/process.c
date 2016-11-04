@@ -67,7 +67,6 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
      * ccccccccccccaaaaaaaaaaaattttttttt myfile.txt@
      *                                  |___________ i = FNAME_LEN + 1
      */
-
     uint32_t i;
     int32_t c;
 
@@ -140,9 +139,6 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
         return -1;
     }
 
-    uint8_t asdf[1024];
-    asdf[read_data(dentry.inode_idx, 0, asdf, 20)] = '\0';
-
     /* Ensure it's an executable file */
     if (magic != EXE_MAGIC) {
         return -1;
@@ -196,7 +192,6 @@ process_execute(const uint8_t *command)
 {
     uint32_t inode;
     uint8_t args[MAX_ARGS_LEN];
-
 
     /* First make sure we have a valid executable... */
     if (process_parse_cmd(command, &inode, args) != 0) {
