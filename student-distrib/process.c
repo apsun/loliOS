@@ -238,10 +238,23 @@ process_execute(const uint8_t *command)
 int32_t
 process_halt(uint8_t status)
 {
+    int i;
     pcb_t *pcb = get_executing_pcb();
 
+    for(i = 0; i < MAX_FILES; i++){ //close files
+        if(pcb->files[i].valid)
+            file_close(i);
+    }
     /* Mark PCB as free */
     pcb->pid = -1;
+    //pcb_t *pcb_parent = &process_info[pcb->parent_pid]; //the PCB we will return to
+    current_pid = pcb->parent_pid;
+    if(pid->parent_pid < 0) //no parent, last remaining process, new shell
+        //process_execute((uint_8 *)"shell"); //complete execute??
+    else{//return to parent frame
+        paging_update_process_page(pcb->parent_pid); //wont work??
+
+    }
 
     /* TODO */
     return -1;
