@@ -61,7 +61,7 @@ typedef struct {
 pcb_t *get_executing_pcb(void);
 
 /* Process syscall handlers */
-int32_t process_halt(uint8_t status);
+int32_t process_halt(uint32_t status);
 int32_t process_execute(const uint8_t *command);
 int32_t process_getargs(uint8_t *buf, int32_t nbytes);
 

@@ -597,12 +597,12 @@ strncpy(int8_t* dest, const int8_t* src, uint32_t n)
 bool
 is_user_readable(const void *user_buf, int32_t n)
 {
-#if !YOLO
     /* Buffer size must be non-negative */
     if (n < 0) {
         return false;
     }
 
+#if !YOLO
     /*
      * Buffer must start and end inside the user page.
      * This is kind of a hacky way to determine whether the

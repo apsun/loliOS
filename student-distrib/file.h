@@ -43,8 +43,8 @@ struct file_ops_t {
     int32_t (*close)(file_obj_t *file);
 };
 
-/* Initializes file info for the current process */
-void file_init(void);
+/* Initializes the specified file object array */
+void file_init(file_obj_t *files);
 
 /* Direct syscall handlers */
 int32_t file_open(const uint8_t *filename);

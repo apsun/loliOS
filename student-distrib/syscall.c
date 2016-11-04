@@ -9,7 +9,7 @@
 static __cdecl int32_t
 syscall_halt(uint32_t status)
 {
-    return process_halt(status & 0xff);
+    return process_halt(status);
 }
 
 /* execute syscall dispatch function */

@@ -13,11 +13,22 @@ static pcb_t process_info[MAX_PROCESSES];
 /* PID of the currently executing process */
 static int32_t current_pid = 0;
 
+/* Gets the PCB of the specified process */
+static pcb_t *
+get_pcb(int32_t pid)
+{
+    if (pid < 0 || pid >= MAX_PROCESSES) {
+        return NULL;
+    }
+
+    return &process_info[pid];
+}
+
 /* Gets the PCB of the currently executing process */
 pcb_t *
 get_executing_pcb()
 {
-    return &process_info[current_pid];
+    return get_pcb(current_pid);
 }
 
 /*
@@ -33,6 +44,7 @@ process_new_pcb(void)
     /* Look for an empty process slot we can fill */
     for (i = 0; i < MAX_PROCESSES; ++i) {
         if (process_info[i].pid < 0) {
+            process_info[i].pid = i;
             return &process_info[i];
         }
     }
@@ -207,10 +219,10 @@ process_execute(const uint8_t *command)
     /* This is the PCB of the current (parent) process */
     pcb_t *parent_pcb = get_executing_pcb();
 
-    /* TODO: Initialize PCB (THIS CODE IS INCOMPLETE!!!) */
+    /* Initialize child PCB */
     child_pcb->parent_pid = parent_pcb->pid;
-    read_register("ebp", child_pcb->parent_ebp);
-    read_register("esp", child_pcb->parent_esp);
+    child_pcb->terminal = parent_pcb->terminal;
+    file_init(child_pcb->files);
     strncpy((int8_t *)child_pcb->args, (const int8_t *)args, MAX_ARGS_LEN);
 
     /* TODO: Update TSS */
@@ -221,42 +233,85 @@ process_execute(const uint8_t *command)
     /* Copy our program into physical memory */
     uint32_t entry_point = process_load_exe(inode);
 
+    /*
+     * Save ESP and EBP of the current call frame so that we
+     * can safely return from halt() inside the child. When
+     * we return to process_execute_ret, all registers are
+     * invalid other than ESP and EBP.
+     *
+     * DO NOT REARRANGE ANY CODE HERE UNLESS YOU ARE 100% SURE
+     * ABOUT WHAT YOU ARE DOING!
+     */
+    asm volatile("movl %%esp, %0;"
+                 "movl %%ebp, %1;"
+                 : "=g"(child_pcb->parent_esp),
+                   "=g"(child_pcb->parent_ebp)
+                 :
+                 : "memory");
+
     /* Jump to userspace and begin execution */
     process_run(entry_point);
 
     /*
-     * We should never reach this point.
-     * When the child process calls halt(), the ebp and esp of the
-     * parent (the current stack frame) are restored. The "halt"
-     * call then returns for us.
+     * Global label so we can jump back here from execute.
+     * The return value will be pushed onto the stack by
+     * halt, so we pop that after we come back.
      */
-    ASSERT(0);
-    return -1;
+    uint32_t status;
+    asm volatile("process_execute_ret:"
+                 "popl %0"
+                 : "=r"(status)
+                 :
+                 : "memory", "cc");
+
+    return status;
 }
 
 /* halt() syscall handler */
 int32_t
-process_halt(uint8_t status)
+process_halt(uint32_t status)
 {
-    int i;
-    pcb_t *pcb = get_executing_pcb();
+    /* Only the bottom byte is used, remaining bytes are garbage */
+    status &= 0xff;
 
-    for(i = 0; i < MAX_FILES; i++){ //close files
-        if(pcb->files[i].valid)
+    pcb_t *child_pcb = get_executing_pcb();
+
+    /* TODO: Update TSS */
+
+    pcb_t *parent_pcb = get_pcb(child_pcb->parent_pid);
+    if (parent_pcb == NULL) {
+        /* TODO: No parent, wat do? */
+    }
+
+    /* Restore the parent process page */
+    paging_update_process_page(parent_pcb->pid);
+
+    /* Close all open files */
+    int32_t i;
+    for (i = 2; i < MAX_FILES; ++i) {
+        if (child_pcb->files[i].valid) {
             file_close(i);
-    }
-    /* Mark PCB as free */
-    pcb->pid = -1;
-    //pcb_t *pcb_parent = &process_info[pcb->parent_pid]; //the PCB we will return to
-    current_pid = pcb->parent_pid;
-    if(pid->parent_pid < 0) //no parent, last remaining process, new shell
-        //process_execute((uint_8 *)"shell"); //complete execute??
-    else{//return to parent frame
-        paging_update_process_page(pcb->parent_pid); //wont work??
-
+        }
     }
 
-    /* TODO */
+    /*
+     * Jump back into the parent's process_execute stack frame
+     * by restoring its esp/ebp and jumping into it.
+     *
+     * DO NOT REARRANGE ANY CODE HERE UNLESS YOU ARE 100% SURE
+     * ABOUT WHAT YOU ARE DOING!
+     */
+    asm volatile("movl %1, %%esp;"
+                 "movl %2, %%ebp;"
+                 "pushl %0;"
+                 "jmp process_execute_ret"
+                 :
+                 : "r"(status),
+                   "g"(child_pcb->parent_esp),
+                   "g"(child_pcb->parent_ebp)
+                 );
+
+    /* Should never get here! */
     return -1;
 }
 

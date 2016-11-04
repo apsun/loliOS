@@ -182,10 +182,6 @@ entry (unsigned long magic, unsigned long addr)
     printf("Initializing filesystem...\n");
     filesys_init((boot_block_t *)fsmod->mod_start);
 
-    /* This must be done AFTER filesystem has been initialized */
-    printf("Enabling file...\n");
-    file_init();
-
     printf("Enabling paging...\n");
     paging_enable();
 

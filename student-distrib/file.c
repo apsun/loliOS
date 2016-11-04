@@ -94,16 +94,19 @@ get_executing_file_obj(int32_t fd)
 }
 
 /*
- * Initializes the file table for the current process.
+ * Initializes the specified file object array.
  */
 void
-file_init(void)
+file_init(file_obj_t *files)
 {
-    file_obj_t *files = get_executing_file_objs();
     files[FD_STDIN].valid = 1;
     files[FD_STDIN].ops_table = &fops_stdin;
     files[FD_STDOUT].valid = 1;
     files[FD_STDOUT].ops_table = &fops_stdout;
+    int32_t i;
+    for (i = 0; i < MAX_FILES; ++i) {
+        files[i].valid = 0;
+    }
 }
 
 /* open() syscall handler */
