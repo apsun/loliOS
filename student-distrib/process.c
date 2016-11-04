@@ -222,6 +222,7 @@ process_execute(const uint8_t *command)
     /* Initialize child PCB */
     child_pcb->parent_pid = parent_pcb->pid;
     child_pcb->terminal = parent_pcb->terminal;
+    child_pcb->vidmap = false;
     file_init(child_pcb->files);
     strncpy((int8_t *)child_pcb->args, (const int8_t *)args, MAX_ARGS_LEN);
 
@@ -229,6 +230,7 @@ process_execute(const uint8_t *command)
 
     /* Update the paging structures */
     paging_update_process_page(child_pcb->pid);
+    paging_update_vidmap_page(child_pcb->vidmap);
 
     /* Copy our program into physical memory */
     uint32_t entry_point = process_load_exe(inode);
@@ -283,8 +285,9 @@ process_halt(uint32_t status)
         /* TODO: No parent, wat do? */
     }
 
-    /* Restore the parent process page */
+    /* Restore the parent's paging structures */
     paging_update_process_page(parent_pcb->pid);
+    paging_update_vidmap_page(parent_pcb->vidmap);
 
     /* Close all open files */
     int32_t i;
@@ -332,6 +335,25 @@ process_getargs(uint8_t *buf, int32_t nbytes)
     /* Copy the args into the buffer */
     pcb_t *pcb = get_executing_pcb();
     strncpy((int8_t *)buf, (int8_t *)pcb->args, nbytes);
+
+    return 0;
+}
+
+/* vidmap() syscall handler */
+int32_t
+process_vidmap(uint8_t **screen_start)
+{
+    /* Ensure buffer is valid */
+    if (!is_user_readable(screen_start, sizeof(uint8_t *))) {
+        return -1;
+    }
+
+    /* Set the vidmap page to present */
+    *screen_start = paging_update_vidmap_page(true);
+
+    /* Save vidmap state in PCB */
+    pcb_t *pcb = get_executing_pcb();
+    pcb->vidmap = true;
 
     return 0;
 }

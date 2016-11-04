@@ -58,8 +58,7 @@ syscall_getargs(uint8_t* buf, int32_t nbytes)
 static __cdecl int32_t
 syscall_vidmap(uint8_t** screen_start)
 {
-    /* TODO: CP4 */
-    return -1;
+    return process_vidmap(screen_start);
 }
 
 /* set_handler syscall dispatch function */

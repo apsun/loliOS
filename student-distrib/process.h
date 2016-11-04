@@ -46,6 +46,13 @@ typedef struct {
     int32_t terminal;
 
     /*
+     * Whether the process has the virtual video memory page
+     * mapped in memory, set after the process has called the
+     * vidmap syscall.
+     */
+    bool vidmap;
+
+    /*
      * Array of file objects for this process.
      */
     file_obj_t files[MAX_FILES];
@@ -64,6 +71,7 @@ pcb_t *get_executing_pcb(void);
 int32_t process_halt(uint32_t status);
 int32_t process_execute(const uint8_t *command);
 int32_t process_getargs(uint8_t *buf, int32_t nbytes);
+int32_t process_vidmap(uint8_t **screen_start);
 
 /* Initializes processes. This must be called first in the kernel bootup sequence */
 void process_init(void);

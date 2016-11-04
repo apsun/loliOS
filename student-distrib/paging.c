@@ -1,8 +1,6 @@
 #include "paging.h"
 #include "debug.h"
 
-#define VIDEO_ADDR 0xB8000
-
 #define SIZE_4KB 0
 #define SIZE_4MB 1
 
@@ -11,6 +9,9 @@
 
 #define TO_4MB_BASE(x) (((uint32_t)x) >> 22)
 #define TO_4KB_BASE(x) (((uint32_t)x) >> 12)
+
+#define TO_4MB_INDEX(x) ((((uint32_t)x) >> 22) & 0xfff)
+#define TO_4KB_INDEX(x) ((((uint32_t)x) >> 12) & 0xfff)
 
 /* Initializes the page directory entries */
 static void
@@ -21,7 +22,7 @@ paging_init_dir(void)
     /* Initialize directory for first 4MB of memory */
     page_dir[0].dir_4kb.present = 1;
     page_dir[0].dir_4kb.write = 1;
-    page_dir[0].dir_4kb.user = 0;
+    page_dir[0].dir_4kb.user = 1;
     page_dir[0].dir_4kb.write_through = 0;
     page_dir[0].dir_4kb.cache_disabled = 0;
     page_dir[0].dir_4kb.accessed = 0;
@@ -72,8 +73,8 @@ paging_init_table(void)
     /* Initialize all 4KB pages in first 4MB of memory */
     for (i = 0; i < NUM_PTE; ++i) {
         page_table[i].present = 0;
-        page_table[i].write = 1;
-        page_table[i].user = 1;
+        page_table[i].write = 0;
+        page_table[i].user = 0;
         page_table[i].write_through = 0;
         page_table[i].cache_disabled = 0;
         page_table[i].accessed = 0;
@@ -81,7 +82,7 @@ paging_init_table(void)
         page_table[i].page_attr_idx = 0;
         page_table[i].global = 0;
         page_table[i].avail = 0;
-        page_table[i].base_addr = TO_4KB_BASE(KB(i * 4));
+        page_table[i].base_addr = 0;
     }
 }
 
@@ -92,17 +93,34 @@ paging_init_table(void)
 static void
 paging_init_video_page(void)
 {
-    /* Set video memory page to present, and
-     * disable caching since it's memory-mapped I/O */
-    page_table[TO_4KB_BASE(VIDEO_ADDR)].present = 1;
-    page_table[TO_4KB_BASE(VIDEO_ADDR)].cache_disabled = 1;
+    /*
+     * Set video memory page to present, and
+     * disable caching since it's memory-mapped I/O.
+     * Only the kernel should be able to access this.
+     */
+    int32_t direct_index = TO_4KB_INDEX(VIDEO_ADDR);
+    page_table[direct_index].present = 1;
+    page_table[direct_index].user = 0;
+    page_table[direct_index].cache_disabled = 1;
+    page_table[direct_index].base_addr = TO_4KB_BASE(VIDEO_ADDR);
+
+    /*
+     * This is basically the same thing, but we allow
+     * user access. It is only present after the process
+     * calls vidmap(), and is only valid for that process.
+     */
+    int32_t vidmap_index = TO_4KB_INDEX(VIDMAP_ADDR);
+    page_table[vidmap_index].present = 0;
+    page_table[vidmap_index].user = 1;
+    page_table[vidmap_index].cache_disabled = 1;
+    page_table[vidmap_index].base_addr = TO_4KB_BASE(VIDEO_ADDR);
 }
 
 /* Initializes the 4MB process page (base address 128MB) */
 static void
 paging_init_process_page(void)
 {
-    int32_t index = TO_4MB_BASE(MB(128));
+    int32_t index = TO_4MB_INDEX(PROCESS_ADDR);
     page_dir[index].dir_4mb.present = 1;
     page_dir[index].dir_4mb.write = 1;
     page_dir[index].dir_4mb.user = 1;
@@ -147,6 +165,17 @@ paging_init_registers(void)
         : "eax", "cc");
 }
 
+/* Flushes the TLB */
+static void
+paging_flush_tlb(void)
+{
+    asm volatile("movl %%cr3, %%eax;"
+                 "movl %%eax, %%cr3;"
+                 :
+                 :
+                 : "eax");
+}
+
 /* Enables memory paging. */
 void
 paging_enable(void)
@@ -174,6 +203,7 @@ paging_enable(void)
 /*
  * Updates the process page to point to the block of
  * physical memory corresponding to the specified process.
+ * This should be called during context switches.
  */
 void
 paging_update_process_page(int32_t pid)
@@ -182,16 +212,30 @@ paging_update_process_page(int32_t pid)
     uint32_t phys_addr = MB(pid * 4 + 8);
 
     /* Virtual address starts at 128MB */
-    int32_t index = TO_4MB_BASE(MB(128));
+    int32_t index = TO_4MB_INDEX(PROCESS_ADDR);
 
     /* 128MB~132MB now points to the physical 4MB page */
     page_dir[index].dir_4mb.base_addr = TO_4MB_BASE(phys_addr);
 
     /* Flush the TLB */
-    asm volatile(
-                 "movl %%cr3, %%eax;"
-                 "movl %%eax, %%cr3;"
-                 :
-                 :
-                 : "eax");
+    paging_flush_tlb();
+}
+
+/*
+ * Updates the vidmap page. This should be called during
+ * context switches and when the vidmap syscall is invoked.
+ * Returns the virtual address of the vidmap page.
+ */
+uint8_t *
+paging_update_vidmap_page(bool present)
+{
+    int32_t index = TO_4KB_INDEX(VIDMAP_ADDR);
+
+    /* !!present is the same as (present) ? 1 : 0 */
+    page_table[index].present = !!present;
+
+    /* Also flush the TLB */
+    paging_flush_tlb();
+
+    return (uint8_t *)VIDMAP_ADDR;
 }

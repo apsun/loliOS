@@ -1,6 +1,10 @@
 #ifndef _PAGING_H
 #define _PAGING_H
 
+#define VIDEO_ADDR        0x000B8000
+#define VIDMAP_ADDR       0x000C8000
+#define PROCESS_ADDR      0x08000000
+
 #define USER_PAGE_START   0x08000000
 #define USER_PAGE_END     0x08400000
 #define KERNEL_PAGE_START 0x00400000
@@ -75,6 +79,9 @@ void paging_enable(void);
 
 /* Updates the process page */
 void paging_update_process_page(int32_t pid);
+
+/* Updates the vidmap page */
+uint8_t *paging_update_vidmap_page(bool present);
 
 #endif /* ASM */
 
