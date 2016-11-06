@@ -195,7 +195,20 @@ process_load_exe(uint32_t inode_idx)
 static void
 process_run(uint32_t entry_point)
 {
-    /* TODO */
+    asm volatile(
+                "pushl %%ds;"
+                "pushl %1;"
+                "pushfl;"
+                "popl %%ebx;"
+                "orl %2, %%ebx;" //IF flag set 
+                "pushl %%ebx;"
+                "pushl USER_CS;"
+                "pushl %0;"
+                "IRET;"
+                :
+                : "r" (entry_point), "r"(USER_DS), "r"(EFLAGS_IF)
+                : "%ebx" //fix clobber
+                );          
 }
 
 /* execute() syscall handler */
@@ -227,6 +240,8 @@ process_execute(const uint8_t *command)
     strncpy((int8_t *)child_pcb->args, (const int8_t *)args, MAX_ARGS_LEN);
 
     /* TODO: Update TSS */
+    tss.ss0 = 
+    tss.esp0 = MB(8) - KB(pid * 4 + 8); //(fix)
 
     /* Update the paging structures */
     paging_update_process_page(child_pcb->pid);
@@ -246,10 +261,14 @@ process_execute(const uint8_t *command)
      */
     asm volatile("movl %%esp, %0;"
                  "movl %%ebp, %1;"
+                 "movl %2, %%eax;"
+                 "movb %%ax, %%ds;"
+
                  : "=g"(child_pcb->parent_esp),
                    "=g"(child_pcb->parent_ebp)
-                 :
-                 : "memory");
+                 : "r"(USER_DS)
+                 : "%eax", "memory"
+                 );
 
     /* Jump to userspace and begin execution */
     process_run(entry_point);
@@ -278,16 +297,18 @@ process_halt(uint32_t status)
 
     pcb_t *child_pcb = get_executing_pcb();
 
-    /* TODO: Update TSS */
+    /* TODO: Update TSS */ 
 
     pcb_t *parent_pcb = get_pcb(child_pcb->parent_pid);
     if (parent_pcb == NULL) {
-        /* TODO: No parent, wat do? */
+        /* TODO: No parent, wat do? */ //execute shell
     }
 
     /* Restore the parent's paging structures */
     paging_update_process_page(parent_pcb->pid);
     paging_update_vidmap_page(parent_pcb->vidmap);
+
+    //tss.esp0 = MB(8) - KB(pid * 4 + 8); //(fix) kernel stack pointer
 
     /* Close all open files */
     int32_t i;
@@ -306,12 +327,13 @@ process_halt(uint32_t status)
      */
     asm volatile("movl %1, %%esp;"
                  "movl %2, %%ebp;"
-                 "pushl %0;"
+                 "movl %0, %%eax;"
                  "jmp process_execute_ret"
                  :
                  : "r"(status),
-                   "g"(child_pcb->parent_esp),
-                   "g"(child_pcb->parent_ebp)
+                   "r"(child_pcb->parent_esp),
+                   "r"(child_pcb->parent_ebp)
+                 :"%eax"
                  );
 
     /* Should never get here! */
