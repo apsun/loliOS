@@ -197,16 +197,16 @@ process_run(uint32_t entry_point)
 {
     asm volatile(
                 "pushl %%ds;"
-                "pushl %1;"
+                //"pushl %1;"
                 "pushfl;"
                 "popl %%ebx;"
                 "orl %2, %%ebx;" //IF flag set 
                 "pushl %%ebx;"
-                "pushl USER_CS;"
+                "pushl %1;"
                 "pushl %0;"
                 "IRET;"
                 :
-                : "r" (entry_point), "r"(USER_DS), "r"(EFLAGS_IF)
+                : "r" (entry_point), "r"(USER_CS), "r"(EFLAGS_IF)
                 : "%ebx" //fix clobber
                 );          
 }
@@ -215,6 +215,7 @@ process_run(uint32_t entry_point)
 int32_t
 process_execute(const uint8_t *command)
 {
+	//If magic number is not present, the execute system call should fail?
     uint32_t inode;
     uint8_t args[MAX_ARGS_LEN];
 
@@ -239,9 +240,11 @@ process_execute(const uint8_t *command)
     file_init(child_pcb->files);
     strncpy((int8_t *)child_pcb->args, (const int8_t *)args, MAX_ARGS_LEN);
 
+
     /* TODO: Update TSS */
-    tss.ss0 = 
+    tss.ss0 = KERNEL_DS; 
     tss.esp0 = MB(8) - KB(pid * 4 + 8); //(fix)
+
 
     /* Update the paging structures */
     paging_update_process_page(child_pcb->pid);
@@ -297,11 +300,14 @@ process_halt(uint32_t status)
 
     pcb_t *child_pcb = get_executing_pcb();
 
-    /* TODO: Update TSS */ 
+    /* TODO: Update TSS */
+    tss.esp0 = parent_pcb->parent_esp;
+    
 
     pcb_t *parent_pcb = get_pcb(child_pcb->parent_pid);
     if (parent_pcb == NULL) {
         /* TODO: No parent, wat do? */ //execute shell
+        process_execute("shell");
     }
 
     /* Restore the parent's paging structures */
