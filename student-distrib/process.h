@@ -7,7 +7,7 @@
 #define MAX_ARGS_LEN 1024
 #define MAX_PROCESSES 8
 #define EXE_MAGIC 0x464c457f
-#define EFLAG_IF 0x200
+#define EFLAGS_IF 0x200
 
 #ifndef ASM
 

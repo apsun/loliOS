@@ -4,6 +4,7 @@
 #include "paging.h"
 #include "debug.h"
 
+#define MB(x) ((x) * 1024 * 1024)
 /* The virtual address that the process should be copied to */
 static uint8_t * const process_vaddr = (uint8_t *)(USER_PAGE_START + 0x48000);
 
@@ -195,20 +196,7 @@ process_load_exe(uint32_t inode_idx)
 static void
 process_run(uint32_t entry_point)
 {
-    asm volatile(
-                "pushl %%ds;"
-                //"pushl %1;"
-                "pushfl;"
-                "popl %%ebx;"
-                "orl %2, %%ebx;" //IF flag set 
-                "pushl %%ebx;"
-                "pushl %1;"
-                "pushl %0;"
-                "IRET;"
-                :
-                : "r" (entry_point), "r"(USER_CS), "r"(EFLAGS_IF)
-                : "%ebx" //fix clobber
-                );          
+        
 }
 
 /* execute() syscall handler */
@@ -218,6 +206,9 @@ process_execute(const uint8_t *command)
 	//If magic number is not present, the execute system call should fail?
     uint32_t inode;
     uint8_t args[MAX_ARGS_LEN];
+
+    /* disable IF flag */
+    cli();
 
     /* First make sure we have a valid executable... */
     if (process_parse_cmd(command, &inode, args) != 0) {
@@ -243,7 +234,7 @@ process_execute(const uint8_t *command)
 
     /* TODO: Update TSS */
     tss.ss0 = KERNEL_DS; 
-    tss.esp0 = MB(8) - KB(pid * 4 + 8); //(fix)
+    tss.esp0 = MB(8) - KB(child_pcb->pid * 8 + 8) - 4; //(fix)
 
 
     /* Update the paging structures */
@@ -262,19 +253,46 @@ process_execute(const uint8_t *command)
      * DO NOT REARRANGE ANY CODE HERE UNLESS YOU ARE 100% SURE
      * ABOUT WHAT YOU ARE DOING!
      */
-    asm volatile("movl %%esp, %0;"
-                 "movl %%ebp, %1;"
-                 "movl %2, %%eax;"
-                 "movb %%ax, %%ds;"
+    asm volatile(
+                "movl %%esp, %0;"
+                "movl %%ebp, %1;"
+                : "=g"(child_pcb->parent_esp),
+                  "=g"(child_pcb->parent_ebp)
+                :
+                : "eax", "memory"
+                );
 
-                 : "=g"(child_pcb->parent_esp),
-                   "=g"(child_pcb->parent_ebp)
-                 : "r"(USER_DS)
-                 : "%eax", "memory"
-                 );
+    /* Set current pid to be the child process to execute */
+    current_pid = child_pcb->pid;
 
     /* Jump to userspace and begin execution */
-    process_run(entry_point);
+    // process_run(entry_point);
+    asm volatile(
+            "movl %4, %%eax;"
+            "movw %%ax, %%ds;"
+            "movw %%ax, %%es;"
+            "movw %%ax, %%fs;"
+            "movw %%ax, %%gs;"
+
+            "pushl %4;"
+            "pushl %3;"
+            "pushfl;"
+            "popl %%eax;"
+            "orl %2, %%eax;" //IF flag set 
+            "pushl %%eax;"
+            "pushl %1;"
+            "pushl %0;"
+            "movl %3, %%ebp;"
+            "iret;"
+            :
+            : "r"(entry_point), 
+              "r"(USER_CS), 
+              "r"(EFLAGS_IF), 
+              "r"(USER_PAGE_END - 4),
+              "r"(USER_DS)              
+            : "eax", "ebp" //fix clobber
+            ); 
+
 
     /*
      * Global label so we can jump back here from execute.
@@ -301,20 +319,22 @@ process_halt(uint32_t status)
     pcb_t *child_pcb = get_executing_pcb();
 
     /* TODO: Update TSS */
-    tss.esp0 = parent_pcb->parent_esp;
+    tss.esp0 = child_pcb->parent_esp;
     
 
     pcb_t *parent_pcb = get_pcb(child_pcb->parent_pid);
     if (parent_pcb == NULL) {
         /* TODO: No parent, wat do? */ //execute shell
-        process_execute("shell");
+        // process_execute("shell");
+        /* halt fail */
+        return -1;
     }
 
     /* Restore the parent's paging structures */
     paging_update_process_page(parent_pcb->pid);
     paging_update_vidmap_page(parent_pcb->vidmap);
 
-    //tss.esp0 = MB(8) - KB(pid * 4 + 8); //(fix) kernel stack pointer
+    // tss.esp0 = MB(8) - KB(pid * 4 + 8); //(fix) kernel stack pointer
 
     /* Close all open files */
     int32_t i;
@@ -324,6 +344,11 @@ process_halt(uint32_t status)
         }
     }
 
+    /* Set the current pid to parent pid */
+    current_pid = parent_pcb->pid;
+
+    /* TODO: close the PCB */
+    child_pcb->pid = -1;
     /*
      * Jump back into the parent's process_execute stack frame
      * by restoring its esp/ebp and jumping into it.
@@ -333,13 +358,12 @@ process_halt(uint32_t status)
      */
     asm volatile("movl %1, %%esp;"
                  "movl %2, %%ebp;"
-                 "movl %0, %%eax;"
-                 "jmp process_execute_ret"
+                 "pushl %0;"
+                 "jmp process_execute_ret;"
                  :
                  : "r"(status),
                    "r"(child_pcb->parent_esp),
                    "r"(child_pcb->parent_ebp)
-                 :"%eax"
                  );
 
     /* Should never get here! */
