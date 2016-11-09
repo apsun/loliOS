@@ -23,7 +23,9 @@ static uint8_t * const global_video_mem = (uint8_t *)VIDEO_MEM;
 static terminal_state_t *
 get_executing_terminal(void)
 {
-    return &terminal_states[get_executing_pcb()->terminal];
+    pcb_t *pcb = get_executing_pcb();
+    ASSERT(pcb != NULL);
+    return &terminal_states[pcb->terminal];
 }
 
 /*

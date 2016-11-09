@@ -4,6 +4,7 @@
 #include "filesys.h"
 #include "terminal.h"
 #include "process.h"
+#include "debug.h"
 
 /* Terminal stdin file ops */
 static file_ops_t fops_stdin = {
@@ -70,7 +71,9 @@ init_file_obj(file_obj_t *file, dentry_t *dentry)
 static file_obj_t *
 get_executing_file_objs(void)
 {
-    return get_executing_pcb()->files;
+    pcb_t *pcb = get_executing_pcb();
+    ASSERT(pcb != NULL);
+    return pcb->files;
 }
 
 /* Gets the file object corresponding to the given descriptor */

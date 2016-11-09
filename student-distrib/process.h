@@ -7,7 +7,7 @@
 #define MAX_ARGS_LEN 1024
 #define MAX_PROCESSES 8
 #define EXE_MAGIC 0x464c457f
-#define EFLAGS_IF 0x200
+#define KERNEL_STACK_SIZE 8192
 
 #ifndef ASM
 
@@ -64,6 +64,14 @@ typedef struct {
      */
     uint8_t args[MAX_ARGS_LEN];
 } pcb_t;
+
+typedef struct {
+    /* Pointer to PCB corresponding to this process */
+    pcb_t *pcb;
+
+    /* Actual kernel stack */
+    uint8_t kernel_stack[KERNEL_STACK_SIZE - sizeof(pcb_t *)];
+} process_data_t;
 
 /* Gets the PCB of the currently executing process */
 pcb_t *get_executing_pcb(void);

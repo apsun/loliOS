@@ -10,14 +10,14 @@
 #define TO_4MB_BASE(x) (((uint32_t)x) >> 22)
 #define TO_4KB_BASE(x) (((uint32_t)x) >> 12)
 
-#define TO_4MB_INDEX(x) ((((uint32_t)x) >> 22) & 0xfff)
-#define TO_4KB_INDEX(x) ((((uint32_t)x) >> 12) & 0xfff)
+#define TO_DIR_INDEX(x) (((uint32_t)x) >> 22)
+#define TO_TABLE_INDEX(x) ((((uint32_t)x) >> 12) & 0xfff)
 
 /* Initializes the page directory entries */
 static void
 paging_init_dir(void)
 {
-    int i;
+    int32_t i;
 
     /* Initialize directory for first 4MB of memory */
     page_dir[0].dir_4kb.present = 1;
@@ -68,7 +68,7 @@ paging_init_dir(void)
 static void
 paging_init_table(void)
 {
-    int i;
+    int32_t i;
 
     /* Initialize all 4KB pages in first 4MB of memory */
     for (i = 0; i < NUM_PTE; ++i) {
@@ -98,7 +98,7 @@ paging_init_video_page(void)
      * disable caching since it's memory-mapped I/O.
      * Only the kernel should be able to access this.
      */
-    int32_t direct_index = TO_4KB_INDEX(VIDEO_ADDR);
+    int32_t direct_index = TO_TABLE_INDEX(VIDEO_ADDR);
     page_table[direct_index].present = 1;
     page_table[direct_index].user = 0;
     page_table[direct_index].cache_disabled = 1;
@@ -109,7 +109,7 @@ paging_init_video_page(void)
      * user access. It is only present after the process
      * calls vidmap(), and is only valid for that process.
      */
-    int32_t vidmap_index = TO_4KB_INDEX(VIDMAP_ADDR);
+    int32_t vidmap_index = TO_TABLE_INDEX(VIDMAP_ADDR);
     page_table[vidmap_index].present = 0;
     page_table[vidmap_index].user = 1;
     page_table[vidmap_index].cache_disabled = 1;
@@ -120,7 +120,7 @@ paging_init_video_page(void)
 static void
 paging_init_process_page(void)
 {
-    int32_t index = TO_4MB_INDEX(PROCESS_ADDR);
+    int32_t index = TO_DIR_INDEX(PROCESS_ADDR);
     page_dir[index].dir_4mb.present = 1;
     page_dir[index].dir_4mb.write = 1;
     page_dir[index].dir_4mb.user = 1;
@@ -212,7 +212,7 @@ paging_update_process_page(int32_t pid)
     uint32_t phys_addr = MB(pid * 4 + 8);
 
     /* Virtual address starts at 128MB */
-    int32_t index = TO_4MB_INDEX(PROCESS_ADDR);
+    int32_t index = TO_DIR_INDEX(PROCESS_ADDR);
 
     /* 128MB~132MB now points to the physical 4MB page */
     page_dir[index].dir_4mb.base_addr = TO_4MB_BASE(phys_addr);
@@ -229,13 +229,13 @@ paging_update_process_page(int32_t pid)
 uint8_t *
 paging_update_vidmap_page(bool present)
 {
-    int32_t index = TO_4KB_INDEX(VIDMAP_ADDR);
+    int32_t index = TO_TABLE_INDEX(VIDMAP_ADDR);
 
-    /* !!present is the same as (present) ? 1 : 0 */
-    page_table[index].present = !!present;
+    /* Update page present status */
+    page_table[index].present = present ? 1 : 0;
 
     /* Also flush the TLB */
     paging_flush_tlb();
 
-    return (uint8_t *)(VIDMAP_ADDR + USER_PAGE_START);
+    return (uint8_t *)(VIDMAP_ADDR);
 }

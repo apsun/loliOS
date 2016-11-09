@@ -18,8 +18,13 @@
 do {                           \
     if(!(EXP)) {               \
         printf(__FILE__ ":%u: Assertion `" #EXP "\' failed.\n", __LINE__);  \
-        halt();                \
+        loop();                \
     }                          \
+} while(0)
+
+#define KASSERT(EXP)             \
+do {                             \
+    *(volatile int *)0xBADBAD42; \
 } while(0)
 
 #define debugf(...)            \
@@ -30,6 +35,8 @@ do {                           \
 
 #else
 #define ASSERT(EXP)            \
+    while(0)
+#define KASSERT(EXP)           \
     while(0)
 #define debugf(...)            \
     while(0)
