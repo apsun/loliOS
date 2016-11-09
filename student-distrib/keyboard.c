@@ -158,6 +158,12 @@ keycode_to_ctrl(uint8_t keycode)
 static uint8_t
 keycode_to_char(uint8_t keycode)
 {
+    /* Check if the keycode was out of range */
+    if (keycode >= NUM_KEYS) {
+        debugf("Unknown keycode: 0x%#x\n", keycode);
+        return '\0';
+    }
+	
     switch (get_modifiers()) {
     case KMOD_NONE:
         return keycode_map[0][keycode];
@@ -183,12 +189,6 @@ keycode_to_input(uint8_t keycode)
     kbd_input_ctrl_t ctrl;
     uint8_t c;
     input.type = KTYP_NONE;
-
-    /* Check if the keycode was out of range */
-    if (keycode >= NUM_KEYS) {
-        debugf("Unknown keycode: 0x%#x\n", keycode);
-        return input;
-    }
 
     /* Check if it's a known control sequence */
     ctrl = keycode_to_ctrl(keycode);
