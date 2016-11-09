@@ -104,7 +104,7 @@ file_init(file_obj_t *files)
     files[FD_STDOUT].valid = 1;
     files[FD_STDOUT].ops_table = &fops_stdout;
     int32_t i;
-    for (i = 0; i < MAX_FILES; ++i) {
+    for (i = 2; i < MAX_FILES; ++i) {
         files[i].valid = 0;
     }
 }

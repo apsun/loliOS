@@ -237,5 +237,5 @@ paging_update_vidmap_page(bool present)
     /* Also flush the TLB */
     paging_flush_tlb();
 
-    return (uint8_t *)VIDMAP_ADDR;
+    return (uint8_t *)(VIDMAP_ADDR + USER_PAGE_START);
 }
