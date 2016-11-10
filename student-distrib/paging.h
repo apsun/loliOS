@@ -1,14 +1,17 @@
 #ifndef _PAGING_H
 #define _PAGING_H
 
-#define VIDEO_ADDR        0x000B8000
-#define VIDMAP_ADDR       0x000C8000
-#define PROCESS_ADDR      0x08000000
+#define VIDEO_PAGE_START  0x000B8000
+#define VIDEO_PAGE_END    0x000B9000
+
+#define KERNEL_PAGE_START 0x00400000
+#define KERNEL_PAGE_END   0x00800000
 
 #define USER_PAGE_START   0x08000000
 #define USER_PAGE_END     0x08400000
-#define KERNEL_PAGE_START 0x00400000
-#define KERNEL_PAGE_END   0x00800000
+
+#define VIDMAP_PAGE_START 0x084B8000
+#define VIDMAP_PAGE_END   0x084B9000
 
 #ifndef ASM
 
@@ -67,12 +70,6 @@ typedef union {
     page_dir_entry_4mb_t dir_4mb;
     page_dir_entry_4kb_t dir_4kb;
 } page_dir_entry_t;
-
-/* Page directory (defined in x86_desc.S) */
-extern page_dir_entry_t page_dir[NUM_PDE];
-
-/* Page table for first 4MB of memory (defined in x86_desc.S) */
-extern page_table_entry_4kb_t page_table[NUM_PTE];
 
 /* Enables paging */
 void paging_enable(void);

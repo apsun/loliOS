@@ -231,8 +231,7 @@ process_run(pcb_t *pcb)
      * DO NOT MODIFY ANY CODE HERE UNLESS YOU ARE 100% SURE
      * ABOUT WHAT YOU ARE DOING!
      */
-    asm volatile(
-                 "movl %%esp, %0;"
+    asm volatile("movl %%esp, %0;"
                  "movl %%ebp, %1;"
                  : "=g"(pcb->parent_esp),
                    "=g"(pcb->parent_ebp)
@@ -501,7 +500,7 @@ process_start_shell(void)
     /* Make sure nobody stops us... */
     cli();
 
-    /* Execute a shell */
+    /* Execute a shell in the first terminal */
     process_execute_impl((uint8_t *)"shell", NULL, 0);
 
     /* TODO: I can haz more shells? */

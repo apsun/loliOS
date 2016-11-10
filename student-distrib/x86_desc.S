@@ -8,7 +8,6 @@
 .globl  tss, tss_desc_ptr, ldt, ldt_desc_ptr
 .globl  gdt_ptr, gdt_desc_ptr
 .globl  idt_desc_ptr, idt
-.globl  page_dir, page_table
 
 .align 4
 
@@ -106,17 +105,3 @@ _idt:
     .endr
 
 idt_bottom:
-
-    .align 4096
-page_dir:
-_page_dir:
-    .rept NUM_PDE
-    .long 0
-    .endr
-
-    .align 4096
-page_table:
-_page_table:
-    .rept NUM_PTE
-    .long 0
-    .endr
