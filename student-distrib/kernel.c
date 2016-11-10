@@ -11,7 +11,6 @@
 #include "terminal.h"
 #include "filesys.h"
 #include "file.h"
-#include "test.h"
 
 /* Macros. */
 /* Check if the bit BIT in FLAGS is set. */

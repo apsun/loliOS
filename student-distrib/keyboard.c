@@ -124,16 +124,6 @@ keycode_to_ctrl(uint8_t keycode)
         switch (keycode) {
         case KC_L: /* CTRL-L */
             return KCTL_CLEAR;
-        case KC_1: /* CTRL-1 */
-            return KCTL_TEST1;
-        case KC_2: /* CTRL-2 */
-            return KCTL_TEST2;
-        case KC_3: /* CTRL-3 */
-            return KCTL_TEST3;
-        case KC_4: /* CTRL-4 */
-            return KCTL_TEST4;
-        case KC_5: /* CTRL-5 */
-            return KCTL_TEST5;
         }
         break;
     case KMOD_ALT:
@@ -163,7 +153,7 @@ keycode_to_char(uint8_t keycode)
         debugf("Unknown keycode: 0x%#x\n", keycode);
         return '\0';
     }
-	
+
     switch (get_modifiers()) {
     case KMOD_NONE:
         return keycode_map[0][keycode];

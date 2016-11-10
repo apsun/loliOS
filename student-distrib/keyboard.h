@@ -58,18 +58,10 @@ typedef enum {
 /* Keyboard control sequences */
 typedef enum {
     KCTL_NONE,      /* Invalid control sequence */
-    KCTL_BACKSPACE, /* Backspace */
-    KCTL_DELETE,    /* Delete */
-    KCTL_TAB,       /* Tab */
     KCTL_CLEAR,     /* Clear the current terminal */
     KCTL_TERM1,     /* Switch to terminal 1 */
     KCTL_TERM2,     /* Switch to terminal 2 */
     KCTL_TERM3,     /* Switch to terminal 3 */
-    KCTL_TEST1,     /* CTRL-1 */
-    KCTL_TEST2,     /* CTRL-2 */
-    KCTL_TEST3,     /* CTRL-3 */
-    KCTL_TEST4,     /* CTRL-4 */
-    KCTL_TEST5,     /* CTRL-5 */
 } kbd_input_ctrl_t;
 
 /* Keyboard input struct */

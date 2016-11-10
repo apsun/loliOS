@@ -4,7 +4,6 @@
 #include "debug.h"
 #include "keyboard.h"
 #include "process.h"
-#include "test.h"
 
 /* Holds information about each terminal */
 static terminal_state_t terminal_states[NUM_TERMINALS];
@@ -455,13 +454,6 @@ handle_ctrl_input(kbd_input_ctrl_t ctrl)
     case KCTL_TERM2:
     case KCTL_TERM3:
         set_display_terminal(ctrl - KCTL_TERM1);
-        break;
-    case KCTL_TEST1:
-    case KCTL_TEST2:
-    case KCTL_TEST3:
-    case KCTL_TEST4:
-    case KCTL_TEST5:
-        test_execute(ctrl - KCTL_TEST1);
         break;
     default:
         ASSERT(0);
