@@ -100,6 +100,7 @@ paging_init_video_page(void)
      */
     int32_t direct_index = TO_TABLE_INDEX(VIDEO_ADDR);
     page_table[direct_index].present = 1;
+    page_table[direct_index].write = 1;
     page_table[direct_index].user = 0;
     page_table[direct_index].cache_disabled = 1;
     page_table[direct_index].base_addr = TO_4KB_BASE(VIDEO_ADDR);
@@ -111,6 +112,7 @@ paging_init_video_page(void)
      */
     int32_t vidmap_index = TO_TABLE_INDEX(VIDMAP_ADDR);
     page_table[vidmap_index].present = 0;
+    page_table[vidmap_index].write = 1;
     page_table[vidmap_index].user = 1;
     page_table[vidmap_index].cache_disabled = 1;
     page_table[vidmap_index].base_addr = TO_4KB_BASE(VIDEO_ADDR);
