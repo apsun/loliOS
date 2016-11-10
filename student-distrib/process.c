@@ -19,13 +19,16 @@ static int32_t current_pid = -1;
 
 /*
  * Gets the PCB of the specified process.
- *
- * The input must be a VALID (currently executing) process ID!
  */
 static pcb_t *
 get_pcb(int32_t pid)
 {
-    ASSERT(pid >= 0 && pid < MAX_PROCESSES);
+    /* When getting the parent of a "root" process */
+    if (pid < 0) {
+        return NULL;
+    }
+
+    ASSERT(pid < MAX_PROCESSES);
     ASSERT(process_info[pid].pid >= 0);
     return &process_info[pid];
 }

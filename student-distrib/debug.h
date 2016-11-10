@@ -6,7 +6,7 @@
 #include "lib.h"
 
 /* Set to 1 for debug mode */
-#define DEBUG 1
+#define DEBUG 0
 
 #ifndef DEBUG
 #define DEBUG 0
