@@ -75,7 +75,9 @@ typedef struct {
 
 /* Kernel stack struct */
 typedef struct {
-    uint8_t kernel_stack[KERNEL_STACK_SIZE];
+    pcb_t *pcb;
+
+    uint8_t kernel_stack[KERNEL_STACK_SIZE - sizeof(pcb_t *)];
 } process_data_t;
 
 /* Gets the PCB of the currently executing process */

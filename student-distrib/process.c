@@ -11,11 +11,8 @@ static uint8_t * const process_vaddr = (uint8_t *)(USER_PAGE_START + 0x48000);
 /* Process control blocks */
 static pcb_t process_info[MAX_PROCESSES];
 
-/* Kernel stacks, one for each process */
-static process_data_t process_data[MAX_PROCESSES];
-
-/* PID of the currently executing process */
-static int32_t current_pid = -1;
+/* Kernel stack + pointer to PCB, one for each process */
+static __attribute__((aligned(8192))) process_data_t process_data[MAX_PROCESSES];
 
 /*
  * Gets the PCB of the specified process.
@@ -36,13 +33,27 @@ get_pcb(int32_t pid)
 /*
  * Gets the PCB of the currently executing process.
  *
- * This MUST NOT be called before process initialization
- * is complete!
+ * This may only be called from a *process's* kernel stack
+ * (that is, it must not be called during kernel init)!
  */
 pcb_t *
-get_executing_pcb()
+get_executing_pcb(void)
 {
-    return get_pcb(current_pid);
+    /*
+     * Since the process data entries are 8KB-aligned, we can
+     * extract the PCB pointer by masking the current kernel
+     * ESP, which gives us the address of the executing process's
+     * process_data_t struct.
+     *
+     * (8KB-aligned ESP)                        ESP
+     *       |                                   |
+     *       v                                   v
+     *      [PCB|_____________KERNEL STACK_______________]
+     *      <- lower addresses         higher addresses ->
+     */
+    uint32_t esp;
+    read_register("esp", esp);
+    return ((process_data_t *)(esp & ~0x1fff))->pcb;
 }
 
 /*
@@ -99,8 +110,6 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
     uint8_t filename[FNAME_LEN + 1];
     for (i = 0; i < FNAME_LEN + 1; ++i) {
         uint8_t c = command[i];
-
-        /* Stop after space/NUL (command[i] still points to space/NUL) */
         if (c == ' ' || c == '\0') {
             filename[i] = '\0';
             break;
@@ -117,18 +126,14 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
      * Strip leading whitespace
      * After the loop, command[i] points to the first non-space char
      */
-    for (;; i++) {
-        if (command[i] != ' ') {
-            break;
-        }
+    while (command[i] == ' ') {
+        i++;
     }
 
     /* Now copy the arguments to the arg buffer */
     int32_t dest_i;
     for (dest_i = 0; dest_i < MAX_ARGS_LEN; ++dest_i, ++i) {
-        uint8_t c = command[i];
-        out_args[dest_i] = c;
-        if (c == '\0') {
+        if ((out_args[dest_i] = command[i]) == '\0') {
             break;
         }
     }
@@ -206,9 +211,9 @@ process_run(pcb_t *pcb)
     paging_update_vidmap_page(pcb->vidmap);
 
     /*
-     * ESP0 points to bottom of process kernel stack,
-     * which is the same as the start of the kernel stack of
-     * the next process
+     * ESP0 points to bottom of the process kernel stack,
+     * which is the same as the start of the process data of
+     * the next process.
      *
      * (lower addresses)
      * |---------|
@@ -220,9 +225,7 @@ process_run(pcb_t *pcb)
      * (higher addresses)
      */
     tss.esp0 = (uint32_t)&process_data[pcb->pid + 1];
-
-    /* Update global currently executing PID */
-    current_pid = pcb->pid;
+    process_data[pcb->pid].pcb = pcb;
 
     /*
      * Save ESP and EBP of the current call frame so that we
@@ -396,9 +399,6 @@ process_halt(uint32_t status)
             file_close(i);
         }
     }
-
-    /* Current PID is now the parent's */
-    current_pid = parent_pid;
 
     /* Free child PCB */
     child_pcb->pid = -1;
