@@ -382,9 +382,6 @@ process_execute(const uint8_t *command)
 int32_t
 process_halt(uint32_t status)
 {
-    /* Only the bottom byte is used, remaining bytes are garbage */
-    status &= 0xff;
-
     /* This is the PCB of the child (halting) process */
     pcb_t *child_pcb = get_executing_pcb();
 

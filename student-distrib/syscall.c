@@ -9,7 +9,8 @@
 static __cdecl int32_t
 syscall_halt(uint32_t status)
 {
-    return process_halt(status);
+    /* Only the bottom byte is used, remaining bytes are reserved */
+    return process_halt(status & 0xff);
 }
 
 /* execute syscall dispatch function */

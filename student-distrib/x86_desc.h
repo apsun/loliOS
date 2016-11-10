@@ -11,12 +11,6 @@
 #define KERNEL_TSS 0x0030
 #define KERNEL_LDT 0x0038
 
-/* number of entries in page directory */
-#define NUM_PDE 1024
-
-/* number of entries in page table */
-#define NUM_PTE 1024
-
 /* Size of the task state segment (TSS) */
 #define TSS_SIZE 104
 

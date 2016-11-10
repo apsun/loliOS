@@ -4,6 +4,7 @@
 #include "x86_desc.h"
 #include "irq.h"
 #include "syscall.h"
+#include "process.h"
 
 /* Exception info table */
 static exc_info_t exc_info_table[20] = {
@@ -68,6 +69,14 @@ dump_registers(int_regs_t *regs)
 static void
 handle_exception(int_regs_t *regs)
 {
+    /* If we were in userspace, kill the program responsible */
+    if (regs->cs == USER_CS) {
+        pcb_t *pcb = get_executing_pcb();
+        ASSERT(pcb != NULL);
+        process_halt(256);
+        ASSERT(0);
+    }
+
     clear();
     printf("****************************************\n");
     printf("Exception: %s\n", exc_info_table[regs->int_num].desc);
