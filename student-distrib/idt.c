@@ -71,9 +71,10 @@ handle_exception(int_regs_t *regs)
 {
     /* If we were in userspace, kill the program responsible */
     if (regs->cs == USER_CS) {
-        pcb_t *pcb = get_executing_pcb();
-        ASSERT(pcb != NULL);
+        /* 256 = exception occurred */
         process_halt(256);
+
+        /* halt() should never return */
         ASSERT(0);
     }
 

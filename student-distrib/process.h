@@ -4,9 +4,16 @@
 #include "types.h"
 #include "file.h"
 
+/* Maximum argument length, including the NUL terminator */
 #define MAX_ARGS_LEN 1024
+
+/* Maximum number of processes */
 #define MAX_PROCESSES 8
+
+/* Executable magic bytes ('\x7fELF') */
 #define EXE_MAGIC 0x464c457f
+
+/* Kernel stack size, MUST BE A POWER OF 2! */
 #define KERNEL_STACK_SIZE 8192
 
 #ifndef ASM

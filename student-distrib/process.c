@@ -12,7 +12,8 @@ static uint8_t * const process_vaddr = (uint8_t *)(USER_PAGE_START + 0x48000);
 static pcb_t process_info[MAX_PROCESSES];
 
 /* Kernel stack + pointer to PCB, one for each process */
-static __attribute__((aligned(8192))) process_data_t process_data[MAX_PROCESSES];
+__attribute__((aligned(KERNEL_STACK_SIZE)))
+static process_data_t process_data[MAX_PROCESSES];
 
 /*
  * Gets the PCB of the specified process.
@@ -53,7 +54,7 @@ get_executing_pcb(void)
      */
     uint32_t esp;
     read_register("esp", esp);
-    return ((process_data_t *)(esp & ~0x1fff))->pcb;
+    return ((process_data_t *)(esp & ~(KERNEL_STACK_SIZE - 1)))->pcb;
 }
 
 /*
@@ -225,7 +226,6 @@ process_run(pcb_t *pcb)
      * (higher addresses)
      */
     tss.esp0 = (uint32_t)&process_data[pcb->pid + 1];
-    process_data[pcb->pid].pcb = pcb;
 
     /*
      * Save ESP and EBP of the current call frame so that we
@@ -326,6 +326,9 @@ process_create_child(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
     file_init(child_pcb->files);
     strncpy((int8_t *)child_pcb->args, (const int8_t *)args, MAX_ARGS_LEN);
 
+    /* Update PCB pointer in the kernel stack for this process */
+    process_data[child_pcb->pid].pcb = child_pcb;
+
     /* Copy our program into physical memory
      *
      * TODO: This modifies the process page table entry.
@@ -386,8 +389,7 @@ process_halt(uint32_t status)
     pcb_t *child_pcb = get_executing_pcb();
 
     /* Find parent process */
-    int32_t parent_pid = child_pcb->parent_pid;
-    pcb_t *parent_pcb = get_pcb(parent_pid);
+    pcb_t *parent_pcb = get_pcb(child_pcb->parent_pid);
 
     /* Close all open files */
     int32_t i;
@@ -402,7 +404,7 @@ process_halt(uint32_t status)
 
     if (parent_pcb != NULL) {
         /* Restore parent kernel stack TSS entry */
-        tss.esp0 = (uint32_t)&process_data[parent_pid + 1];
+        tss.esp0 = (uint32_t)&process_data[child_pcb->parent_pid + 1];
 
         /* Restore the parent's paging structures */
         paging_update_process_page(parent_pcb->pid);

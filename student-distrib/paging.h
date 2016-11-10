@@ -21,7 +21,6 @@
 
 #ifndef ASM
 
-#include "x86_desc.h"
 #include "types.h"
 
 /* Structure for 4KB page table entry */
