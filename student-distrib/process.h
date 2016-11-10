@@ -41,6 +41,14 @@ typedef struct {
     uint32_t parent_ebp;
 
     /*
+     * User EIP of this process.
+     *
+     * TODO: When supporting preemptive multitasking, this might
+     * need to be changed to a full register state
+     */
+    uint32_t user_eip;
+
+    /*
      * Which terminal the process is executing on. Inherited from
      * the parent.
      */
@@ -65,12 +73,9 @@ typedef struct {
     uint8_t args[MAX_ARGS_LEN];
 } pcb_t;
 
+/* Kernel stack struct */
 typedef struct {
-    /* Pointer to PCB corresponding to this process */
-    pcb_t *pcb;
-
-    /* Actual kernel stack */
-    uint8_t kernel_stack[KERNEL_STACK_SIZE - sizeof(pcb_t *)];
+    uint8_t kernel_stack[KERNEL_STACK_SIZE];
 } process_data_t;
 
 /* Gets the PCB of the currently executing process */
@@ -82,8 +87,11 @@ int32_t process_execute(const uint8_t *command);
 int32_t process_getargs(uint8_t *buf, int32_t nbytes);
 int32_t process_vidmap(uint8_t **screen_start);
 
-/* Initializes processes. This must be called first in the kernel bootup sequence */
+/* Initializes processes. */
 void process_init(void);
+
+/* Starts the shell. This must only be called after all kernel init has completed. */
+void process_start_shell(void);
 
 #endif /* ASM */
 

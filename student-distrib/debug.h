@@ -6,7 +6,7 @@
 #include "lib.h"
 
 /* Set to 1 for debug mode */
-#define DEBUG 0
+#define DEBUG 1
 
 #ifndef DEBUG
 #define DEBUG 0
@@ -22,11 +22,6 @@ do {                           \
     }                          \
 } while(0)
 
-#define KASSERT(EXP)             \
-do {                             \
-    *(volatile int *)0xBADBAD42; \
-} while(0)
-
 #define debugf(...)            \
 do {                           \
     printf(__FILE__ ":%u: ", __LINE__);    \
@@ -34,12 +29,17 @@ do {                           \
 } while(0)
 
 #else
-#define ASSERT(EXP)            \
-    while(0)
-#define KASSERT(EXP)           \
-    while(0)
+
+#define ASSERT(EXP)                  \
+do {                                 \
+    if (!(EXP)) {                    \
+        *(volatile int *)0xdeaddead; \
+    }                                \
+} while(0)
+
 #define debugf(...)            \
     while(0)
+
 #endif
 
 #endif

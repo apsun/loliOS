@@ -25,6 +25,7 @@ get_executing_terminal(void)
 {
     pcb_t *pcb = get_executing_pcb();
     ASSERT(pcb != NULL);
+    ASSERT(pcb->terminal >= 0 && pcb->terminal < NUM_TERMINALS);
     return &terminal_states[pcb->terminal];
 }
 

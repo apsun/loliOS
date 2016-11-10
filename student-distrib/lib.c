@@ -5,7 +5,7 @@
 #include "paging.h"
 #include "terminal.h"
 
-#define YOLO 1
+#define YOLO 0
 
 /*
 * void clear(void);
@@ -591,6 +591,30 @@ strncpy(int8_t* dest, const int8_t* src, uint32_t n)
     }
 
     return dest;
+}
+
+/* Checks whether a userspace string is readable */
+bool
+is_user_readable_string(const uint8_t *str)
+{
+#if !YOLO
+    /* Ensure string starts inside the user page */
+    if ((uint32_t)str < USER_PAGE_START) {
+        return false;
+    }
+
+    int32_t i;
+    for (i = 0; (uint32_t)str + i < USER_PAGE_END; ++i) {
+        if (str[i] == '\0') {
+            return true;
+        }
+    }
+
+    /* Hit the end of the page w/o seeing a NUL terminator */
+    return false;
+#else
+    return true;
+#endif
 }
 
 /* Checks whether a userspace buffer is readable */

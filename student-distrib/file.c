@@ -116,9 +116,8 @@ file_init(file_obj_t *files)
 int32_t
 file_open(const uint8_t *filename)
 {
-    /* Basically just ensures the filename string isn't bad */
-    uint8_t filename_safe[FNAME_LEN + 1];
-    if (!strncpy_from_user(filename_safe, filename, sizeof(filename_safe))) {
+    /* Ensure the string is valid */
+    if (!is_user_readable_string(filename)) {
         return -1;
     }
 

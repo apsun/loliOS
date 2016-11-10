@@ -208,11 +208,13 @@ paging_enable(void)
 void
 paging_update_process_page(int32_t pid)
 {
-    /* Each process page is mapped starting from 8MB, each 4MB */
-    uint32_t phys_addr = MB(pid * 4 + 8);
+    ASSERT(pid >= 0);
 
     /* Virtual address starts at 128MB */
     int32_t index = TO_DIR_INDEX(PROCESS_ADDR);
+
+    /* Each process page is mapped starting from 8MB, each 4MB */
+    uint32_t phys_addr = MB(pid * 4 + 8);
 
     /* 128MB~132MB now points to the physical 4MB page */
     page_dir[index].dir_4mb.base_addr = TO_4MB_BASE(phys_addr);

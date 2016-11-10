@@ -5,41 +5,36 @@
 #include "debug.h"
 #include "x86_desc.h"
 
-#define KB(x) ((x) * 1024)
-#define MB(x) ((x) * 1024 * 1024)
-#define ALIGN_4KB(x) ((x) & ~0xfff);
-
 /* The virtual address that the process should be copied to */
 static uint8_t * const process_vaddr = (uint8_t *)(USER_PAGE_START + 0x48000);
 
 /* Process control blocks */
 static pcb_t process_info[MAX_PROCESSES];
 
-/* Kernel stack/PCB pointers, one for each process */
-static process_data_t process_data[MAX_PROCESSES] __attribute__((aligned(KB(4))));
+/* Kernel stacks, one for each process */
+static process_data_t process_data[MAX_PROCESSES];
 
 /* PID of the currently executing process */
 static int32_t current_pid = -1;
 
 /*
  * Gets the PCB of the specified process.
+ *
+ * The input must be a VALID (currently executing) process ID!
  */
 static pcb_t *
 get_pcb(int32_t pid)
 {
-    if (pid < 0) {
-        return NULL;
-    }
-
     ASSERT(pid >= 0 && pid < MAX_PROCESSES);
     ASSERT(process_info[pid].pid >= 0);
-
     return &process_info[pid];
 }
 
 /*
  * Gets the PCB of the currently executing process.
- * This may return NULL before the first process is initialized.
+ *
+ * This MUST NOT be called before process initialization
+ * is complete!
  */
 pcb_t *
 get_executing_pcb()
@@ -95,15 +90,12 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
      * ccccccccccccaaaaaaaaaaaattttttttt myfile.txt@
      *                                  |___________ i = FNAME_LEN + 1
      */
-    uint32_t i;
-    int32_t c;
+    int32_t i;
 
     /* Read the filename (up to 33 chars with NUL terminator) */
     uint8_t filename[FNAME_LEN + 1];
     for (i = 0; i < FNAME_LEN + 1; ++i) {
-        if ((c = read_char_from_user(command + i)) < 0) {
-            return -1;
-        }
+        uint8_t c = command[i];
 
         /* Stop after space/NUL (command[i] still points to space/NUL) */
         if (c == ' ' || c == '\0') {
@@ -123,11 +115,7 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
      * After the loop, command[i] points to the first non-space char
      */
     for (;; i++) {
-        if ((c = read_char_from_user(command + i)) < 0) {
-            return -1;
-        }
-
-        if (c != ' ') {
+        if (command[i] != ' ') {
             break;
         }
     }
@@ -135,10 +123,7 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
     /* Now copy the arguments to the arg buffer */
     int32_t dest_i;
     for (dest_i = 0; dest_i < MAX_ARGS_LEN; ++dest_i, ++i) {
-        if ((c = read_char_from_user(command + i)) < 0) {
-            return -1;
-        }
-
+        uint8_t c = command[i];
         out_args[dest_i] = c;
         if (c == '\0') {
             break;
@@ -205,13 +190,55 @@ process_load_exe(uint32_t inode_idx)
 }
 
 /*
- * Jumps into userspace at the given entry point and begins
- * executing the program
+ * Jumps into userspace and executes the specified process.
  */
-static void
-process_run(uint32_t entry_point)
+static int32_t
+process_run(pcb_t *pcb)
 {
-    asm volatile(/* Segment registers */
+    ASSERT(pcb != NULL);
+    ASSERT(pcb->pid >= 0);
+
+    /* Update paging structures */
+    paging_update_process_page(pcb->pid);
+    paging_update_vidmap_page(pcb->vidmap);
+
+    /*
+     * ESP0 points to bottom of process kernel stack,
+     * which is the same as the start of the kernel stack of
+     * the next process
+     *
+     * (lower addresses)
+     * |---------|
+     * |  PID 0  |
+     * |---------|
+     * |  PID 1  |
+     * |---------|<- ESP0 when new PID == 1
+     * |   ...   |
+     * (higher addresses)
+     */
+    tss.esp0 = (uint32_t)&process_data[pcb->pid + 1];
+
+    /* Update global currently executing PID */
+    current_pid = pcb->pid;
+
+    /*
+     * Save ESP and EBP of the current call frame so that we
+     * can safely return from halt() inside the child.
+     *
+     * DO NOT MODIFY ANY CODE HERE UNLESS YOU ARE 100% SURE
+     * ABOUT WHAT YOU ARE DOING!
+     */
+    asm volatile(
+                 "movl %%esp, %0;"
+                 "movl %%ebp, %1;"
+                 : "=g"(pcb->parent_esp),
+                   "=g"(pcb->parent_ebp)
+                 :
+                 : "memory");
+
+    /* Jump into userspace and execute */
+    asm volatile(
+                 /* Segment registers */
                  "movw %1, %%ax;"
                  "movw %%ax, %%ds;"
                  "movw %%ax, %%es;"
@@ -233,43 +260,56 @@ process_run(uint32_t entry_point)
                  /* CS register */
                  "pushl %3;"
 
-                 /* EIP (entry point) */
+                 /* EIP */
                  "pushl %0;"
 
                  /* GO! */
                  "iret;"
 
                  : /* No outputs */
-                 : "g"(entry_point),
+                 : "r"(pcb->user_eip),
                    "g"(USER_DS),
                    "g"(USER_PAGE_END),
-                   "g"(USER_CS));
+                   "g"(USER_CS)
+                 : "eax", "cc");
+
+    /* Can't touch this */
+    ASSERT(0);
+    return -1;
 }
 
-/* execute() syscall handler */
-int32_t
-process_execute(const uint8_t *command)
+/*
+ * Creates and initializes a new PCB for the given process.
+ *
+ * Implementation note: This is deliberately decoupled from
+ * actually executing the process so it's easier to implement
+ * context switching.
+ */
+static pcb_t *
+process_create_child(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal)
 {
     uint32_t inode;
     uint8_t args[MAX_ARGS_LEN];
 
     /* First make sure we have a valid executable... */
     if (process_parse_cmd(command, &inode, args) != 0) {
-        return -1;
+        debugf("Invalid command/executable file\n");
+        return NULL;
     }
 
     /* Try to allocate a new PCB */
     pcb_t *child_pcb = process_new_pcb();
     if (child_pcb == NULL) {
-        return -1;
+        debugf("Reached max number of processes\n");
+        return NULL;
     }
 
     /* Initialize child PCB */
-    pcb_t *parent_pcb = get_executing_pcb();
     if (parent_pcb == NULL) {
         /* This is the first process! */
+        ASSERT(terminal >= 0);
         child_pcb->parent_pid = -1;
-        child_pcb->terminal = /* ??? */0;
+        child_pcb->terminal = terminal;
     } else {
         /* Inherit values from parent process */
         child_pcb->parent_pid = parent_pcb->pid;
@@ -281,58 +321,56 @@ process_execute(const uint8_t *command)
     file_init(child_pcb->files);
     strncpy((int8_t *)child_pcb->args, (const int8_t *)args, MAX_ARGS_LEN);
 
-    /*
-     * ESP0 points to bottom of child process kernel stack,
-     * which is the same as the start of the kernel stack of
-     * the next process
+    /* Copy our program into physical memory
      *
-     * (lower addresses)
-     * |---------|
-     * |  PID 0  |
-     * |---------|
-     * |  PID 1  |
-     * |---------|<- ESP0 when new PID == 1
-     * |   ...   |
-     * (higher addresses)
+     * TODO: This modifies the process page table entry.
+     * We should probably find a better way to do this.
      */
-    tss.esp0 = (uint32_t)&process_data[child_pcb->pid + 1];
-
-    /* Update the paging structures */
     paging_update_process_page(child_pcb->pid);
-    paging_update_vidmap_page(child_pcb->vidmap);
+    child_pcb->user_eip = process_load_exe(inode);
 
-    /* Copy our program into physical memory */
-    uint32_t entry_point = process_load_exe(inode);
+    return child_pcb;
+}
 
-    /* Set current pid to be the child process to execute */
-    current_pid = child_pcb->pid;
-
-    /*
-     * Save ESP and EBP of the current call frame so that we
-     * can safely return from halt() inside the child.
-     *
-     * DO NOT MODIFY ANY CODE HERE UNLESS YOU ARE 100% SURE
-     * ABOUT WHAT YOU ARE DOING!
-     */
-    asm volatile(
-                "movl %%esp, %0;"
-                "movl %%ebp, %1;"
-                : "=g"(child_pcb->parent_esp),
-                  "=g"(child_pcb->parent_ebp)
-                :
-                : "eax", "memory"
-                );
+/*
+ * Process execute implementation.
+ *
+ * The command buffer will not be checked for validity, so
+ * this can be called from either userspace or kernelspace.
+ *
+ * The terminal argument specifies which terminal to spawn
+ * the process on if there is no parent.
+ */
+int32_t
+process_execute_impl(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal)
+{
+    /* Create the child process */
+    pcb_t *child_pcb = process_create_child(command, parent_pcb, terminal);
+    if (child_pcb == NULL) {
+        debugf("Could not create child process\n");
+        return -1;
+    }
 
     /* Jump to userspace and begin execution */
-    process_run(entry_point);
+    return process_run(child_pcb);
+}
+
+/* execute() syscall handler */
+int32_t
+process_execute(const uint8_t *command)
+{
+    /* Validate command */
+    if (!is_user_readable_string(command)) {
+        debugf("Invalid string passed to process_execute\n");
+        return -1;
+    }
 
     /*
-     * We will never reach this point,
-     * but it must exist anyways since
-     * we "return" from the child's halt()
+     * This should never be called directly from the kernel, so
+     * there MUST be an executing process, so we can pass
+     * -1 as the terminal since it will never be used anyways
      */
-    ASSERT(0);
-    return -1;
+    return process_execute_impl(command, get_executing_pcb(), -1);
 }
 
 /* halt() syscall handler */
@@ -345,18 +383,9 @@ process_halt(uint32_t status)
     /* This is the PCB of the child (halting) process */
     pcb_t *child_pcb = get_executing_pcb();
 
+    /* Find parent process */
     int32_t parent_pid = child_pcb->parent_pid;
-
-    /* Restore parent kernel stack TSS entry */
-    tss.esp0 = (uint32_t)&process_data[parent_pid + 1];
-
     pcb_t *parent_pcb = get_pcb(parent_pid);
-
-    if (parent_pcb != NULL) {
-        /* Restore the parent's paging structures */
-        paging_update_process_page(parent_pcb->pid);
-        paging_update_vidmap_page(parent_pcb->vidmap);
-    }
 
     /* Close all open files */
     int32_t i;
@@ -372,8 +401,18 @@ process_halt(uint32_t status)
     /* Free child PCB */
     child_pcb->pid = -1;
 
-    if (parent_pcb == NULL) {
-        process_execute("shell");
+    if (parent_pcb != NULL) {
+        /* Restore parent kernel stack TSS entry */
+        tss.esp0 = (uint32_t)&process_data[parent_pid + 1];
+
+        /* Restore the parent's paging structures */
+        paging_update_process_page(parent_pcb->pid);
+        paging_update_vidmap_page(parent_pcb->vidmap);
+    } else {
+        /* No parent process, just re-spawn a new shell in the same terminal */
+        process_execute_impl((uint8_t *)"shell", NULL, child_pcb->terminal);
+
+        /* Should never get back to this point */
         ASSERT(0);
     }
 
@@ -392,10 +431,10 @@ process_halt(uint32_t status)
                  "leave;"
                  "ret;"
                  :
-                 : "a"(status),
-                   "d"(child_pcb->parent_esp),
-                   "c"(child_pcb->parent_ebp)
-                 );
+                 : "r"(status),
+                   "r"(child_pcb->parent_esp),
+                   "r"(child_pcb->parent_ebp)
+                 : "esp", "ebp", "eax");
 
     /* Should never get here! */
     ASSERT(0);
@@ -428,7 +467,7 @@ int32_t
 process_vidmap(uint8_t **screen_start)
 {
     /* Ensure buffer is valid */
-    if (!is_user_readable(screen_start, sizeof(uint8_t *))) {
+    if (!is_user_writable(screen_start, sizeof(uint8_t *))) {
         return -1;
     }
 
@@ -450,4 +489,17 @@ process_init(void)
     for (i = 0; i < MAX_PROCESSES; ++i) {
         process_info[i].pid = -1;
     }
+}
+
+/* She spawns C shells by the seashore */
+void
+process_start_shell(void)
+{
+    /* Make sure nobody stops us... */
+    cli();
+
+    /* Execute a shell */
+    process_execute_impl((uint8_t *)"shell", NULL, 0);
+
+    /* TODO: I can haz more shells? */
 }

@@ -26,9 +26,6 @@ entry (unsigned long magic, unsigned long addr)
 
     module_t* fsmod;
 
-    /* Initialize processes */
-    process_init();
-
     /* Initialize terminals */
     terminal_init();
 
@@ -185,6 +182,9 @@ entry (unsigned long magic, unsigned long addr)
     printf("Enabling paging...\n");
     paging_enable();
 
+    printf("Initializing processes...\n");
+    process_init();
+
     /* Enable interrupts */
     /* Do not enable the following until after you have set up your
      * IDT correctly otherwise QEMU will triple fault and simple close
@@ -197,9 +197,10 @@ entry (unsigned long magic, unsigned long addr)
     clear();
 
     /* Execute the first program (`shell') ... */
-    process_execute("shell");
+    process_start_shell();
 
-    printf("Shouldn't get here...\n");
+    /* Shouldn't get here... */
+    ASSERT(0);
 
     /* Spin (nicely, so we don't chew up cycles) */
     loop();
