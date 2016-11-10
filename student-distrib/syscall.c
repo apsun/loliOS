@@ -82,7 +82,7 @@ syscall_sigreturn(void)
  * excess paramters are ignored.
  */
 typedef __cdecl int32_t (*syscall_func)(uint32_t, uint32_t, uint32_t);
-static syscall_func syscall_funcs[10] = {
+static syscall_func syscall_funcs[NUM_SYSCALL] = {
     (syscall_func)syscall_halt,
     (syscall_func)syscall_execute,
     (syscall_func)syscall_read,
@@ -104,5 +104,8 @@ static syscall_func syscall_funcs[10] = {
 int32_t
 syscall_handle(uint32_t num, uint32_t a, uint32_t b, uint32_t c)
 {
+    if (num == 0 || num > NUM_SYSCALL) {
+        return -1;
+    }
     return syscall_funcs[num - 1](a, b, c);
 }

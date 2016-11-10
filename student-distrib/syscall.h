@@ -3,6 +3,8 @@
 
 #include "types.h"
 
+#define NUM_SYSCALL     10
+
 #define SYS_HALT        1
 #define SYS_EXECUTE     2
 #define SYS_READ        3
