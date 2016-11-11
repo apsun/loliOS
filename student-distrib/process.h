@@ -3,6 +3,7 @@
 
 #include "types.h"
 #include "file.h"
+#include "syscall.h"
 
 /* Maximum argument length, including the NUL terminator */
 #define MAX_ARGS_LEN 1024
@@ -90,11 +91,15 @@ typedef struct {
 /* Gets the PCB of the currently executing process */
 pcb_t *get_executing_pcb(void);
 
+/* Syscall delegate functions */
+int32_t process_halt_impl(uint32_t status);
+int32_t process_execute_impl(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal);
+
 /* Process syscall handlers */
-int32_t process_halt(uint32_t status);
-int32_t process_execute(const uint8_t *command);
-int32_t process_getargs(uint8_t *buf, int32_t nbytes);
-int32_t process_vidmap(uint8_t **screen_start);
+__cdecl int32_t process_halt(uint32_t status);
+__cdecl int32_t process_execute(const uint8_t *command);
+__cdecl int32_t process_getargs(uint8_t *buf, int32_t nbytes);
+__cdecl int32_t process_vidmap(uint8_t **screen_start);
 
 /* Initializes processes. */
 void process_init(void);

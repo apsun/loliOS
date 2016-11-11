@@ -2,6 +2,7 @@
 #define _FILE_H
 
 #include "types.h"
+#include "syscall.h"
 
 #define MAX_FILES 8
 #define FD_STDIN  0
@@ -47,10 +48,10 @@ struct file_ops_t {
 void file_init(file_obj_t *files);
 
 /* Direct syscall handlers */
-int32_t file_open(const uint8_t *filename);
-int32_t file_read(int32_t fd, void *buf, int32_t nbytes);
-int32_t file_write(int32_t fd, const void *buf, int32_t nbytes);
-int32_t file_close(int32_t fd);
+__cdecl int32_t file_open(const uint8_t *filename);
+__cdecl int32_t file_read(int32_t fd, void *buf, int32_t nbytes);
+__cdecl int32_t file_write(int32_t fd, const void *buf, int32_t nbytes);
+__cdecl int32_t file_close(int32_t fd);
 
 #endif /* ASM */
 

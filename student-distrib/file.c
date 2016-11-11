@@ -113,7 +113,7 @@ file_init(file_obj_t *files)
 }
 
 /* open() syscall handler */
-int32_t
+__cdecl int32_t
 file_open(const uint8_t *filename)
 {
     /* Ensure the string is valid */
@@ -153,7 +153,7 @@ file_open(const uint8_t *filename)
 }
 
 /* read() syscall handler */
-int32_t
+__cdecl int32_t
 file_read(int32_t fd, void *buf, int32_t nbytes)
 {
     file_obj_t *file = get_executing_file_obj(fd);
@@ -164,7 +164,7 @@ file_read(int32_t fd, void *buf, int32_t nbytes)
 }
 
 /* write() syscall handler */
-int32_t
+__cdecl int32_t
 file_write(int32_t fd, const void *buf, int32_t nbytes)
 {
     file_obj_t *file = get_executing_file_obj(fd);
@@ -175,7 +175,7 @@ file_write(int32_t fd, const void *buf, int32_t nbytes)
 }
 
 /* close() syscall handler */
-int32_t
+__cdecl int32_t
 file_close(int32_t fd)
 {
     file_obj_t *file = get_executing_file_obj(fd);

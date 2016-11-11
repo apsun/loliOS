@@ -364,7 +364,7 @@ process_execute_impl(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
 }
 
 /* execute() syscall handler */
-int32_t
+__cdecl int32_t
 process_execute(const uint8_t *command)
 {
     /* Validate command */
@@ -381,9 +381,13 @@ process_execute(const uint8_t *command)
     return process_execute_impl(command, get_executing_pcb(), -1);
 }
 
-/* halt() syscall handler */
+/*
+ * Process halt implementation.
+ *
+ * Unlike process_halt(), the status is not truncated to 1 byte.
+ */
 int32_t
-process_halt(uint32_t status)
+process_halt_impl(uint32_t status)
 {
     /* This is the PCB of the child (halting) process */
     pcb_t *child_pcb = get_executing_pcb();
@@ -442,8 +446,21 @@ process_halt(uint32_t status)
     return -1;
 }
 
+/* halt() syscall handler */
+__cdecl int32_t
+process_halt(uint32_t status)
+{
+    /*
+     * Only the lowest byte is used, rest are reserved
+     * This only applies when this is called via syscall;
+     * the kernel must still be able to halt a process
+     * with a status > 255.
+     */
+    return process_halt_impl(status & 0xff);
+}
+
 /* getargs() syscall handler */
-int32_t
+__cdecl int32_t
 process_getargs(uint8_t *buf, int32_t nbytes)
 {
     /* Ensure buffer is valid */
@@ -464,7 +481,7 @@ process_getargs(uint8_t *buf, int32_t nbytes)
 }
 
 /* vidmap() syscall handler */
-int32_t
+__cdecl int32_t
 process_vidmap(uint8_t **screen_start)
 {
     /* Ensure buffer is valid */
@@ -480,6 +497,22 @@ process_vidmap(uint8_t **screen_start)
     pcb->vidmap = true;
 
     return 0;
+}
+
+/* set_handler() syscall handler */
+__cdecl int32_t
+process_set_handler(int32_t signum, void *handler_address)
+{
+    /* Not yet implemented */
+    return -1;
+}
+
+/* sigreturn() syscall handler */
+__cdecl int32_t
+process_sigreturn(void)
+{
+    /* Not yet implemented */
+    return -1;
 }
 
 /* Initializes all process control related data */

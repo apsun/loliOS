@@ -6,6 +6,13 @@
 #include "syscall.h"
 #include "process.h"
 
+/* Convenience wrapper around SET_IDT_ENTRY */
+#define WRITE_IDT_ENTRY(i, name)            \
+do {                                        \
+    extern void name(void);                 \
+    SET_IDT_ENTRY(idt[i], name);            \
+} while (0)
+
 /* Exception info table */
 static exc_info_t exc_info_table[20] = {
     {EXC_DE, "Divide error exception"},
@@ -29,13 +36,6 @@ static exc_info_t exc_info_table[20] = {
     {EXC_MC, "Machine-check exception"},
     {EXC_XF, "SIMD floating-point exception"},
 };
-
-/* Convenience wrapper around SET_IDT_ENTRY */
-#define WRITE_IDT_ENTRY(i, name)               \
-do {                                           \
-    extern void name(void);                    \
-    SET_IDT_ENTRY(idt[i], name);               \
-} while (0)
 
 /* Prints all interrupt registers */
 static void
@@ -69,10 +69,16 @@ dump_registers(int_regs_t *regs)
 static void
 handle_exception(int_regs_t *regs)
 {
-    /* If we were in userspace, kill the program responsible */
+    /*
+     * If we were in userspace, kill the program responsible
+     *
+     * TODO: This is unreliable, since the user program can
+     * set CS to whatever it wants. How can we distinguish
+     * between a kernel exception and a userspace exception?
+     */
     if (regs->cs == USER_CS) {
         /* 256 = exception occurred */
-        process_halt(256);
+        process_halt_impl(256);
 
         /* halt() should never return */
         ASSERT(0);
@@ -100,7 +106,7 @@ static void
 handle_syscall(int_regs_t *regs)
 {
     debugf("Syscall: %d\n", regs->eax);
-    regs->eax = syscall_handle(regs->eax, regs->ebx, regs->ecx, regs->edx);
+    regs->eax = syscall_handle(regs->ebx, regs->ecx, regs->edx, regs->eax);
     debugf("Return value: 0x%#x\n", regs->eax);
 }
 
