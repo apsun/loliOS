@@ -41,7 +41,7 @@ syscall_jump_table:
 syscall_handle:
     movl 16(%esp), %eax
     decl %eax
-    cmp $NUM_SYSCALL, %eax
+    cmpl $NUM_SYSCALL, %eax
     jae syscall_handle_invalid
     jmp *syscall_jump_table(, %eax, 4)
 syscall_handle_invalid:

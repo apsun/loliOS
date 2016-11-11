@@ -58,7 +58,7 @@ typedef struct
 /* Interrupt registers */
 typedef struct
 {
-    /* Pushed by handle_int_thunk_common */
+    /* Pushed by idt_handle_common_thunk */
     uint32_t cr0;
     uint32_t cr2;
     uint32_t cr3;
@@ -75,12 +75,14 @@ typedef struct
     uint16_t fs;
     uint16_t gs;
 
-    /* Pushed by per-interrupt handle_* thunk */
+    /* Pushed by per-interrupt idt_handle_* thunk */
     uint32_t int_num;
 
-    /* Pushed automatically by processor for some
+    /*
+     * Pushed automatically by processor for some
      * interrupts, for other ones we manually push
-     * a dummy value (0x0) */
+     * a dummy value (0x0)
+     */
     uint32_t error_code;
 
     /* Pushed automatically by processor */
