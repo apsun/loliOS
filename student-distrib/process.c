@@ -128,7 +128,7 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
     }
 
     /* If we didn't break out of the loop, the filename is too long */
-    if (i == FNAME_LEN + 1) {
+    if (fname_i == FNAME_LEN + 1) {
         return -1;
     }
 
