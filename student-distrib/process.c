@@ -105,17 +105,25 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
      * ccccccccccccaaaaaaaaaaaattttttttt myfile.txt@
      *                                  |___________ i = FNAME_LEN + 1
      */
-    int32_t i;
+
+    /* Command index */
+    int32_t i = 0;
+
+    /* Strip leading whitespace */
+    while (command[i] == ' ') {
+        i++;
+    }
 
     /* Read the filename (up to 33 chars with NUL terminator) */
     uint8_t filename[FNAME_LEN + 1];
-    for (i = 0; i < FNAME_LEN + 1; ++i) {
+    int32_t fname_i;
+    for (fname_i = 0; fname_i < FNAME_LEN + 1; ++fname_i, ++i) {
         uint8_t c = command[i];
         if (c == ' ' || c == '\0') {
-            filename[i] = '\0';
+            filename[fname_i] = '\0';
             break;
         }
-        filename[i] = c;
+        filename[fname_i] = c;
     }
 
     /* If we didn't break out of the loop, the filename is too long */
@@ -123,24 +131,21 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
         return -1;
     }
 
-    /*
-     * Strip leading whitespace
-     * After the loop, command[i] points to the first non-space char
-     */
+    /* Strip leading whitespace */
     while (command[i] == ' ') {
         i++;
     }
 
     /* Now copy the arguments to the arg buffer */
-    int32_t dest_i;
-    for (dest_i = 0; dest_i < MAX_ARGS_LEN; ++dest_i, ++i) {
-        if ((out_args[dest_i] = command[i]) == '\0') {
+    int32_t args_i;
+    for (args_i = 0; args_i < MAX_ARGS_LEN; ++args_i, ++i) {
+        if ((out_args[args_i] = command[i]) == '\0') {
             break;
         }
     }
 
     /* Args are too long */
-    if (dest_i == MAX_ARGS_LEN) {
+    if (args_i == MAX_ARGS_LEN) {
         return -1;
     }
 
