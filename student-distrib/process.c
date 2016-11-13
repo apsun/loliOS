@@ -12,7 +12,7 @@ static uint8_t * const process_vaddr = (uint8_t *)(USER_PAGE_START + 0x48000);
 static pcb_t process_info[MAX_PROCESSES];
 
 /* Kernel stack + pointer to PCB, one for each process */
-__attribute__((aligned(KERNEL_STACK_SIZE)))
+__attribute__((aligned(PROCESS_DATA_SIZE)))
 static process_data_t process_data[MAX_PROCESSES];
 
 /*
@@ -54,7 +54,8 @@ get_executing_pcb(void)
      */
     uint32_t esp;
     read_register("esp", esp);
-    return ((process_data_t *)(esp & ~(KERNEL_STACK_SIZE - 1)))->pcb;
+    process_data_t *data = (process_data_t *)(esp & ~(PROCESS_DATA_SIZE - 1));
+    return data->pcb;
 }
 
 /*
@@ -250,7 +251,6 @@ process_run(pcb_t *pcb)
     asm volatile(
                  /* Segment registers */
                  "movw %1, %%ax;"
-                 "movw %%ax, %%ds;"
                  "movw %%ax, %%es;"
                  "movw %%ax, %%fs;"
                  "movw %%ax, %%gs;"

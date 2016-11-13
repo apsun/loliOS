@@ -25,70 +25,76 @@ static ALIGN_4KB page_table_entry_4kb_t page_table[NUM_PTE];
 static ALIGN_4KB page_table_entry_4kb_t page_table_vidmap[NUM_PTE];
 
 /* Helpful macros to access page table stuff */
-#define DIR_4KB(addr) page_dir[TO_DIR_INDEX(addr)].dir_4kb
-#define DIR_4MB(addr) page_dir[TO_DIR_INDEX(addr)].dir_4mb
-#define TABLE(addr) page_table[TO_TABLE_INDEX(addr)]
-#define TABLE_VIDMAP(addr) page_table_vidmap[TO_TABLE_INDEX(addr)]
+#define DIR_4KB(addr) (&page_dir[TO_DIR_INDEX(addr)].dir_4kb)
+#define DIR_4MB(addr) (&page_dir[TO_DIR_INDEX(addr)].dir_4mb)
+#define TABLE(addr) (&page_table[TO_TABLE_INDEX(addr)])
+#define TABLE_VIDMAP(addr) (&page_table_vidmap[TO_TABLE_INDEX(addr)])
 
 /* Initializes the 4MB kernel page */
 static void
 paging_init_kernel(void)
 {
-    DIR_4MB(KERNEL_PAGE_START).present = 1;
-    DIR_4MB(KERNEL_PAGE_START).write = 1;
-    DIR_4MB(KERNEL_PAGE_START).user = 0;
-    DIR_4MB(KERNEL_PAGE_START).size = SIZE_4MB;
-    DIR_4MB(KERNEL_PAGE_START).global = 1;
-    DIR_4MB(KERNEL_PAGE_START).base_addr = TO_4MB_BASE(KERNEL_PAGE_START);
+    page_dir_entry_4mb_t *dir = DIR_4MB(KERNEL_PAGE_START);
+    dir->present = 1;
+    dir->write = 1;
+    dir->user = 0;
+    dir->size = SIZE_4MB;
+    dir->global = 1;
+    dir->base_addr = TO_4MB_BASE(KERNEL_PAGE_START);
 }
 
 /* Initializes the 4KB VGA page */
 static void
 paging_init_video(void)
 {
-    DIR_4KB(VIDEO_PAGE_START).present = 1;
-    DIR_4KB(VIDEO_PAGE_START).write = 1;
-    DIR_4KB(VIDEO_PAGE_START).user = 0;
-    DIR_4KB(VIDEO_PAGE_START).cache_disabled = 1;
-    DIR_4KB(VIDEO_PAGE_START).size = SIZE_4KB;
-    DIR_4KB(VIDEO_PAGE_START).global = 0;
-    DIR_4KB(VIDEO_PAGE_START).base_addr = TO_4KB_BASE(page_table);
+    page_dir_entry_4kb_t *dir = DIR_4KB(VIDEO_PAGE_START);
+    dir->present = 1;
+    dir->write = 1;
+    dir->user = 0;
+    dir->cache_disabled = 1;
+    dir->size = SIZE_4KB;
+    dir->global = 0;
+    dir->base_addr = TO_4KB_BASE(page_table);
 
-    TABLE(VIDEO_PAGE_START).present = 1;
-    TABLE(VIDEO_PAGE_START).write = 1;
-    TABLE(VIDEO_PAGE_START).user = 0;
-    TABLE(VIDEO_PAGE_START).cache_disabled = 1;
-    TABLE(VIDEO_PAGE_START).base_addr = TO_4KB_BASE(VIDEO_PAGE_START);
+    page_table_entry_4kb_t *table = TABLE(VIDEO_PAGE_START);
+    table->present = 1;
+    table->write = 1;
+    table->user = 0;
+    table->cache_disabled = 1;
+    table->base_addr = TO_4KB_BASE(VIDEO_PAGE_START);
 }
 
 /* Initializes the 4MB user page */
 static void
 paging_init_user(void)
 {
-    DIR_4MB(USER_PAGE_START).present = 1;
-    DIR_4MB(USER_PAGE_START).write = 1;
-    DIR_4MB(USER_PAGE_START).user = 1;
-    DIR_4MB(USER_PAGE_START).size = SIZE_4MB;
-    DIR_4MB(USER_PAGE_START).global = 0;
+    page_dir_entry_4mb_t *dir = DIR_4MB(USER_PAGE_START);
+    dir->present = 1;
+    dir->write = 1;
+    dir->user = 1;
+    dir->size = SIZE_4MB;
+    dir->global = 0;
 }
 
 /* Initializes the 4KB vidmap page */
 static void
 paging_init_vidmap(void)
 {
-    DIR_4KB(VIDMAP_PAGE_START).present = 1;
-    DIR_4KB(VIDMAP_PAGE_START).write = 1;
-    DIR_4KB(VIDMAP_PAGE_START).user = 1;
-    DIR_4KB(VIDMAP_PAGE_START).cache_disabled = 1;
-    DIR_4KB(VIDMAP_PAGE_START).size = SIZE_4KB;
-    DIR_4KB(VIDMAP_PAGE_START).global = 0;
-    DIR_4KB(VIDMAP_PAGE_START).base_addr = TO_4KB_BASE(page_table_vidmap);
+    page_dir_entry_4kb_t *dir = DIR_4KB(VIDMAP_PAGE_START);
+    dir->present = 1;
+    dir->write = 1;
+    dir->user = 1;
+    dir->cache_disabled = 1;
+    dir->size = SIZE_4KB;
+    dir->global = 0;
+    dir->base_addr = TO_4KB_BASE(page_table_vidmap);
 
-    TABLE_VIDMAP(VIDMAP_PAGE_START).present = 0;
-    TABLE_VIDMAP(VIDMAP_PAGE_START).write = 1;
-    TABLE_VIDMAP(VIDMAP_PAGE_START).user = 1;
-    TABLE_VIDMAP(VIDMAP_PAGE_START).cache_disabled = 1;
-    TABLE_VIDMAP(VIDMAP_PAGE_START).base_addr = TO_4KB_BASE(VIDEO_PAGE_START);
+    page_table_entry_4kb_t *table = TABLE_VIDMAP(VIDMAP_PAGE_START);
+    table->present = 0;
+    table->write = 1;
+    table->user = 1;
+    table->cache_disabled = 1;
+    table->base_addr = TO_4KB_BASE(VIDEO_PAGE_START);
 }
 
 /*
@@ -165,7 +171,7 @@ paging_update_process_page(int32_t pid)
     uint32_t phys_addr = MB(pid * 4 + 8);
 
     /* Point the user page to the corresponding physical address */
-    DIR_4MB(USER_PAGE_START).base_addr = TO_4MB_BASE(phys_addr);
+    DIR_4MB(USER_PAGE_START)->base_addr = TO_4MB_BASE(phys_addr);
 
     /* Flush the TLB */
     paging_flush_tlb();
@@ -180,7 +186,7 @@ uint8_t *
 paging_update_vidmap_page(bool present)
 {
     /* Set page to present if vidmap was called */
-    TABLE_VIDMAP(VIDMAP_PAGE_START).present = present ? 1 : 0;
+    TABLE_VIDMAP(VIDMAP_PAGE_START)->present = present ? 1 : 0;
 
     /* Also flush the TLB */
     paging_flush_tlb();

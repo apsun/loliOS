@@ -14,8 +14,8 @@
 /* Executable magic bytes ('\x7fELF') */
 #define EXE_MAGIC 0x464c457f
 
-/* Kernel stack size, MUST BE A POWER OF 2! */
-#define KERNEL_STACK_SIZE 8192
+/* Process data block size, MUST BE A POWER OF 2! */
+#define PROCESS_DATA_SIZE 8192
 
 #ifndef ASM
 
@@ -85,7 +85,7 @@ typedef struct {
 typedef struct {
     pcb_t *pcb;
 
-    uint8_t kernel_stack[KERNEL_STACK_SIZE - sizeof(pcb_t *)];
+    uint8_t kernel_stack[PROCESS_DATA_SIZE - sizeof(pcb_t *)];
 } process_data_t;
 
 /* Gets the PCB of the currently executing process */
