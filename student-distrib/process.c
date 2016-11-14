@@ -129,8 +129,11 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
 
     /* If we didn't break out of the loop, the filename is too long */
     if (fname_i == FNAME_LEN + 1) {
+        debugf("Filename too long\n");
         return -1;
     }
+
+    debugf("Trying to execute: %s\n", filename);
 
     /* Strip leading whitespace */
     while (command[i] == ' ') {
@@ -147,28 +150,33 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
 
     /* Args are too long */
     if (args_i == MAX_ARGS_LEN) {
+        debugf("Args too long\n");
         return -1;
     }
 
     /* Read dentry for the file */
     dentry_t dentry;
     if (read_dentry_by_name(filename, &dentry) != 0) {
+        debugf("Cannot find dentry\n");
         return -1;
     }
 
     /* Can only execute files, obviously */
     if (dentry.ftype != FTYPE_FILE) {
+        debugf("Can only execute files\n");
         return -1;
     }
 
     /* Read the magic bytes from the file */
     uint32_t magic;
     if (read_data(dentry.inode_idx, 0, (uint8_t *)&magic, 4) != 4) {
+        debugf("Could not read magic\n");
         return -1;
     }
 
     /* Ensure it's an executable file */
     if (magic != EXE_MAGIC) {
+        debugf("Magic mismatch - not an executable\n");
         return -1;
     }
 

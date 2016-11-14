@@ -5,8 +5,6 @@
 #include "paging.h"
 #include "terminal.h"
 
-#define YOLO 0
-
 /*
 * void clear(void);
 *   Inputs: void
@@ -597,7 +595,6 @@ strncpy(int8_t* dest, const int8_t* src, uint32_t n)
 bool
 is_user_readable_string(const uint8_t *str)
 {
-#if !YOLO
     /* Ensure string starts inside the user page */
     if ((uint32_t)str < USER_PAGE_START) {
         return false;
@@ -612,9 +609,6 @@ is_user_readable_string(const uint8_t *str)
 
     /* Hit the end of the page w/o seeing a NUL terminator */
     return false;
-#else
-    return true;
-#endif
 }
 
 /* Checks whether a userspace buffer is readable */
@@ -626,7 +620,6 @@ is_user_readable(const void *user_buf, int32_t n)
         return false;
     }
 
-#if !YOLO
     /*
      * Buffer must start and end inside the user page.
      * This is kind of a hacky way to determine whether the
@@ -637,7 +630,6 @@ is_user_readable(const void *user_buf, int32_t n)
         (uint32_t)(user_buf + n) >= USER_PAGE_END) {
         return false;
     }
-#endif
 
     return true;
 }
@@ -661,11 +653,9 @@ is_user_writable(const void *user_buf, int32_t n)
 int32_t
 read_char_from_user(const uint8_t *ptr)
 {
-#if !YOLO
     if ((uint32_t)ptr < USER_PAGE_START || (uint32_t)ptr >= USER_PAGE_START) {
         return -1;
     }
-#endif
 
     return *ptr;
 }
@@ -679,7 +669,6 @@ read_char_from_user(const uint8_t *ptr)
 bool
 strncpy_from_user(uint8_t *dest, const uint8_t *src, uint32_t n)
 {
-#if !YOLO
     /*
      * Make sure we start in the user page
      * (The upper bound check is in the loop)
@@ -687,16 +676,13 @@ strncpy_from_user(uint8_t *dest, const uint8_t *src, uint32_t n)
     if ((uint32_t)src < USER_PAGE_START) {
         return false;
     }
-#endif
 
     uint32_t i;
     for (i = 0; i < n; ++i) {
-#if !YOLO
         /* Stop at the end of the user page */
         if ((uint32_t)(src + i) >= USER_PAGE_END) {
             return false;
         }
-#endif
 
         /* Copy character, stop after reaching NUL terminator */
         if ((dest[i] = src[i]) == '\0') {

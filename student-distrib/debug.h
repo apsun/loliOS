@@ -17,6 +17,7 @@
 #define ASSERT(EXP)            \
 do {                           \
     if(!(EXP)) {               \
+        cli();                 \
         printf(__FILE__ ":%u: Assertion `" #EXP "\' failed.\n", __LINE__);  \
         loop();                \
     }                          \

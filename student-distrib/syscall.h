@@ -20,7 +20,7 @@
 
 #define __cdecl __attribute__((cdecl))
 
-int32_t syscall_handle(uint32_t a, uint32_t b, uint32_t c, uint32_t num);
+__cdecl int32_t syscall_handle(uint32_t a, uint32_t b, uint32_t c, uint32_t num);
 
 #endif /* ASM */
 

@@ -77,6 +77,8 @@ handle_exception(int_regs_t *regs)
      * between a kernel exception and a userspace exception?
      */
     if (regs->cs == USER_CS) {
+        debugf("Userspace exception occurred\n");
+
         /* 256 = exception occurred */
         process_halt_impl(256);
 
