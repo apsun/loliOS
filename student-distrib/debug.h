@@ -5,14 +5,13 @@
 
 #include "lib.h"
 
-/* Set to 1 for debug mode */
-#define DEBUG 0
+/* Whether to enable assertions */
+#define DEBUG_ASSERT 1
 
-#ifndef DEBUG
-#define DEBUG 0
-#endif
+/* Whether to enable debugf printing */
+#define DEBUG_PRINT 0
 
-#if DEBUG
+#if DEBUG_ASSERT
 
 #define ASSERT(EXP)            \
 do {                           \
@@ -23,25 +22,26 @@ do {                           \
     }                          \
 } while(0)
 
+#else /* DEBUG_ASSERT */
+
+#define ASSERT(EXP) (void)0
+
+#endif /* DEBUG_ASSERT */
+
+#if DEBUG_PRINT
+
 #define debugf(...)            \
 do {                           \
     printf(__FILE__ ":%u: ", __LINE__);    \
     printf(__VA_ARGS__);       \
 } while(0)
 
-#else
+#else /* DEBUG_PRINT */
 
-#define ASSERT(EXP)                  \
-do {                                 \
-    if (!(EXP)) {                    \
-        *(volatile int *)0xdeaddead; \
-    }                                \
-} while(0)
+#define debugf(...) (void)0
 
-#define debugf(...)            \
-    while(0)
+#endif /* DEBUG_PRINT */
 
-#endif
+#endif /* ASM */
 
-#endif
 #endif /* _DEBUG_H */

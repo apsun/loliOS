@@ -59,7 +59,8 @@ typedef struct {
     /* Backing video memory */
     uint8_t *backing_mem;
 
-    /* Pointer to the video memory where the contents
+    /*
+     * Pointer to the video memory where the contents
      * of this terminal should be displayed. Either points
      * to the global VGA video memory or to the per-terminal
      * backing_mem field.
@@ -68,7 +69,7 @@ typedef struct {
 
     /*
      * True iff the process currently executing in this terminal
-     * has called vidmap
+     * has called vidmap.
      */
     bool vidmap;
 } terminal_state_t;

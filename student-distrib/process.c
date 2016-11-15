@@ -220,7 +220,8 @@ process_load_exe(uint32_t inode_idx)
  * value being placed into EAX, not by this function, but by
  * process_halt_impl.
  */
-__cdecl __attribute__((unused)) static int32_t
+__attribute__((unused))
+__cdecl static int32_t
 process_run_impl(pcb_t *pcb)
 {
     ASSERT(pcb != NULL);
