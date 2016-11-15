@@ -8,7 +8,6 @@
 #define TERMINAL_BUF_SIZE 128
 #define NUM_TERMINALS 3
 
-#define VIDEO_MEM 0xB8000
 #define NUM_COLS  80
 #define NUM_ROWS  25
 #define ATTRIB    0x7
@@ -58,7 +57,7 @@ typedef struct {
     cursor_pos_t cursor;
 
     /* Backing video memory */
-    uint8_t backing_mem[VIDEO_MEM_SIZE];
+    uint8_t *backing_mem;
 
     /* Pointer to the video memory where the contents
      * of this terminal should be displayed. Either points
@@ -66,6 +65,12 @@ typedef struct {
      * backing_mem field.
      */
     uint8_t *video_mem;
+
+    /*
+     * True iff the process currently executing in this terminal
+     * has called vidmap
+     */
+    bool vidmap;
 } terminal_state_t;
 
 /* Terminal syscall functions */
@@ -87,6 +92,9 @@ void terminal_clear(void);
 
 /* Handles keyboard input */
 void terminal_handle_input(kbd_input_t input);
+
+/* Updates the vidmap status for the specified terminal */
+void terminal_update_vidmap(int32_t term_index, bool present);
 
 /* Initializes the terminal */
 void terminal_init(void);

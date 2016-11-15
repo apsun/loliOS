@@ -33,7 +33,7 @@ typedef struct {
     /*
      * Whether this file object is currently used.
      */
-    uint32_t valid : 1;
+    bool valid;
 } file_obj_t;
 
 /* File operations table */

@@ -1,11 +1,9 @@
 #include "paging.h"
 #include "debug.h"
+#include "terminal.h"
 
 #define SIZE_4KB 0
 #define SIZE_4MB 1
-
-#define KB(x) ((x) * 1024)
-#define MB(x) ((x) * 1024 * 1024)
 
 #define TO_4MB_BASE(x) (((uint32_t)x) >> 22)
 #define TO_4KB_BASE(x) (((uint32_t)x) >> 12)
@@ -43,7 +41,7 @@ paging_init_kernel(void)
     dir->base_addr = TO_4MB_BASE(KERNEL_PAGE_START);
 }
 
-/* Initializes the 4KB VGA page */
+/* Initializes the 4KB video memory pages */
 static void
 paging_init_video(void)
 {
@@ -53,15 +51,30 @@ paging_init_video(void)
     dir->user = 0;
     dir->cache_disabled = 1;
     dir->size = SIZE_4KB;
-    dir->global = 0;
+    dir->global = 1;
     dir->base_addr = TO_4KB_BASE(page_table);
 
-    page_table_entry_4kb_t *table = TABLE(VIDEO_PAGE_START);
-    table->present = 1;
-    table->write = 1;
-    table->user = 0;
-    table->cache_disabled = 1;
-    table->base_addr = TO_4KB_BASE(VIDEO_PAGE_START);
+    /* Global (VGA) video memory page */
+    page_table_entry_4kb_t *global_table = TABLE(VIDEO_PAGE_START);
+    global_table->present = 1;
+    global_table->write = 1;
+    global_table->user = 0;
+    global_table->cache_disabled = 1;
+    global_table->global = 1;
+    global_table->base_addr = TO_4KB_BASE(VIDEO_PAGE_START);
+
+    /* Virtual video memory pages, one per terminal */
+    int32_t i;
+    for (i = 0; i < NUM_TERMINALS; ++i) {
+        uint32_t term_addr = TERMINAL_PAGE_START + i * KB(4);
+        page_table_entry_4kb_t *term_table = TABLE(term_addr);
+        term_table->present = 1;
+        term_table->write = 1;
+        term_table->user = 0;
+        term_table->cache_disabled = 1;
+        term_table->global = 1;
+        term_table->base_addr = TO_4KB_BASE(term_addr);
+    }
 }
 
 /* Initializes the 4MB user page */
@@ -94,7 +107,6 @@ paging_init_vidmap(void)
     table->write = 1;
     table->user = 1;
     table->cache_disabled = 1;
-    table->base_addr = TO_4KB_BASE(VIDEO_PAGE_START);
 }
 
 /*
@@ -178,18 +190,18 @@ paging_update_process_page(int32_t pid)
 }
 
 /*
- * Updates the vidmap page. This should be called during
- * context switches and when the vidmap syscall is invoked.
- * Returns the virtual address of the vidmap page.
+ * Updates the vidmap page to point to the specified address.
+ * If present is false, the vidmap page is disabled. Returns
+ * the virtual address of the vidmap page.
  */
-uint8_t *
-paging_update_vidmap_page(bool present)
+void
+paging_update_vidmap_page(uint8_t *video_mem, bool present)
 {
-    /* Set page to present if vidmap was called */
-    TABLE_VIDMAP(VIDMAP_PAGE_START)->present = present ? 1 : 0;
+    /* Update page table structures */
+    page_table_entry_4kb_t *table = TABLE_VIDMAP(VIDMAP_PAGE_START);
+    table->present = present ? 1 : 0;
+    table->base_addr = TO_4KB_BASE(video_mem);
 
     /* Also flush the TLB */
     paging_flush_tlb();
-
-    return (uint8_t *)(VIDMAP_PAGE_START);
 }

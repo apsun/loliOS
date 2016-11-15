@@ -653,7 +653,7 @@ is_user_writable(const void *user_buf, int32_t n)
 int32_t
 read_char_from_user(const uint8_t *ptr)
 {
-    if ((uint32_t)ptr < USER_PAGE_START || (uint32_t)ptr >= USER_PAGE_START) {
+    if ((uint32_t)ptr < USER_PAGE_START || (uint32_t)ptr >= USER_PAGE_END) {
         return -1;
     }
 

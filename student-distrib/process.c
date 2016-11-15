@@ -2,6 +2,7 @@
 #include "lib.h"
 #include "filesys.h"
 #include "paging.h"
+#include "terminal.h"
 #include "debug.h"
 #include "x86_desc.h"
 
@@ -223,7 +224,9 @@ process_run(pcb_t *pcb)
 
     /* Update paging structures */
     paging_update_process_page(pcb->pid);
-    paging_update_vidmap_page(pcb->vidmap);
+
+    /* Update vidmap status */
+    terminal_update_vidmap(pcb->terminal, pcb->vidmap);
 
     /*
      * ESP0 points to bottom of the process kernel stack,
@@ -423,9 +426,11 @@ process_halt_impl(uint32_t status)
         /* Restore parent kernel stack TSS entry */
         tss.esp0 = (uint32_t)&process_data[child_pcb->parent_pid + 1];
 
-        /* Restore the parent's paging structures */
+        /* Restore the parent's process page */
         paging_update_process_page(parent_pcb->pid);
-        paging_update_vidmap_page(parent_pcb->vidmap);
+
+        /* Restore the parent's vidmap status */
+        terminal_update_vidmap(parent_pcb->terminal, parent_pcb->vidmap);
     } else {
         /* No parent process, just re-spawn a new shell in the same terminal */
         process_execute_impl((uint8_t *)"shell", NULL, child_pcb->terminal);
@@ -502,12 +507,16 @@ process_vidmap(uint8_t **screen_start)
         return -1;
     }
 
-    /* Set the vidmap page to present */
-    *screen_start = paging_update_vidmap_page(true);
+    pcb_t *pcb = get_executing_pcb();
+
+    /* Update vidmap status */
+    terminal_update_vidmap(pcb->terminal, true);
 
     /* Save vidmap state in PCB */
-    pcb_t *pcb = get_executing_pcb();
     pcb->vidmap = true;
+
+    /* Write vidmap page address to userspace */
+    *screen_start = (uint8_t *)VIDMAP_PAGE_START;
 
     return 0;
 }

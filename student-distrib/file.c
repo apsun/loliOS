@@ -50,7 +50,7 @@ static file_ops_t fops_rtc = {
 static void
 init_file_obj(file_obj_t *file, dentry_t *dentry)
 {
-    file->valid = 1;
+    file->valid = true;
     file->inode_idx = 0;
     file->offset = 0;
     switch (dentry->ftype) {
@@ -102,13 +102,13 @@ get_executing_file_obj(int32_t fd)
 void
 file_init(file_obj_t *files)
 {
-    files[FD_STDIN].valid = 1;
+    files[FD_STDIN].valid = true;
     files[FD_STDIN].ops_table = &fops_stdin;
-    files[FD_STDOUT].valid = 1;
+    files[FD_STDOUT].valid = true;
     files[FD_STDOUT].ops_table = &fops_stdout;
     int32_t i;
     for (i = 2; i < MAX_FILES; ++i) {
-        files[i].valid = 0;
+        files[i].valid = false;
     }
 }
 
@@ -139,7 +139,7 @@ file_open(const uint8_t *filename)
             /* Perform post-initialization setup */
             if (files[i].ops_table->open(filename, &files[i]) != 0) {
                 /* Abandon ship! */
-                files[i].valid = 0;
+                files[i].valid = false;
                 return -1;
             }
 
@@ -185,6 +185,6 @@ file_close(int32_t fd)
     if (file->ops_table->close(file) != 0) {
         return -1;
     }
-    file->valid = 0;
+    file->valid = false;
     return 0;
 }

@@ -4,15 +4,26 @@
 #include "debug.h"
 #include "keyboard.h"
 #include "process.h"
+#include "paging.h"
 
 /* Holds information about each terminal */
 static terminal_state_t terminal_states[NUM_TERMINALS];
 
 /* Index of the currently displayed terminal */
-static int32_t display_terminal;
+static int32_t display_terminal = -1;
 
 /* VGA video memory */
-static uint8_t * const global_video_mem = (uint8_t *)VIDEO_MEM;
+static uint8_t * const global_video_mem = (uint8_t *)VIDEO_PAGE_START;
+
+/*
+ * Returns the specified terminal.
+ */
+static terminal_state_t *
+get_terminal(int32_t index)
+{
+    ASSERT(index >= 0 && index < NUM_TERMINALS);
+    return &terminal_states[index];
+}
 
 /*
  * Returns the terminal corresponding to the currently
@@ -24,8 +35,7 @@ get_executing_terminal(void)
 {
     pcb_t *pcb = get_executing_pcb();
     ASSERT(pcb != NULL);
-    ASSERT(pcb->terminal >= 0 && pcb->terminal < NUM_TERMINALS);
-    return &terminal_states[pcb->terminal];
+    return get_terminal(pcb->terminal);
 }
 
 /*
@@ -35,7 +45,7 @@ get_executing_terminal(void)
 static terminal_state_t *
 get_display_terminal(void)
 {
-    return &terminal_states[display_terminal];
+    return get_terminal(display_terminal);
 }
 
 /*
@@ -85,14 +95,6 @@ terminal_swap_buffer(terminal_state_t *old, terminal_state_t *new)
 {
     /* Old terminal must have been the display terminal */
     ASSERT(old->video_mem == global_video_mem);
-
-    /*
-     * The code works fine if we don't check this edge case,
-     * it's just an optimization to prevent 2 pointless memcpys.
-     */
-    if (old == new) {
-        return;
-    }
 
     /*
      * Copy the global VGA memory to the previously displayed
@@ -230,18 +232,32 @@ terminal_clear_impl(terminal_state_t *term)
 void
 set_display_terminal(int32_t index)
 {
-    terminal_state_t *old = get_display_terminal();
-    terminal_state_t *new;
+    int32_t old_index = display_terminal;
+    if (index == old_index) {
+        return;
+    }
 
+    /* Set the new display terminal */
+    terminal_state_t *old = get_display_terminal();
     ASSERT(index >= 0 && index < NUM_TERMINALS);
     display_terminal = index;
-    new = get_display_terminal();
+    terminal_state_t *new = get_display_terminal();
 
     /* Swap active VGA memory buffers */
     terminal_swap_buffer(old, new);
 
     /* Update the cursor position for the new terminal screen */
     terminal_update_cursor(new);
+
+    /*
+     * If the currently executing process has a vidmap
+     * page and that terminal had its active memory buffer
+     * swapped, update the vidmap page.
+     */
+    terminal_state_t *exec = get_executing_terminal();
+    if (exec->vidmap && (old == exec || new == exec)) {
+        paging_update_vidmap_page(exec->video_mem, true);
+    }
 }
 
 /* Prints a character to the currently displayed terminal */
@@ -499,6 +515,19 @@ terminal_handle_input(kbd_input_t input)
 }
 
 /*
+ * Updates the vidmap page to point to the specified terminal's
+ * active video memory page. If present is false, the vidmap page
+ * is disabled. Returns the address of the vidmap page.
+ */
+void
+terminal_update_vidmap(int32_t term_index, bool present)
+{
+    terminal_state_t *term = get_terminal(term_index);
+    paging_update_vidmap_page(term->video_mem, present);
+    term->vidmap = present;
+}
+
+/*
  * Initialize all terminals. This must be called before
  * any printing functions!
  */
@@ -510,16 +539,21 @@ terminal_init(void)
     /* Set initially displayed terminal to first one */
     display_terminal = 0;
 
-    /* First terminal's active video memory points to global VGA memory */
-    terminal_states[0].video_mem = global_video_mem;
-
-    /* Remaining terminal active video memory points to internal backing buffer */
-    for (i = 1; i < NUM_TERMINALS; ++i) {
-        terminal_states[i].video_mem = terminal_states[i].backing_mem;
-    }
-
-    /* Clear all the terminal memory regions */
     for (i = 0; i < NUM_TERMINALS; ++i) {
+        /*
+         * Backing memory is the per-terminal page
+         * Note that it's safe to do this before initializing paging
+         * since everything is accessible at that point
+         */
+        terminal_states[i].backing_mem = (uint8_t *)TERMINAL_PAGE_START + KB(i * 4);
+
+        /* Active memory points to the backing memory */
+        terminal_states[i].video_mem = terminal_states[i].backing_mem;
+
+        /* Initialize the terminal memory region */
         vga_clear_region(terminal_states[i].backing_mem, VIDEO_MEM_SIZE / 2);
     }
+
+    /* First terminal's active video memory points to global VGA memory */
+    terminal_states[0].video_mem = global_video_mem;
 }

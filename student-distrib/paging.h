@@ -1,23 +1,29 @@
 #ifndef _PAGING_H
 #define _PAGING_H
 
+#define KB(x) ((x) * 1024)
+#define MB(x) ((x) * 1024 * 1024)
+
 /* number of entries in page directory */
 #define NUM_PDE 1024
 
 /* number of entries in page table */
 #define NUM_PTE 1024
 
-#define VIDEO_PAGE_START  0x000B8000
-#define VIDEO_PAGE_END    0x000B9000
+#define VIDEO_PAGE_START    0x000B8000
+#define VIDEO_PAGE_END      0x000B9000
 
-#define KERNEL_PAGE_START 0x00400000
-#define KERNEL_PAGE_END   0x00800000
+#define TERMINAL_PAGE_START 0x000BA000
+/* End point is determined by the number of terminals */
 
-#define USER_PAGE_START   0x08000000
-#define USER_PAGE_END     0x08400000
+#define KERNEL_PAGE_START   0x00400000
+#define KERNEL_PAGE_END     0x00800000
 
-#define VIDMAP_PAGE_START 0x084B8000
-#define VIDMAP_PAGE_END   0x084B9000
+#define USER_PAGE_START     0x08000000
+#define USER_PAGE_END       0x08400000
+
+#define VIDMAP_PAGE_START   0x084B8000
+#define VIDMAP_PAGE_END     0x084B9000
 
 #ifndef ASM
 
@@ -82,8 +88,8 @@ void paging_enable(void);
 /* Updates the process page */
 void paging_update_process_page(int32_t pid);
 
-/* Updates the vidmap page */
-uint8_t *paging_update_vidmap_page(bool present);
+/* Updates the vidmap page to point to the specified address */
+void paging_update_vidmap_page(uint8_t *video_mem, bool present);
 
 #endif /* ASM */
 
