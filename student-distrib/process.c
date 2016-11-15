@@ -289,6 +289,15 @@ process_run_impl(pcb_t *pcb)
                  /* EIP */
                  "pushl %0;"
 
+                 /* Zero all general registers for security */
+                 "xorl %%eax, %%eax;"
+                 "xorl %%ebx, %%ebx;"
+                 "xorl %%ecx, %%ecx;"
+                 "xorl %%edx, %%edx;"
+                 "xorl %%esi, %%esi;"
+                 "xorl %%edi, %%edi;"
+                 "xorl %%ebp, %%ebp;"
+
                  /* GO! */
                  "iret;"
 
