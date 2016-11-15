@@ -215,9 +215,13 @@ process_load_exe(uint32_t inode_idx)
 
 /*
  * Jumps into userspace and executes the specified process.
+ *
+ * This is annotated with __cdecl since we rely on the return
+ * value being placed into EAX, not by this function, but by
+ * process_halt_impl.
  */
-static int32_t
-process_run(pcb_t *pcb)
+__cdecl __attribute__((unused)) static int32_t
+process_run_impl(pcb_t *pcb)
 {
     ASSERT(pcb != NULL);
     ASSERT(pcb->pid >= 0);
@@ -300,6 +304,29 @@ process_run(pcb_t *pcb)
 }
 
 /*
+ * Wrapper function for process_run_impl that takes care of clobbering
+ * the appropriate registers.
+ */
+static int32_t
+process_run(pcb_t *pcb)
+{
+    /*
+     * Since we can't rely on anything other than EAX,
+     * ESP, and EBP being intact when we "return" from
+     * process_run_impl, we explicitly clobber them so GCC
+     * knows to save them somewhere.
+     */
+    int32_t ret;
+    asm volatile("pushl %1;"
+                 "call process_run_impl;"
+                 "addl $4, %%esp;"
+                 : "=a"(ret)
+                 : "g"(pcb)
+                 : "ebx", "ecx", "edx", "esi", "edi", "cc");
+    return ret;
+}
+
+/*
  * Creates and initializes a new PCB for the given process.
  *
  * Implementation note: This is deliberately decoupled from
@@ -375,7 +402,7 @@ process_execute_impl(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
         return -1;
     }
 
-    /* Jump to userspace and begin execution */
+    /* Jump into userspace and begin executing the program */
     return process_run(child_pcb);
 }
 
@@ -419,7 +446,7 @@ process_halt_impl(uint32_t status)
         }
     }
 
-    /* Free child PCB */
+    /* Mark child PCB as free */
     child_pcb->pid = -1;
 
     if (parent_pcb != NULL) {
@@ -440,10 +467,8 @@ process_halt_impl(uint32_t status)
     }
 
     /*
-     * This "returns" from the PARENT'S execute() call
-     * by restoring its esp/ebp and executing leave + ret,
-     * which bypasses the execute() call frame and jumps directly
-     * to its caller.
+     * This "returns" from the PARENT'S process_run_impl call frame
+     * by restoring its esp/ebp and executing leave + ret.
      *
      * DO NOT MODIFY ANY CODE HERE UNLESS YOU ARE 100% SURE
      * ABOUT WHAT YOU ARE DOING!
