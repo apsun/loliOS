@@ -5,7 +5,7 @@
 #include "terminal.h"
 #include "debug.h"
 #include "x86_desc.h"
-
+            
 /* The virtual address that the process should be copied to */
 static uint8_t * const process_vaddr = (uint8_t *)(USER_PAGE_START + 0x48000);
 
@@ -58,6 +58,38 @@ get_executing_pcb(void)
     process_data_t *data = (process_data_t *)(esp & ~(PROCESS_DATA_SIZE - 1));
     return data->pcb;
 }
+
+
+/*
+ * Iterate every process and find the next process that is scheduled or running.
+ * If there is only one process, return itself.
+ */
+pcb_t *
+get_next_pcb(void)
+{
+    pcb_t *curr_pcb;
+    uint32_t i;
+    uint32_t pid;
+    uint32_t status;
+    uint32_t curr_pid;
+    curr_pcb = get_executing_pcb();
+    curr_pid = curr_pcb->pid;
+    for (i = 1; i < MAX_PROCESSES; ++i) {
+        pid = (curr_pid + i) % MAX_PROCESSES;
+        /* If this process is valid */
+        if (process_info[pid].pid >= 0) {
+            status = process_info[pid].status;
+            /* If the process status is running or scheduled */
+            if (status == PROCESS_RUN || status == PROCESS_SCHED) {            
+                return &process_info[pid];
+            }            
+        }        
+    }
+
+    /* If others are not sched of executing, return the current executing pcb  */
+    return curr_pcb;
+}
+
 
 /*
  * Allocates a new PCB. Returns a pointer to the PCB, or
@@ -227,6 +259,11 @@ process_run_impl(pcb_t *pcb)
     ASSERT(pcb != NULL);
     ASSERT(pcb->pid >= 0);
 
+    /* update status of child and parent pcb */
+    pcb->status = PROCESS_RUN;
+    if (pcb->parent_pid >= 0)
+        get_pcb(pcb->parent_pid)->status = PROCESS_SLEEP;
+
     /* Update paging structures */
     paging_update_process_page(pcb->pid);
 
@@ -317,7 +354,7 @@ process_run_impl(pcb_t *pcb)
  * Wrapper function for process_run_impl that takes care of clobbering
  * the appropriate registers.
  */
-static int32_t
+int32_t
 process_run(pcb_t *pcb)
 {
     /*
@@ -374,6 +411,12 @@ process_create_child(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
         child_pcb->terminal = parent_pcb->terminal;
     }
 
+    /* 
+     * Schedule the child process to run.
+     * The status is changed to PROCESS_RUN when scheduler executes it
+     */
+    child_pcb->status = PROCESS_SCHED;
+
     /* Common initialization */
     child_pcb->vidmap = false;
     file_init(child_pcb->files);
@@ -381,6 +424,9 @@ process_create_child(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
 
     /* Update PCB pointer in the kernel stack for this process */
     process_data[child_pcb->pid].pcb = child_pcb;
+
+    /*set the kernel stack pointer */
+    child_pcb->kernel_stack = (uint32_t)&process_data[child_pcb->pid + 1];
 
     /* Copy our program into physical memory
      *
@@ -420,6 +466,8 @@ process_execute_impl(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
 __cdecl int32_t
 process_execute(const uint8_t *command)
 {
+    /* enter critical session */
+    cli();
     /* Validate command */
     if (!is_user_readable_string(command)) {
         debugf("Invalid string passed to process_execute\n");
@@ -460,6 +508,9 @@ process_halt_impl(uint32_t status)
     child_pcb->pid = -1;
 
     if (parent_pcb != NULL) {
+        /* Set parent status to PROCESS_RUN */
+        parent_pcb->status = PROCESS_RUN;
+
         /* Restore parent kernel stack TSS entry */
         tss.esp0 = (uint32_t)&process_data[child_pcb->parent_pid + 1];
 
@@ -468,6 +519,7 @@ process_halt_impl(uint32_t status)
 
         /* Restore the parent's vidmap status */
         terminal_update_vidmap(parent_pcb->terminal, parent_pcb->vidmap);
+
     } else {
         /* No parent process, just re-spawn a new shell in the same terminal */
         process_execute_impl((uint8_t *)"shell", NULL, child_pcb->terminal);
@@ -582,15 +634,17 @@ process_init(void)
     }
 }
 
-/* She spawns C shells by the seashore */
+/* She spawns C shells by the seashore 
+ * Precondition: Interrupt disabled.
+ */
 void
 process_start_shell(void)
 {
-    /* Make sure nobody stops us... */
-    cli();
+
+    /* schedule two shell to run in different terminal */
+    process_create_child((uint8_t *)"shell", NULL, 1);
+    process_create_child((uint8_t *)"shell", NULL, 2);
 
     /* Execute a shell in the first terminal */
     process_execute_impl((uint8_t *)"shell", NULL, 0);
-
-    /* TODO: I can haz more shells? */
 }

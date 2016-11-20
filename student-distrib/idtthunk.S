@@ -39,7 +39,7 @@ MAKE_THUNK(EXC_MF, idt_handle_exc_mf)
 MAKE_THUNK_WITH_ERR(EXC_AC, idt_handle_exc_ac)
 MAKE_THUNK(EXC_MC, idt_handle_exc_mc)
 MAKE_THUNK(EXC_XF, idt_handle_exc_xf)
-MAKE_THUNK(INT_IRQ0, idt_handle_int_irq0)
+// MAKE_THUNK(INT_IRQ0, idt_handle_int_irq0)
 MAKE_THUNK(INT_IRQ1, idt_handle_int_irq1)
 MAKE_THUNK(INT_IRQ2, idt_handle_int_irq2)
 MAKE_THUNK(INT_IRQ3, idt_handle_int_irq3)
@@ -57,6 +57,22 @@ MAKE_THUNK(INT_IRQ14, idt_handle_int_irq14)
 MAKE_THUNK(INT_IRQ15, idt_handle_int_irq15)
 MAKE_THUNK(INT_SYSCALL, idt_handle_int_syscall)
 MAKE_THUNK(INT_UNKNOWN, idt_handle_int_unknown)
+
+/*
+ * Interrupt handler for PIT
+ */
+.globl idt_handle_int_irq0;                                 
+idt_handle_int_irq0:
+    /* 
+     * Push the esp valve before processor's auto push.
+     * Used only when interrupt occur in kernel.
+     */
+    addl $12, %esp
+    movl %esp, -16(%esp)
+    subl $16, %esp
+    /* push idt vector */
+    pushl $INT_IRQ0;
+    jmp idt_handle_common_thunk
 
 /* Common interrupt handler thunk */
 idt_handle_common_thunk:
@@ -92,10 +108,17 @@ idt_handle_common_thunk:
     call idt_handle_interrupt
     addl $4, %esp
 
-    /* Ignore control registers */
-    addl $16, %esp
+    /* Restore control registers */
+    popl %eax
+    movl %eax, %cr0
+    popl %eax
+    movl %eax, %cr2
+    popl %eax
+    movl %eax, %cr3
+    popl %eax
+    movl %eax, %cr4
 
-    /* Restore all registers */
+    /* Restore all registers */    
     popl %eax
     popl %ebx
     popl %ecx

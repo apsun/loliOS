@@ -6,6 +6,7 @@
 #include "idt.h"
 #include "paging.h"
 #include "process.h"
+#include "pit.h"
 #include "keyboard.h"
 #include "rtc.h"
 #include "terminal.h"
@@ -168,6 +169,9 @@ entry (unsigned long magic, unsigned long addr)
     printf("Initializing IDT...\n");
     idt_init();
 
+    printf("Initializing PIT...\n");
+    pit_init();
+
     printf("Initializing keyboard...\n");
     keyboard_init();
 
@@ -188,14 +192,15 @@ entry (unsigned long magic, unsigned long addr)
     /* Do not enable the following until after you have set up your
      * IDT correctly otherwise QEMU will triple fault and simple close
      * without showing you any output */
-    printf("Enabling interrupts...\n");
-    sti();
 
     /* We made it! */
     printf("Boot successful!\n");
     clear();
 
-    /* Execute the first program (`shell') ... */
+    /* Execute the first program (`shell') ... 
+     * Should not enable the interrupt until the first program running
+     * Interrupt is enabled in this function
+     */
     process_start_shell();
 
     /* Shouldn't get here... */

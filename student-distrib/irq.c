@@ -7,8 +7,9 @@ static irq_handler_t irq_handlers[16];
 
 /* IRQ handler */
 void
-irq_handle_interrupt(uint32_t irq_num)
+irq_handle_interrupt(int_regs_t *regs)
 {
+    uint32_t irq_num = regs->int_num - INT_IRQ0;
     irq_handler_t handler = irq_handlers[irq_num];
 
     /* Clear interrupt flag on PIC */
@@ -16,7 +17,10 @@ irq_handle_interrupt(uint32_t irq_num)
 
     /* Run callback if it's registered */
     if (handler.callback != NULL) {
-        handler.callback();
+        if (irq_num == IRQ_PIT)
+            handler.callback(regs);
+        else
+            handler.callback();
     }
 }
 
@@ -29,7 +33,7 @@ irq_handle_interrupt(uint32_t irq_num)
  * Currently only one handler can be registered per IRQ line.
  */
 void
-irq_register_handler(uint32_t irq_num, void (*callback)(void))
+irq_register_handler(uint32_t irq_num, void (*callback)())
 {
     ASSERT(irq_num >= 0 && irq_num < 16);
     irq_handlers[irq_num].callback = callback;

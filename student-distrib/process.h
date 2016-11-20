@@ -4,6 +4,7 @@
 #include "types.h"
 #include "file.h"
 #include "syscall.h"
+#include "idt.h"
 
 /* Maximum argument length, including the NUL terminator */
 #define MAX_ARGS_LEN 1024
@@ -16,6 +17,10 @@
 
 /* Process data block size, MUST BE A POWER OF 2! */
 #define PROCESS_DATA_SIZE 8192
+
+#define PROCESS_RUN     0
+#define PROCESS_SLEEP   1
+#define PROCESS_SCHED   2
 
 #ifndef ASM
 
@@ -62,6 +67,14 @@ typedef struct {
      */
     int32_t terminal;
 
+    /* 
+     * Status is valid when the process is valid, ie. pid > 0
+     * Status can be either RUN or SLEEP.
+     */
+    uint32_t status;
+
+    uint32_t kernel_stack;
+
     /*
      * Whether the process has the virtual video memory page
      * mapped in memory, set after the process has called the
@@ -73,6 +86,11 @@ typedef struct {
      * Array of file objects for this process.
      */
     file_obj_t files[MAX_FILES];
+
+    /*
+     * Struct to store current state of registers
+     */
+    int_regs_t context;
 
     /*
      * Arguments passed when creating this process. Will always be
@@ -90,11 +108,13 @@ typedef struct {
 
 /* Gets the PCB of the currently executing process */
 pcb_t *get_executing_pcb(void);
+/* Gets the PCB of the next valid and running process */
+pcb_t *get_next_pcb(void);
 
 /* Syscall delegate functions */
 int32_t process_halt_impl(uint32_t status);
 int32_t process_execute_impl(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal);
-
+int32_t process_run(pcb_t *pcb);
 /* Process syscall handlers */
 __cdecl int32_t process_halt(uint32_t status);
 __cdecl int32_t process_execute(const uint8_t *command);
