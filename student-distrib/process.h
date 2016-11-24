@@ -69,7 +69,7 @@ typedef struct {
 
     /* 
      * Status is valid when the process is valid, ie. pid > 0
-     * Status can be either RUN or SLEEP.
+     * Status can be either RUN or SLEEP (or SCHED).
      */
     uint32_t status;
 
