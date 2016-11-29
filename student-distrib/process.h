@@ -97,6 +97,9 @@ typedef struct {
      * NUL-terminated (holds up to MAX_ARGS_LEN - 1 characters).
      */
     uint8_t args[MAX_ARGS_LEN];
+
+    //mm_struct_t *memory_map;
+    
 } pcb_t;
 
 /* Kernel stack struct */
