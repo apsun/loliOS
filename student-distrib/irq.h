@@ -18,10 +18,10 @@ typedef struct irq_handler_t
 } irq_handler_t;
 
 /* IRQ interrupt handler */
-void irq_handle_interrupt(int_regs_t *regs);
+void irq_handle_interrupt(uint32_t irq_num);
 
 /* Registers an IRQ handler */
-void irq_register_handler(uint32_t irq_num, void (*callback)());
+void irq_register_handler(uint32_t irq_num, void (*callback)(void));
 
 /* Unregisters an IRQ handler */
 void irq_unregister_handler(uint32_t irq_num);

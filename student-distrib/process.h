@@ -91,6 +91,12 @@ typedef struct {
      * Struct to store current state of registers
      */
     int_regs_t context;
+    /*
+     * Current kernel stack point after scheduler interrupt happened
+     */
+    uint32_t esp;
+
+    uint32_t ebp;
 
     /*
      * Arguments passed when creating this process. Will always be

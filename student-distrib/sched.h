@@ -5,7 +5,7 @@
 
 #include "process.h"
 
-void sched_switch(int_regs_t *regs);
+void sched_switch(void);
 
 #endif
 

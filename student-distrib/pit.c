@@ -12,9 +12,9 @@
 
 /* Handle the interrupt by calling the scheduler */
 static void
-handle_pit_irq(int_regs_t *regs)
+handle_pit_irq(void)
 {
-	sched_switch(regs);
+	sched_switch();
 }
 
 /*
