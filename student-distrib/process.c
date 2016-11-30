@@ -569,22 +569,22 @@ process_switch_impl(void)
                    "=g"(curr->kernel_ebp));
 
     if (next->status == PROCESS_SCHED) {
-		/*
-		 * If we're in this block, we're initializing
-		 * one of the three initial shells. We don't set
-		 * the stack pointer because:
-		 *
-		 * 1) It's never used
-		 * 2) It's not initialized anyways
-		 */
-		process_run(next);
+        /*
+         * If we're in this block, we're initializing
+         * one of the three initial shells. We don't set
+         * the stack pointer because:
+         *
+         * 1) It's never used
+         * 2) It's not initialized anyways
+         */
+        process_run(next);
     } else if (next->status == PROCESS_RUN) {
-		/*
-		 * If we're in this block, the process must be
-		 * in a process_switch_impl call too. We just switch
-		 * into its stack and return.
-		 */
-		
+        /*
+         * If we're in this block, the process must be
+         * in a process_switch_impl call too. We just switch
+         * into its stack and return.
+         */
+
         /* Set global execution context */
         process_set_context(next);
 

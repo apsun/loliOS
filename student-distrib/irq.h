@@ -2,9 +2,9 @@
 #define _IRQ_H
 
 #include "types.h"
-#include "idt.h"
+
 /* IRQ number constants */
-#define IRQ_PIT 	 0
+#define IRQ_PIT      0
 #define IRQ_KEYBOARD 1
 #define IRQ_RTC      8
 
@@ -14,7 +14,7 @@
 typedef struct irq_handler_t
 {
     /* Callback to run when the interrupt occurs */
-    void (*callback)();
+    void (*callback)(void);
 } irq_handler_t;
 
 /* IRQ interrupt handler */

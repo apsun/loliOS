@@ -27,32 +27,32 @@ handle_pit_irq(void)
 static void
 pit_set_frequency(uint32_t freq)
 {
-	uint16_t divisor;
+    uint16_t divisor;
 
-	/* ensure if freqency dose not exceed boundry */
-	if (freq < LOWEST_FREQ) {
-		freq = LOWEST_FREQ;
-	} else if (freq > HIGHEST_FREQ)	{
-		freq = HIGHEST_FREQ;
-	}
+    /* ensure if freqency dose not exceed boundry */
+    if (freq < LOWEST_FREQ) {
+        freq = LOWEST_FREQ;
+    } else if (freq > HIGHEST_FREQ) {
+        freq = HIGHEST_FREQ;
+    }
 
-	/* if frequency is lowest frequency, set reload value to 0
-	 * zero can be used to specify a divisor of 2^16 = 65536
-	 */
-	divisor = (freq == LOWEST_FREQ) ? 0 : (HIGHEST_FREQ / freq);
+    /* if frequency is lowest frequency, set reload value to 0
+     * zero can be used to specify a divisor of 2^16 = 65536
+     */
+    divisor = (freq == LOWEST_FREQ) ? 0 : (HIGHEST_FREQ / freq);
 
-	/* select channel 0,
-	 * 		  mode 2,
-	 *		  access high and low byte of divisor,
-	 *		  binary number representation
-	 */
-	outb(SET0_FREQ_CMD, PIT_CMD_PORT);
+    /* select channel 0,
+     *        mode 2,
+     *        access high and low byte of divisor,
+     *        binary number representation
+     */
+    outb(SET0_FREQ_CMD, PIT_CMD_PORT);
 
-	/* Set low byte of PIT reload value */
-	outb(divisor & 0xff, PIT_DATA_PORT0);
+    /* Set low byte of PIT reload value */
+    outb(divisor & 0xff, PIT_DATA_PORT0);
 
-	/* Set high byte of PIT reload value */
-	outb((divisor >> 8) & 0xff, PIT_DATA_PORT0);
+    /* Set high byte of PIT reload value */
+    outb((divisor >> 8) & 0xff, PIT_DATA_PORT0);
 }
 
 /*
@@ -67,6 +67,6 @@ pit_set_frequency(uint32_t freq)
 void
 pit_init(void)
 {
-	pit_set_frequency(SCHED_FREQ);
-	irq_register_handler(IRQ_PIT, handle_pit_irq);
+    pit_set_frequency(SCHED_FREQ);
+    irq_register_handler(IRQ_PIT, handle_pit_irq);
 }
