@@ -96,43 +96,6 @@ typedef struct
     uint16_t padding1; 
 } int_regs_t;
 
-/* Interrupt registers when interrupt occurs in kernel */
-typedef struct
-{
-    /* Pushed by idt_handle_common_thunk */
-    uint32_t cr0;
-    uint32_t cr2;
-    uint32_t cr3;
-    uint32_t cr4;
-    uint32_t eax;
-    uint32_t ebx;
-    uint32_t ecx;
-    uint32_t edx;
-    uint32_t esi;
-    uint32_t edi;
-    uint32_t ebp;
-    uint16_t ds;
-    uint16_t es;
-    uint16_t fs;
-    uint16_t gs;
-
-    /* Pushed by per-interrupt idt_handle_* thunk */
-    uint32_t int_num;
-
-    /*
-     * Mannully push the esp value before processor performing
-     * the auto push.
-     * Note: this is the same positon as error_code in int_regs_t
-     */
-    uint32_t esp;
-
-    /* Pushed automatically by processor */
-    uint32_t eip;    
-    uint16_t cs;
-    uint16_t padding0;  
-    uint32_t eflags;
-} int_regs_kernel_t;
-
 /* Initializes the IDT */
 void idt_init(void);
 

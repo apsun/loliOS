@@ -73,6 +73,9 @@ typedef struct {
      */
     uint32_t status;
 
+    /*
+     * Stack base pointer for kernel space 
+     */
     uint32_t kernel_stack;
 
     /*
@@ -88,14 +91,9 @@ typedef struct {
     file_obj_t files[MAX_FILES];
 
     /*
-     * Struct to store current state of registers
-     */
-    int_regs_t context;
-    /*
-     * Current kernel stack point after scheduler interrupt happened
+     * Current kernel stack frame after scheduler interrupt happened
      */
     uint32_t esp;
-
     uint32_t ebp;
 
     /*
