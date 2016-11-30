@@ -261,8 +261,6 @@ process_run_impl(pcb_t *pcb)
 
     /* update status of child and parent pcb */
     pcb->status = PROCESS_RUN;
-    if (pcb->parent_pid >= 0)
-        get_pcb(pcb->parent_pid)->status = PROCESS_SLEEP;
 
     /* Update paging structures */
     paging_update_process_page(pcb->pid);
@@ -369,7 +367,7 @@ process_run(pcb_t *pcb)
                  "addl $4, %%esp;"
                  : "=a"(ret)
                  : "g"(pcb)
-                 : "ebx", "ecx", "edx", "esi", "edi", "cc");
+                 : "ebx", "ecx", "cc");
     return ret;
 }
 
@@ -457,6 +455,9 @@ process_execute_impl(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
         debugf("Could not create child process\n");
         return -1;
     }
+
+    /* Put parent process into sleep */
+    parent_pcb->status = PROCESS_SLEEP;
 
     /* Jump into userspace and begin executing the program */
     return process_run(child_pcb);
@@ -568,6 +569,10 @@ process_halt(uint32_t status)
 __cdecl int32_t
 process_getargs(uint8_t *buf, int32_t nbytes)
 {
+    if (nbytes == 0) {
+        return -1;
+    }
+    
     /* Ensure buffer is valid */
     if (!is_user_writable(buf, nbytes)) {
         return -1;
@@ -582,6 +587,11 @@ process_getargs(uint8_t *buf, int32_t nbytes)
     pcb_t *pcb = get_executing_pcb();
     strncpy((int8_t *)buf, (int8_t *)pcb->args, nbytes);
 
+    /* Force the buffer nul terminated */
+    if (nbytes > 0) {
+        buf[nbytes - 1] = '\0';
+    }
+    
     return 0;
 }
 
@@ -642,9 +652,10 @@ process_start_shell(void)
 {
 
     /* schedule two shell to run in different terminal */
+    pcb_t *first_program = process_create_child((uint8_t *)"shell", NULL, 0);
     process_create_child((uint8_t *)"shell", NULL, 1);
     process_create_child((uint8_t *)"shell", NULL, 2);
 
     /* Execute a shell in the first terminal */
-    process_execute_impl((uint8_t *)"shell", NULL, 0);
+    process_run(first_program);
 }

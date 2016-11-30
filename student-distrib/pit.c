@@ -8,12 +8,13 @@
 #define HIGHEST_RELOAD_VAL 65536
 #define SET0_FREQ_CMD (CHANNEL0 | ACCESS_HL | OPMODE2 | BINARY)
 /* The frequency for scheduler to perform process switch */
-#define SCHED_FREQ 100
+#define SCHED_FREQ 50
 
 /* Handle the interrupt by calling the scheduler */
 static void
 handle_pit_irq(void)
 {
+	// printf("%s", "1");
 	sched_switch();
 }
 
