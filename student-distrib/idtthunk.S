@@ -92,19 +92,10 @@ idt_handle_common_thunk:
     call idt_handle_interrupt
     addl $4, %esp
 
-    // /* Restore control registers */
-    // popl %eax
-    // movl %eax, %cr0
-    // popl %eax
-    // movl %eax, %cr2
-    // popl %eax
-    // movl %eax, %cr3
-    // popl %eax
-    // movl %eax, %cr4
-    /* pop control registers */
+    /* Ignore control registers */
     addl $16, %esp
 
-    /* Restore all registers */    
+    /* Restore all registers */
     popl %eax
     popl %ebx
     popl %ecx

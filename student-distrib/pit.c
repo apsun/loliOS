@@ -1,21 +1,22 @@
 #include "pit.h"
+#include "types.h"
 #include "lib.h"
 #include "irq.h"
-#include "sched.h"
+#include "process.h"
 
 #define LOWEST_FREQ  18
 #define HIGHEST_FREQ 1193181
 #define HIGHEST_RELOAD_VAL 65536
 #define SET0_FREQ_CMD (CHANNEL0 | ACCESS_HL | OPMODE2 | BINARY)
+
 /* The frequency for scheduler to perform process switch */
-#define SCHED_FREQ 50
+#define SCHED_FREQ 60
 
 /* Handle the interrupt by calling the scheduler */
 static void
 handle_pit_irq(void)
 {
-	// printf("%s", "1");
-	sched_switch();
+    process_switch();
 }
 
 /*
@@ -41,7 +42,7 @@ pit_set_frequency(uint32_t freq)
 	divisor = (freq == LOWEST_FREQ) ? 0 : (HIGHEST_FREQ / freq);
 
 	/* select channel 0,
-	 * 		  mode 2, 
+	 * 		  mode 2,
 	 *		  access high and low byte of divisor,
 	 *		  binary number representation
 	 */

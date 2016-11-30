@@ -5,7 +5,7 @@
 #include "terminal.h"
 #include "debug.h"
 #include "x86_desc.h"
-            
+
 /* The virtual address that the process should be copied to */
 static uint8_t * const process_vaddr = (uint8_t *)(USER_PAGE_START + 0x48000);
 
@@ -59,37 +59,29 @@ get_executing_pcb(void)
     return data->pcb;
 }
 
-
 /*
- * Iterate every process and find the next process that is scheduled or running.
- * If there is only one process, return itself.
+ * Finds the next process that is scheduled for execution. If
+ * there are no other process that can be executed, returns the
+ * current process.
  */
-pcb_t *
+static pcb_t *
 get_next_pcb(void)
 {
-    pcb_t *curr_pcb;
-    uint32_t i;
-    uint32_t pid;
-    uint32_t status;
-    uint32_t curr_pid;
-    curr_pcb = get_executing_pcb();
-    curr_pid = curr_pcb->pid;
+    pcb_t *curr_pcb = get_executing_pcb();
+    int32_t i;
     for (i = 1; i < MAX_PROCESSES; ++i) {
-        pid = (curr_pid + i) % MAX_PROCESSES;
-        /* If this process is valid */
+        int32_t pid = (curr_pcb->pid + i) % MAX_PROCESSES;
         if (process_info[pid].pid >= 0) {
-            status = process_info[pid].status;
-            /* If the process status is running or scheduled */
-            if (status == PROCESS_RUN || status == PROCESS_SCHED) {            
+            int32_t status = process_info[pid].status;
+            if (status == PROCESS_RUN || status == PROCESS_SCHED) {
                 return &process_info[pid];
-            }            
-        }        
+            }
+        }
     }
 
-    /* If others are not sched of executing, return the current executing pcb  */
+    /* If nothing else can be executed, just return the current one */
     return curr_pcb;
 }
-
 
 /*
  * Allocates a new PCB. Returns a pointer to the PCB, or
@@ -246,28 +238,12 @@ process_load_exe(uint32_t inode_idx)
 }
 
 /*
- * Jumps into userspace and executes the specified process.
- *
- * This is annotated with __cdecl since we rely on the return
- * value being placed into EAX, not by this function, but by
- * process_halt_impl.
+ * Gets the address of the bottom of the kernel stack
+ * for the specified process.
  */
-__attribute__((unused))
-__cdecl static int32_t
-process_run_impl(pcb_t *pcb)
+static uint32_t
+get_kernel_base_esp(pcb_t *pcb)
 {
-    ASSERT(pcb != NULL);
-    ASSERT(pcb->pid >= 0);
-
-    /* update status of child and parent pcb */
-    pcb->status = PROCESS_RUN;
-
-    /* Update paging structures */
-    paging_update_process_page(pcb->pid);
-
-    /* Update vidmap status */
-    terminal_update_vidmap(pcb->terminal, pcb->vidmap);
-
     /*
      * ESP0 points to bottom of the process kernel stack,
      * which is the same as the start of the process data of
@@ -282,7 +258,44 @@ process_run_impl(pcb_t *pcb)
      * |   ...   |
      * (higher addresses)
      */
-    tss.esp0 = (uint32_t)&process_data[pcb->pid + 1];
+    return (uint32_t)&process_data[pcb->pid + 1];
+}
+
+/*
+ * Sets the global execution context to the specified process.
+ */
+static void
+process_set_context(pcb_t *to)
+{
+    /* Restore process page */
+    paging_update_process_page(to->pid);
+
+    /* Restore vidmap status */
+    terminal_update_vidmap(to->terminal, to->vidmap);
+
+    /* Restore TSS entry */
+    tss.esp0 = get_kernel_base_esp(to);
+}
+
+/*
+ * Jumps into userspace and executes the specified process.
+ *
+ * This is annotated with __cdecl since we rely on the return
+ * value being placed into EAX, not by this function, but by
+ * process_halt_impl.
+ */
+__attribute__((unused))
+__cdecl static int32_t
+process_run_impl(pcb_t *pcb)
+{
+    ASSERT(pcb != NULL);
+    ASSERT(pcb->pid >= 0);
+
+    /* Mark process as initialized */
+    pcb->status = PROCESS_RUN;
+
+    /* Set the global execution context */
+    process_set_context(pcb);
 
     /*
      * Save ESP and EBP of the current call frame so that we
@@ -367,7 +380,7 @@ process_run(pcb_t *pcb)
                  "addl $4, %%esp;"
                  : "=a"(ret)
                  : "g"(pcb)
-                 : "ebx", "ecx", "cc");
+                 : "ebx", "ecx", "edx", "esi", "edi", "cc");
     return ret;
 }
 
@@ -409,28 +422,16 @@ process_create_child(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
         child_pcb->terminal = parent_pcb->terminal;
     }
 
-    /* 
-     * Schedule the child process to run.
-     * The status is changed to PROCESS_RUN when scheduler executes it
-     */
-    child_pcb->status = PROCESS_SCHED;
-
     /* Common initialization */
+    child_pcb->status = PROCESS_SCHED;
     child_pcb->vidmap = false;
     file_init(child_pcb->files);
     strncpy((int8_t *)child_pcb->args, (const int8_t *)args, MAX_ARGS_LEN);
 
-    /* Update PCB pointer in the kernel stack for this process */
+    /* Update PCB pointer in the kernel data for this process */
     process_data[child_pcb->pid].pcb = child_pcb;
 
-    /*set the kernel stack pointer */
-    child_pcb->kernel_stack = (uint32_t)&process_data[child_pcb->pid + 1];
-
-    /* Copy our program into physical memory
-     *
-     * TODO: This modifies the process page table entry.
-     * We should probably find a better way to do this.
-     */
+    /* Copy our program into physical memory */
     paging_update_process_page(child_pcb->pid);
     child_pcb->user_eip = process_load_exe(inode);
 
@@ -456,8 +457,10 @@ process_execute_impl(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
         return -1;
     }
 
-    /* Put parent process into sleep */
-    parent_pcb->status = PROCESS_SLEEP;
+    /* If there's a parent process, stop executing it */
+    if (parent_pcb != NULL) {
+        parent_pcb->status = PROCESS_SLEEP;
+    }
 
     /* Jump into userspace and begin executing the program */
     return process_run(child_pcb);
@@ -467,8 +470,6 @@ process_execute_impl(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
 __cdecl int32_t
 process_execute(const uint8_t *command)
 {
-    /* enter critical session */
-    cli();
     /* Validate command */
     if (!is_user_readable_string(command)) {
         debugf("Invalid string passed to process_execute\n");
@@ -508,26 +509,19 @@ process_halt_impl(uint32_t status)
     /* Mark child PCB as free */
     child_pcb->pid = -1;
 
-    if (parent_pcb != NULL) {
-        /* Set parent status to PROCESS_RUN */
-        parent_pcb->status = PROCESS_RUN;
-
-        /* Restore parent kernel stack TSS entry */
-        tss.esp0 = (uint32_t)&process_data[child_pcb->parent_pid + 1];
-
-        /* Restore the parent's process page */
-        paging_update_process_page(parent_pcb->pid);
-
-        /* Restore the parent's vidmap status */
-        terminal_update_vidmap(parent_pcb->terminal, parent_pcb->vidmap);
-
-    } else {
-        /* No parent process, just re-spawn a new shell in the same terminal */
+    /* If no parent process, just re-spawn a new shell in the same terminal */
+    if (parent_pcb == NULL) {
         process_execute_impl((uint8_t *)"shell", NULL, child_pcb->terminal);
 
         /* Should never get back to this point */
         ASSERT(0);
     }
+
+    /* Mark parent as runnable again */
+    parent_pcb->status = PROCESS_RUN;
+
+    /* Set the global execution context */
+    process_set_context(parent_pcb);
 
     /*
      * This "returns" from the PARENT'S process_run_impl call frame
@@ -552,6 +546,70 @@ process_halt_impl(uint32_t status)
     return -1;
 }
 
+/*
+ * Switches execution to the next scheduled process.
+ */
+__attribute__((unused))
+__cdecl static void
+process_switch_impl(void)
+{
+    pcb_t *curr = get_executing_pcb();
+    pcb_t *next = get_next_pcb();
+    if (curr == next) {
+        return;
+    }
+
+    /*
+     * Save current stack pointer so we can "return" to this
+     * stack frame.
+     */
+    asm volatile("movl %%esp, %0;"
+                 "movl %%ebp, %1;"
+                 : "=g"(curr->kernel_esp),
+                   "=g"(curr->kernel_ebp));
+
+    if (next->status == PROCESS_SCHED) {
+		/*
+		 * If we're in this block, we're initializing
+		 * one of the three initial shells. We don't set
+		 * the stack pointer because:
+		 *
+		 * 1) It's never used
+		 * 2) It's not initialized anyways
+		 */
+		process_run(next);
+    } else if (next->status == PROCESS_RUN) {
+		/*
+		 * If we're in this block, the process must be
+		 * in a process_switch_impl call too. We just switch
+		 * into its stack and return.
+		 */
+		
+        /* Set global execution context */
+        process_set_context(next);
+
+        /* "Return" into the other process's process_switch_impl frame */
+        asm volatile("movl %0, %%esp;"
+                     "movl %1, %%ebp;"
+                     :
+                     : "g"(next->kernel_esp),
+                       "g"(next->kernel_ebp));
+    }
+}
+
+/*
+ * Wrapper for process_switch_impl that clobbers the
+ * appropriate registers.
+ */
+void
+process_switch(void)
+{
+    asm volatile("call process_switch_impl;"
+                 :
+                 :
+                 : "eax", "ebx", "ecx", "edx", "esi", "edi", "cc");
+}
+
 /* halt() syscall handler */
 __cdecl int32_t
 process_halt(uint32_t status)
@@ -569,10 +627,6 @@ process_halt(uint32_t status)
 __cdecl int32_t
 process_getargs(uint8_t *buf, int32_t nbytes)
 {
-    if (nbytes == 0) {
-        return -1;
-    }
-    
     /* Ensure buffer is valid */
     if (!is_user_writable(buf, nbytes)) {
         return -1;
@@ -587,11 +641,11 @@ process_getargs(uint8_t *buf, int32_t nbytes)
     pcb_t *pcb = get_executing_pcb();
     strncpy((int8_t *)buf, (int8_t *)pcb->args, nbytes);
 
-    /* Force the buffer nul terminated */
+    /* Ensure the string is NUL-terminated */
     if (nbytes > 0) {
         buf[nbytes - 1] = '\0';
     }
-    
+
     return 0;
 }
 
@@ -644,18 +698,11 @@ process_init(void)
     }
 }
 
-/* She spawns C shells by the seashore 
- * Precondition: Interrupt disabled.
- */
+/* She spawns C shells by the seashore */
 void
 process_start_shell(void)
 {
-
-    /* schedule two shell to run in different terminal */
-    pcb_t *first_program = process_create_child((uint8_t *)"shell", NULL, 0);
+    process_create_child((uint8_t *)"shell", NULL, 0);
     process_create_child((uint8_t *)"shell", NULL, 1);
-    process_create_child((uint8_t *)"shell", NULL, 2);
-
-    /* Execute a shell in the first terminal */
-    process_run(first_program);
+    process_execute_impl((uint8_t *)"shell", NULL, 2);
 }

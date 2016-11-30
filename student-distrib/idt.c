@@ -69,13 +69,7 @@ dump_registers(int_regs_t *regs)
 static void
 handle_exception(int_regs_t *regs)
 {
-    /*
-     * If we were in userspace, kill the program responsible
-     *
-     * TODO: This is unreliable, since the user program can
-     * set CS to whatever it wants. How can we distinguish
-     * between a kernel exception and a userspace exception?
-     */
+    /* If we were in userspace, kill the program responsible */
     if (regs->cs == USER_CS) {
         debugf("Userspace exception occurred\n");
 
@@ -117,7 +111,7 @@ handle_syscall(int_regs_t *regs)
  * The registers in regs should not be modified unless
  * the interrupt is a syscall.
  */
-void
+__cdecl void
 idt_handle_interrupt(int_regs_t *regs)
 {
     if (regs->int_num < NUM_EXC) {

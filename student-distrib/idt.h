@@ -87,13 +87,10 @@ typedef struct
 
     /* Pushed automatically by processor */
     uint32_t eip;
-    
     uint16_t cs;
-    uint16_t padding0;  
     uint32_t eflags;
-    uint32_t esp;    
-    uint16_t ss;    
-    uint16_t padding1; 
+    uint32_t esp;
+    uint16_t ss;
 } int_regs_t;
 
 /* Initializes the IDT */
