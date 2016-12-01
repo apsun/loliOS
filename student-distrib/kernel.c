@@ -188,19 +188,11 @@ entry (unsigned long magic, unsigned long addr)
     printf("Initializing processes...\n");
     process_init();
 
-    /* Enable interrupts */
-    /* Do not enable the following until after you have set up your
-     * IDT correctly otherwise QEMU will triple fault and simple close
-     * without showing you any output */
-
     /* We made it! */
     printf("Boot successful!\n");
     clear();
 
-    /* Execute the first program (`shell') ... 
-     * Should not enable the interrupt until the first program running
-     * Interrupt is enabled in this function
-     */
+    /* Execute the first program (`shell') ... */
     process_start_shell();
 
     /* Shouldn't get here... */

@@ -12,7 +12,7 @@
 /* The frequency for scheduler to perform process switch */
 #define SCHED_FREQ 60
 
-/* Handle the interrupt by calling the scheduler */
+/* PIT interrupt handler */
 static void
 handle_pit_irq(void)
 {
@@ -20,28 +20,27 @@ handle_pit_irq(void)
 }
 
 /*
- * set the frequency for the Programmable Interval Timer
- *
- * Note: must initialize PIT before enable IF flag
+ * Sets the frequency for the Programmable Interval Timer
  */
 static void
 pit_set_frequency(uint32_t freq)
 {
     uint16_t divisor;
 
-    /* ensure if freqency dose not exceed boundry */
+    /* Ensure freqency does not exceed boundry */
     if (freq < LOWEST_FREQ) {
         freq = LOWEST_FREQ;
     } else if (freq > HIGHEST_FREQ) {
         freq = HIGHEST_FREQ;
     }
 
-    /* if frequency is lowest frequency, set reload value to 0
+    /*
+     * If frequency is lowest frequency, set reload value to 0
      * zero can be used to specify a divisor of 2^16 = 65536
      */
     divisor = (freq == LOWEST_FREQ) ? 0 : (HIGHEST_FREQ / freq);
 
-    /* select channel 0,
+    /* Select channel 0,
      *        mode 2,
      *        access high and low byte of divisor,
      *        binary number representation
@@ -56,13 +55,9 @@ pit_set_frequency(uint32_t freq)
 }
 
 /*
- * initialize the Programmable Interval Timer
+ * Initializes the Programmable Interval Timer
  *
- * set channel 0 to mode 0,
- *     frequency to about 100Hz (10ms)
- * register interrupt handler
- *
- * Note: must initialize PIT before enable IF flag
+ * Note: must initialize PIT before enabling IF flag
  */
 void
 pit_init(void)

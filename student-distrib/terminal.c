@@ -232,6 +232,7 @@ terminal_clear_impl(terminal_state_t *term)
 void
 set_display_terminal(int32_t index)
 {
+    ASSERT(index >= 0 && index < NUM_TERMINALS);
     int32_t old_index = display_terminal;
     if (index == old_index) {
         return;
@@ -239,7 +240,6 @@ set_display_terminal(int32_t index)
 
     /* Set the new display terminal */
     terminal_state_t *old = get_display_terminal();
-    ASSERT(index >= 0 && index < NUM_TERMINALS);
     display_terminal = index;
     terminal_state_t *new = get_display_terminal();
 
@@ -536,9 +536,6 @@ terminal_init(void)
 {
     int32_t i;
 
-    /* Set initially displayed terminal to first one */
-    display_terminal = 0;
-
     for (i = 0; i < NUM_TERMINALS; ++i) {
         /*
          * Backing memory is the per-terminal page
@@ -556,4 +553,7 @@ terminal_init(void)
 
     /* First terminal's active video memory points to global VGA memory */
     terminal_states[0].video_mem = global_video_mem;
+
+    /* Set initially displayed terminal */
+    display_terminal = 0;
 }

@@ -580,7 +580,7 @@ process_switch_impl(void)
         process_run(next);
     } else if (next->status == PROCESS_RUN) {
         /*
-         * If we're in this block, the process must be
+         * If we're in this block, the next process must be
          * in a process_switch_impl call too. We just switch
          * into its stack and return.
          */
@@ -702,7 +702,9 @@ process_init(void)
 void
 process_start_shell(void)
 {
-    process_create_child((uint8_t *)"shell", NULL, 0);
-    process_create_child((uint8_t *)"shell", NULL, 1);
-    process_execute_impl((uint8_t *)"shell", NULL, 2);
+    int32_t i;
+    for (i = 1; i < NUM_TERMINALS; ++i) {
+        process_create_child((uint8_t *)"shell", NULL, i);
+    }
+    process_execute_impl((uint8_t *)"shell", NULL, 0);
 }

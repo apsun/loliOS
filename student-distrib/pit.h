@@ -17,10 +17,10 @@
  */
 #define BINARY          0x00
 
-#ifndef _ASM
+#ifndef ASM
 
 void pit_init(void);
 
-#endif /* _ASM */
+#endif /* ASM */
 
 #endif /* _PIT_H */
