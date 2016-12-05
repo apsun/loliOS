@@ -2,9 +2,16 @@
 #include "irq.h"
 #include "lib.h"
 #include "debug.h"
+#include "process.h"
 
-/* Whether we are waiting for an interrupt to occur */
-volatile int32_t waiting_interrupt = 0;
+/*
+ * We need to keep track of all open RTC files somehow,
+ * so we can update their interrupt occurred flags (We're
+ * assuming each process only has one RTC file open at a time,
+ * so this array should be big enough.)
+ */
+#define MAX_RTC_FILES MAX_PROCESSES
+static file_obj_t *rtc_files[MAX_RTC_FILES];
 
 /*
  * Reads the value of a RTC register. The reg
@@ -36,7 +43,12 @@ handle_rtc_irq(void)
     read_reg(RTC_REG_C);
 
     /* Notify any read calls that we got an interrupt */
-    waiting_interrupt = 0;
+    int32_t i;
+    for (i = 0; i < MAX_RTC_FILES; ++i) {
+        if (rtc_files[i] != NULL) {
+            rtc_files[i]->offset = 0;
+        }
+    }
 }
 
 /*
@@ -87,20 +99,14 @@ rtc_freq_to_rs(int32_t freq)
 static int32_t
 rtc_set_frequency(int32_t freq)
 {
-    uint8_t reg_a;
-    uint32_t flags;
-
     /* Convert the integer to an enum value */
     uint8_t rs = rtc_freq_to_rs(freq);
     if (rs == RTC_A_RS_NONE) {
         return -1;
     }
 
-    /* Begin critical section */
-    cli_and_save(flags);
-
     /* Read register A */
-    reg_a = read_reg(RTC_REG_A);
+    uint8_t reg_a = read_reg(RTC_REG_A);
 
     /* Set frequency control bits */
     reg_a &= ~RTC_A_RS;
@@ -109,22 +115,26 @@ rtc_set_frequency(int32_t freq)
     /* Write register A */
     write_reg(RTC_REG_A, reg_a);
 
-    /* End critical section */
-    restore_flags(flags);
-
     return 0;
 }
 
 /*
- * Open syscall for RTC. Does nothing.
- *
- * filename - ignored
- * file - ignored
+ * Open syscall for RTC. Adds the file to the internal
+ * file tracker.
  */
 int32_t
 rtc_open(const uint8_t *filename, file_obj_t *file)
 {
-    return 0;
+    int32_t i;
+    for (i = 0; i < MAX_RTC_FILES; ++i) {
+        if (rtc_files[i] == NULL) {
+            rtc_files[i] = file;
+            return 0;
+        }
+    }
+
+    /* Too many RTC files open :-( */
+    return -1;
 }
 
 /*
@@ -134,12 +144,23 @@ rtc_open(const uint8_t *filename, file_obj_t *file)
 int32_t
 rtc_read(file_obj_t *file, void *buf, int32_t nbytes)
 {
-    /* Wait for the interrupt handler to set this flag to 0 */
-    waiting_interrupt = 1;
+    /*
+     * Wait for the interrupt handler to set this flag to 0.
+     * Note that we're reusing the file offset field for this.
+     * It's lazy, but it's compact and we don't have any other
+     * uses for the field ;-)
+     *
+     * Note that this flag must be volatile, otherwise the
+     * loop will be optimized to an infinite loop.
+     */
+    volatile uint32_t *waiting_interrupt = &file->offset;
+    *waiting_interrupt = 1;
+
     uint32_t flags;
     sti_and_save(flags);
-    while (waiting_interrupt);
+    while (*waiting_interrupt);
     restore_flags(flags);
+
     return 0;
 }
 
@@ -163,7 +184,7 @@ rtc_write(file_obj_t *file, const void *buf, int32_t nbytes)
     }
 
     /* Read the frequency */
-    if (copy_from_user(&freq, buf, 4) < 4) {
+    if (copy_from_user(&freq, buf, sizeof(int32_t)) < sizeof(int32_t)) {
         return -1;
     }
 
@@ -171,14 +192,23 @@ rtc_write(file_obj_t *file, const void *buf, int32_t nbytes)
 }
 
 /*
- * Close syscall for RTC. Does nothing.
- *
- * file - ignored
+ * Close syscall for RTC. Removes the file from the internal
+ * file tracker.
  */
 int32_t
 rtc_close(file_obj_t *file)
 {
-    return 0;
+    int32_t i;
+    for (i = 0; i < MAX_RTC_FILES; ++i) {
+        if (rtc_files[i] == file) {
+            rtc_files[i] = NULL;
+            return 0;
+        }
+    }
+
+    /* WTF, the file wasn't open? */
+    ASSERT(0);
+    return -1;
 }
 
 /* Initializes the RTC and enables interrupts */

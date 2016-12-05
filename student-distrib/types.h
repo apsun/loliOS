@@ -21,8 +21,8 @@ typedef char int8_t;
 typedef unsigned char uint8_t;
 
 typedef int bool;
-#define false (0)
-#define true (!0)
+#define false 0
+#define true 1
 
 #endif /* ASM */
 
