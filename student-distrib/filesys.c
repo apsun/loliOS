@@ -22,7 +22,7 @@ static void fs_copy_within_block(data_block_t* data_block, uint32_t offset, uint
 static int32_t fs_cmp_fname(const uint8_t* tgt_fname, const uint8_t* src_fname);
 
 
-/* save the starting address of the file system */
+/* Saves the starting address of the file system */
 void
 filesys_init(void* boot_block_addr)
 {

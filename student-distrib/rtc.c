@@ -2,6 +2,7 @@
 #include "irq.h"
 #include "lib.h"
 #include "debug.h"
+#include "file.h"
 #include "process.h"
 
 /*

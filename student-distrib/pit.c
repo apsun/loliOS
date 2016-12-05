@@ -20,14 +20,14 @@ handle_pit_irq(void)
 }
 
 /*
- * Sets the frequency for the Programmable Interval Timer
+ * Sets the frequency for the programmable interval timer
  */
 static void
 pit_set_frequency(uint32_t freq)
 {
     uint16_t divisor;
 
-    /* Ensure freqency does not exceed boundry */
+    /* Ensure frequency does not exceed bounds */
     if (freq < LOWEST_FREQ) {
         freq = LOWEST_FREQ;
     } else if (freq > HIGHEST_FREQ) {
@@ -36,7 +36,7 @@ pit_set_frequency(uint32_t freq)
 
     /*
      * If frequency is lowest frequency, set reload value to 0
-     * zero can be used to specify a divisor of 2^16 = 65536
+     * Zero can be used to specify a divisor of 2^16 = 65536
      */
     divisor = (freq == LOWEST_FREQ) ? 0 : (HIGHEST_FREQ / freq);
 
@@ -55,7 +55,7 @@ pit_set_frequency(uint32_t freq)
 }
 
 /*
- * Initializes the Programmable Interval Timer
+ * Initializes the programmable interval timer
  *
  * Note: must initialize PIT before enabling IF flag
  */

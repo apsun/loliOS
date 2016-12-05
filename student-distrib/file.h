@@ -26,7 +26,8 @@ typedef struct {
      * For directories, this is the *index* of the next
      * file when enumerating. For files, this is the
      * *offset in bytes* of the current file position.
-     * For all other types, this is unused.
+     * For the RTC, this holds 1 when the process is
+     * waiting for a clock tick.
      */
     uint32_t offset;
 
