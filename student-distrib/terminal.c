@@ -489,7 +489,8 @@ handle_char_input(uint8_t c)
     if (c == '\b' && input_buf->count > 0 && term->cursor.logical_x > 0) {
         input_buf->count--;
         terminal_putc_impl(term, c);
-    } else if (c != '\b' && input_buf->count < TERMINAL_BUF_SIZE) {
+    } else if ((c != '\b' && input_buf->count < TERMINAL_BUF_SIZE - 1) ||
+               (c == '\n' && input_buf->count < TERMINAL_BUF_SIZE)) {
         input_buf->buf[input_buf->count++] = c;
         terminal_putc_impl(term, c);
     }

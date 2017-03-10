@@ -129,6 +129,9 @@ rtc_open(const uint8_t *filename, file_obj_t *file)
     int32_t i;
     for (i = 0; i < MAX_RTC_FILES; ++i) {
         if (rtc_files[i] == NULL) {
+            /* RTC frequency should be set to 2 when opened */
+            rtc_set_frequency(2);
+            
             rtc_files[i] = file;
             return 0;
         }
