@@ -245,9 +245,7 @@ static uint32_t
 get_kernel_base_esp(pcb_t *pcb)
 {
     /*
-     * ESP0 points to bottom of the process kernel stack,
-     * which is the same as the start of the process data of
-     * the next process.
+     * ESP0 points to bottom of the process kernel stack.
      *
      * (lower addresses)
      * |---------|
@@ -258,7 +256,9 @@ get_kernel_base_esp(pcb_t *pcb)
      * |   ...   |
      * (higher addresses)
      */
-    return (uint32_t)&process_data[pcb->pid + 1];
+    uint32_t stack_start = (uint32_t)process_data[pcb->pid].kernel_stack;
+    uint32_t stack_size = sizeof(process_data[pcb->pid].kernel_stack);
+    return stack_start + stack_size;
 }
 
 /*
@@ -315,11 +315,12 @@ process_run_impl(pcb_t *pcb)
     asm volatile(
                  /* Segment registers */
                  "movw %1, %%ax;"
+                 "movw %%ax, %%ds;"
                  "movw %%ax, %%es;"
                  "movw %%ax, %%fs;"
                  "movw %%ax, %%gs;"
 
-                 /* DS register */
+                 /* SS register */
                  "pushl %1;"
 
                  /* ESP */
@@ -351,9 +352,9 @@ process_run_impl(pcb_t *pcb)
 
                  : /* No outputs */
                  : "r"(pcb->user_eip),
-                   "g"(USER_DS),
-                   "g"(USER_PAGE_END),
-                   "g"(USER_CS)
+                   "i"(USER_DS),
+                   "i"(USER_PAGE_END),
+                   "i"(USER_CS)
                  : "eax", "cc");
 
     /* Can't touch this */
