@@ -71,7 +71,7 @@ handle_exception(int_regs_t *regs)
 {
     /* If we were in userspace, kill the program responsible */
     if (regs->cs == USER_CS) {
-        debugf("Userspace exception occurred\n");
+        printf("Userspace exception: %s\n", exc_info_table[regs->int_num].desc);
 
         /* 256 = exception occurred */
         process_halt_impl(256);

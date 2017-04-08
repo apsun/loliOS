@@ -1,5 +1,6 @@
 #define ASM 1
 #include "idt.h"
+#include "x86_desc.h"
 
 /* Interrupt handler thunk without error code */
 #define MAKE_THUNK(code, name)                   \
@@ -86,6 +87,13 @@ idt_handle_common_thunk:
     pushl %eax
     movl %cr0, %eax
     pushl %eax
+
+    /* Switch to kernel data segment */
+    movw $KERNEL_DS, %ax
+    movw %ax, %ds
+    movw %ax, %es
+    movw %ax, %fs
+    movw %ax, %gs
 
     /* Call the actual interrupt handler routine */
     pushl %esp
