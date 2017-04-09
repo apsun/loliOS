@@ -6,12 +6,11 @@
 #include "terminal.h"
 
 /*
-* void clear(void);
-*   Inputs: void
-*   Return Value: none
-*   Function: Clears video memory
-*/
-
+ * void clear(void);
+ *   Inputs: void
+ *   Return Value: none
+ *   Function: Clears video memory
+ */
 void
 clear(void)
 {
@@ -35,7 +34,7 @@ clear(void)
  *       the beginning), but I think it's more flexible this way.
  *       Also note: %x is the only conversion specifier that can use
  *       the "#" modifier to alter output.
- * */
+ */
 int32_t
 printf(int8_t *format, ...)
 {
@@ -148,12 +147,11 @@ format_char_switch:
 }
 
 /*
-* int32_t puts(int8_t* s);
-*   Inputs: int_8* s = pointer to a string of characters
-*   Return Value: Number of bytes written
-*   Function: Output a string to the console
-*/
-
+ * int32_t puts(int8_t* s);
+ *   Inputs: int_8* s = pointer to a string of characters
+ *   Return Value: Number of bytes written
+ *   Function: Output a string to the console
+ */
 int32_t
 puts(int8_t* s)
 {
@@ -167,12 +165,11 @@ puts(int8_t* s)
 }
 
 /*
-* void putc(uint8_t c);
-*   Inputs: uint_8* c = character to print
-*   Return Value: void
-*   Function: Output a character to the console
-*/
-
+ * void putc(uint8_t c);
+ *   Inputs: uint_8* c = character to print
+ *   Return Value: void
+ *   Function: Output a character to the console
+ */
 void
 putc(uint8_t c)
 {
@@ -218,14 +215,13 @@ atoi_s(const int8_t *str, int32_t *out_result)
 }
 
 /*
-* int8_t* itoa(uint32_t value, int8_t* buf, int32_t radix);
-*   Inputs: uint32_t value = number to convert
-*           int8_t* buf = allocated buffer to place string in
-*           int32_t radix = base system. hex, oct, dec, etc.
-*   Return Value: number of bytes written
-*   Function: Convert a number to its ASCII representation, with base "radix"
-*/
-
+ * int8_t* itoa(uint32_t value, int8_t* buf, int32_t radix);
+ *   Inputs: uint32_t value = number to convert
+ *           int8_t* buf = allocated buffer to place string in
+ *           int32_t radix = base system. hex, oct, dec, etc.
+ *   Return Value: number of bytes written
+ *   Function: Convert a number to its ASCII representation, with base "radix"
+ */
 int8_t*
 itoa(uint32_t value, int8_t* buf, int32_t radix)
 {
@@ -262,12 +258,11 @@ itoa(uint32_t value, int8_t* buf, int32_t radix)
 }
 
 /*
-* int8_t* strrev(int8_t* s);
-*   Inputs: int8_t* s = string to reverse
-*   Return Value: reversed string
-*   Function: reverses a string s
-*/
-
+ * int8_t* strrev(int8_t* s);
+ *   Inputs: int8_t* s = string to reverse
+ *   Return Value: reversed string
+ *   Function: reverses a string s
+ */
 int8_t*
 strrev(int8_t* s)
 {
@@ -287,12 +282,11 @@ strrev(int8_t* s)
 }
 
 /*
-* uint32_t strlen(const int8_t* s);
-*   Inputs: const int8_t* s = string to take length of
-*   Return Value: length of string s
-*   Function: return length of string s
-*/
-
+ * uint32_t strlen(const int8_t* s);
+ *   Inputs: const int8_t* s = string to take length of
+ *   Return Value: length of string s
+ *   Function: return length of string s
+ */
 uint32_t
 strlen(const int8_t* s)
 {
@@ -304,14 +298,13 @@ strlen(const int8_t* s)
 }
 
 /*
-* void* memset(void* s, int32_t c, uint32_t n);
-*   Inputs: void* s = pointer to memory
-*           int32_t c = value to set memory to
-*           uint32_t n = number of bytes to set
-*   Return Value: new string
-*   Function: set n consecutive bytes of pointer s to value c
-*/
-
+ * void* memset(void* s, int32_t c, uint32_t n);
+ *   Inputs: void* s = pointer to memory
+ *           int32_t c = value to set memory to
+ *           uint32_t n = number of bytes to set
+ *   Return Value: new string
+ *   Function: set n consecutive bytes of pointer s to value c
+ */
 void*
 memset(void* s, int32_t c, uint32_t n)
 {
@@ -352,15 +345,13 @@ memset(void* s, int32_t c, uint32_t n)
 }
 
 /*
-* void* memset_word(void* s, int32_t c, uint32_t n);
-*   Inputs: void* s = pointer to memory
-*           int32_t c = value to set memory to
-*           uint32_t n = number of bytes to set
-*   Return Value: new string
-*   Function: set lower 16 bits of n consecutive memory locations of pointer s to value c
-*/
-
-/* Optimized memset_word */
+ * void* memset_word(void* s, int32_t c, uint32_t n);
+ *   Inputs: void* s = pointer to memory
+ *           int32_t c = value to set memory to
+ *           uint32_t n = number of bytes to set
+ *   Return Value: new string
+ *   Function: set lower 16 bits of n consecutive memory locations of pointer s to value c
+ */
 void*
 memset_word(void* s, int32_t c, uint32_t n)
 {
@@ -379,14 +370,13 @@ memset_word(void* s, int32_t c, uint32_t n)
 }
 
 /*
-* void* memset_dword(void* s, int32_t c, uint32_t n);
-*   Inputs: void* s = pointer to memory
-*           int32_t c = value to set memory to
-*           uint32_t n = number of bytes to set
-*   Return Value: new string
-*   Function: set n consecutive memory locations of pointer s to value c
-*/
-
+ * void* memset_dword(void* s, int32_t c, uint32_t n);
+ *   Inputs: void* s = pointer to memory
+ *           int32_t c = value to set memory to
+ *           uint32_t n = number of bytes to set
+ *   Return Value: new string
+ *   Function: set n consecutive memory locations of pointer s to value c
+ */
 void*
 memset_dword(void* s, int32_t c, uint32_t n)
 {
@@ -405,14 +395,13 @@ memset_dword(void* s, int32_t c, uint32_t n)
 }
 
 /*
-* void* memcpy(void* dest, const void* src, uint32_t n);
-*   Inputs: void* dest = destination of copy
-*           const void* src = source of copy
-*           uint32_t n = number of byets to copy
-*   Return Value: pointer to dest
-*   Function: copy n bytes of src to dest
-*/
-
+ * void* memcpy(void* dest, const void* src, uint32_t n);
+ *   Inputs: void* dest = destination of copy
+ *           const void* src = source of copy
+ *           uint32_t n = number of byets to copy
+ *   Return Value: pointer to dest
+ *   Function: copy n bytes of src to dest
+ */
 void*
 memcpy(void* dest, const void* src, uint32_t n)
 {
@@ -456,15 +445,13 @@ memcpy(void* dest, const void* src, uint32_t n)
 }
 
 /*
-* void* memmove(void* dest, const void* src, uint32_t n);
-*   Inputs: void* dest = destination of move
-*           const void* src = source of move
-*           uint32_t n = number of byets to move
-*   Return Value: pointer to dest
-*   Function: move n bytes of src to dest
-*/
-
-/* Optimized memmove (used for overlapping memory areas) */
+ * void* memmove(void* dest, const void* src, uint32_t n);
+ *   Inputs: void* dest = destination of move
+ *           const void* src = source of move
+ *           uint32_t n = number of byets to move
+ *   Return Value: pointer to dest
+ *   Function: move n bytes of src to dest
+ */
 void*
 memmove(void* dest, const void* src, uint32_t n)
 {
@@ -489,19 +476,18 @@ memmove(void* dest, const void* src, uint32_t n)
 }
 
 /*
-* int32_t strncmp(const int8_t* s1, const int8_t* s2, uint32_t n)
-*   Inputs: const int8_t* s1 = first string to compare
-*           const int8_t* s2 = second string to compare
-*           uint32_t n = number of bytes to compare
-*   Return Value: A zero value indicates that the characters compared
-*                   in both strings form the same string.
-*               A value greater than zero indicates that the first
-*                   character that does not match has a greater value
-*                   in str1 than in str2; And a value less than zero
-*                   indicates the opposite.
-*   Function: compares string 1 and string 2 for equality
-*/
-
+ * int32_t strncmp(const int8_t* s1, const int8_t* s2, uint32_t n)
+ *   Inputs: const int8_t* s1 = first string to compare
+ *           const int8_t* s2 = second string to compare
+ *           uint32_t n = number of bytes to compare
+ *   Return Value: A zero value indicates that the characters compared
+ *                   in both strings form the same string.
+ *               A value greater than zero indicates that the first
+ *                   character that does not match has a greater value
+ *                   in str1 than in str2; And a value less than zero
+ *                   indicates the opposite.
+ *   Function: compares string 1 and string 2 for equality
+ */
 int32_t
 strncmp(const int8_t* s1, const int8_t* s2, uint32_t n)
 {
@@ -545,13 +531,12 @@ strcmp(const int8_t *s1, const int8_t *s2)
 }
 
 /*
-* int8_t* strcpy(int8_t* dest, const int8_t* src)
-*   Inputs: int8_t* dest = destination string of copy
-*           const int8_t* src = source string of copy
-*   Return Value: pointer to dest
-*   Function: copy the source string into the destination string
-*/
-
+ * int8_t* strcpy(int8_t* dest, const int8_t* src)
+ *   Inputs: int8_t* dest = destination string of copy
+ *           const int8_t* src = source string of copy
+ *   Return Value: pointer to dest
+ *   Function: copy the source string into the destination string
+ */
 int8_t*
 strcpy(int8_t* dest, const int8_t* src)
 {
@@ -566,14 +551,13 @@ strcpy(int8_t* dest, const int8_t* src)
 }
 
 /*
-* int8_t* strcpy(int8_t* dest, const int8_t* src, uint32_t n)
-*   Inputs: int8_t* dest = destination string of copy
-*           const int8_t* src = source string of copy
-*           uint32_t n = number of bytes to copy
-*   Return Value: pointer to dest
-*   Function: copy n bytes of the source string into the destination string
+ * int8_t* strcpy(int8_t* dest, const int8_t* src, uint32_t n)
+ *   Inputs: int8_t* dest = destination string of copy
+ *           const int8_t* src = source string of copy
+ *           uint32_t n = number of bytes to copy
+ *   Return Value: pointer to dest
+ *   Function: copy n bytes of the source string into the destination string
 */
-
 int8_t*
 strncpy(int8_t* dest, const int8_t* src, uint32_t n)
 {
@@ -620,14 +604,21 @@ is_user_readable(const void *user_buf, int32_t n)
         return false;
     }
 
+    uint32_t start = (uint32_t)user_buf;
+    uint32_t end = start + (uint32_t)n;
+
+    /* Check for integer overflow */
+    if (end < start) {
+        return false;
+    }
+
     /*
      * Buffer must start and end inside the user page.
      * This is kind of a hacky way to determine whether the
      * buffer is valid, but the only other alternative is
      * EAFP which is much worse.
      */
-    if ((uint32_t)(user_buf) < USER_PAGE_START ||
-        (uint32_t)(user_buf + n) >= USER_PAGE_END) {
+    if (start < USER_PAGE_START || end >= USER_PAGE_END) {
         return false;
     }
 
