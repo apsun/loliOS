@@ -124,6 +124,8 @@ keycode_to_ctrl(uint8_t keycode)
         switch (keycode) {
         case KC_L: /* CTRL-L */
             return KCTL_CLEAR;
+        case KC_C: /* CTRL-C */
+            return KCTL_INTERRUPT;
         }
         break;
     case KMOD_ALT:

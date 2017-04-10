@@ -60,6 +60,25 @@ get_executing_pcb(void)
 }
 
 /*
+ * Gets the PCB of the currently executing process
+ * in the specified terminal.
+ */
+pcb_t *
+get_pcb_by_terminal(int32_t terminal)
+{
+    int32_t i;
+    for (i = 0; i < MAX_PROCESSES; ++i) {
+        pcb_t *pcb = &process_info[i];
+        if (pcb->pid >= 0 &&                /* Valid? */
+            pcb->terminal == terminal &&    /* Same terminal? */
+            pcb->status != PROCESS_SLEEP) { /* Running? */
+            return pcb;
+        }
+    }
+    return NULL;
+}
+
+/*
  * Finds the next process that is scheduled for execution. If
  * there are no other process that can be executed, returns the
  * current process.
@@ -71,10 +90,11 @@ get_next_pcb(void)
     int32_t i;
     for (i = 1; i < MAX_PROCESSES; ++i) {
         int32_t pid = (curr_pcb->pid + i) % MAX_PROCESSES;
-        if (process_info[pid].pid >= 0) {
-            int32_t status = process_info[pid].status;
+        pcb_t *pcb = &process_info[pid];
+        if (pcb->pid >= 0) {
+            int32_t status = pcb->status;
             if (status == PROCESS_RUN || status == PROCESS_SCHED) {
-                return &process_info[pid];
+                return pcb;
             }
         }
     }
@@ -426,6 +446,7 @@ process_create_child(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
     /* Common initialization */
     child_pcb->status = PROCESS_SCHED;
     child_pcb->vidmap = false;
+    child_pcb->kill = false;
     file_init(child_pcb->files);
     strncpy((int8_t *)child_pcb->args, (const int8_t *)args, MAX_ARGS_LEN);
 
@@ -593,8 +614,8 @@ process_switch_impl(void)
         asm volatile("movl %0, %%esp;"
                      "movl %1, %%ebp;"
                      :
-                     : "g"(next->kernel_esp),
-                       "g"(next->kernel_ebp));
+                     : "r"(next->kernel_esp),
+                       "r"(next->kernel_ebp));
     }
 }
 
@@ -609,6 +630,11 @@ process_switch(void)
                  :
                  :
                  : "eax", "ebx", "ecx", "edx", "esi", "edi", "cc");
+
+    /* TODO: replace with signal handlers */
+    if (get_executing_pcb()->kill) {
+        process_halt_impl(130);
+    }
 }
 
 /* halt() syscall handler */

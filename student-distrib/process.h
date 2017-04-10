@@ -95,6 +95,12 @@ typedef struct {
     bool vidmap;
 
     /*
+     * Whether this process has been marked for termination.
+     * TODO: Replace with signals
+     */
+    bool kill;
+
+    /*
      * Array of file objects for this process.
      */
     file_obj_t files[MAX_FILES];
@@ -114,6 +120,9 @@ typedef struct {
 
 /* Gets the PCB of the currently executing process */
 pcb_t *get_executing_pcb(void);
+
+/* Gets the PCB of the process running in the specified terminal */
+pcb_t *get_pcb_by_terminal(int32_t terminal);
 
 /* Syscall delegate functions */
 int32_t process_halt_impl(uint32_t status);

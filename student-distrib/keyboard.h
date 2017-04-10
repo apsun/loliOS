@@ -12,6 +12,7 @@
 #define KC_LALT      0x38
 #define KC_RALT      0x64
 #define KC_CAPS_LOCK 0x3A
+#define KC_C         0x2E
 #define KC_L         0x26
 #define KC_F1        0x3B
 #define KC_F2        0x3C
@@ -59,6 +60,7 @@ typedef enum {
 typedef enum {
     KCTL_NONE,      /* Invalid control sequence */
     KCTL_CLEAR,     /* Clear the current terminal */
+    KCTL_INTERRUPT, /* Send interrupt signal */
     KCTL_TERM1,     /* Switch to terminal 1 */
     KCTL_TERM2,     /* Switch to terminal 2 */
     KCTL_TERM3,     /* Switch to terminal 3 */
