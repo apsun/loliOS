@@ -36,7 +36,35 @@
  */
 #define PROCESS_SCHED 2
 
+/* Number of supported signals */
+#define NUM_SIGNALS 5
+
+/* Signal numbers */
+#define SIG_DIV_ZERO  0
+#define SIG_SEGFAULT  1
+#define SIG_INTERRUPT 2
+#define SIG_ALARM     3
+#define SIG_USER1     4
+
 #ifndef ASM
+
+typedef struct {
+    /*
+     * Userspace address of the signal handler. Equal
+     * to 0 if no handler has been set.
+     */
+    uint32_t handler_addr;
+
+    /*
+     * Whether this signal is currently masked.
+     */
+    bool masked;
+
+    /*
+     * Whether this signal is scheduled for delivery.
+     */
+    bool pending;
+} signal_info_t;
 
 /*
  * Process control block structure
@@ -95,10 +123,9 @@ typedef struct {
     bool vidmap;
 
     /*
-     * Whether this process has been marked for termination.
-     * TODO: Replace with signals
+     * Signal handler and status array.
      */
-    bool kill;
+    signal_info_t signals[NUM_SIGNALS];
 
     /*
      * Array of file objects for this process.
@@ -121,25 +148,31 @@ typedef struct {
 /* Gets the PCB of the currently executing process */
 pcb_t *get_executing_pcb(void);
 
-/* Gets the PCB of the process running in the specified terminal */
+/* Gets the PCB of the process currently running in the specified terminal */
 pcb_t *get_pcb_by_terminal(int32_t terminal);
-
-/* Syscall delegate functions */
-int32_t process_halt_impl(uint32_t status);
-int32_t process_execute_impl(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal);
-int32_t process_run(pcb_t *pcb);
 
 /* Process syscall handlers */
 __cdecl int32_t process_halt(uint32_t status);
 __cdecl int32_t process_execute(const uint8_t *command);
 __cdecl int32_t process_getargs(uint8_t *buf, int32_t nbytes);
 __cdecl int32_t process_vidmap(uint8_t **screen_start);
+__cdecl int32_t process_set_handler(int32_t signum, uint32_t handler_address);
+__cdecl int32_t process_sigreturn(int32_t signum, int_regs_t *user_regs, uint32_t, int_regs_t *kernel_regs);
 
 /* Initializes processes. */
 void process_init(void);
 
 /* Switches to the next scheduled process */
 void process_switch(void);
+
+/* Handles any pending signals */
+void process_handle_signals(int_regs_t *regs);
+
+/* Handles a userspace exception */
+void process_user_exception(uint32_t int_num);
+
+/* Handles CTRL-C input */
+void process_interrupt(int32_t terminal);
 
 /* Starts the shell. This must only be called after all kernel init has completed. */
 void process_start_shell(void);

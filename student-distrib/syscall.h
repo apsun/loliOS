@@ -2,6 +2,7 @@
 #define _SYSCALL_H
 
 #include "types.h"
+#include "idt.h"
 
 #define NUM_SYSCALL     10
 
@@ -19,8 +20,11 @@
 #ifndef ASM
 
 #define __cdecl __attribute__((cdecl))
+#define __unused __attribute__((unused))
+#define __user
 
-__cdecl int32_t syscall_handle(uint32_t a, uint32_t b, uint32_t c, uint32_t num);
+__cdecl int32_t
+syscall_handle(uint32_t a, uint32_t b, uint32_t c, int_regs_t *regs, uint32_t num);
 
 #endif /* ASM */
 

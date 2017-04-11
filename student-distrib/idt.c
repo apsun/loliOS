@@ -69,15 +69,11 @@ dump_registers(int_regs_t *regs)
 static void
 handle_exception(int_regs_t *regs)
 {
-    /* If we were in userspace, kill the program responsible */
+    /* If we were in userspace, run signal handler or kill the process */
     if (regs->cs == USER_CS) {
         debugf("Userspace exception: %s\n", exc_info_table[regs->int_num].desc);
-
-        /* 256 = exception occurred */
-        process_halt_impl(256);
-
-        /* halt() should never return */
-        ASSERT(0);
+        process_user_exception(regs->int_num);
+        return;
     }
 
     clear();
@@ -102,7 +98,7 @@ static void
 handle_syscall(int_regs_t *regs)
 {
     debugf("Syscall: %d\n", regs->eax);
-    regs->eax = syscall_handle(regs->ebx, regs->ecx, regs->edx, regs->eax);
+    regs->eax = syscall_handle(regs->ebx, regs->ecx, regs->edx, regs, regs->eax);
     debugf("Return value: 0x%#x\n", regs->eax);
 }
 
@@ -122,6 +118,16 @@ idt_handle_interrupt(int_regs_t *regs)
         handle_syscall(regs);
     } else {
         debugf("Unknown interrupt: %d\n", regs->int_num);
+    }
+
+    /*
+     * If process has any pending signals, run their handlers.
+     * Note that since we have security checks inside sigreturn,
+     * we only do this if we came from userspace, since that's
+     * the only place we can safely return to after sigreturn.
+     */
+    if (regs->cs == USER_CS) {
+        process_handle_signals(regs);
     }
 }
 

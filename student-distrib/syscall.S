@@ -26,7 +26,7 @@ syscall_jump_table:
 .text
 
 /*
- * int32_t syscall_handle(uint32_t a, uint32_t b, uint32_t c, uint32_t num)
+ * int32_t syscall_handle(uint32_t a, uint32_t b, uint32_t c, int_regs_t *regs, uint32_t num)
  *
  * DO NOT CHANGE THE PARAMETER ORDER, this function (ab)uses cdecl to
  * skip a call instruction, which relies on a, b, c being at the top
@@ -35,11 +35,12 @@ syscall_jump_table:
  * a == ebx
  * b == ecx
  * c == edx
+ * regs == all registers
  * num == eax
  */
 .globl syscall_handle
 syscall_handle:
-    movl 16(%esp), %eax
+    movl 20(%esp), %eax
     decl %eax
     cmpl $NUM_SYSCALL, %eax
     jae syscall_handle_invalid

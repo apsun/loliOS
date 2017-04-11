@@ -304,8 +304,7 @@ process_set_context(pcb_t *to)
  * value being placed into EAX, not by this function, but by
  * process_halt_impl.
  */
-__attribute__((unused))
-__cdecl static int32_t
+__unused __cdecl static int32_t
 process_run_impl(pcb_t *pcb)
 {
     ASSERT(pcb != NULL);
@@ -386,7 +385,7 @@ process_run_impl(pcb_t *pcb)
  * Wrapper function for process_run_impl that takes care of clobbering
  * the appropriate registers.
  */
-int32_t
+static int32_t
 process_run(pcb_t *pcb)
 {
     /*
@@ -403,6 +402,17 @@ process_run(pcb_t *pcb)
                  : "g"(pcb)
                  : "ebx", "ecx", "edx", "esi", "edi", "cc");
     return ret;
+}
+
+static void
+process_init_signals(signal_info_t *signals)
+{
+    int32_t i;
+    for (i = 0; i < NUM_SIGNALS; ++i) {
+        signals[i].handler_addr = 0;
+        signals[i].masked = false;
+        signals[i].pending = false;
+    }
 }
 
 /*
@@ -446,7 +456,7 @@ process_create_child(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
     /* Common initialization */
     child_pcb->status = PROCESS_SCHED;
     child_pcb->vidmap = false;
-    child_pcb->kill = false;
+    process_init_signals(child_pcb->signals);
     file_init(child_pcb->files);
     strncpy((int8_t *)child_pcb->args, (const int8_t *)args, MAX_ARGS_LEN);
 
@@ -469,7 +479,7 @@ process_create_child(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
  * The terminal argument specifies which terminal to spawn
  * the process on if there is no parent.
  */
-int32_t
+static int32_t
 process_execute_impl(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal)
 {
     /* Create the child process */
@@ -511,7 +521,7 @@ process_execute(const uint8_t *command)
  *
  * Unlike process_halt(), the status is not truncated to 1 byte.
  */
-int32_t
+static int32_t
 process_halt_impl(uint32_t status)
 {
     /* This is the PCB of the child (halting) process */
@@ -571,8 +581,7 @@ process_halt_impl(uint32_t status)
 /*
  * Switches execution to the next scheduled process.
  */
-__attribute__((unused))
-__cdecl static void
+__unused __cdecl static void
 process_switch_impl(void)
 {
     pcb_t *curr = get_executing_pcb();
@@ -630,11 +639,95 @@ process_switch(void)
                  :
                  :
                  : "eax", "ebx", "ecx", "edx", "esi", "edi", "cc");
+}
 
-    /* TODO: replace with signal handlers */
-    if (get_executing_pcb()->kill) {
-        process_halt_impl(130);
+/*
+ * Pushes the signal handler context onto the user stack
+ * and modifies the register context to start execution
+ * at the signal handler.
+ */
+static void
+process_run_signal_handler(signal_info_t *sig, int_regs_t *regs)
+{
+    /* TODO */
+}
+
+/*
+ * If the currently executing process has any pending
+ * signals, modifies the IRET context and user stack to run the
+ * signal handler.
+ */
+void
+process_handle_signals(int_regs_t *regs)
+{
+    pcb_t *pcb = get_executing_pcb();
+
+    printf("x");
+    int32_t i;
+    for (i = 0; i < NUM_SIGNALS; ++i) {
+        signal_info_t *sig = &pcb->signals[i];
+        if (sig->handler_addr != 0 && sig->pending && !sig->masked) {
+            process_run_signal_handler(sig, regs);
+            return;
+        }
     }
+}
+
+/*
+ * Handles an exception that occurred in userspace.
+ * If a signal handler is available, will cause that to
+ * be executed. Otherwise, kills the process.
+ */
+void
+process_user_exception(uint32_t int_num)
+{
+    pcb_t *pcb = get_executing_pcb();
+
+    /* Get appropriate signal handler for this exception */
+    signal_info_t *sig;
+    if (int_num == EXC_DE) {
+        /* Special handler for divide by zero */
+        sig = &pcb->signals[SIG_DIV_ZERO];
+    } else {
+        /* All other exceptions raise segfault */
+        sig = &pcb->signals[SIG_SEGFAULT];
+    }
+
+    /* If no handler or the signal is masked, just kill the process */
+    if (sig->handler_addr == 0 || sig->masked) {
+        /* 256 = exception occurred */
+        process_halt_impl(256);
+
+        /* halt() should never return */
+        ASSERT(0);
+    }
+
+    /* Schedule signal handler for execution */
+    sig->pending = true;
+}
+
+void
+process_interrupt(int32_t terminal)
+{
+    pcb_t *pcb = get_pcb_by_terminal(terminal);
+    if (pcb == NULL) {
+        debugf("No process running in terminal %d\n", terminal);
+        return;
+    }
+
+    signal_info_t *sig = &pcb->signals[SIG_INTERRUPT];
+
+    /* Kill the process if no SIGINT handler or it's already running */
+    if (sig->handler_addr == 0 || sig->masked) {
+        /* 130 = killed by SIGINT */
+        process_halt_impl(130);
+
+        /* halt() should never return */
+        ASSERT(0);
+    }
+
+    /* Schedule signal handler for execution */
+    sig->pending = true;
 }
 
 /* halt() syscall handler */
@@ -701,18 +794,59 @@ process_vidmap(uint8_t **screen_start)
 
 /* set_handler() syscall handler */
 __cdecl int32_t
-process_set_handler(int32_t signum, void *handler_address)
+process_set_handler(int32_t signum, uint32_t handler_address)
 {
-    /* Not yet implemented */
-    return -1;
+    printf("set_handler\n");
+    /* Check signal number range */
+    if (signum < 0 || signum >= NUM_SIGNALS) {
+        return -1;
+    }
+
+    pcb_t *pcb = get_executing_pcb();
+    pcb->signals[signum].handler_addr = handler_address;
+    return 0;
 }
 
 /* sigreturn() syscall handler */
 __cdecl int32_t
-process_sigreturn(void)
+process_sigreturn(
+    int32_t signum,
+    int_regs_t *user_regs,
+    __unused uint32_t c,
+    int_regs_t *kernel_regs)
 {
-    /* Not yet implemented */
-    return -1;
+    /* Check signal number range */
+    if (signum < 0 || signum >= NUM_SIGNALS) {
+        return -1;
+    }
+
+    /* Check saved register context */
+    if (!is_user_readable(user_regs, sizeof(int_regs_t))) {
+        return -1;
+    }
+
+    /* You try to do kernel privilege exploit? Nein! */
+    if (user_regs->cs != USER_CS) {
+        debugf("sigreturn CS does not equal USER_CS\n");
+        return -1;
+    }
+
+    /* Ignore privileged EFLAGS bits (emulate POPFL behavior) */
+    /* http://stackoverflow.com/a/39195843 */
+    uint32_t kernel_eflags = kernel_regs->eflags & ~0xDD5;
+    uint32_t user_eflags = user_regs->eflags & 0xDD5;
+
+    /* Copy user context to kernel interrupt context */
+    *kernel_regs = *user_regs;
+
+    /* Restore EFLAGS to a safe value */
+    kernel_regs->eflags = kernel_eflags | user_eflags;
+
+    /*
+     * Interrupt handler overwrites EAX with the return value,
+     * so we just return EAX so it will get set to itself.
+     */
+    return kernel_regs->eax;
 }
 
 /* Initializes all process control related data */

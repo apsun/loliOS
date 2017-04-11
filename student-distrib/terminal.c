@@ -49,16 +49,6 @@ get_display_terminal(void)
 }
 
 /*
- * Returns the process running in the terminal that is
- * currently displayed on the screen.
- */
-static pcb_t *
-get_display_process(void)
-{
-    return get_pcb_by_terminal(display_terminal);
-}
-
-/*
  * Sets the contents of a VGA register.
  * index - the register index
  * value - the new contents of the register
@@ -462,17 +452,6 @@ terminal_stdout_read(file_obj_t *file, void *buf, int32_t nbytes)
     return -1;
 }
 
-static void
-interrupt_display_process()
-{
-    pcb_t *pcb = get_display_process();
-    if (pcb != NULL) {
-        pcb->kill = 1;
-    } else {
-        debugf("No display process\n");
-    }
-}
-
 /* Handles a keyboard control sequence */
 static void
 handle_ctrl_input(kbd_input_ctrl_t ctrl)
@@ -482,7 +461,7 @@ handle_ctrl_input(kbd_input_ctrl_t ctrl)
         terminal_clear();
         break;
     case KCTL_INTERRUPT:
-        interrupt_display_process();
+        process_interrupt(display_terminal);
         break;
     case KCTL_TERM1:
     case KCTL_TERM2:
