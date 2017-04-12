@@ -63,6 +63,10 @@ typedef struct
     uint32_t cr2;
     uint32_t cr3;
     uint32_t cr4;
+    uint16_t ds;
+    uint16_t es;
+    uint16_t fs;
+    uint16_t gs;
     uint32_t eax;
     uint32_t ebx;
     uint32_t ecx;
@@ -70,10 +74,6 @@ typedef struct
     uint32_t esi;
     uint32_t edi;
     uint32_t ebp;
-    uint16_t ds;
-    uint16_t es;
-    uint16_t fs;
-    uint16_t gs;
 
     /* Pushed by per-interrupt idt_handle_* thunk */
     uint32_t int_num;

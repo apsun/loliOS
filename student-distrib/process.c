@@ -91,11 +91,8 @@ get_next_pcb(void)
     for (i = 1; i < MAX_PROCESSES; ++i) {
         int32_t pid = (curr_pcb->pid + i) % MAX_PROCESSES;
         pcb_t *pcb = &process_info[pid];
-        if (pcb->pid >= 0) {
-            int32_t status = pcb->status;
-            if (status == PROCESS_RUN || status == PROCESS_SCHED) {
-                return pcb;
-            }
+        if (pcb->pid >= 0 && pcb->status != PROCESS_SLEEP) {
+            return pcb;
         }
     }
 
@@ -410,14 +407,10 @@ process_init_signals(signal_info_t *signals)
     int32_t i;
     for (i = 0; i < NUM_SIGNALS; ++i) {
         signals[i].signum = i;
-        signals[i].action = SIGACTION_IGNORE;
         signals[i].handler_addr = 0;
         signals[i].masked = false;
         signals[i].pending = false;
     }
-    signals[SIG_DIV_ZERO].action = SIGACTION_KILL;
-    signals[SIG_SEGFAULT].action = SIGACTION_KILL;
-    signals[SIG_INTERRUPT].action = SIGACTION_KILL;
 }
 
 /*
@@ -652,7 +645,7 @@ process_switch(void)
  * at the signal handler.
  */
 static bool
-process_run_signal_handler(signal_info_t *sig, int_regs_t *regs)
+process_deliver_signal(signal_info_t *sig, int_regs_t *regs)
 {
     /* "Shellcode" that calls the sigreturn() syscall */
     uint8_t shellcode[] = {
@@ -742,8 +735,13 @@ process_has_pending_signal(void)
     int32_t i;
     for (i = 0; i < NUM_SIGNALS; ++i) {
         signal_info_t *sig = &pcb->signals[i];
-        if (sig->pending && !sig->masked && sig->action != SIGACTION_IGNORE) {
-            return true;
+        if (sig->pending && !sig->masked) {
+            switch (sig->signum) {
+            case SIG_DIV_ZERO:
+            case SIG_SEGFAULT:
+            case SIG_INTERRUPT:
+                return true;
+            }
         }
     }
     return false;
@@ -751,7 +749,9 @@ process_has_pending_signal(void)
 
 /*
  * Attempts to deliver a signal to the currently
- * executing process. Returns false if 
+ * executing process. Returns true if the signal
+ * was actually delivered or the process was
+ * killed, and false if the signal was ignored.
  */
 bool
 process_handle_signal(signal_info_t *sig, int_regs_t *regs)
@@ -759,7 +759,7 @@ process_handle_signal(signal_info_t *sig, int_regs_t *regs)
     /* If handler is set and signal isn't masked, run it */
     if (sig->handler_addr != 0 && !sig->masked) {
         /* If no more space on stack to push signal context, kill process */
-        if (!process_run_signal_handler(sig, regs)) {
+        if (!process_deliver_signal(sig, regs)) {
             debugf("Failed to push signal context, killing process\n");
             process_halt_impl(256);
         }
@@ -915,7 +915,6 @@ process_set_handler(int32_t signum, uint32_t handler_address)
 
     pcb_t *pcb = get_executing_pcb();
     pcb->signals[signum].handler_addr = handler_address;
-    pcb->signals[signum].action = SIGACTION_CUSTOM;
     return 0;
 }
 
@@ -959,6 +958,14 @@ process_sigreturn(
 
     /* Restore EFLAGS to a safe value */
     kernel_regs->eflags = kernel_eflags | user_eflags;
+
+    /* Reset segment registers (no GPF for you!) */
+    kernel_regs->cs = USER_CS;
+    kernel_regs->ds = USER_DS;
+    kernel_regs->es = USER_DS;
+    kernel_regs->fs = USER_DS;
+    kernel_regs->gs = USER_DS;
+    kernel_regs->ss = USER_DS;
 
     /*
      * Interrupt handler overwrites EAX with the return value,

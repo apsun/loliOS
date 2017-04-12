@@ -66,10 +66,6 @@ idt_handle_common_thunk:
      * ordering in int_regs_t, since the stack is interpreted
      * as an instance of that struct.
      */
-    pushw %gs
-    pushw %fs
-    pushw %es
-    pushw %ds
     pushl %ebp
     pushl %edi
     pushl %esi
@@ -77,6 +73,10 @@ idt_handle_common_thunk:
     pushl %ecx
     pushl %ebx
     pushl %eax
+    pushw %gs
+    pushw %fs
+    pushw %es
+    pushw %ds
 
     /* Also push control registers (read-only) */
     movl %cr4, %eax
@@ -104,6 +104,10 @@ idt_handle_common_thunk:
     addl $16, %esp
 
     /* Restore all registers */
+    popw %ds
+    popw %es
+    popw %fs
+    popw %gs
     popl %eax
     popl %ebx
     popl %ecx
@@ -111,10 +115,6 @@ idt_handle_common_thunk:
     popl %esi
     popl %edi
     popl %ebp
-    popw %ds
-    popw %es
-    popw %fs
-    popw %gs
 
     /* Pop IRQ vector number and error code */
     addl $8, %esp

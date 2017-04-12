@@ -46,13 +46,6 @@
 #define SIG_ALARM     3
 #define SIG_USER1     4
 
-/* Signal actions */
-typedef enum {
-    SIGACTION_CUSTOM,
-    SIGACTION_IGNORE,
-    SIGACTION_KILL,
-} sigaction_t;
-
 #ifndef ASM
 
 typedef struct {
@@ -60,11 +53,6 @@ typedef struct {
      * The number of this signal.
      */
     int32_t signum;
-
-    /*
-     * What to do when this signal is received.
-     */
-    sigaction_t action;
 
     /*
      * Userspace address of the signal handler. Equal
