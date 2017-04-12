@@ -46,9 +46,26 @@
 #define SIG_ALARM     3
 #define SIG_USER1     4
 
+/* Signal actions */
+typedef enum {
+    SIGACTION_CUSTOM,
+    SIGACTION_IGNORE,
+    SIGACTION_KILL,
+} sigaction_t;
+
 #ifndef ASM
 
 typedef struct {
+    /*
+     * The number of this signal.
+     */
+    int32_t signum;
+
+    /*
+     * What to do when this signal is received.
+     */
+    sigaction_t action;
+
     /*
      * Userspace address of the signal handler. Equal
      * to 0 if no handler has been set.
@@ -100,9 +117,9 @@ typedef struct {
     uint32_t kernel_ebp;
 
     /*
-     * User EIP of this process. Used for the initial jump into userspace.
+     * Entry point of this process. Used for the initial jump into userspace.
      */
-    uint32_t user_eip;
+    uint32_t entry_point;
 
     /*
      * Which terminal the process is executing on. Inherited from
@@ -173,6 +190,9 @@ void process_user_exception(uint32_t int_num);
 
 /* Handles CTRL-C input */
 void process_interrupt(int32_t terminal);
+
+/* Returns whether the currently executing process has a pending signal */
+bool process_has_pending_signal(void);
 
 /* Starts the shell. This must only be called after all kernel init has completed. */
 void process_start_shell(void);

@@ -370,7 +370,7 @@ process_run_impl(pcb_t *pcb)
                  "iret;"
 
                  : /* No outputs */
-                 : "r"(pcb->user_eip),
+                 : "r"(pcb->entry_point),
                    "i"(USER_DS),
                    "i"(USER_PAGE_END),
                    "i"(USER_CS)
@@ -409,10 +409,15 @@ process_init_signals(signal_info_t *signals)
 {
     int32_t i;
     for (i = 0; i < NUM_SIGNALS; ++i) {
+        signals[i].signum = i;
+        signals[i].action = SIGACTION_IGNORE;
         signals[i].handler_addr = 0;
         signals[i].masked = false;
         signals[i].pending = false;
     }
+    signals[SIG_DIV_ZERO].action = SIGACTION_KILL;
+    signals[SIG_SEGFAULT].action = SIGACTION_KILL;
+    signals[SIG_INTERRUPT].action = SIGACTION_KILL;
 }
 
 /*
@@ -465,7 +470,7 @@ process_create_child(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
 
     /* Copy our program into physical memory */
     paging_update_process_page(child_pcb->pid);
-    child_pcb->user_eip = process_load_exe(inode);
+    child_pcb->entry_point = process_load_exe(inode);
 
     return child_pcb;
 }
@@ -646,10 +651,138 @@ process_switch(void)
  * and modifies the register context to start execution
  * at the signal handler.
  */
-static void
+static bool
 process_run_signal_handler(signal_info_t *sig, int_regs_t *regs)
 {
-    /* TODO */
+    /* "Shellcode" that calls the sigreturn() syscall */
+    uint8_t shellcode[] = {
+        /* movl $SYS_SIGRETURN, %eax */
+        0xB8, 0xAA, 0xAA, 0xAA, 0xAA,
+
+        /* movl signum, %ebx */
+        0xBB, 0xBB, 0xBB, 0xBB, 0xBB,
+
+        /* movl regs, %ecx */
+        0xB9, 0xCC, 0xCC, 0xCC, 0xCC,
+
+        /* int 0x80 */
+        0xCD, 0x80,
+
+        /* nop (to align stack to 4 bytes) */
+        0x90, 0x90, 0x90,
+    };
+
+    /* Fill in the syscall number */
+    ASSERT((sizeof(shellcode) & 0x3) == 0);
+
+    /* Start "pushing" stuff onto user stack */
+    uint8_t *esp = (uint8_t *)regs->esp;
+
+    /* Push sigreturn linkage onto user stack */
+    esp -= sizeof(shellcode);
+    uint8_t *linkage_addr = esp;
+    if (!copy_to_user(esp, shellcode, sizeof(shellcode))) {
+        return false;
+    }
+
+    /* Push interrupt context onto user stack */
+    esp -= sizeof(int_regs_t);
+    uint8_t *intregs_addr = esp;
+    if (!copy_to_user(esp, regs, sizeof(int_regs_t))) {
+        return false;
+    }
+
+    /* Push signal number onto user stack */
+    esp -= sizeof(int32_t);
+    uint8_t *signum_addr = esp;
+    if (!copy_to_user(esp, &sig->signum, sizeof(int32_t))) {
+        return false;
+    }
+
+    /* Push return address (which is sigreturn linkage) onto user stack */
+    esp -= sizeof(uint32_t);
+    if (!copy_to_user(esp, &linkage_addr, sizeof(uint32_t))) {
+        return false;
+    }
+
+    /* Fill in shellcode values */
+    int32_t syscall_num = SYS_SIGRETURN;
+    copy_to_user(linkage_addr + 1, &syscall_num, 4);
+    copy_to_user(linkage_addr + 6, signum_addr, 4);
+    copy_to_user(linkage_addr + 11, &intregs_addr, 4);
+
+    /* Change EIP of userspace program to the signal handler */
+    regs->eip = sig->handler_addr;
+
+    /* Change ESP to point to new stack bottom */
+    regs->esp = (uint32_t)esp;
+
+    /* Fix segment registers in case that was the cause of an exception */
+    regs->cs = USER_CS;
+    regs->ds = USER_DS;
+    regs->es = USER_DS;
+    regs->fs = USER_DS;
+    regs->gs = USER_DS;
+    regs->ss = USER_DS;
+
+    /* Mask signal so we don't get re-entrant calls */
+    sig->masked = true;
+    sig->pending = false;
+    return true;
+}
+
+/*
+ * Returns whether the currently executing process
+ * has a pending signal.
+ */
+bool
+process_has_pending_signal(void)
+{
+    pcb_t *pcb = get_executing_pcb();
+    int32_t i;
+    for (i = 0; i < NUM_SIGNALS; ++i) {
+        signal_info_t *sig = &pcb->signals[i];
+        if (sig->pending && !sig->masked && sig->action != SIGACTION_IGNORE) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/*
+ * Attempts to deliver a signal to the currently
+ * executing process. Returns false if 
+ */
+bool
+process_handle_signal(signal_info_t *sig, int_regs_t *regs)
+{
+    /* If handler is set and signal isn't masked, run it */
+    if (sig->handler_addr != 0 && !sig->masked) {
+        /* If no more space on stack to push signal context, kill process */
+        if (!process_run_signal_handler(sig, regs)) {
+            debugf("Failed to push signal context, killing process\n");
+            process_halt_impl(256);
+        }
+        return true;
+    }
+
+    /* Run default handler if no handler or masked */
+    if (sig->signum == SIG_DIV_ZERO || sig->signum == SIG_SEGFAULT) {
+        debugf("Killing process due to exception\n");
+        process_halt_impl(256);
+        return true;
+    }
+
+    /* CTRL-C halts with exit code 130 (SIGINT) */
+    if (sig->signum == SIG_INTERRUPT) {
+        debugf("Killing process due to CTRL-C\n");
+        process_halt_impl(130);
+        return true;
+    }
+
+    /* Default action is to ignore the signal */
+    sig->pending = false;
+    return false;
 }
 
 /*
@@ -661,14 +794,12 @@ void
 process_handle_signals(int_regs_t *regs)
 {
     pcb_t *pcb = get_executing_pcb();
-
-    printf("x");
     int32_t i;
     for (i = 0; i < NUM_SIGNALS; ++i) {
+        /* If we have any pending signals, try to deliver them */
         signal_info_t *sig = &pcb->signals[i];
-        if (sig->handler_addr != 0 && sig->pending && !sig->masked) {
-            process_run_signal_handler(sig, regs);
-            return;
+        if (sig->pending && process_handle_signal(sig, regs)) {
+            break;
         }
     }
 }
@@ -693,15 +824,6 @@ process_user_exception(uint32_t int_num)
         sig = &pcb->signals[SIG_SEGFAULT];
     }
 
-    /* If no handler or the signal is masked, just kill the process */
-    if (sig->handler_addr == 0 || sig->masked) {
-        /* 256 = exception occurred */
-        process_halt_impl(256);
-
-        /* halt() should never return */
-        ASSERT(0);
-    }
-
     /* Schedule signal handler for execution */
     sig->pending = true;
 }
@@ -715,18 +837,8 @@ process_interrupt(int32_t terminal)
         return;
     }
 
-    signal_info_t *sig = &pcb->signals[SIG_INTERRUPT];
-
-    /* Kill the process if no SIGINT handler or it's already running */
-    if (sig->handler_addr == 0 || sig->masked) {
-        /* 130 = killed by SIGINT */
-        process_halt_impl(130);
-
-        /* halt() should never return */
-        ASSERT(0);
-    }
-
     /* Schedule signal handler for execution */
+    signal_info_t *sig = &pcb->signals[SIG_INTERRUPT];
     sig->pending = true;
 }
 
@@ -796,7 +908,6 @@ process_vidmap(uint8_t **screen_start)
 __cdecl int32_t
 process_set_handler(int32_t signum, uint32_t handler_address)
 {
-    printf("set_handler\n");
     /* Check signal number range */
     if (signum < 0 || signum >= NUM_SIGNALS) {
         return -1;
@@ -804,6 +915,7 @@ process_set_handler(int32_t signum, uint32_t handler_address)
 
     pcb_t *pcb = get_executing_pcb();
     pcb->signals[signum].handler_addr = handler_address;
+    pcb->signals[signum].action = SIGACTION_CUSTOM;
     return 0;
 }
 
@@ -812,16 +924,18 @@ __cdecl int32_t
 process_sigreturn(
     int32_t signum,
     int_regs_t *user_regs,
-    __unused uint32_t c,
+    __unused uint32_t unused,
     int_regs_t *kernel_regs)
 {
     /* Check signal number range */
     if (signum < 0 || signum >= NUM_SIGNALS) {
+        debugf("Invalid signal number\n");
         return -1;
     }
 
     /* Check saved register context */
     if (!is_user_readable(user_regs, sizeof(int_regs_t))) {
+        debugf("Cannot read user regs\n");
         return -1;
     }
 
@@ -830,6 +944,10 @@ process_sigreturn(
         debugf("sigreturn CS does not equal USER_CS\n");
         return -1;
     }
+
+    /* Unmask signal again */
+    pcb_t *pcb = get_executing_pcb();
+    pcb->signals[signum].masked = false;
 
     /* Ignore privileged EFLAGS bits (emulate POPFL behavior) */
     /* http://stackoverflow.com/a/39195843 */

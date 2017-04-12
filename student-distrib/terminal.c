@@ -305,6 +305,11 @@ wait_until_readable(volatile input_buf_t *input_buf, int32_t nbytes)
             }
         }
 
+        /* Exit early if we have a pending signal */
+        if (process_has_pending_signal()) {
+            return -1;
+        }
+
         /*
          * Wait for some more input (nicely, to save CPU cycles).
          * There's no race condition between sti and hlt here,
@@ -357,13 +362,18 @@ terminal_stdin_read(file_obj_t *file, void *buf, int32_t nbytes)
     cli_and_save(flags);
     nbytes = wait_until_readable(input_buf, nbytes);
 
+    /* Abort if we have pending signals */
+    if (nbytes < 0) {
+        return -1;
+    }
+
     /*
      * Copy from input buffer to dest buffer. Note that
      * this can never fail (even if we were pre-empted during
      * the wait_until_readable call, since there's no way
      * for the process to die except from sudoku).
      */
-    if (copy_to_user(buf, (void *)input_buf->buf, nbytes) < nbytes) {
+    if (!copy_to_user(buf, (void *)input_buf->buf, nbytes)) {
         ASSERT(0);
     }
 

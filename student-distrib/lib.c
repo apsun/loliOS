@@ -688,36 +688,32 @@ strncpy_from_user(uint8_t *dest, const uint8_t *src, uint32_t n)
 /*
  * Copies a buffer from userspace to kernelspace, checking
  * that the source buffer is a valid userspace buffer (that is,
- * it lies entirely within the userspace page). Returns the
- * number of bytes copied (if this is less than n, the copy failed).
+ * it lies entirely within the userspace page).
  */
-int32_t
+bool
 copy_from_user(void *dest, const void *src, int32_t n)
 {
     if (!is_user_readable(src, n)) {
-        return 0;
+        return false;
     }
 
     memcpy(dest, src, n);
-    return n;
+    return true;
 }
-
 
 /*
  * Copies a buffer from kernelspace to userspace, checking
  * that the destination buffer is a valid userspace buffer.
- * Returns the number of bytes copied (if this is less than n,
- * the copy failed).
  */
-int32_t
+bool
 copy_to_user(void *dest, const void *src, int32_t n)
 {
     if (!is_user_writable(dest, n)) {
-        return 0;
+        return false;
     }
 
     memcpy(dest, src, n);
-    return n;
+    return true;
 }
 
 

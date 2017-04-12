@@ -160,12 +160,33 @@ rtc_read(file_obj_t *file, void *buf, int32_t nbytes)
     volatile uint32_t *waiting_interrupt = &file->offset;
     *waiting_interrupt = 1;
 
+    /*
+     * We can break out of the read call early if we got
+     * a signal that we need to handle
+     */
+    bool have_signal = false;
+
+    /* Enable interrupts */
     uint32_t flags;
     sti_and_save(flags);
-    while (*waiting_interrupt);
+
+    /* Wait for a RTC interrupt or a signal, whichever comes first */
+    while (*waiting_interrupt) {
+        have_signal = process_has_pending_signal();
+        if (have_signal) {
+            break;
+        }
+    }
+
+    /* Disable interrupts again */
     restore_flags(flags);
 
-    return 0;
+    /* Return -1 if we aborted because of a signal */
+    if (have_signal) {
+        return -1;
+    } else {
+        return 0;
+    }
 }
 
 /*
@@ -188,7 +209,7 @@ rtc_write(file_obj_t *file, const void *buf, int32_t nbytes)
     }
 
     /* Read the frequency */
-    if (copy_from_user(&freq, buf, sizeof(int32_t)) < sizeof(int32_t)) {
+    if (!copy_from_user(&freq, buf, sizeof(int32_t))) {
         return -1;
     }
 
