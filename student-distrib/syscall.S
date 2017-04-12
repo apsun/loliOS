@@ -29,7 +29,7 @@ syscall_jump_table:
  * int32_t syscall_handle(uint32_t a, uint32_t b, uint32_t c, int_regs_t *regs, uint32_t num)
  *
  * DO NOT CHANGE THE PARAMETER ORDER, this function (ab)uses cdecl to
- * skip a call instruction, which relies on a, b, c being at the top
+ * skip a call instruction, which relies on a, b, c, regs being at the top
  * of the stack!
  *
  * a == ebx

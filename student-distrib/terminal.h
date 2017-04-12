@@ -91,6 +91,9 @@ void terminal_putc(uint8_t c);
 /* Clears the curently executing terminal */
 void terminal_clear(void);
 
+/* Clears the specified terminal's input buffer */
+void terminal_clear_input(int32_t terminal);
+
 /* Handles keyboard input */
 void terminal_handle_input(kbd_input_t input);
 

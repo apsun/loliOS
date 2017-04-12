@@ -222,6 +222,9 @@ terminal_clear_impl(terminal_state_t *term)
     if (term == get_display_terminal()) {
         terminal_update_cursor(term);
     }
+
+    /* Clear input buffer */
+    term->input.count = 0;
 }
 
 /*
@@ -274,6 +277,14 @@ terminal_clear(void)
 {
     terminal_state_t *term = get_display_terminal();
     terminal_clear_impl(term);
+}
+
+/* Clears the specified terminal's input buffer */
+void
+terminal_clear_input(int32_t terminal)
+{
+    terminal_state_t *term = get_terminal(terminal);
+    term->input.count = 0;
 }
 
 /*

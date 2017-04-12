@@ -716,7 +716,6 @@ copy_to_user(void *dest, const void *src, int32_t n)
     return true;
 }
 
-
 /*
  * Puts the processor into an infinite loop. Interrupts may still
  * be received and handled (unless IF is cleared, of course).

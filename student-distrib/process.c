@@ -538,6 +538,9 @@ process_halt_impl(uint32_t status)
         }
     }
 
+    /* Clear input buffer */
+    terminal_clear_input(child_pcb->terminal);
+
     /* Mark child PCB as free */
     child_pcb->pid = -1;
 

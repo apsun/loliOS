@@ -151,16 +151,28 @@ rtc_read(file_obj_t *file, void *buf, int32_t nbytes)
      */
     bool have_signal = false;
 
-    /* Enable interrupts */
+    /* Save interrupt state */
     uint32_t flags;
-    sti_and_save(flags);
+    cli_and_save(flags);
 
     /* Wait for enough RTC interrupts or a signal, whichever comes first */
-    while (rtc_counter < target_counter) {
+    while (true) {
+        /* Check if we've received enough RTC interrupts */
+        uint32_t curr_counter = rtc_counter;
+        if (curr_counter >= target_counter) {
+            break;
+        }
+
+        /* Exit early if we have a pending signal */
         have_signal = process_has_pending_signal();
         if (have_signal) {
             break;
         }
+
+        /* Sleep and wait for a new interrupt */
+        sti();
+        hlt();
+        cli();
     }
 
     /* Disable interrupts again */
