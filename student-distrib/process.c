@@ -402,6 +402,9 @@ process_run(pcb_t *pcb)
     return ret;
 }
 
+/*
+ * Initializes the signal array for a proces.
+ */
 static void
 process_init_signals(signal_info_t *signals)
 {
