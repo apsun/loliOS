@@ -742,8 +742,8 @@ process_has_pending_signal(void)
         /* Check that there's a non-masked pending signal */
         if (sig->pending && !sig->masked) {
             /*
-             * If user manually registered a handler, that's
-             * definitely considered useful.
+             * If user manually registered a handler, then
+             * we always execute it.
              */
             if (sig->handler_addr != 0) {
                 return true;
@@ -874,7 +874,7 @@ process_update_clock(uint32_t rtc_counter)
     for (i = 0; i < MAX_PROCESSES; ++i) {
         pcb_t *pcb = &process_info[i];
         if (pcb->pid >= 0) {
-            /* If enough time has elapsed, send an alarm signal */
+            /* If enough time has elapsed, raise an alarm signal */
             uint32_t elapsed_time = rtc_counter - pcb->last_alarm;
             if (elapsed_time >= MAX_RTC_FREQ * SIG_ALARM_PERIOD) {
                 pcb->last_alarm = rtc_counter;
