@@ -4,6 +4,13 @@
 #include "types.h"
 #include "filesys.h"
 
+/*
+ * Highest possible value for RTC virtual interrupt
+ * frequency. Also used as the real interrupt frequency
+ * for the RTC counter.
+ */
+#define MAX_RTC_FREQ 1024
+
 /* RTC memory-mapped ports */
 #define RTC_PORT_INDEX 0x70
 #define RTC_PORT_DATA 0x71
@@ -51,6 +58,9 @@ int32_t rtc_open(const uint8_t *filename, file_obj_t *file);
 int32_t rtc_read(file_obj_t *file, void *buf, int32_t nbytes);
 int32_t rtc_write(file_obj_t *file, const void *buf, int32_t nbytes);
 int32_t rtc_close(file_obj_t *file);
+
+/* Returns the current value of the RTC counter. */
+uint32_t rtc_get_counter(void);
 
 /* Initializes real-time clock interrupts */
 void rtc_init(void);

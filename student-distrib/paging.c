@@ -117,26 +117,24 @@ static void
 paging_init_registers(void)
 {
     asm volatile(
-        /* Point PDR to page directory */
-        /* Enable caching of page directory */
-        /* Enable write-back caching */
-        "movl %%cr3, %%eax;"
-        "andl $0x00000fe7, %%eax;"
-        "orl $page_dir, %%eax;"
-        "movl %%eax, %%cr3;"
-
-        /* Enable 4MB pages */
-        "movl %%cr4, %%eax;"
-        "orl $0x00000010, %%eax;"
-        "movl %%eax, %%cr4;"
-
-        /* Enable paging (this must come last!) */
-        "movl %%cr0, %%eax;"
-        "orl $0x80000000, %%eax;"
-        "movl %%eax, %%cr0;"
-        :
-        :
-        : "eax", "cc");
+                 /* Point PDR to page directory */
+                 "movl %%cr3, %%eax;"
+                 "andl $0x00000fff, %%eax;"
+                 "orl $page_dir, %%eax;"
+                 "movl %%eax, %%cr3;"
+         
+                 /* Enable 4MB pages */
+                 "movl %%cr4, %%eax;"
+                 "orl $0x00000010, %%eax;"
+                 "movl %%eax, %%cr4;"
+         
+                 /* Enable paging (this must come last!) */
+                 "movl %%cr0, %%eax;"
+                 "orl $0x80000000, %%eax;"
+                 "movl %%eax, %%cr0;"
+                 :
+                 :
+                 : "eax", "cc");
 }
 
 /* Flushes the TLB */

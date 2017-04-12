@@ -3,12 +3,13 @@
 #include "debug.h"
 
 /* IRQ handler array */
-static irq_handler_t irq_handlers[16];
+static irq_handler_t irq_handlers[NUM_IRQ];
 
 /* IRQ handler */
 void
 irq_handle_interrupt(uint32_t irq_num)
 {
+    ASSERT(irq_num < NUM_IRQ);
     irq_handler_t handler = irq_handlers[irq_num];
 
     /* Clear interrupt flag on PIC */
@@ -31,7 +32,7 @@ irq_handle_interrupt(uint32_t irq_num)
 void
 irq_register_handler(uint32_t irq_num, void (*callback)(void))
 {
-    ASSERT(irq_num >= 0 && irq_num < 16);
+    ASSERT(irq_num < NUM_IRQ);
     irq_handlers[irq_num].callback = callback;
     i8259_enable_irq(irq_num);
 }
@@ -45,7 +46,7 @@ irq_register_handler(uint32_t irq_num, void (*callback)(void))
 void
 irq_unregister_handler(uint32_t irq_num)
 {
-    ASSERT(irq_num >= 0 && irq_num < 16);
+    ASSERT(irq_num < NUM_IRQ);
     i8259_disable_irq(irq_num);
     irq_handlers[irq_num].callback = NULL;
 }

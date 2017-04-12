@@ -46,6 +46,9 @@
 #define SIG_ALARM     3
 #define SIG_USER1     4
 
+/* Period of the alarm signal, in seconds */
+#define SIG_ALARM_PERIOD 10
+
 #ifndef ASM
 
 typedef struct {
@@ -128,6 +131,11 @@ typedef struct {
     bool vidmap;
 
     /*
+     * Holds the time of the last alarm, in terms of the RTC counter.
+     */
+    uint32_t last_alarm;
+
+    /*
      * Signal handler and status array.
      */
     signal_info_t signals[NUM_SIGNALS];
@@ -178,6 +186,9 @@ void process_user_exception(uint32_t int_num);
 
 /* Handles CTRL-C input */
 void process_interrupt(int32_t terminal);
+
+/* Handles RTC updates */
+void process_update_clock(uint32_t rtc_counter);
 
 /* Returns whether the currently executing process has a pending signal */
 bool process_has_pending_signal(void);

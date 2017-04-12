@@ -5,6 +5,7 @@
 #include "terminal.h"
 #include "debug.h"
 #include "x86_desc.h"
+#include "rtc.h"
 
 /* The virtual address that the process should be copied to */
 static uint8_t * const process_vaddr = (uint8_t *)(USER_PAGE_START + 0x48000);
@@ -454,6 +455,7 @@ process_create_child(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
     /* Common initialization */
     child_pcb->status = PROCESS_SCHED;
     child_pcb->vidmap = false;
+    child_pcb->last_alarm = rtc_get_counter();
     process_init_signals(child_pcb->signals);
     file_init(child_pcb->files);
     strncpy((int8_t *)child_pcb->args, (const int8_t *)args, MAX_ARGS_LEN);
@@ -665,7 +667,7 @@ process_deliver_signal(signal_info_t *sig, int_regs_t *regs)
         0x90, 0x90, 0x90,
     };
 
-    /* Fill in the syscall number */
+    /* Make sure shellcode is 4-byte aligned for stack */
     ASSERT((sizeof(shellcode) & 0x3) == 0);
 
     /* Start "pushing" stuff onto user stack */
@@ -726,7 +728,8 @@ process_deliver_signal(signal_info_t *sig, int_regs_t *regs)
 
 /*
  * Returns whether the currently executing process
- * has a pending signal.
+ * has a pending signal for which there exists a
+ * handler (or default action) that does something.
  */
 bool
 process_has_pending_signal(void)
@@ -735,7 +738,21 @@ process_has_pending_signal(void)
     int32_t i;
     for (i = 0; i < NUM_SIGNALS; ++i) {
         signal_info_t *sig = &pcb->signals[i];
+
+        /* Check that there's a non-masked pending signal */
         if (sig->pending && !sig->masked) {
+            /*
+             * If user manually registered a handler, that's
+             * definitely considered useful.
+             */
+            if (sig->handler_addr != 0) {
+                return true;
+            }
+
+            /*
+             * If there's no manually registered handler, check
+             * if default action actually does something.
+             */
             switch (sig->signum) {
             case SIG_DIV_ZERO:
             case SIG_SEGFAULT:
@@ -786,6 +803,16 @@ process_handle_signal(signal_info_t *sig, int_regs_t *regs)
 }
 
 /*
+ * Raises (marks as pending) a signal for the specified process.
+ */
+static void
+process_raise_signal(pcb_t *pcb, int32_t signum)
+{
+    signal_info_t *sig = &pcb->signals[signum];
+    sig->pending = true;
+}
+
+/*
  * If the currently executing process has any pending
  * signals, modifies the IRET context and user stack to run the
  * signal handler.
@@ -813,21 +840,17 @@ void
 process_user_exception(uint32_t int_num)
 {
     pcb_t *pcb = get_executing_pcb();
-
-    /* Get appropriate signal handler for this exception */
-    signal_info_t *sig;
     if (int_num == EXC_DE) {
-        /* Special handler for divide by zero */
-        sig = &pcb->signals[SIG_DIV_ZERO];
+        process_raise_signal(pcb, SIG_DIV_ZERO);
     } else {
-        /* All other exceptions raise segfault */
-        sig = &pcb->signals[SIG_SEGFAULT];
+        process_raise_signal(pcb, SIG_SEGFAULT);
     }
-
-    /* Schedule signal handler for execution */
-    sig->pending = true;
 }
 
+/*
+ * Handles CTRL-C input by sending an interrupt signal
+ * to the process executing in the specified terminal.
+ */
 void
 process_interrupt(int32_t terminal)
 {
@@ -837,9 +860,28 @@ process_interrupt(int32_t terminal)
         return;
     }
 
-    /* Schedule signal handler for execution */
-    signal_info_t *sig = &pcb->signals[SIG_INTERRUPT];
-    sig->pending = true;
+    process_raise_signal(pcb, SIG_INTERRUPT);
+}
+
+/*
+ * Handles RTC updates by sending an alarm signal
+ * to each process every 10 seconds since its creation.
+ */
+void
+process_update_clock(uint32_t rtc_counter)
+{
+    int32_t i;
+    for (i = 0; i < MAX_PROCESSES; ++i) {
+        pcb_t *pcb = &process_info[i];
+        if (pcb->pid >= 0) {
+            /* If enough time has elapsed, send an alarm signal */
+            uint32_t elapsed_time = rtc_counter - pcb->last_alarm;
+            if (elapsed_time >= MAX_RTC_FREQ * SIG_ALARM_PERIOD) {
+                pcb->last_alarm = rtc_counter;
+                process_raise_signal(pcb, SIG_ALARM);
+            }
+        }
+    }
 }
 
 /* halt() syscall handler */

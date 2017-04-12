@@ -45,16 +45,6 @@
 
 #ifndef ASM
 
-/* Exception info */
-typedef struct
-{
-    /* Interrupt vector number */
-    uint8_t index;
-
-    /* Human-readable description of the exception */
-    const char *desc;
-} exc_info_t;
-
 /* Interrupt registers */
 typedef struct
 {

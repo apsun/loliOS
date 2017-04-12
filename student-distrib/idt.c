@@ -13,28 +13,28 @@ do {                                        \
     SET_IDT_ENTRY(idt[i], name);            \
 } while (0)
 
-/* Exception info table */
-static exc_info_t exc_info_table[20] = {
-    {EXC_DE, "Divide error exception"},
-    {EXC_DB, "Debug exception"},
-    {EXC_NI, "Nonmaskable interrupt"},
-    {EXC_BP, "Breakpoint exception"},
-    {EXC_OF, "Overflow exception"},
-    {EXC_BR, "Bound range exceeded exception"},
-    {EXC_UD, "Invalid opcode exception"},
-    {EXC_NM, "Device not available exception"},
-    {EXC_DF, "Double fault exception"},
-    {EXC_CO, "Coprocessor segment overrun"},
-    {EXC_TS, "Invalid TSS exception"},
-    {EXC_NP, "Segment not present"},
-    {EXC_SS, "Stack fault exception"},
-    {EXC_GP, "General protection exception"},
-    {EXC_PF, "Page-fault exception"},
-    {EXC_RE, "Entry reserved"},
-    {EXC_MF, "Floating-point error"},
-    {EXC_AC, "Alignment check exception"},
-    {EXC_MC, "Machine-check exception"},
-    {EXC_XF, "SIMD floating-point exception"},
+/* Exception number to name table */
+static const char *exception_names[] = {
+    "Divide error exception",
+    "Debug exception",
+    "Nonmaskable interrupt",
+    "Breakpoint exception",
+    "Overflow exception",
+    "Bound range exceeded exception",
+    "Invalid opcode exception",
+    "Device not available exception",
+    "Double fault exception",
+    "Coprocessor segment overrun",
+    "Invalid TSS exception",
+    "Segment not present",
+    "Stack fault exception",
+    "General protection exception",
+    "Page-fault exception",
+    "Entry reserved",
+    "Floating-point error",
+    "Alignment check exception",
+    "Machine-check exception",
+    "SIMD floating-point exception",
 };
 
 /* Prints all interrupt registers */
@@ -71,14 +71,14 @@ handle_exception(int_regs_t *regs)
 {
     /* If we were in userspace, run signal handler or kill the process */
     if (regs->cs == USER_CS) {
-        debugf("Userspace exception: %s\n", exc_info_table[regs->int_num].desc);
+        debugf("Userspace exception: %s\n", exception_names[regs->int_num]);
         process_user_exception(regs->int_num);
         return;
     }
 
     clear();
     printf("****************************************\n");
-    printf("Exception: %s\n", exc_info_table[regs->int_num].desc);
+    printf("Exception: %s\n", exception_names[regs->int_num]);
     printf("****************************************\n");
     dump_registers(regs);
     loop();

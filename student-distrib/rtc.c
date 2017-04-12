@@ -6,13 +6,12 @@
 #include "process.h"
 
 /*
- * We need to keep track of all open RTC files somehow,
- * so we can update their interrupt occurred flags (We're
- * assuming each process only has one RTC file open at a time,
- * so this array should be big enough.)
+ * Number of RTC interrupts that have occurred.
+ * Note: We use a 32-bit value since reads will be atomic,
+ * so no locking is required. 48 days of uptime is
+ * required to overflow the value, which is Good Enough (TM).
  */
-#define MAX_RTC_FILES MAX_PROCESSES
-static file_obj_t *rtc_files[MAX_RTC_FILES];
+static volatile uint32_t rtc_counter;
 
 /*
  * Reads the value of a RTC register. The reg
@@ -43,13 +42,11 @@ handle_rtc_irq(void)
     /* Read from register C, ignore value */
     read_reg(RTC_REG_C);
 
-    /* Notify any read calls that we got an interrupt */
-    int32_t i;
-    for (i = 0; i < MAX_RTC_FILES; ++i) {
-        if (rtc_files[i] != NULL) {
-            rtc_files[i]->offset = 0;
-        }
-    }
+    /* Increment the global RTC interrupt counter */
+    uint32_t new_counter = ++rtc_counter;
+
+    /* Broadcast counter update for alarm signals */
+    process_update_clock(new_counter);
 }
 
 /*
@@ -91,7 +88,7 @@ rtc_freq_to_rs(int32_t freq)
 }
 
 /*
- * Sets the interrupt frequency of the RTC.
+ * Sets the real interrupt frequency of the RTC.
  * The input must be a power of 2 between 2
  * and 1024.
  *
@@ -120,49 +117,37 @@ rtc_set_frequency(int32_t freq)
 }
 
 /*
- * Open syscall for RTC. Adds the file to the internal
- * file tracker.
+ * Open syscall for RTC. Frequency is set to 2Hz by default.
  */
 int32_t
 rtc_open(const uint8_t *filename, file_obj_t *file)
 {
-    int32_t i;
-    for (i = 0; i < MAX_RTC_FILES; ++i) {
-        if (rtc_files[i] == NULL) {
-            /* RTC frequency should be set to 2 when opened */
-            rtc_set_frequency(2);
-            
-            rtc_files[i] = file;
-            return 0;
-        }
-    }
-
-    /* Too many RTC files open :-( */
-    return -1;
+    /*
+     * File offset field holds the virtual interrupt frequency
+     * for this file (because I'm lazy and it recycles an
+     * otherwise unused field).
+     */
+    file->offset = 2;
+    return 0;
 }
 
 /*
- * Read syscall for RTC. Waits for the next periodic interrupt
- * to occur, then returns success.
+ * Read syscall for RTC. Waits for the next (virtual)
+ * periodic interrupt to occur, then returns success.
+ * If a signal is delivered during the read, the read
+ * will be prematurely aborted and -1 will be returned.
  */
 int32_t
 rtc_read(file_obj_t *file, void *buf, int32_t nbytes)
 {
     /*
-     * Wait for the interrupt handler to set this flag to 0.
-     * Note that we're reusing the file offset field for this.
-     * It's lazy, but it's compact and we don't have any other
-     * uses for the field ;-)
-     *
-     * Note that this flag must be volatile, otherwise the
-     * loop will be optimized to an infinite loop.
+     * We need to wait until the RTC counter reaches this value
      */
-    volatile uint32_t *waiting_interrupt = &file->offset;
-    *waiting_interrupt = 1;
+    uint32_t target_counter = rtc_counter + MAX_RTC_FREQ / file->offset;
 
     /*
-     * We can break out of the read call early if we got
-     * a signal that we need to handle
+     * We should break out of the wait loop early if we receive
+     * a signal that we need to handle.
      */
     bool have_signal = false;
 
@@ -170,8 +155,8 @@ rtc_read(file_obj_t *file, void *buf, int32_t nbytes)
     uint32_t flags;
     sti_and_save(flags);
 
-    /* Wait for a RTC interrupt or a signal, whichever comes first */
-    while (*waiting_interrupt) {
+    /* Wait for enough RTC interrupts or a signal, whichever comes first */
+    while (rtc_counter < target_counter) {
         have_signal = process_has_pending_signal();
         if (have_signal) {
             break;
@@ -190,9 +175,9 @@ rtc_read(file_obj_t *file, void *buf, int32_t nbytes)
 }
 
 /*
- * Write syscall for RTC. Sets the global periodic interrupt
- * frequency for the RTC. This change will be visible to other
- * programs.
+ * Write syscall for RTC. Sets the virtual periodic interrupt
+ * frequency for this RTC file. Changes will only be visible when
+ * calling read() on this file.
  *
  * buf must point to a int32_t containing the desired frequency,
  * nbytes must equal sizeof(int32_t). The frequency must be a
@@ -201,39 +186,44 @@ rtc_read(file_obj_t *file, void *buf, int32_t nbytes)
 int32_t
 rtc_write(file_obj_t *file, const void *buf, int32_t nbytes)
 {
-    int32_t freq;
-
     /* Check if we're reading the appropriate size */
     if (nbytes != sizeof(int32_t)) {
         return -1;
     }
 
     /* Read the frequency */
+    int32_t freq;
     if (!copy_from_user(&freq, buf, sizeof(int32_t))) {
         return -1;
     }
 
-    return rtc_set_frequency(freq);
+    /* Validate frequency */
+    if (rtc_freq_to_rs(freq) == RTC_A_RS_NONE) {
+        return -1;
+    }
+
+    /* Save desired interrupt frequency in file offset */
+    file->offset = freq;
+
+    return 0;
 }
 
 /*
- * Close syscall for RTC. Removes the file from the internal
- * file tracker.
+ * Close syscall for RTC. Does nothing.
  */
 int32_t
 rtc_close(file_obj_t *file)
 {
-    int32_t i;
-    for (i = 0; i < MAX_RTC_FILES; ++i) {
-        if (rtc_files[i] == file) {
-            rtc_files[i] = NULL;
-            return 0;
-        }
-    }
+    return 0;
+}
 
-    /* WTF, the file wasn't open? */
-    ASSERT(0);
-    return -1;
+/*
+ * Returns the current value of the RTC counter.
+ */
+uint32_t
+rtc_get_counter(void)
+{
+    return rtc_counter;
 }
 
 /* Initializes the RTC and enables interrupts */
@@ -246,14 +236,16 @@ rtc_init(void)
     /* Enable periodic interrupts */
     reg_b |= RTC_B_PIE;
 
-    /* Use binary format */
-    reg_b |= RTC_B_DM;
-
     /* Write RTC register B */
     write_reg(RTC_REG_B, reg_b);
 
-    /* Set the interrupt frequency to 2Hz by default */
-    rtc_set_frequency(2);
+    /*
+     * Initialize the interrupt frequency.
+     * Since we virtualize the device, this just needs
+     * to be at least as large as the largest virtual
+     * frequency.
+     */
+    rtc_set_frequency(MAX_RTC_FREQ);
 
     /* Register RTC IRQ handler and enable interrupts */
     irq_register_handler(IRQ_RTC, handle_rtc_irq);
