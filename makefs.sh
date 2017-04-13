@@ -8,6 +8,10 @@ if [ "$EUID" -eq 0 ]; then
     exit 1
 fi
 
+# Make binaries executable
+chmod +x "${mp3_dir}/createfs"
+chmod +x "${mp3_dir}/elfconvert"
+
 # Compile userspace programs
 make -C "${mp3_dir}/syscalls"
 cp "${mp3_dir}/syscalls/to_fsdir/"* "${mp3_dir}/fsdir"
