@@ -88,6 +88,9 @@ idt_handle_common_thunk:
     movl %cr0, %eax
     pushl %eax
 
+    /* Clear direction flag */
+    cld
+
     /* Switch to kernel data segment */
     movw $KERNEL_DS, %ax
     movw %ax, %ds

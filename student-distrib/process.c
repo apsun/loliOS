@@ -302,7 +302,7 @@ process_set_context(pcb_t *to)
  * value being placed into EAX, not by this function, but by
  * process_halt_impl.
  */
-__unused __cdecl static int32_t
+__used __cdecl static int32_t
 process_run_impl(pcb_t *pcb)
 {
     ASSERT(pcb != NULL);
@@ -578,7 +578,7 @@ process_halt_impl(uint32_t status)
                  : "r"(status),
                    "r"(child_pcb->parent_esp),
                    "r"(child_pcb->parent_ebp)
-                 : "esp", "ebp", "eax");
+                 : "eax");
 
     /* Should never get here! */
     ASSERT(0);
@@ -588,7 +588,7 @@ process_halt_impl(uint32_t status)
 /*
  * Switches execution to the next scheduled process.
  */
-__unused __cdecl static void
+__used __cdecl static void
 process_switch_impl(void)
 {
     pcb_t *curr = get_executing_pcb();

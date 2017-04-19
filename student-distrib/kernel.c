@@ -24,7 +24,8 @@ entry (unsigned long magic, unsigned long addr)
 {
     multiboot_info_t *mbi;
 
-    module_t* fsmod;
+    /* Starting address of the filesystem module */
+    uint32_t fs_start = 0;
 
     /* Initialize terminals */
     terminal_init();
@@ -62,10 +63,13 @@ entry (unsigned long magic, unsigned long addr)
         int mod_count = 0;
         int i;
         module_t *mod = (module_t *)mbi->mods_addr;
-        /* hardcode the file system mode as mods_addr
-         * since right now we have only one module loaded
+
+        /*
+         * For now we can assume that we only have a single
+         * filesystem module loaded
          */
-        fsmod = mod;
+        ASSERT(mbi->mods_count == 1);
+        fs_start = mod->mod_start;
 
         while (mod_count < mbi->mods_count) {
             printf("Module %d loaded at address: 0x%#x\n", mod_count, (unsigned int)mod->mod_start);
@@ -180,7 +184,7 @@ entry (unsigned long magic, unsigned long addr)
 
     /* Reading from mod has to be done before enabling paging */
     printf("Initializing filesystem...\n");
-    filesys_init((boot_block_t *)fsmod->mod_start);
+    filesys_init((void *)fs_start);
 
     printf("Enabling paging...\n");
     paging_enable();
