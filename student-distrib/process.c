@@ -346,6 +346,7 @@ process_run_impl(pcb_t *pcb)
                  /* EFLAGS */
                  "pushfl;"
                  "popl %%eax;"
+                 "andl $0xfffffbff, %%eax;" /* Clear DF */
                  "orl $0x200, %%eax;" /* Set IF */
                  "pushl %%eax;"
 
@@ -676,7 +677,7 @@ process_deliver_signal(signal_info_t *sig, int_regs_t *regs)
     /* Make sure shellcode is 4-byte aligned for stack */
     ASSERT((sizeof(shellcode) & 0x3) == 0);
 
-    /* Start "pushing" stuff onto user stack */
+    /* Holds the userspace stack pointer */
     uint8_t *esp = (uint8_t *)regs->esp;
 
     /* Push sigreturn linkage onto user stack */
@@ -725,6 +726,9 @@ process_deliver_signal(signal_info_t *sig, int_regs_t *regs)
     regs->fs = USER_DS;
     regs->gs = USER_DS;
     regs->ss = USER_DS;
+
+    /* Clear direction flag */
+    regs->eflags &= ~EFLAGS_DF;
 
     /* Mask signal so we don't get re-entrant calls */
     sig->masked = true;
@@ -998,8 +1002,8 @@ process_sigreturn(
 
     /* Ignore privileged EFLAGS bits (emulate POPFL behavior) */
     /* http://stackoverflow.com/a/39195843 */
-    uint32_t kernel_eflags = kernel_regs->eflags & ~0xDD5;
-    uint32_t user_eflags = user_regs->eflags & 0xDD5;
+    uint32_t kernel_eflags = kernel_regs->eflags & ~EFLAGS_USER;
+    uint32_t user_eflags = user_regs->eflags & EFLAGS_USER;
 
     /* Copy user context to kernel interrupt context */
     *kernel_regs = *user_regs;

@@ -18,6 +18,15 @@
 /* Process data block size, MUST BE A POWER OF 2! */
 #define PROCESS_DATA_SIZE 8192
 
+/* User-modifiable bits in EFLAGS */
+#define EFLAGS_USER 0xDD5
+
+/* Interrupt flag */
+#define EFLAGS_IF (1 << 9)
+
+/* Direction flag */
+#define EFLAGS_DF (1 << 10)
+
 /*
  * The process has been initialized and is running or
  * is scheduled to run
