@@ -19,6 +19,8 @@ cp "${mp3_dir}/syscalls/to_fsdir/"* "${mp3_dir}/fsdir"
 # Compile fish program
 make -C "${mp3_dir}/fish"
 cp "${mp3_dir}/fish/fish" "${mp3_dir}/fsdir"
+cp "${mp3_dir}/fish/frame0.txt" "${mp3_dir}/fsdir"
+cp "${mp3_dir}/fish/frame1.txt" "${mp3_dir}/fsdir"
 
 # Copy fsdir to tmp and create the rtc file
 rm -rf "/tmp/fsdir"
