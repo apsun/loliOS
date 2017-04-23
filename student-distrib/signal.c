@@ -226,7 +226,6 @@ signal_handle_all(int_regs_t *regs)
     pcb_t *pcb = get_executing_pcb();
     int32_t i;
     for (i = 0; i < NUM_SIGNALS; ++i) {
-        /* If we have any pending signals, try to deliver them */
         signal_info_t *sig = &pcb->signals[i];
         if (sig->pending && signal_handle(sig, regs)) {
             break;
@@ -246,20 +245,20 @@ signal_has_pending(void)
     int32_t i;
     for (i = 0; i < NUM_SIGNALS; ++i) {
         signal_info_t *sig = &pcb->signals[i];
-
-        /* Check that there's a non-masked pending signal */
-        if (sig->pending && !sig->masked) {
+        if (sig->pending) {
             /*
-             * If user manually registered a handler, then
-             * we always execute it.
+             * If user manually registered a handler and the
+             * signal is not masked, then we always execute it.
              */
-            if (sig->handler_addr != 0) {
+            if (sig->handler_addr != 0 && !sig->masked) {
                 return true;
             }
 
             /*
              * If there's no manually registered handler, check
-             * if default action actually does something.
+             * if default action actually does something. Here we
+             * ignore whether the signal is masked since all our
+             * default actions kill the process.
              */
             switch (sig->signum) {
             case SIG_DIV_ZERO:

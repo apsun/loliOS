@@ -733,7 +733,6 @@ process_update_clock(uint32_t rtc_counter)
     for (i = 0; i < MAX_PROCESSES; ++i) {
         pcb_t *pcb = &process_info[i];
         if (pcb->pid >= 0) {
-            /* If enough time has elapsed, raise an alarm signal */
             uint32_t elapsed_time = rtc_counter - pcb->last_alarm;
             if (elapsed_time >= MAX_RTC_FREQ * SIG_ALARM_PERIOD) {
                 pcb->last_alarm = rtc_counter;
