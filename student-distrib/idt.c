@@ -74,7 +74,7 @@ dump_registers(int_regs_t *regs)
 static void
 handle_user_exception(uint32_t int_num)
 {
-    debugf("Userspace exception: %s\n", exception_names[regs->int_num]);
+    debugf("Userspace exception: %s\n", exception_names[int_num]);
     pcb_t *pcb = get_executing_pcb();
     if (int_num == EXC_DE) {
         signal_raise(pcb->pid, SIG_DIV_ZERO);

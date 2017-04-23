@@ -63,13 +63,16 @@ vga_set_register(uint8_t index, uint8_t value)
 
 /*
  * Sets the VGA cursor position to the cursor position
- * in the specified terminal. You must check if the terminal
- * is currently displayed (term == get_display_terminal())
- * before calling this!
+ * in the specified terminal.
  */
 static void
 terminal_update_cursor(terminal_state_t *term)
 {
+    /* Ignore if this terminal isn't being displayed */
+    if (term != get_display_terminal()) {
+        return;
+    }
+
     /* Write the position to the VGA cursor position registers */
     uint16_t pos = term->cursor.screen_y * NUM_COLS + term->cursor.screen_x;
     vga_set_register(VGA_REG_CURSOR_LO, (pos >> 0) & 0xff);
@@ -133,7 +136,7 @@ terminal_scroll_down(terminal_state_t *term)
 
 /*
  * Writes a character at the current cursor position
- * in the specified terminal. This does NOT increment
+ * in the specified terminal. This does NOT update
  * the cursor position!
  */
 static void
@@ -145,7 +148,10 @@ terminal_write_char(terminal_state_t *term, uint8_t c)
     term->video_mem[((y * NUM_COLS + x) << 1) + 1] = ATTRIB;
 }
 
-/* Prints a character to the specified terminal */
+/*
+ * Prints a character to the specified terminal.
+ * This does NOT update the cursor position!
+ */
 static void
 terminal_putc_impl(terminal_state_t *term, uint8_t c)
 {
@@ -196,11 +202,6 @@ terminal_putc_impl(terminal_state_t *term, uint8_t c)
             terminal_scroll_down(term);
             term->cursor.screen_y--;
         }
-    }
-
-    /* Update cursor position */
-    if (term == get_display_terminal()) {
-        terminal_update_cursor(term);
     }
 }
 
@@ -270,6 +271,7 @@ terminal_putc(uint8_t c)
 {
     terminal_state_t *term = get_display_terminal();
     terminal_putc_impl(term, c);
+    terminal_update_cursor(term);
 }
 
 /* Clears the curently displayed terminal screen */
@@ -428,11 +430,14 @@ terminal_stdout_write(file_obj_t *file, const void *buf, int32_t nbytes)
     const uint8_t *src = (const uint8_t *)buf;
     terminal_state_t *term = get_executing_terminal();
 
-    /* Print characters to the terminal */
+    /* Print characters to the terminal (don't update cursor) */
     int32_t i;
     for (i = 0; i < nbytes; ++i) {
         terminal_putc_impl(term, src[i]);
     }
+
+    /* Update cursor position */
+    terminal_update_cursor(term);
 
     return nbytes;
 }
@@ -483,7 +488,7 @@ terminal_interrupt(void)
 {
     pcb_t *pcb = get_pcb_by_terminal(display_terminal);
     if (pcb == NULL) {
-        debugf("No process running in terminal %d\n", terminal);
+        debugf("No process running in display terminal\n");
         return;
     }
 
@@ -524,10 +529,12 @@ handle_char_input(uint8_t c)
     if (c == '\b' && input_buf->count > 0 && term->cursor.logical_x > 0) {
         input_buf->count--;
         terminal_putc_impl(term, c);
+        terminal_update_cursor(term);
     } else if ((c != '\b' && input_buf->count < TERMINAL_BUF_SIZE - 1) ||
                (c == '\n' && input_buf->count < TERMINAL_BUF_SIZE)) {
         input_buf->buf[input_buf->count++] = c;
         terminal_putc_impl(term, c);
+        terminal_update_cursor(term);
     }
 }
 

@@ -164,14 +164,11 @@ entry (unsigned long magic, unsigned long addr)
         ltr(KERNEL_TSS);
     }
 
-    printf("Initializing PIC...\n");
-    i8259_init();
-
-    /* Initialize devices, memory, filesystem, enable device interrupts on the
-     * PIC, any other initialization stuff... */
-
     printf("Initializing IDT...\n");
     idt_init();
+
+    printf("Initializing PIC...\n");
+    i8259_init();
 
     printf("Initializing PIT...\n");
     pit_init();
@@ -182,12 +179,11 @@ entry (unsigned long magic, unsigned long addr)
     printf("Initializing RTC...\n");
     rtc_init();
 
-    /* Reading from mod has to be done before enabling paging */
-    printf("Initializing filesystem...\n");
-    filesys_init((void *)fs_start);
-
     printf("Enabling paging...\n");
     paging_enable();
+
+    printf("Initializing filesystem...\n");
+    filesys_init((void *)fs_start);
 
     printf("Initializing processes...\n");
     process_init();

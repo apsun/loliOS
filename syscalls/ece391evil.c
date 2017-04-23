@@ -181,6 +181,26 @@ int read_kernel_buffer(void)
 }
 
 /*
+ * Tries reading a buffer slightly larger than the
+ * filesystem block size, with size not a multiple of 4.
+ */
+int read_large_buffer(void)
+{
+    uint8_t buf[4097];
+    int result = 0;
+    int fd = ece391_open((uint8_t *)"fish");
+    int count;
+    do {
+        count = ece391_read(fd, buf, sizeof(buf));
+        if (count < 0) {
+            result = 1;
+        }
+    } while (count > 0);
+    ece391_close(fd);
+    return result;
+}
+
+/*
  * Similar to read_invalid_buffer, but with vidmap.
  */
 int vidmap_invalid_buffer(void)
@@ -256,7 +276,8 @@ int main(void)
         execute_invalid_string() +
         read_invalid_buffer() +
         write_invalid_buffer() +
-        vidmap_invalid_buffer();
+        vidmap_invalid_buffer() +
+        read_large_buffer();
 
     if (result == 0) {
         ece391_fdputs(1, (uint8_t *)"All tests PASSED!\n");

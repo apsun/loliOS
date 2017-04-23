@@ -12,6 +12,6 @@ int main(void)
     }
 
     ece391_fdputs(1, args);
-    ece391_fdputs(1, "\n");
+    ece391_fdputs(1, (uint8_t *)"\n");
     return 0;
 }

@@ -47,10 +47,9 @@ static file_ops_t fops_rtc = {
 };
 
 /* Initializes the file object from the given dentry */
-static void
+static bool
 init_file_obj(file_obj_t *file, dentry_t *dentry)
 {
-    file->valid = true;
     file->inode_idx = 0;
     file->offset = 0;
     switch (dentry->ftype) {
@@ -64,7 +63,13 @@ init_file_obj(file_obj_t *file, dentry_t *dentry)
         file->ops_table = &fops_file;
         file->inode_idx = dentry->inode_idx;
         break;
+    default:
+        debugf("Unknown file type: %d\n", dentry->ftype);
+        return false;
     }
+
+    file->valid = true;
+    return true;
 }
 
 /* Gets the file object array for the executing process */
@@ -134,11 +139,12 @@ file_open(const uint8_t *filename)
             }
 
             /* Initialize file object */
-            init_file_obj(&files[i], &dentry);
+            if (!init_file_obj(&files[i], &dentry)) {
+                return -1;
+            }
 
             /* Perform post-initialization setup */
             if (files[i].ops_table->open(filename, &files[i]) != 0) {
-                /* Abandon ship! */
                 files[i].valid = false;
                 return -1;
             }
