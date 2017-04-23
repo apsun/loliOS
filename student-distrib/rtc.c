@@ -164,7 +164,7 @@ rtc_read(file_obj_t *file, void *buf, int32_t nbytes)
         }
 
         /* Exit early if we have a pending signal */
-        have_signal = process_has_pending_signal();
+        have_signal = signal_has_pending();
         if (have_signal) {
             break;
         }

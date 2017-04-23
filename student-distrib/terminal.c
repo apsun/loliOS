@@ -5,15 +5,16 @@
 #include "keyboard.h"
 #include "process.h"
 #include "paging.h"
+#include "signal.h"
+
+/* Address of the global video memory page */
+#define VGA_MEMORY ((uint8_t *)VIDEO_PAGE_START)
 
 /* Holds information about each terminal */
 static terminal_state_t terminal_states[NUM_TERMINALS];
 
 /* Index of the currently displayed terminal */
 static int32_t display_terminal = -1;
-
-/* VGA video memory */
-static uint8_t * const global_video_mem = (uint8_t *)VIDEO_PAGE_START;
 
 /*
  * Returns the specified terminal.
@@ -94,14 +95,14 @@ static void
 terminal_swap_buffer(terminal_state_t *old, terminal_state_t *new)
 {
     /* Old terminal must have been the display terminal */
-    ASSERT(old->video_mem == global_video_mem);
+    ASSERT(old->video_mem == VGA_MEMORY);
 
     /*
      * Copy the global VGA memory to the previously displayed
      * terminal's backing buffer, then point its active video
      * memory to the backing buffer
      */
-    memcpy(old->backing_mem, global_video_mem, VIDEO_MEM_SIZE);
+    memcpy(old->backing_mem, VGA_MEMORY, VIDEO_MEM_SIZE);
     old->video_mem = old->backing_mem;
 
     /*
@@ -109,8 +110,8 @@ terminal_swap_buffer(terminal_state_t *old, terminal_state_t *new)
      * into global VGA memory, then point its active video
      * memory to the global VGA memory
      */
-    memcpy(global_video_mem, new->backing_mem, VIDEO_MEM_SIZE);
-    new->video_mem = global_video_mem;
+    memcpy(VGA_MEMORY, new->backing_mem, VIDEO_MEM_SIZE);
+    new->video_mem = VGA_MEMORY;
 }
 
 /*
@@ -317,7 +318,7 @@ wait_until_readable(volatile input_buf_t *input_buf, int32_t nbytes)
         }
 
         /* Exit early if we have a pending signal */
-        if (process_has_pending_signal()) {
+        if (signal_has_pending()) {
             return -1;
         }
 
@@ -473,6 +474,22 @@ terminal_stdout_read(file_obj_t *file, void *buf, int32_t nbytes)
     return -1;
 }
 
+/*
+ * Handles CTRL-C input by sending an interrupt signal
+ * to the process executing in the current terminal.
+ */
+static void
+terminal_interrupt(void)
+{
+    pcb_t *pcb = get_pcb_by_terminal(display_terminal);
+    if (pcb == NULL) {
+        debugf("No process running in terminal %d\n", terminal);
+        return;
+    }
+
+    signal_raise(pcb->pid, SIG_INTERRUPT);
+}
+
 /* Handles a keyboard control sequence */
 static void
 handle_ctrl_input(kbd_input_ctrl_t ctrl)
@@ -482,7 +499,7 @@ handle_ctrl_input(kbd_input_ctrl_t ctrl)
         terminal_clear();
         break;
     case KCTL_INTERRUPT:
-        process_interrupt(display_terminal);
+        terminal_interrupt();
         break;
     case KCTL_TERM1:
     case KCTL_TERM2:
@@ -571,7 +588,7 @@ terminal_init(void)
     }
 
     /* First terminal's active video memory points to global VGA memory */
-    terminal_states[0].video_mem = global_video_mem;
+    terminal_states[0].video_mem = VGA_MEMORY;
 
     /* Set initially displayed terminal */
     display_terminal = 0;

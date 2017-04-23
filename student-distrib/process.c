@@ -20,8 +20,8 @@ static process_data_t process_data[MAX_PROCESSES];
 /*
  * Gets the PCB of the specified process.
  */
-static pcb_t *
-get_pcb(int32_t pid)
+pcb_t *
+get_pcb_by_pid(int32_t pid)
 {
     /* When getting the parent of a "root" process */
     if (pid < 0) {
@@ -410,21 +410,6 @@ process_run(pcb_t *pcb)
 }
 
 /*
- * Initializes the signal array for a proces.
- */
-static void
-process_init_signals(signal_info_t *signals)
-{
-    int32_t i;
-    for (i = 0; i < NUM_SIGNALS; ++i) {
-        signals[i].signum = i;
-        signals[i].handler_addr = 0;
-        signals[i].masked = false;
-        signals[i].pending = false;
-    }
-}
-
-/*
  * Creates and initializes a new PCB for the given process.
  *
  * Implementation note: This is deliberately decoupled from
@@ -466,7 +451,7 @@ process_create_child(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
     child_pcb->status = PROCESS_SCHED;
     child_pcb->vidmap = false;
     child_pcb->last_alarm = rtc_get_counter();
-    process_init_signals(child_pcb->signals);
+    signal_init(child_pcb->signals);
     file_init(child_pcb->files);
     strncpy((int8_t *)child_pcb->args, (const int8_t *)args, MAX_ARGS_LEN);
 
@@ -531,14 +516,14 @@ process_execute(const uint8_t *command)
  *
  * Unlike process_halt(), the status is not truncated to 1 byte.
  */
-static int32_t
+int32_t
 process_halt_impl(uint32_t status)
 {
     /* This is the PCB of the child (halting) process */
     pcb_t *child_pcb = get_executing_pcb();
 
     /* Find parent process */
-    pcb_t *parent_pcb = get_pcb(child_pcb->parent_pid);
+    pcb_t *parent_pcb = get_pcb_by_pid(child_pcb->parent_pid);
 
     /* Close all open files */
     int32_t i;
@@ -654,252 +639,6 @@ process_switch(void)
                  : "eax", "ebx", "ecx", "edx", "esi", "edi", "cc");
 }
 
-/*
- * Pushes the signal handler context onto the user stack
- * and modifies the register context to start execution
- * at the signal handler.
- */
-static bool
-process_deliver_signal(signal_info_t *sig, int_regs_t *regs)
-{
-    /* "Shellcode" that calls the sigreturn() syscall */
-    uint8_t shellcode[] = {
-        /* movl $SYS_SIGRETURN, %eax */
-        0xB8, 0xAA, 0xAA, 0xAA, 0xAA,
-
-        /* movl signum, %ebx */
-        0xBB, 0xBB, 0xBB, 0xBB, 0xBB,
-
-        /* movl regs, %ecx */
-        0xB9, 0xCC, 0xCC, 0xCC, 0xCC,
-
-        /* int 0x80 */
-        0xCD, 0x80,
-
-        /* nop (to align stack to 4 bytes) */
-        0x90, 0x90, 0x90,
-    };
-
-    /* Make sure shellcode is 4-byte aligned for stack */
-    ASSERT((sizeof(shellcode) & 0x3) == 0);
-
-    /* Holds the userspace stack pointer */
-    uint8_t *esp = (uint8_t *)regs->esp;
-
-    /* Push sigreturn linkage onto user stack */
-    esp -= sizeof(shellcode);
-    uint8_t *linkage_addr = esp;
-    if (!copy_to_user(esp, shellcode, sizeof(shellcode))) {
-        return false;
-    }
-
-    /* Push interrupt context onto user stack */
-    esp -= sizeof(int_regs_t);
-    uint8_t *intregs_addr = esp;
-    if (!copy_to_user(esp, regs, sizeof(int_regs_t))) {
-        return false;
-    }
-
-    /* Push signal number onto user stack */
-    esp -= sizeof(int32_t);
-    uint8_t *signum_addr = esp;
-    if (!copy_to_user(esp, &sig->signum, sizeof(int32_t))) {
-        return false;
-    }
-
-    /* Push return address (which is sigreturn linkage) onto user stack */
-    esp -= sizeof(uint32_t);
-    if (!copy_to_user(esp, &linkage_addr, sizeof(uint32_t))) {
-        return false;
-    }
-
-    /* Fill in shellcode values */
-    int32_t syscall_num = SYS_SIGRETURN;
-    copy_to_user(linkage_addr + 1, &syscall_num, 4);
-    copy_to_user(linkage_addr + 6, signum_addr, 4);
-    copy_to_user(linkage_addr + 11, &intregs_addr, 4);
-
-    /* Change EIP of userspace program to the signal handler */
-    regs->eip = sig->handler_addr;
-
-    /* Change ESP to point to new stack bottom */
-    regs->esp = (uint32_t)esp;
-
-    /* Fix segment registers in case that was the cause of an exception */
-    regs->cs = USER_CS;
-    regs->ds = USER_DS;
-    regs->es = USER_DS;
-    regs->fs = USER_DS;
-    regs->gs = USER_DS;
-    regs->ss = USER_DS;
-
-    /* Clear direction flag */
-    regs->eflags &= ~EFLAGS_DF;
-
-    /* Mask signal so we don't get re-entrant calls */
-    sig->masked = true;
-    sig->pending = false;
-    return true;
-}
-
-/*
- * Returns whether the currently executing process
- * has a pending signal for which there exists a
- * handler (or default action) that does something.
- */
-bool
-process_has_pending_signal(void)
-{
-    pcb_t *pcb = get_executing_pcb();
-    int32_t i;
-    for (i = 0; i < NUM_SIGNALS; ++i) {
-        signal_info_t *sig = &pcb->signals[i];
-
-        /* Check that there's a non-masked pending signal */
-        if (sig->pending && !sig->masked) {
-            /*
-             * If user manually registered a handler, then
-             * we always execute it.
-             */
-            if (sig->handler_addr != 0) {
-                return true;
-            }
-
-            /*
-             * If there's no manually registered handler, check
-             * if default action actually does something.
-             */
-            switch (sig->signum) {
-            case SIG_DIV_ZERO:
-            case SIG_SEGFAULT:
-            case SIG_INTERRUPT:
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-/*
- * Attempts to deliver a signal to the currently
- * executing process. Returns true if the signal
- * was actually delivered or the process was
- * killed, and false if the signal was ignored.
- */
-bool
-process_handle_signal(signal_info_t *sig, int_regs_t *regs)
-{
-    /* If handler is set and signal isn't masked, run it */
-    if (sig->handler_addr != 0 && !sig->masked) {
-        /* If no more space on stack to push signal context, kill process */
-        if (!process_deliver_signal(sig, regs)) {
-            debugf("Failed to push signal context, killing process\n");
-            process_halt_impl(256);
-        }
-        return true;
-    }
-
-    /* Run default handler if no handler or masked */
-    if (sig->signum == SIG_DIV_ZERO || sig->signum == SIG_SEGFAULT) {
-        debugf("Killing process due to exception\n");
-        process_halt_impl(256);
-        return true;
-    }
-
-    /* CTRL-C halts with exit code 130 (SIGINT) */
-    if (sig->signum == SIG_INTERRUPT) {
-        debugf("Killing process due to CTRL-C\n");
-        process_halt_impl(130);
-        return true;
-    }
-
-    /* Default action is to ignore the signal */
-    sig->pending = false;
-    return false;
-}
-
-/*
- * Raises (marks as pending) a signal for the specified process.
- */
-static void
-process_raise_signal(pcb_t *pcb, int32_t signum)
-{
-    signal_info_t *sig = &pcb->signals[signum];
-    sig->pending = true;
-}
-
-/*
- * If the currently executing process has any pending
- * signals, modifies the IRET context and user stack to run the
- * signal handler.
- */
-void
-process_handle_signals(int_regs_t *regs)
-{
-    pcb_t *pcb = get_executing_pcb();
-    int32_t i;
-    for (i = 0; i < NUM_SIGNALS; ++i) {
-        /* If we have any pending signals, try to deliver them */
-        signal_info_t *sig = &pcb->signals[i];
-        if (sig->pending && process_handle_signal(sig, regs)) {
-            break;
-        }
-    }
-}
-
-/*
- * Handles an exception that occurred in userspace.
- * If a signal handler is available, will cause that to
- * be executed. Otherwise, kills the process.
- */
-void
-process_user_exception(uint32_t int_num)
-{
-    pcb_t *pcb = get_executing_pcb();
-    if (int_num == EXC_DE) {
-        process_raise_signal(pcb, SIG_DIV_ZERO);
-    } else {
-        process_raise_signal(pcb, SIG_SEGFAULT);
-    }
-}
-
-/*
- * Handles CTRL-C input by sending an interrupt signal
- * to the process executing in the specified terminal.
- */
-void
-process_interrupt(int32_t terminal)
-{
-    pcb_t *pcb = get_pcb_by_terminal(terminal);
-    if (pcb == NULL) {
-        debugf("No process running in terminal %d\n", terminal);
-        return;
-    }
-
-    process_raise_signal(pcb, SIG_INTERRUPT);
-}
-
-/*
- * Handles RTC updates by sending an alarm signal
- * to each process every 10 seconds since its creation.
- */
-void
-process_update_clock(uint32_t rtc_counter)
-{
-    int32_t i;
-    for (i = 0; i < MAX_PROCESSES; ++i) {
-        pcb_t *pcb = &process_info[i];
-        if (pcb->pid >= 0) {
-            /* If enough time has elapsed, raise an alarm signal */
-            uint32_t elapsed_time = rtc_counter - pcb->last_alarm;
-            if (elapsed_time >= MAX_RTC_FREQ * SIG_ALARM_PERIOD) {
-                pcb->last_alarm = rtc_counter;
-                process_raise_signal(pcb, SIG_ALARM);
-            }
-        }
-    }
-}
-
 /* halt() syscall handler */
 __cdecl int32_t
 process_halt(uint32_t status)
@@ -962,76 +701,6 @@ process_vidmap(uint8_t **screen_start)
     return 0;
 }
 
-/* set_handler() syscall handler */
-__cdecl int32_t
-process_set_handler(int32_t signum, uint32_t handler_address)
-{
-    /* Check signal number range */
-    if (signum < 0 || signum >= NUM_SIGNALS) {
-        return -1;
-    }
-
-    pcb_t *pcb = get_executing_pcb();
-    pcb->signals[signum].handler_addr = handler_address;
-    return 0;
-}
-
-/* sigreturn() syscall handler */
-__cdecl int32_t
-process_sigreturn(
-    int32_t signum,
-    int_regs_t *user_regs,
-    __unused uint32_t unused,
-    int_regs_t *kernel_regs)
-{
-    /* Check signal number range */
-    if (signum < 0 || signum >= NUM_SIGNALS) {
-        debugf("Invalid signal number\n");
-        return -1;
-    }
-
-    /* Check saved register context */
-    if (!is_user_readable(user_regs, sizeof(int_regs_t))) {
-        debugf("Cannot read user regs\n");
-        return -1;
-    }
-
-    /* You try to do kernel privilege exploit? Nein! */
-    if (user_regs->cs != USER_CS) {
-        debugf("sigreturn CS does not equal USER_CS\n");
-        return -1;
-    }
-
-    /* Unmask signal again */
-    pcb_t *pcb = get_executing_pcb();
-    pcb->signals[signum].masked = false;
-
-    /* Ignore privileged EFLAGS bits (emulate POPFL behavior) */
-    /* http://stackoverflow.com/a/39195843 */
-    uint32_t kernel_eflags = kernel_regs->eflags & ~EFLAGS_USER;
-    uint32_t user_eflags = user_regs->eflags & EFLAGS_USER;
-
-    /* Copy user context to kernel interrupt context */
-    *kernel_regs = *user_regs;
-
-    /* Restore EFLAGS to a safe value */
-    kernel_regs->eflags = kernel_eflags | user_eflags;
-
-    /* Reset segment registers (no GPF for you!) */
-    kernel_regs->cs = USER_CS;
-    kernel_regs->ds = USER_DS;
-    kernel_regs->es = USER_DS;
-    kernel_regs->fs = USER_DS;
-    kernel_regs->gs = USER_DS;
-    kernel_regs->ss = USER_DS;
-
-    /*
-     * Interrupt handler overwrites EAX with the return value,
-     * so we just return EAX so it will get set to itself.
-     */
-    return kernel_regs->eax;
-}
-
 /* Initializes all process control related data */
 void
 process_init(void)
@@ -1051,4 +720,25 @@ process_start_shell(void)
         process_create_child((uint8_t *)"shell", NULL, i);
     }
     process_execute_impl((uint8_t *)"shell", NULL, 0);
+}
+
+/*
+ * Handles RTC updates by sending an alarm signal
+ * to each process every 10 seconds since its creation.
+ */
+void
+process_update_clock(uint32_t rtc_counter)
+{
+    int32_t i;
+    for (i = 0; i < MAX_PROCESSES; ++i) {
+        pcb_t *pcb = &process_info[i];
+        if (pcb->pid >= 0) {
+            /* If enough time has elapsed, raise an alarm signal */
+            uint32_t elapsed_time = rtc_counter - pcb->last_alarm;
+            if (elapsed_time >= MAX_RTC_FREQ * SIG_ALARM_PERIOD) {
+                pcb->last_alarm = rtc_counter;
+                signal_raise(pcb->pid, SIG_ALARM);
+            }
+        }
+    }
 }

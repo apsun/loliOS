@@ -5,6 +5,7 @@
 #include "file.h"
 #include "syscall.h"
 #include "idt.h"
+#include "signal.h"
 
 /* Maximum argument length, including the NUL terminator */
 #define MAX_ARGS_LEN 1024
@@ -45,43 +46,7 @@
  */
 #define PROCESS_SCHED 2
 
-/* Number of supported signals */
-#define NUM_SIGNALS 5
-
-/* Signal numbers */
-#define SIG_DIV_ZERO  0
-#define SIG_SEGFAULT  1
-#define SIG_INTERRUPT 2
-#define SIG_ALARM     3
-#define SIG_USER1     4
-
-/* Period of the alarm signal, in seconds */
-#define SIG_ALARM_PERIOD 10
-
 #ifndef ASM
-
-typedef struct {
-    /*
-     * The number of this signal.
-     */
-    int32_t signum;
-
-    /*
-     * Userspace address of the signal handler. Equal
-     * to 0 if no handler has been set.
-     */
-    uint32_t handler_addr;
-
-    /*
-     * Whether this signal is currently masked.
-     */
-    bool masked;
-
-    /*
-     * Whether this signal is scheduled for delivery.
-     */
-    bool pending;
-} signal_info_t;
 
 /*
  * Process control block structure
@@ -167,6 +132,9 @@ typedef struct {
     uint8_t kernel_stack[PROCESS_DATA_SIZE - sizeof(pcb_t *)];
 } process_data_t;
 
+/* Gets a PCB by its process ID */
+pcb_t *get_pcb_by_pid(int32_t pid);
+
 /* Gets the PCB of the currently executing process */
 pcb_t *get_executing_pcb(void);
 
@@ -178,8 +146,6 @@ __cdecl int32_t process_halt(uint32_t status);
 __cdecl int32_t process_execute(const uint8_t *command);
 __cdecl int32_t process_getargs(uint8_t *buf, int32_t nbytes);
 __cdecl int32_t process_vidmap(uint8_t **screen_start);
-__cdecl int32_t process_set_handler(int32_t signum, uint32_t handler_address);
-__cdecl int32_t process_sigreturn(int32_t signum, int_regs_t *user_regs, uint32_t, int_regs_t *kernel_regs);
 
 /* Initializes processes. */
 void process_init(void);
@@ -187,23 +153,14 @@ void process_init(void);
 /* Switches to the next scheduled process */
 void process_switch(void);
 
-/* Handles any pending signals */
-void process_handle_signals(int_regs_t *regs);
-
-/* Handles a userspace exception */
-void process_user_exception(uint32_t int_num);
-
-/* Handles CTRL-C input */
-void process_interrupt(int32_t terminal);
-
-/* Handles RTC updates */
-void process_update_clock(uint32_t rtc_counter);
-
-/* Returns whether the currently executing process has a pending signal */
-bool process_has_pending_signal(void);
+/* Halts the executing process with the specified status code */
+int32_t process_halt_impl(uint32_t status);
 
 /* Starts the shell. This must only be called after all kernel init has completed. */
 void process_start_shell(void);
+
+/* Handles RTC updates and delivers SIG_ALARM when necessary */
+void process_update_clock(uint32_t rtc_counter);
 
 #endif /* ASM */
 

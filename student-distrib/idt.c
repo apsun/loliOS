@@ -5,6 +5,7 @@
 #include "irq.h"
 #include "syscall.h"
 #include "process.h"
+#include "signal.h"
 
 /* Convenience wrapper around SET_IDT_ENTRY */
 #define WRITE_IDT_ENTRY(i, name)            \
@@ -65,14 +66,30 @@ dump_registers(int_regs_t *regs)
     printf("cr4:        0x%#x\n", regs->cr4);
 }
 
+/*
+ * Handles an exception that occurred in userspace.
+ * If a signal handler is available, will cause that to
+ * be executed. Otherwise, kills the process.
+ */
+static void
+handle_user_exception(uint32_t int_num)
+{
+    debugf("Userspace exception: %s\n", exception_names[regs->int_num]);
+    pcb_t *pcb = get_executing_pcb();
+    if (int_num == EXC_DE) {
+        signal_raise(pcb->pid, SIG_DIV_ZERO);
+    } else {
+        signal_raise(pcb->pid, SIG_SEGFAULT);
+    }
+}
+
 /* Exception handler */
 static void
 handle_exception(int_regs_t *regs)
 {
     /* If we were in userspace, run signal handler or kill the process */
     if (regs->cs == USER_CS) {
-        debugf("Userspace exception: %s\n", exception_names[regs->int_num]);
-        process_user_exception(regs->int_num);
+        handle_user_exception(regs->int_num);
         return;
     }
 
@@ -127,7 +144,7 @@ idt_handle_interrupt(int_regs_t *regs)
      * the only place we can safely return to after sigreturn.
      */
     if (regs->cs == USER_CS) {
-        process_handle_signals(regs);
+        signal_handle_all(regs);
     }
 }
 
