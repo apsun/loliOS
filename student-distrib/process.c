@@ -8,7 +8,7 @@
 #include "rtc.h"
 
 /* The virtual address that the process should be copied to */
-static uint8_t * const process_vaddr = (uint8_t *)(USER_PAGE_START + 0x48000);
+#define PROCESS_VADDR (USER_PAGE_START + 0x48000)
 
 /* Process control blocks */
 static pcb_t process_info[MAX_PROCESSES];
@@ -246,12 +246,18 @@ process_load_exe(uint32_t inode_idx)
          * Copy the program to the process page.
          * The chunk size (4096B) is arbitrary.
          */
-        count = read_data(inode_idx, offset, process_vaddr + offset, 4096);
+        count = read_data(inode_idx, offset, (uint8_t *)PROCESS_VADDR + offset, 4096);
         offset += count;
     } while (count > 0);
 
+    /* Clear user page contents for security */
+    uint32_t head_size = PROCESS_VADDR - USER_PAGE_START;
+    uint32_t tail_size = USER_PAGE_END - PROCESS_VADDR - offset;
+    memset((uint8_t *)USER_PAGE_START, 0, head_size);
+    memset((uint8_t *)PROCESS_VADDR + offset, 0, tail_size);
+
     /* The entry point is located at bytes 24-27 of the executable */
-    uint32_t entry_point = *(uint32_t *)(process_vaddr + 24);
+    uint32_t entry_point = *(uint32_t *)(PROCESS_VADDR + 24);
     return entry_point;
 }
 
@@ -356,7 +362,7 @@ process_run_impl(pcb_t *pcb)
                  /* EIP */
                  "pushl %0;"
 
-                 /* Zero all general registers for security */
+                 /* Zero all general purpose registers for security */
                  "xorl %%eax, %%eax;"
                  "xorl %%ebx, %%ebx;"
                  "xorl %%ecx, %%ecx;"
