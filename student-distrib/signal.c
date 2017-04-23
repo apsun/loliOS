@@ -120,15 +120,10 @@ signal_sigreturn(
         return -1;
     }
 
-    /* Check saved register context */
-    if (!is_user_readable(user_regs, sizeof(int_regs_t))) {
+    /* First copy to a temporary context... */
+    int_regs_t tmp_regs;
+    if (!copy_from_user(&tmp_regs, user_regs, sizeof(int_regs_t))) {
         debugf("Cannot read user regs\n");
-        return -1;
-    }
-
-    /* You try to do kernel privilege exploit? Nein! */
-    if (user_regs->cs != USER_CS) {
-        debugf("sigreturn CS does not equal USER_CS\n");
         return -1;
     }
 
@@ -139,21 +134,19 @@ signal_sigreturn(
     /* Ignore privileged EFLAGS bits (emulate POPFL behavior) */
     /* http://stackoverflow.com/a/39195843 */
     uint32_t kernel_eflags = kernel_regs->eflags & ~EFLAGS_USER;
-    uint32_t user_eflags = user_regs->eflags & EFLAGS_USER;
+    uint32_t user_eflags = tmp_regs.eflags & EFLAGS_USER;
+    tmp_regs.eflags = kernel_eflags | user_eflags;
 
-    /* Copy user context to kernel interrupt context */
-    *kernel_regs = *user_regs;
+    /* Reset segment registers (no privilege exploits for you!) */
+    tmp_regs.cs = USER_CS;
+    tmp_regs.ds = USER_DS;
+    tmp_regs.es = USER_DS;
+    tmp_regs.fs = USER_DS;
+    tmp_regs.gs = USER_DS;
+    tmp_regs.ss = USER_DS;
 
-    /* Restore EFLAGS to a safe value */
-    kernel_regs->eflags = kernel_eflags | user_eflags;
-
-    /* Reset segment registers (no GPF for you!) */
-    kernel_regs->cs = USER_CS;
-    kernel_regs->ds = USER_DS;
-    kernel_regs->es = USER_DS;
-    kernel_regs->fs = USER_DS;
-    kernel_regs->gs = USER_DS;
-    kernel_regs->ss = USER_DS;
+    /* Copy temporary context to kernel context */
+    *kernel_regs = tmp_regs;
 
     /*
      * Interrupt handler overwrites EAX with the return value,
