@@ -1,6 +1,10 @@
 #include "mouse.h"
 #include "ps2.h"
 #include "lib.h"
+#include "process.h"
+
+#define MAX_MOUSE_FILES (MAX_PROCESSES * MAX_FILES)
+static file_obj_t *mouse_files[MAX_MOUSE_FILES];
 
 /*
  * Open syscall for the mouse.
@@ -8,7 +12,16 @@
 int32_t
 mouse_open(const uint8_t *filename, file_obj_t *file)
 {
-    return 0;
+    int32_t i;
+    for (i = 0; i < MAX_MOUSE_FILES; ++i) {
+        if (mouse_files[i] == NULL) {
+            mouse_files[i] = file;
+            return 0;
+        }
+    }
+
+    /* Not enough slots in the file tracker :-( */
+    return -1;
 }
 
 /*
@@ -17,7 +30,14 @@ mouse_open(const uint8_t *filename, file_obj_t *file)
 int32_t
 mouse_read(file_obj_t *file, void *buf, int32_t nbytes)
 {
+    /* Must read the whole mouse data struct */
+    if (nbytes < sizeof(mouse_data_t)) {
+        return -1;
+    }
+
+    if (copy_to_user(buf, file-))
     return 0;
+    
 }
 
 /*

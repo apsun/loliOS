@@ -47,6 +47,7 @@ static file_ops_t fops_rtc = {
     .close = rtc_close
 };
 
+/* Mouse file ops */
 static file_ops_t fops_mouse = {
     .open = mouse_open,
     .read = mouse_read,
