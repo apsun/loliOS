@@ -26,9 +26,6 @@
 #define KC_4         0x05
 #define KC_5         0x06
 
-/* Memory port of the keyboard */
-#define KEYBOARD_PORT 0x60
-
 /* Number of keys we handle */
 #define NUM_KEYS 58
 
@@ -75,8 +72,8 @@ typedef struct {
     } value;
 } kbd_input_t;
 
-/* Initializes keyboard interrupts */
-void keyboard_init(void);
+/* Handles keyboard interrupts */
+void keyboard_handle_irq(uint8_t packet);
 
 #endif /* ASM */
 

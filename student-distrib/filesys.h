@@ -22,6 +22,7 @@
 #define FTYPE_RTC 0
 #define FTYPE_DIR 1
 #define FTYPE_FILE 2
+#define FTYPE_MOUSE 3
 
 #ifndef ASM
 

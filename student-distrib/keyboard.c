@@ -214,13 +214,18 @@ keycode_to_input(uint8_t keycode)
 static kbd_input_t
 process_packet(uint8_t packet)
 {
-    /* Status is 1 if key was pressed, 0 if key was released */
+    /*
+     * Most significant bit is 1 if the key was released, 0 if pressed.
+     * Remaining 7 bits represent the keycode of the character.
+     */
     uint8_t status = !(packet & 0x80);
     uint8_t keycode = packet & 0x7F;
-    kbd_modifiers_t mod = keycode_to_modifier(keycode);
+
     kbd_input_t input;
     input.type = KTYP_NONE;
 
+    /* Try to handle as a modifier key */
+    kbd_modifiers_t mod = keycode_to_modifier(keycode);
     if (mod != KMOD_NONE) {
         /* Key pressed was a modifier */
         if (mod == KMOD_CAPS) {
@@ -241,27 +246,13 @@ process_packet(uint8_t packet)
     return input;
 }
 
-/* Handles keyboard interrupts from the PIC */
-static void
-handle_keyboard_irq(void)
+/* Handles keyboard interrupts */
+void
+keyboard_handle_irq(uint8_t packet)
 {
-    /*
-     * Most significant bit is 1 if the key was released, 0 if pressed.
-     * Remaining 7 bits represent the keycode of the character.
-     */
-    uint8_t packet = inb(KEYBOARD_PORT);
-
     /* Process packet, updating internal state if necessary */
     kbd_input_t input = process_packet(packet);
 
     /* Send it to the terminal for processing */
     terminal_handle_input(input);
-}
-
-/* Initializes keyboard interrupts */
-void
-keyboard_init(void)
-{
-    /* Register keyboard IRQ handler, enable interrupts */
-    irq_register_handler(IRQ_KEYBOARD, handle_keyboard_irq);
 }

@@ -7,6 +7,7 @@
 #include "paging.h"
 #include "process.h"
 #include "pit.h"
+#include "ps2.h"
 #include "keyboard.h"
 #include "rtc.h"
 #include "terminal.h"
@@ -173,8 +174,8 @@ entry (unsigned long magic, unsigned long addr)
     printf("Initializing PIT...\n");
     pit_init();
 
-    printf("Initializing keyboard...\n");
-    keyboard_init();
+    printf("Initializing PS/2 devices...\n");
+    ps2_init();
 
     printf("Initializing RTC...\n");
     rtc_init();

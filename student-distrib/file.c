@@ -1,6 +1,7 @@
 #include "file.h"
 #include "lib.h"
 #include "rtc.h"
+#include "mouse.h"
 #include "filesys.h"
 #include "terminal.h"
 #include "process.h"
@@ -46,6 +47,13 @@ static file_ops_t fops_rtc = {
     .close = rtc_close
 };
 
+static file_ops_t fops_mouse = {
+    .open = mouse_open,
+    .read = mouse_read,
+    .write = mouse_write,
+    .close = mouse_close
+};
+
 /* Initializes the file object from the given dentry */
 static bool
 init_file_obj(file_obj_t *file, dentry_t *dentry)
@@ -62,6 +70,9 @@ init_file_obj(file_obj_t *file, dentry_t *dentry)
     case FTYPE_FILE:
         file->ops_table = &fops_file;
         file->inode_idx = dentry->inode_idx;
+        break;
+    case FTYPE_MOUSE:
+        file->ops_table = &fops_mouse;
         break;
     default:
         debugf("Unknown file type: %d\n", dentry->ftype);

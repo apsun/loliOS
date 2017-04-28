@@ -10,6 +10,7 @@
 #define IRQ_PIT      0
 #define IRQ_KEYBOARD 1
 #define IRQ_RTC      8
+#define IRQ_MOUSE    12
 
 #ifndef ASM
 
