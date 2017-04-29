@@ -224,9 +224,6 @@ terminal_clear_impl(terminal_state_t *term)
     if (term == get_display_terminal()) {
         terminal_update_cursor(term);
     }
-
-    /* Clear input buffer */
-    term->input.count = 0;
 }
 
 /*
@@ -280,18 +277,20 @@ terminal_clear(void)
 {
     terminal_state_t *term = get_display_terminal();
     terminal_clear_impl(term);
+    term->kbd_input.count = 0;
 }
 
-/* Clears the specified terminal's input buffer */
+/* Clears the specified terminal's input buffers */
 void
 terminal_clear_input(int32_t terminal)
 {
     terminal_state_t *term = get_terminal(terminal);
-    term->input.count = 0;
+    term->kbd_input.count = 0;
+    term->mouse_input.count = 0;
 }
 
 /*
- * Waits until the input buffer can be read. This is satisfied
+ * Waits until the keyboard input buffer can be read. This is satisfied
  * when one of these conditions are met:
  *
  * 1. We have enough characters in the buffer to fill the output buffer
@@ -300,20 +299,20 @@ terminal_clear_input(int32_t terminal)
  * Returns the number of characters that should be read.
  */
 static int32_t
-wait_until_readable(volatile input_buf_t *input_buf, int32_t nbytes)
+terminal_wait_kbd_input(kbd_input_buf_t *input_buf, int32_t nbytes)
 {
-    int32_t i;
-
     /*
      * If nbytes <= number of chars in the buffer, we just
      * return as much as will fit.
      */
-    while (nbytes > input_buf->count) {
+    int32_t count;
+    while (nbytes > (count = input_buf->count)) {
         /*
          * Check if we have a newline character, if so, we should
          * only read up to and including that character
          */
-        for (i = 0; i < input_buf->count; ++i) {
+        int32_t i;
+        for (i = 0; i < count; ++i) {
             if (input_buf->buf[i] == '\n') {
                 return i + 1;
             }
@@ -339,6 +338,15 @@ wait_until_readable(volatile input_buf_t *input_buf, int32_t nbytes)
 }
 
 /*
+ * Open syscall for stdin/stdout. Always succeeds.
+ */
+int32_t
+terminal_kbd_open(const uint8_t *filename, file_obj_t *file)
+{
+    return 0;
+}
+
+/*
  * Read syscall for the terminal (stdin). Reads up to nbytes
  * characters or the first line break, whichever occurs
  * first. Returns the number of characters read.
@@ -360,12 +368,11 @@ terminal_stdin_read(file_obj_t *file, void *buf, int32_t nbytes)
     }
 
     terminal_state_t *term = get_executing_terminal();
-    volatile input_buf_t *input_buf = &term->input;
-    uint32_t flags;
+    kbd_input_buf_t *input_buf = &term->kbd_input;
 
     /* Only allow reads up to the end of the buffer */
-    if (nbytes > TERMINAL_BUF_SIZE) {
-        nbytes = TERMINAL_BUF_SIZE;
+    if (nbytes > KEYBOARD_BUF_SIZE) {
+        nbytes = KEYBOARD_BUF_SIZE;
     }
 
     /*
@@ -373,37 +380,42 @@ terminal_stdin_read(file_obj_t *file, void *buf, int32_t nbytes)
      * Interrupts must be disabled upon entry, and
      * will be disabled upon return.
      */
-    cli_and_save(flags);
-    nbytes = wait_until_readable(input_buf, nbytes);
+    nbytes = terminal_wait_kbd_input(input_buf, nbytes);
 
     /* Abort if we have pending signals */
     if (nbytes < 0) {
         return -1;
     }
 
-    /*
-     * Copy from input buffer to dest buffer. Note that
-     * this can never fail (even if we were pre-empted during
-     * the wait_until_readable call, since there's no way
-     * for the process to die except from sudoku).
-     */
+    /* Copy input buffer to userspace */
     if (!copy_to_user(buf, (void *)input_buf->buf, nbytes)) {
-        ASSERT(0);
+        return -1;
     }
 
-    /*
-     * Shift remaining characters to the front of the buffer
-     * Interrupts are cleared at this point so no need to worry
-     * about discarding the volatile qualifier
-     */
+    /* Shift remaining characters to the front of the buffer */
     memmove((void *)&input_buf->buf[0], (void *)&input_buf->buf[nbytes], nbytes);
     input_buf->count -= nbytes;
 
-    /* Restore original interrupt flags */
-    restore_flags(flags);
-
     /* nbytes holds the number of characters read */
     return nbytes;
+}
+
+/*
+ * Write syscall for stdin. Always fails.
+ */
+int32_t
+terminal_stdin_write(file_obj_t *file, const void *buf, int32_t nbytes)
+{
+    return -1;
+}
+
+/*
+ * Read syscall for stdout. Always fails.
+ */
+int32_t
+terminal_stdout_read(file_obj_t *file, void *buf, int32_t nbytes)
+{
+    return -1;
 }
 
 /*
@@ -443,40 +455,78 @@ terminal_stdout_write(file_obj_t *file, const void *buf, int32_t nbytes)
 }
 
 /*
- * Open syscall for the stdin/stdout. Always succeeds.
+ * Close syscall for stdin/stdout. Always fails.
  */
 int32_t
-terminal_open(const uint8_t *filename, file_obj_t *file)
+terminal_kbd_close(file_obj_t *file)
+{
+    return -1;
+}
+
+/*
+ * Open syscall for the mouse. Always succeeds.
+ */
+int32_t
+terminal_mouse_open(const uint8_t *filename, file_obj_t *file)
 {
     return 0;
 }
 
 /*
- * Close syscall for stdin/stdout. Always fails.
+ * Read syscall for the mouse. This does NOT block if no
+ * inputs are available. Copies at most nbytes / sizeof(mouse_input_t)
+ * input events to buf. If no events are available, this
+ * simply returns 0.
  */
 int32_t
-terminal_close(file_obj_t *file)
+terminal_mouse_read(file_obj_t *file, void *buf, int32_t nbytes)
 {
-    /* Can't close the terminals */
+    /* Get the mouse buffer for the executing terminal */
+    terminal_state_t *term = get_executing_terminal();
+    mouse_input_buf_t *input_buf = &term->mouse_input;
+
+    /*
+     * Return either the number of inputs in the buffer,
+     * or the number of inputs the user requested, whichever
+     * one is smaller.
+     */
+    int32_t num_copy = nbytes / sizeof(mouse_input_t);
+    if (num_copy > input_buf->count) {
+        num_copy = input_buf->count;
+    }
+
+    /* Number of bytes we actually copy */
+    int32_t num_bytes_copy = num_copy * sizeof(mouse_input_t);
+
+    /* Copy input buffer to userspace */
+    if (!copy_to_user(buf, (void *)input_buf->buf, num_bytes_copy)) {
+        return -1;
+    }
+
+    /* Shift remaining inputs to the front */
+    memmove((void *)&input_buf->buf[0], (void *)&input_buf->buf[num_copy], num_bytes_copy);
+    input_buf->count -= num_copy;
+
+    /* Return the number of bytes copied into the buffer */
+    return num_bytes_copy;
+}
+
+/*
+ * Write syscall for the mouse. Always fails.
+ */
+int32_t
+terminal_mouse_write(file_obj_t *file, const void *buf, int32_t nbytes)
+{
     return -1;
 }
 
 /*
- * Write syscall for stdin. Always fails.
+ * Close syscall for the mouse. Always succeeds.
  */
 int32_t
-terminal_stdin_write(file_obj_t *file, const void *buf, int32_t nbytes)
+terminal_mouse_close(file_obj_t *file)
 {
-    return -1;
-}
-
-/*
- * Read syscall for stdout. Always fails.
- */
-int32_t
-terminal_stdout_read(file_obj_t *file, void *buf, int32_t nbytes)
-{
-    return -1;
+    return 0;
 }
 
 /*
@@ -525,13 +575,13 @@ handle_char_input(uint8_t c)
      * terminal's input stream, not the currently executing terminal.
      */
     terminal_state_t *term = get_display_terminal();
-    volatile input_buf_t *input_buf = &term->input;
+    kbd_input_buf_t *input_buf = &term->kbd_input;
     if (c == '\b' && input_buf->count > 0 && term->cursor.logical_x > 0) {
         input_buf->count--;
         terminal_putc_impl(term, c);
         terminal_update_cursor(term);
-    } else if ((c != '\b' && input_buf->count < TERMINAL_BUF_SIZE - 1) ||
-               (c == '\n' && input_buf->count < TERMINAL_BUF_SIZE)) {
+    } else if ((c != '\b' && input_buf->count < KEYBOARD_BUF_SIZE - 1) ||
+               (c == '\n' && input_buf->count < KEYBOARD_BUF_SIZE)) {
         input_buf->buf[input_buf->count++] = c;
         terminal_putc_impl(term, c);
         terminal_update_cursor(term);
@@ -540,7 +590,7 @@ handle_char_input(uint8_t c)
 
 /* Handles input from the keyboard */
 void
-terminal_handle_input(kbd_input_t input)
+terminal_handle_kbd_input(kbd_input_t input)
 {
     switch (input.type) {
     case KTYP_CHAR:
@@ -554,6 +604,19 @@ terminal_handle_input(kbd_input_t input)
     default:
         ASSERT(0);
         break;
+    }
+}
+
+/* Handles input from the mouse */
+void
+terminal_handle_mouse_input(mouse_input_t input)
+{
+    terminal_state_t *term = get_display_terminal();
+    mouse_input_buf_t *input_buf = &term->mouse_input;
+    if (input_buf->count == MOUSE_BUF_SIZE) {
+        debugf("Mouse buffer full, dropping packet\n");
+    } else if (input_buf->count >= 0) {
+        input_buf->buf[input_buf->count++] = input;
     }
 }
 

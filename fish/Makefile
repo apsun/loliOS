@@ -22,4 +22,4 @@ fish.exe: fish.o blink.o ece391support.o ece391syscall.o
 clean::
 	rm -f *.o *~
 clear: clean
-	rm fish fish.exe fish_emulated
+	rm -f fish fish.exe fish_emulated

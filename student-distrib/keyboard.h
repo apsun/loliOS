@@ -29,6 +29,9 @@
 /* Number of keys we handle */
 #define NUM_KEYS 58
 
+/* Size of the keyboard buffer */
+#define KEYBOARD_BUF_SIZE 128
+
 #ifndef ASM
 
 /* Modifier key enum */
@@ -71,6 +74,15 @@ typedef struct {
         kbd_input_ctrl_t control;
     } value;
 } kbd_input_t;
+
+/* Character input buffer */
+typedef struct {
+    /* Buffer to hold the characters */
+    volatile uint8_t buf[KEYBOARD_BUF_SIZE];
+
+    /* Number of characters in the buffer */
+    volatile int32_t count;
+} kbd_input_buf_t;
 
 /* Handles keyboard interrupts */
 void keyboard_handle_irq(void);

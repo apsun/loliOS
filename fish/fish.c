@@ -4,7 +4,7 @@
 #include "blink.h"
 
 #define NULL 0
-#define WAIT 200
+#define WAIT 100
 uint8_t *vmem_base_addr;
 uint8_t *mp1_set_video_mode (void);
 void add_frames(uint8_t *, uint8_t *, int32_t);
@@ -63,10 +63,9 @@ int main(void)
         mp1_rtc_tasklet(garbage);
     }
 
-    blink_struct.location = 60;
-    mp1_ioctl(i, RTC_REMOVE);
+    mp1_ioctl(6*80+60, RTC_REMOVE);
 
-    for(i=0; i<80*25; i++) {
+    for(i=0; i<WAIT; i++) {
         ece391_read(rtc_fd, &garbage, 4);
         mp1_rtc_tasklet(garbage);
     }

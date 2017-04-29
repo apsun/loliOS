@@ -9,18 +9,18 @@
 
 /* Terminal stdin file ops */
 static file_ops_t fops_stdin = {
-    .open = terminal_open,
+    .open = terminal_kbd_open,
     .read = terminal_stdin_read,
     .write = terminal_stdin_write,
-    .close = terminal_close
+    .close = terminal_kbd_close
 };
 
 /* Terminal stdout file ops */
 static file_ops_t fops_stdout = {
-    .open = terminal_open,
+    .open = terminal_kbd_open,
     .read = terminal_stdout_read,
     .write = terminal_stdout_write,
-    .close = terminal_close
+    .close = terminal_kbd_close
 };
 
 /* File (the real kind) file ops */
@@ -49,10 +49,10 @@ static file_ops_t fops_rtc = {
 
 /* Mouse file ops */
 static file_ops_t fops_mouse = {
-    .open = mouse_open,
-    .read = mouse_read,
-    .write = mouse_write,
-    .close = mouse_close
+    .open = terminal_mouse_open,
+    .read = terminal_mouse_read,
+    .write = terminal_mouse_write,
+    .close = terminal_mouse_close
 };
 
 /* Initializes the file object from the given dentry */

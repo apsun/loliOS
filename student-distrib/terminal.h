@@ -4,8 +4,9 @@
 #include "types.h"
 #include "keyboard.h"
 #include "filesys.h"
+#include "process.h"
+#include "mouse.h"
 
-#define TERMINAL_BUF_SIZE 128
 #define NUM_TERMINALS 3
 
 #define NUM_COLS  80
@@ -20,15 +21,6 @@
 #define VGA_PORT_DATA     0x3D5
 
 #ifndef ASM
-
-/* Character input buffer */
-typedef struct {
-    /* Buffer to hold the characters */
-    uint8_t buf[TERMINAL_BUF_SIZE];
-
-    /* Number of characters in the buffer */
-    int32_t count;
-} input_buf_t;
 
 /* Cursor position information */
 typedef struct {
@@ -50,8 +42,11 @@ typedef struct {
 
 /* Combined terminal state information */
 typedef struct {
-    /* Input buffer */
-    volatile input_buf_t input;
+    /* Keyboard input buffer */
+    kbd_input_buf_t kbd_input;
+
+    /* Mouse input buffer */
+    mouse_input_buf_t mouse_input;
 
     /* Cursor position */
     cursor_pos_t cursor;
@@ -75,12 +70,18 @@ typedef struct {
 } terminal_state_t;
 
 /* Terminal syscall functions */
-int32_t terminal_open(const uint8_t *filename, file_obj_t *file);
+int32_t terminal_kbd_open(const uint8_t *filename, file_obj_t *file);
 int32_t terminal_stdin_read(file_obj_t *file, void *buf, int32_t nbytes);
 int32_t terminal_stdin_write(file_obj_t *file, const void *buf, int32_t nbytes);
 int32_t terminal_stdout_read(file_obj_t *file, void *buf, int32_t nbytes);
 int32_t terminal_stdout_write(file_obj_t *file, const void *buf, int32_t nbytes);
-int32_t terminal_close(file_obj_t *file);
+int32_t terminal_kbd_close(file_obj_t *file);
+
+/* Mouse syscall handlers */
+int32_t terminal_mouse_open(const uint8_t *filename, file_obj_t *file);
+int32_t terminal_mouse_read(file_obj_t *file, void *buf, int32_t nbytes);
+int32_t terminal_mouse_write(file_obj_t *file, const void *buf, int32_t nbytes);
+int32_t terminal_mouse_close(file_obj_t *file);
 
 /* Sets the currently displayed terminal */
 void set_display_terminal(int32_t index);
@@ -91,11 +92,14 @@ void terminal_putc(uint8_t c);
 /* Clears the curently executing terminal */
 void terminal_clear(void);
 
-/* Clears the specified terminal's input buffer */
+/* Clears the specified terminal's input buffers */
 void terminal_clear_input(int32_t terminal);
 
 /* Handles keyboard input */
-void terminal_handle_input(kbd_input_t input);
+void terminal_handle_kbd_input(kbd_input_t input);
+
+/* Handles mouse input */
+void terminal_handle_mouse_input(mouse_input_t input);
 
 /* Updates the vidmap status for the specified terminal */
 void terminal_update_vidmap(int32_t term_index, bool present);

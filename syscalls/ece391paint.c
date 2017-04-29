@@ -50,6 +50,12 @@
     #define COLOR_BG COLOR_GRAY
 #endif
 
+/* Used to reset color upon exit */
+#define TERM_ATTRIB 0x7
+
+/* Number of inputs to read at once */
+#define MOUSE_BUF_SIZE 64
+
 /* Boolean type */
 typedef uint8_t bool;
 #define true 1
@@ -118,20 +124,32 @@ parse_mouse_input(raw_mouse_input_t in, mouse_input_t *out)
     return true;
 }
 
-bool
-read_mouse_input(int fd, mouse_input_t *out)
+int32_t
+parse_mouse_inputs(
+    int32_t num_inputs,
+    raw_mouse_input_t in[MOUSE_BUF_SIZE],
+    mouse_input_t out[MOUSE_BUF_SIZE])
 {
-    raw_mouse_input_t raw;
-    int32_t ret = ece391_read(fd, &raw, sizeof(raw));
-    if (ret <= 0) {
-        return false;
+    int32_t num = 0;
+    int32_t i;
+    for (i = 0; i < num_inputs; ++i) {
+        if (parse_mouse_input(in[i], &out[num])) {
+            num++;
+        }
+    }
+    return num;
+}
+
+int32_t
+read_mouse_inputs(int fd, mouse_input_t out[MOUSE_BUF_SIZE])
+{
+    raw_mouse_input_t raw[MOUSE_BUF_SIZE];
+    int32_t ret = ece391_read(fd, raw, sizeof(raw));
+    if (ret < 0) {
+        return 0;
     }
 
-    if (!parse_mouse_input(raw, out)) {
-        return false;
-    }
-
-    return true;
+    return parse_mouse_inputs(ret / sizeof(raw_mouse_input_t), raw, out);
 }
 
 void
@@ -164,7 +182,6 @@ set_highlight(uint8_t *video_mem, int32_t x, int32_t y, bool highlight)
 void
 draw_palette(uint8_t *video_mem)
 {
-    /* 3-bit color, yay! */
     int32_t i, j, k;
     for (i = 0; i < NUM_COLORS; ++i) {
         for (j = 0; j < PALETTE_WIDTH; ++j) {
@@ -199,11 +216,22 @@ void
 clear_screen(uint8_t *video_mem, uint8_t color)
 {
     int32_t i, j;
-    for (i = 0; i < SCREEN_WIDTH; ++i) {
-        for (j = 0; j < SCREEN_HEIGHT; ++j) {
-            draw_char(video_mem, i, j, ' ');
-            draw_pixel(video_mem, i, j, color);
-            set_highlight(video_mem, i, j, HIGHLIGHT_BG);
+    for (i = 0; i < SCREEN_HEIGHT; ++i) {
+        for (j = 0; j < SCREEN_WIDTH; ++j) {
+            draw_char(video_mem, j, i, ' ');
+            draw_pixel(video_mem, j, i, color);
+            set_highlight(video_mem, j, i, HIGHLIGHT_BG);
+        }
+    }
+}
+
+void
+reset_screen(uint8_t *video_mem)
+{
+    int32_t i, j;
+    for (i = 0; i < SCREEN_HEIGHT; ++i) {
+        for (j = 0; j < SCREEN_WIDTH; ++j) {
+            video_mem[(SCREEN_WIDTH * i + j) * 2 + 1] = TERM_ATTRIB;
         }
     }
 }
@@ -268,49 +296,54 @@ main(void)
     int32_t prev_cx = CANVAS_WIDTH / 2;
     int32_t prev_cy = CANVAS_HEIGHT / 2;
     uint8_t selected_color = COLOR_RED;
-    mouse_input_t input;
+    mouse_input_t inputs[MOUSE_BUF_SIZE];
 
     while (1) {
-        /* If user pressed CTRL-C, clear the screen */
+        /* If user pressed CTRL-C, reset the screen and exit */
         if (haz_interrupt) {
-            clear_screen(video_mem, COLOR_BG);
-            draw_palette(video_mem);
-            haz_interrupt = false;
+            reset_screen(video_mem);
+            break;
         }
 
-        /* Read one mouse input packet */
-        if (!read_mouse_input(mouse_fd, &input)) {
+        /* Read some more mouse inputs */
+        int32_t num_inputs = read_mouse_inputs(mouse_fd, inputs);
+        if (num_inputs == 0) {
             continue;
         }
 
-        /* Undraw cursor at old location */
-        int32_t prev_sx, prev_sy;
-        canvas_to_screen(prev_cx, prev_cy, &prev_sx, &prev_sy);
-        set_highlight(video_mem, prev_sx, prev_sy, HIGHLIGHT_BG);
+        int32_t i;
+        for (i = 0; i < num_inputs; ++i) {
+            mouse_input_t input = inputs[i];
 
-        /* Compute new canvas location */
-        int32_t new_cx = prev_cx + input.dx * MOUSE_SPEED;
-        int32_t new_cy = prev_cy + input.dy * MOUSE_SPEED;
-        clamp_coords(&new_cx, &new_cy);
+            /* Undraw cursor at old location */
+            int32_t prev_sx, prev_sy;
+            canvas_to_screen(prev_cx, prev_cy, &prev_sx, &prev_sy);
+            set_highlight(video_mem, prev_sx, prev_sy, HIGHLIGHT_BG);
 
-        /* Draw cursor at new location */
-        int32_t new_sx, new_sy;
-        canvas_to_screen(new_cx, new_cy, &new_sx, &new_sy);
-        set_highlight(video_mem, new_sx, new_sy, HIGHLIGHT_FG);
+            /* Compute new canvas location */
+            int32_t new_cx = prev_cx + input.dx * MOUSE_SPEED;
+            int32_t new_cy = prev_cy + input.dy * MOUSE_SPEED;
+            clamp_coords(&new_cx, &new_cy);
 
-        /* Draw/erase pixel under cursor */
-        if (input.left) {
-            if (!update_palette(new_sx, new_sy, &selected_color)) {
-                draw_pixel(video_mem, new_sx, new_sy, selected_color);
+            /* Draw cursor at new location */
+            int32_t new_sx, new_sy;
+            canvas_to_screen(new_cx, new_cy, &new_sx, &new_sy);
+            set_highlight(video_mem, new_sx, new_sy, HIGHLIGHT_FG);
+
+            /* Draw/erase pixel under cursor */
+            if (input.left) {
+                if (!update_palette(new_sx, new_sy, &selected_color)) {
+                    draw_pixel(video_mem, new_sx, new_sy, selected_color);
+                }
+            } else if (input.right) {
+                if (!update_palette(new_sx, new_sy, NULL)) {
+                    draw_pixel(video_mem, new_sx, new_sy, COLOR_BG);
+                }
             }
-        } else if (input.right) {
-            if (!update_palette(new_sx, new_sy, NULL)) {
-                draw_pixel(video_mem, new_sx, new_sy, COLOR_BG);
-            }
+
+            prev_cx = new_cx;
+            prev_cy = new_cy;
         }
-
-        prev_cx = new_cx;
-        prev_cy = new_cy;
     }
 
     return 0;

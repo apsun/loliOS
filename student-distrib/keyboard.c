@@ -258,7 +258,7 @@ keyboard_handle_irq(void)
     kbd_input_t input = process_packet(packet);
 
     /* Send it to the terminal for processing */
-    terminal_handle_input(input);
+    terminal_handle_kbd_input(input);
 }
 
 /* Initializes the keyboard. */

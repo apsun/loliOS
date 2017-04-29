@@ -317,6 +317,9 @@ process_run_impl(pcb_t *pcb)
     /* Mark process as initialized */
     pcb->status = PROCESS_RUN;
 
+    /* Clear process's terminal input buffers */
+    terminal_clear_input(pcb->terminal);
+
     /* Set the global execution context */
     process_set_context(pcb);
 
@@ -533,7 +536,7 @@ process_halt_impl(uint32_t status)
         }
     }
 
-    /* Clear input buffer */
+    /* Clear terminal input buffers */
     terminal_clear_input(child_pcb->terminal);
 
     /* Mark child PCB as free */

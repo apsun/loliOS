@@ -140,10 +140,11 @@ rtc_open(const uint8_t *filename, file_obj_t *file)
 int32_t
 rtc_read(file_obj_t *file, void *buf, int32_t nbytes)
 {
-    /*
-     * We need to wait until the RTC counter reaches this value
-     */
-    uint32_t target_counter = rtc_counter + MAX_RTC_FREQ / file->offset;
+    /* Max number of ticks we need to wait */
+    uint32_t max_ticks = MAX_RTC_FREQ / file->offset;
+
+    /* Wait until we reach the next multiple of max ticks */
+    uint32_t target_counter = (rtc_counter / max_ticks + 1) * max_ticks;
 
     /*
      * We should break out of the wait loop early if we receive
@@ -158,8 +159,7 @@ rtc_read(file_obj_t *file, void *buf, int32_t nbytes)
     /* Wait for enough RTC interrupts or a signal, whichever comes first */
     while (true) {
         /* Check if we've received enough RTC interrupts */
-        uint32_t curr_counter = rtc_counter;
-        if (curr_counter >= target_counter) {
+        if (rtc_counter >= target_counter) {
             break;
         }
 
