@@ -13,7 +13,49 @@
 #define MOUSE_X_OVERFLOW (1 << 6)
 #define MOUSE_Y_OVERFLOW (1 << 7)
 
+/* Number of inputs in each mouse buffer */
+#define MOUSE_BUF_SIZE 64
+
 #ifndef ASM
+
+typedef struct {
+    /*
+     * Flag bits
+     * 0 - left button down?
+     * 1 - right button down?
+     * 2 - middle button down?
+     * 3 - ignored
+     * 4 - x sign
+     * 5 - y sign
+     * 6 - x overflow
+     * 7 - y overflow
+     */
+    uint8_t flags;
+
+    /*
+     * Mouse delta x (if x sign bit is 1, then this
+     * should be OR'd with 0xFFFFFF00)
+     */
+    uint8_t dx;
+
+    /*
+     * Mouse delta y (if y sign bit is 1, then this
+     * should be OR'd with 0xFFFFFF00)
+     */
+    uint8_t dy;
+} mouse_input_t;
+
+/* Mouse file data */
+typedef struct {
+    /* Input buffer */
+    mouse_input_t buf[MOUSE_BUF_SIZE];
+
+    /*
+     * Number of valid inputs in the buffer.
+     * If < 0, this buffer is unused.
+     */
+    int32_t count;
+} mouse_input_buf_t;
 
 /* Mouse syscall handlers */
 int32_t mouse_open(const uint8_t *filename, file_obj_t *file);
