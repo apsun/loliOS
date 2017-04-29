@@ -151,10 +151,6 @@ rtc_read(file_obj_t *file, void *buf, int32_t nbytes)
      */
     bool have_signal = false;
 
-    /* Save interrupt state */
-    uint32_t flags;
-    cli_and_save(flags);
-
     /* Wait for enough RTC interrupts or a signal, whichever comes first */
     while (true) {
         /* Check if we've received enough RTC interrupts */
@@ -173,9 +169,6 @@ rtc_read(file_obj_t *file, void *buf, int32_t nbytes)
         hlt();
         cli();
     }
-
-    /* Disable interrupts again */
-    restore_flags(flags);
 
     /* Return -1 if we aborted because of a signal */
     if (have_signal) {
