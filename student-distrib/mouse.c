@@ -90,7 +90,7 @@ mouse_write(file_obj_t *file, const void *buf, int32_t nbytes)
 int32_t
 mouse_close(file_obj_t *file)
 {
-    mouse_input[file->offset].count = 0;
+    mouse_input[file->offset].count = -1;
     return 0;
 }
 
