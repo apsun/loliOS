@@ -1,5 +1,4 @@
 #include "keyboard.h"
-#include "irq.h"
 #include "lib.h"
 #include "debug.h"
 #include "terminal.h"

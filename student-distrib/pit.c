@@ -1,5 +1,4 @@
 #include "pit.h"
-#include "types.h"
 #include "lib.h"
 #include "irq.h"
 #include "process.h"

@@ -1,7 +1,7 @@
 #include "ps2.h"
 #include "lib.h"
-#include "irq.h"
 #include "debug.h"
+#include "irq.h"
 #include "keyboard.h"
 #include "mouse.h"
 

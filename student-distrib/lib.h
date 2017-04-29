@@ -1,6 +1,3 @@
-/* lib.h - Defines for useful library functions
- */
-
 #ifndef _LIB_H
 #define _LIB_H
 

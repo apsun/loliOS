@@ -1,7 +1,6 @@
 #ifndef _FILESYS_H
 #define _FILESYS_H
 
-#include "lib.h"
 #include "types.h"
 #include "file.h"
 

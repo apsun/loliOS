@@ -1,11 +1,10 @@
 #include "file.h"
 #include "lib.h"
+#include "debug.h"
 #include "rtc.h"
-#include "mouse.h"
 #include "filesys.h"
 #include "terminal.h"
 #include "process.h"
-#include "debug.h"
 
 /* Terminal stdin file ops */
 static file_ops_t fops_stdin = {

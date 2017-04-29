@@ -1,9 +1,8 @@
 #include "mouse.h"
-#include "ps2.h"
 #include "lib.h"
-#include "process.h"
 #include "debug.h"
 #include "terminal.h"
+#include "ps2.h"
 
 /* Handles mouse interrupts. */
 void

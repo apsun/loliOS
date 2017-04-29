@@ -1,7 +1,7 @@
 #include "signal.h"
-#include "process.h"
 #include "lib.h"
 #include "debug.h"
+#include "process.h"
 #include "x86_desc.h"
 
 /*

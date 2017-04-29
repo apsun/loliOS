@@ -1,9 +1,9 @@
 #include "process.h"
 #include "lib.h"
+#include "debug.h"
 #include "filesys.h"
 #include "paging.h"
 #include "terminal.h"
-#include "debug.h"
 #include "x86_desc.h"
 #include "rtc.h"
 

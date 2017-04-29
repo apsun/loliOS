@@ -1,6 +1,5 @@
 #include "filesys.h"
-#include "rtc.h"
-#include "terminal.h"
+#include "lib.h"
 #include "debug.h"
 
 /* macro to get info from statistic entry */

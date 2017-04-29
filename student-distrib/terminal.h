@@ -2,9 +2,8 @@
 #define _TERMINAL_H
 
 #include "types.h"
+#include "file.h"
 #include "keyboard.h"
-#include "filesys.h"
-#include "process.h"
 #include "mouse.h"
 
 #define NUM_TERMINALS 3

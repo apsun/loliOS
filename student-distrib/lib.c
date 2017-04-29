@@ -1,6 +1,3 @@
-/* lib.c - Some basic library functions (printf, strlen, etc.)
- */
-
 #include "lib.h"
 #include "paging.h"
 #include "terminal.h"
