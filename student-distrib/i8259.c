@@ -73,7 +73,6 @@ void
 i8259_send_eoi(uint32_t irq_num)
 {
     ASSERT(irq_num >= 0 && irq_num < 16);
-    debugf("Sending EOI for IRQ#%d\n", irq_num);
     if (irq_num < 8) {
         outb(irq_num | EOI, MASTER_8259_PORT_CMD);
     } else {

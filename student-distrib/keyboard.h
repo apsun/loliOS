@@ -73,7 +73,10 @@ typedef struct {
 } kbd_input_t;
 
 /* Handles keyboard interrupts */
-void keyboard_handle_irq(uint8_t packet);
+void keyboard_handle_irq(void);
+
+/* Initializes the keyboard */
+void keyboard_init(void);
 
 #endif /* ASM */
 

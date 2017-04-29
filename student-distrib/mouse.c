@@ -2,6 +2,7 @@
 #include "ps2.h"
 #include "lib.h"
 #include "process.h"
+#include "debug.h"
 
 /*
  * Number of mouse buffers to allocate.
@@ -13,10 +14,11 @@
 #define NUM_MOUSE_BUFFERS (MAX_PROCESSES)
 
 /* Holds mouse input data */
-mouse_input_buf_t mouse_input[NUM_MOUSE_BUFFERS];
+static mouse_input_buf_t mouse_input[NUM_MOUSE_BUFFERS];
 
 /*
- * Open syscall for the mouse.
+ * Open syscall for the mouse. Allocates an input
+ * buffer for this file.
  */
 int32_t
 mouse_open(const uint8_t *filename, file_obj_t *file)
@@ -35,7 +37,10 @@ mouse_open(const uint8_t *filename, file_obj_t *file)
 }
 
 /*
- * Read syscall for the mouse.
+ * Read syscall for the mouse. This does NOT block if no
+ * inputs are available. Copies at most nbytes / sizeof(mouse_input_t)
+ * input events to buf. If no events are available, this
+ * simply returns 0.
  */
 int32_t
 mouse_read(file_obj_t *file, void *buf, int32_t nbytes)
@@ -70,7 +75,7 @@ mouse_read(file_obj_t *file, void *buf, int32_t nbytes)
 }
 
 /*
- * Write syscall for the mouse.
+ * Write syscall for the mouse. Always fails.
  */
 int32_t
 mouse_write(file_obj_t *file, const void *buf, int32_t nbytes)
@@ -79,7 +84,8 @@ mouse_write(file_obj_t *file, const void *buf, int32_t nbytes)
 }
 
 /*
- * Close syscall for the mouse.
+ * Close syscall for the mouse. Frees the input buffer
+ * corresponding to this file.
  */
 int32_t
 mouse_close(file_obj_t *file)
@@ -88,49 +94,54 @@ mouse_close(file_obj_t *file)
     return 0;
 }
 
-/* Handles mouse interrupts */
+/* Handles mouse interrupts. */
 void
-mouse_handle_irq(uint8_t data[3])
+mouse_handle_irq(void)
 {
+    /* Read packet data */
+    uint8_t flags = ps2_read_data();
+    uint8_t dx = ps2_read_data();
+    uint8_t dy = ps2_read_data();
+
+    /* Deliver to available input buffers */
     int32_t i;
     for (i = 0; i < NUM_MOUSE_BUFFERS; ++i) {
         mouse_input_buf_t *buf = &mouse_input[i];
-        if (buf->count >= 0) {
-            buf->buf[buf->count].flags = data[0];
-            buf->buf[buf->count].dx = data[1];
-            buf->buf[buf->count].dy = data[2];
+        if (buf->count == MOUSE_BUF_SIZE) {
+            debugf("Mouse buffer full, dropping packet\n");
+        } else if (buf->count >= 0) {
+            buf->buf[buf->count].flags = flags;
+            buf->buf[buf->count].dx = dx;
+            buf->buf[buf->count].dy = dy;
             buf->count++;
         }
     }
+}
 
-    return;
-
-    uint8_t flags = data[0];
-
-    /* Discard packet if overflow */
-    if ((flags & (MOUSE_X_OVERFLOW | MOUSE_Y_OVERFLOW)) != 0) {
-        return;
+/* Initializes the mouse. */
+void
+mouse_init(void)
+{
+    /* Initialize input buffer */
+    int32_t i;
+    for (i = 0; i < NUM_MOUSE_BUFFERS; ++i) {
+        mouse_input[i].count = -1;
     }
 
-    /* Delta x movement */
-    int32_t dx = data[1];
-    if ((flags & MOUSE_X_SIGN) != 0) {
-        dx |= 0xffffff00;
-    }
+    /* Enable PS/2 port */
+    ps2_write_command(PS2_CMD_ENABLE_MOUSE);
 
-    /* Delta y movement */
-    int32_t dy = data[2];
-    if ((flags & MOUSE_Y_SIGN) != 0) {
-        dy |= 0xffffff00;
-    }
+    /* Read config byte */
+    ps2_write_command(PS2_CMD_READ_CONFIG);
+    uint8_t config_byte = ps2_read_data();
 
-    /* Buttons */
-    bool left_down = !!(flags & MOUSE_LEFT);
-    bool right_down = !!(flags & MOUSE_RIGHT);
-    bool middle_down = !!(flags & MOUSE_MIDDLE);
+    /* Enable mouse interrupts */
+    config_byte |= 0x02;
 
-    printf("delta_x: %d\n", dx);
-    printf("left: %d\n", left_down);
-    printf("right: %d\n", right_down);
-    printf("middle: %d\n", middle_down);
+    /* Write config byte */
+    ps2_write_command(PS2_CMD_WRITE_CONFIG);
+    ps2_write_data(config_byte);
+
+    /* Enable mouse packet streaming */
+    ps2_write_mouse(PS2_MOUSE_ENABLE);
 }

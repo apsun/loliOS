@@ -3,6 +3,7 @@
 #include "lib.h"
 #include "debug.h"
 #include "terminal.h"
+#include "ps2.h"
 
 /* Current pressed/toggled modifier key state */
 static kbd_modifiers_t modifiers = KMOD_NONE;
@@ -246,13 +247,35 @@ process_packet(uint8_t packet)
     return input;
 }
 
-/* Handles keyboard interrupts */
+/* Handles keyboard interrupts. */
 void
-keyboard_handle_irq(uint8_t packet)
+keyboard_handle_irq(void)
 {
+    /* Read keycode packet */
+    uint8_t packet = ps2_read_data();
+
     /* Process packet, updating internal state if necessary */
     kbd_input_t input = process_packet(packet);
 
     /* Send it to the terminal for processing */
     terminal_handle_input(input);
+}
+
+/* Initializes the keyboard. */
+void
+keyboard_init(void)
+{
+    /* Enable PS/2 port */
+    ps2_write_command(PS2_CMD_ENABLE_KEYBOARD);
+
+    /* Read config byte */
+    ps2_write_command(PS2_CMD_READ_CONFIG);
+    uint8_t config_byte = ps2_read_data();
+
+    /* Enable keyboard interrupts */
+    config_byte |= 0x01;
+
+    /* Write config byte */
+    ps2_write_command(PS2_CMD_WRITE_CONFIG);
+    ps2_write_data(config_byte);
 }

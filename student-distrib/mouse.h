@@ -64,7 +64,10 @@ int32_t mouse_write(file_obj_t *file, const void *buf, int32_t nbytes);
 int32_t mouse_close(file_obj_t *file);
 
 /* Handles mouse interrupts */
-void mouse_handle_irq(uint8_t data[3]);
+void mouse_handle_irq(void);
+
+/* Initializes the mouse */
+void mouse_init(void);
 
 #endif /* ASM */
 

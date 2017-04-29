@@ -106,7 +106,6 @@ static void
 handle_irq(int_regs_t *regs)
 {
     uint32_t irq_num = regs->int_num - INT_IRQ0;
-    debugf("IRQ interrupt: %d\n", irq_num);
     irq_handle_interrupt(irq_num);
 }
 

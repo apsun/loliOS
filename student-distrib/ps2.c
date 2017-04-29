@@ -35,7 +35,7 @@ ps2_wait_output(void)
 /*
  * Sends a command to the PS/2 controller.
  */
-static void
+void
 ps2_write_command(uint8_t cmd)
 {
     ps2_wait_input();
@@ -45,7 +45,7 @@ ps2_write_command(uint8_t cmd)
 /*
  * Writes a byte to the PS/2 data port.
  */
-static void
+void
 ps2_write_data(uint8_t data)
 {
     ps2_wait_input();
@@ -55,7 +55,7 @@ ps2_write_data(uint8_t data)
 /*
  * Reads a byte from the PS/2 data port.
  */
-static uint8_t
+uint8_t
 ps2_read_data(void)
 {
     ps2_wait_output();
@@ -65,17 +65,19 @@ ps2_read_data(void)
 /*
  * Waits for a PS/2 ACK packet.
  */
-static void
+void
 ps2_wait_ack(void)
 {
     uint8_t ack = ps2_read_data();
-    ASSERT(ack == PS2_DATA_ACK);
+    if (ack != PS2_DATA_ACK) {
+        debugf("Received non-ACK PS/2 response\n");
+    }
 }
 
 /*
  * Sends a byte to the PS/2 keyboard.
  */
-static void
+void
 ps2_write_keyboard(uint8_t data)
 {
     ps2_write_data(data);
@@ -85,7 +87,7 @@ ps2_write_keyboard(uint8_t data)
 /*
  * Sends a byte to the PS/2 mouse.
  */
-static void
+void
 ps2_write_mouse(uint8_t data)
 {
     ps2_write_command(PS2_CMD_NEXT_MOUSE);
@@ -108,14 +110,9 @@ ps2_handle_irq(void)
 
         /* Dispatch to correct handler */
         if ((status & PS2_STATUS_IS_MOUSE) == 0) {
-            uint8_t data = ps2_read_data();
-            keyboard_handle_irq(data);
+            keyboard_handle_irq();
         } else {
-            uint8_t data[3];
-            data[0] = ps2_read_data();
-            data[1] = ps2_read_data();
-            data[2] = ps2_read_data();
-            mouse_handle_irq(data);
+            mouse_handle_irq();
         }
     }
 }
@@ -126,23 +123,11 @@ ps2_handle_irq(void)
 void
 ps2_init(void)
 {
-    /* Enable PS/2 ports */
-    ps2_write_command(PS2_CMD_ENABLE_KEYBOARD);
-    ps2_write_command(PS2_CMD_ENABLE_MOUSE);
+    /* Initialize keyboard */
+    keyboard_init();
 
-    /* Read config byte */
-    ps2_write_command(PS2_CMD_READ_CONFIG);
-    uint8_t config_byte = ps2_read_data();
-
-    /* Enable keyboard and mouse interrupts */
-    config_byte |= 0x03;
-
-    /* Write config byte */
-    ps2_write_command(PS2_CMD_WRITE_CONFIG);
-    ps2_write_data(config_byte);
-
-    /* Enable mouse packet streaming */
-    ps2_write_mouse(PS2_MOUSE_ENABLE);
+    /* Initialize mouse */
+    mouse_init();
 
     /* Register IRQ handlers */
     irq_register_handler(IRQ_KEYBOARD, ps2_handle_irq);
