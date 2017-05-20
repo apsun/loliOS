@@ -17,7 +17,7 @@ static volatile uint32_t rtc_counter;
  * param must be one of the RTC_REG_* constants.
  */
 static uint8_t
-read_reg(uint8_t reg)
+rtc_read_reg(uint8_t reg)
 {
     outb(reg, RTC_PORT_INDEX);
     return inb(RTC_PORT_DATA);
@@ -28,7 +28,7 @@ read_reg(uint8_t reg)
  * param must be one of the RTC_REG_* constants.
  */
 static void
-write_reg(uint8_t reg, uint8_t value)
+rtc_write_reg(uint8_t reg, uint8_t value)
 {
     outb(reg, RTC_PORT_INDEX);
     outb(value, RTC_PORT_DATA);
@@ -36,10 +36,10 @@ write_reg(uint8_t reg, uint8_t value)
 
 /* RTC IRQ handler callback */
 static void
-handle_rtc_irq(void)
+rtc_handle_irq(void)
 {
     /* Read from register C, ignore value */
-    read_reg(RTC_REG_C);
+    rtc_read_reg(RTC_REG_C);
 
     /* Increment the global RTC interrupt counter */
     uint32_t new_counter = ++rtc_counter;
@@ -103,14 +103,14 @@ rtc_set_frequency(int32_t freq)
     }
 
     /* Read register A */
-    uint8_t reg_a = read_reg(RTC_REG_A);
+    uint8_t reg_a = rtc_read_reg(RTC_REG_A);
 
     /* Set frequency control bits */
     reg_a &= ~RTC_A_RS;
     reg_a |= rs;
 
     /* Write register A */
-    write_reg(RTC_REG_A, reg_a);
+    rtc_write_reg(RTC_REG_A, reg_a);
 
     return 0;
 }
@@ -235,13 +235,13 @@ void
 rtc_init(void)
 {
     /* Read RTC register B */
-    uint8_t reg_b = read_reg(RTC_REG_B);
+    uint8_t reg_b = rtc_read_reg(RTC_REG_B);
 
     /* Enable periodic interrupts */
     reg_b |= RTC_B_PIE;
 
     /* Write RTC register B */
-    write_reg(RTC_REG_B, reg_b);
+    rtc_write_reg(RTC_REG_B, reg_b);
 
     /*
      * Initialize the interrupt frequency.
@@ -252,5 +252,5 @@ rtc_init(void)
     rtc_set_frequency(MAX_RTC_FREQ);
 
     /* Register RTC IRQ handler and enable interrupts */
-    irq_register_handler(IRQ_RTC, handle_rtc_irq);
+    irq_register_handler(IRQ_RTC, rtc_handle_irq);
 }

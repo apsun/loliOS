@@ -4,20 +4,13 @@
 #include "types.h"
 #include "file.h"
 
-#define KB(x) ((x) * 1024)
-/* size of boot block, inode block and data block */
-#define BLOCK_SIZE KB(4)
-/* max number of directory entries in the boot block */
-#define DIR_CAPACITY 63
-/* size of a directory entry in the boot block */
-#define DIR_ENTRY_SIZE 64
-/* the max number of char that a file name can have */
-#define FNAME_LEN 32
-/* size of one inode entry */
-#define INODE_ENTRY_SIZE 4
-/* max number of inode entries */
-#define INODE_CAPACITY (BLOCK_SIZE / INODE_ENTRY_SIZE)
-/* constants for file type */
+/* Size of a single filesystem block, in bytes */
+#define FS_BLOCK_SIZE 4096
+
+/* Maximum filename length */
+#define FS_MAX_FNAME_LEN 32
+
+/* File type constants */
 #define FTYPE_RTC 0
 #define FTYPE_DIR 1
 #define FTYPE_FILE 2
@@ -25,69 +18,72 @@
 
 #ifndef ASM
 
-/* 64 Byte struct for directory entry */
-typedef struct dentry_t {
-    /* 32 char for file name */
-    uint8_t fname[FNAME_LEN];
-    /* file type:
-     *  0 for rtc
-     *  1 for directory
-     *  2 for regular file
-     */
-    uint32_t ftype;
-    /* index into inode array */
+/* dentry structure */
+typedef struct {
+    /* Name of the file */
+    uint8_t name[FS_MAX_FNAME_LEN];
+
+    /* Type of the file */
+    uint32_t type;
+
+    /* Index of inode corresponding to this dentry */
     uint32_t inode_idx;
-    /* 24 byte reserved */
-    uint32_t reserved[6];
+
+    /* Pad struct to 64 bytes */
+    uint8_t reserved[24];
 } dentry_t;
 
-/* 64 Byte struct for statistic entry */
+/* Stat entry structure */
 typedef struct stat_entry_t {
-    uint32_t num_dentry;
-    uint32_t num_inode;
-    uint32_t num_data_block;
-    /* 52 byte reserved */
-    uint32_t reserved[13];
+    /* Number of dentries in the filesystem */
+    uint32_t dentry_count;
+
+    /* Number of inode blocks in the filesystem */
+    uint32_t inode_count;
+
+    /* Number of data blocks in the filesystem */
+    uint32_t data_block_count;
+
+    /* Pad struct to 64 bytes */
+    uint8_t reserved[52];
 } stat_entry_t;
 
-/* 4kB boot block structure */
-typedef struct boot_block_t {
-    stat_entry_t stat_entry;
-    dentry_t dentry_arr[DIR_CAPACITY];
+/* Boot block structure */
+typedef struct {
+    /* First entry holds some statistics about our filesystem */
+    stat_entry_t stat;
+
+    /* Remaining entries hold our directory entries */
+    dentry_t dir_entries[63];
 } boot_block_t;
 
-/* 4kB inode block structure */
-typedef struct inode_t {
-    /* number of bytes in the file */
-    uint32_t len;
-    /* array for data_block_numbers;
-     * deduct 1 because the first entry for len
-     */
-    uint32_t data_block_idx[INODE_CAPACITY - 1];
+/* inode block structure */
+typedef struct {
+    /* Size of the file in bytes */
+    uint32_t size;
+
+    /* Array of data block indices that hold the file data */
+    uint32_t data_blocks[1023];
 } inode_t;
 
-/* 4kB data block structure */
-typedef struct data_block_t {
-    /* the data block is of size 4kB */
-    uint8_t data[BLOCK_SIZE];
-} data_block_t;
+/* Finds a dentry by its name */
+int32_t read_dentry_by_name(const uint8_t *fname, dentry_t *dentry);
 
-
-/* function declaration, see specification of each function */
-int32_t read_dentry_by_name(const uint8_t* fname, dentry_t* dentry);
+/* Finds a dentry by its index */
 int32_t read_dentry_by_index(uint32_t index, dentry_t* dentry);
-int32_t read_data(uint32_t inode, uint32_t offset, uint8_t* buf, uint32_t length);
 
-void filesys_init(void* fs_start_addr);
-uint32_t filesys_get_fsize(dentry_t* dentry);
+/* Reads some data from a file with the specified inode index */
+int32_t read_data(uint32_t inode, uint32_t offset, uint8_t *buf, uint32_t length);
+
+/* Initializes the filesystem */
+void fs_init(uint32_t fs_start);
 
 /* Filesystem syscall interface */
-int32_t filesys_open(const uint8_t *filename, file_obj_t *file);
-int32_t filesys_file_read(file_obj_t *file, void *buf, int32_t nbytes);
-int32_t filesys_file_write(file_obj_t *file, const void *buf, int32_t nbytes);
-int32_t filesys_dir_read(file_obj_t *file, void *buf, int32_t nbytes);
-int32_t filesys_dir_write(file_obj_t *file, const void *buf, int32_t nbytes);
-int32_t filesys_close(file_obj_t *file);
+int32_t fs_open(const uint8_t *filename, file_obj_t *file);
+int32_t fs_file_read(file_obj_t *file, void *buf, int32_t nbytes);
+int32_t fs_dir_read(file_obj_t *file, void *buf, int32_t nbytes);
+int32_t fs_write(file_obj_t *file, const void *buf, int32_t nbytes);
+int32_t fs_close(file_obj_t *file);
 
 #endif /* ASM */
 

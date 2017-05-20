@@ -159,9 +159,9 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
     }
 
     /* Read the filename (up to 33 chars with NUL terminator) */
-    uint8_t filename[FNAME_LEN + 1];
+    uint8_t filename[FS_MAX_FNAME_LEN + 1];
     int32_t fname_i;
-    for (fname_i = 0; fname_i < FNAME_LEN + 1; ++fname_i, ++i) {
+    for (fname_i = 0; fname_i < FS_MAX_FNAME_LEN + 1; ++fname_i, ++i) {
         uint8_t c = command[i];
         if (c == ' ' || c == '\0') {
             filename[fname_i] = '\0';
@@ -171,7 +171,7 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
     }
 
     /* If we didn't break out of the loop, the filename is too long */
-    if (fname_i == FNAME_LEN + 1) {
+    if (fname_i == FS_MAX_FNAME_LEN + 1) {
         debugf("Filename too long\n");
         return -1;
     }
@@ -205,13 +205,13 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
     }
 
     /* Can only execute files, obviously */
-    if (dentry.ftype != FTYPE_FILE) {
+    if (dentry.type != FTYPE_FILE) {
         debugf("Can only execute files\n");
         return -1;
     }
 
     /* Read the magic bytes from the file */
-    uint32_t magic;
+    uint32_t magic = 0xffffaaaa;
     if (read_data(dentry.inode_idx, 0, (uint8_t *)&magic, 4) != 4) {
         debugf("Could not read magic\n");
         return -1;
@@ -219,7 +219,7 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
 
     /* Ensure it's an executable file */
     if (magic != EXE_MAGIC) {
-        debugf("Magic mismatch - not an executable\n");
+        debugf("Magic mismatch - not an executable (got 0x%#x)\n", magic);
         return -1;
     }
 

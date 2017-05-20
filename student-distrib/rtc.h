@@ -11,9 +11,9 @@
  */
 #define MAX_RTC_FREQ 1024
 
-/* RTC memory-mapped ports */
+/* RTC IO ports */
 #define RTC_PORT_INDEX 0x70
-#define RTC_PORT_DATA 0x71
+#define RTC_PORT_DATA  0x71
 
 /* RTC register addresses */
 #define RTC_REG_A 0x8A

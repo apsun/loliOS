@@ -60,6 +60,18 @@ vga_set_register(uint8_t index, uint8_t value)
     outb(value, VGA_PORT_DATA);
 }
 
+/* Clears out a region of VGA memory (overwrites it with spaces) */
+static void
+vga_clear_region(uint8_t *ptr, int32_t num_chars)
+{
+    /*
+     * Screen clear memset pattern, same as [0] = ' ', [1] = ATTRIB
+     * Why not a simple for loop? Because I can.
+     */
+    int32_t pattern = (' ' << 0) | (ATTRIB << 8);
+    memset_word(ptr, pattern, num_chars);
+}
+
 /*
  * Sets the VGA cursor position to the cursor position
  * in the specified terminal.
@@ -76,18 +88,6 @@ terminal_update_cursor(terminal_state_t *term)
     uint16_t pos = term->cursor.screen_y * NUM_COLS + term->cursor.screen_x;
     vga_set_register(VGA_REG_CURSOR_LO, (pos >> 0) & 0xff);
     vga_set_register(VGA_REG_CURSOR_HI, (pos >> 8) & 0xff);
-}
-
-/* Clears out a region of VGA memory (overwrites it with spaces) */
-static void
-vga_clear_region(uint8_t *ptr, int32_t num_chars)
-{
-    /*
-     * Screen clear memset pattern, same as [0] = ' ', [1] = ATTRIB
-     * Why not a simple for loop? Because I can.
-     */
-    int32_t pattern = (' ' << 0) | (ATTRIB << 8);
-    memset_word(ptr, pattern, num_chars);
 }
 
 /*
@@ -614,7 +614,7 @@ terminal_handle_mouse_input(mouse_input_t input)
     mouse_input_buf_t *input_buf = &term->mouse_input;
     if (input_buf->count == MOUSE_BUF_SIZE) {
         debugf("Mouse buffer full, dropping packet\n");
-    } else if (input_buf->count >= 0) {
+    } else {
         input_buf->buf[input_buf->count++] = input;
     }
 }

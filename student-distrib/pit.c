@@ -3,64 +3,50 @@
 #include "irq.h"
 #include "process.h"
 
-#define LOWEST_FREQ  18
-#define HIGHEST_FREQ 1193181
-#define HIGHEST_RELOAD_VAL 65536
-#define SET0_FREQ_CMD (CHANNEL0 | ACCESS_HL | OPMODE2 | BINARY)
-
-/* The frequency for scheduler to perform process switch */
-#define SCHED_FREQ 60
-
-/* PIT interrupt handler */
-static void
-handle_pit_irq(void)
-{
-    process_switch();
-}
-
 /*
- * Sets the frequency for the programmable interval timer
+ * Sets the interrupt frequency of the PIT.
  */
 static void
 pit_set_frequency(uint32_t freq)
 {
-    uint16_t divisor;
-
-    /* Ensure frequency does not exceed bounds */
-    if (freq < LOWEST_FREQ) {
-        freq = LOWEST_FREQ;
-    } else if (freq > HIGHEST_FREQ) {
-        freq = HIGHEST_FREQ;
-    }
+    /* Set PIT operation mode */
+    uint8_t cmd = 0;
+    cmd |= PIT_CMD_CHANNEL_0;
+    cmd |= PIT_CMD_ACCESS_HL;
+    cmd |= PIT_CMD_OPMODE_2;
+    cmd |= PIT_CMD_BINARY;
+    outb(cmd, PIT_PORT_CMD);
 
     /*
-     * If frequency is lowest frequency, set reload value to 0
-     * Zero can be used to specify a divisor of 2^16 = 65536
+     * Convert frequency to reload value.
+     * A divisor of 0 actually represents 65536,
+     * since the value is truncated to 16 bits.
      */
-    divisor = (freq == LOWEST_FREQ) ? 0 : (HIGHEST_FREQ / freq);
+    uint16_t divisor;
+    if (freq < PIT_FREQ_MIN) {
+        divisor = 0;
+    } else if (freq > PIT_FREQ_MAX) {
+        divisor = 1;
+    } else {
+        divisor = PIT_FREQ_MAX / freq;
+    }
 
-    /* Select channel 0,
-     *        mode 2,
-     *        access high and low byte of divisor,
-     *        binary number representation
-     */
-    outb(SET0_FREQ_CMD, PIT_CMD_PORT);
-
-    /* Set low byte of PIT reload value */
-    outb(divisor & 0xff, PIT_DATA_PORT0);
-
-    /* Set high byte of PIT reload value */
-    outb((divisor >> 8) & 0xff, PIT_DATA_PORT0);
+    /* Write reload value */
+    outb((divisor >> 0) & 0xff, PIT_PORT_DATA_0);
+    outb((divisor >> 8) & 0xff, PIT_PORT_DATA_0);
 }
 
-/*
- * Initializes the programmable interval timer
- *
- * Note: must initialize PIT before enabling IF flag
- */
+/* PIT IRQ handler callback */
+static void
+pit_handle_irq(void)
+{
+    process_switch();
+}
+
+/* Initializes the PIT and enables interrupts */
 void
 pit_init(void)
 {
-    pit_set_frequency(SCHED_FREQ);
-    irq_register_handler(IRQ_PIT, handle_pit_irq);
+    pit_set_frequency(PIT_FREQ_SCHEDULER);
+    irq_register_handler(IRQ_PIT, pit_handle_irq);
 }

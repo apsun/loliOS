@@ -184,7 +184,7 @@ entry (unsigned long magic, unsigned long addr)
     paging_enable();
 
     printf("Initializing filesystem...\n");
-    filesys_init((void *)fs_start);
+    fs_init(fs_start);
 
     printf("Initializing processes...\n");
     process_init();

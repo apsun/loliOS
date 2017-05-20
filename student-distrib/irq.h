@@ -4,7 +4,7 @@
 #include "types.h"
 
 /* Number of IRQ lines */
-#define NUM_IRQ      16
+#define NUM_IRQ 16
 
 /* IRQ number constants */
 #define IRQ_PIT      0

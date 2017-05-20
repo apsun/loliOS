@@ -46,8 +46,7 @@
 #ifndef ASM
 
 /* Interrupt registers */
-typedef struct
-{
+typedef struct {
     /* Pushed by idt_handle_common_thunk */
     uint32_t cr0;
     uint32_t cr2;

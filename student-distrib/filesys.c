@@ -2,37 +2,135 @@
 #include "lib.h"
 #include "debug.h"
 
-/* macro to get info from statistic entry */
-#define NUM_DENTRY (boot_block->stat_entry.num_dentry)
-#define NUM_INODE_BLOCK (boot_block->stat_entry.num_inode)
-#define NUM_DATA_BLOCK (boot_block->stat_entry.num_data_block)
+/* Macros to access inode/data blocks */
+#define FS_INODE(idx) ((inode_t *)(fs_boot_block + 1 + idx))
+#define FS_DATA(idx) ((uint8_t *)(fs_boot_block + 1 + fs_boot_block->stat.inode_count + idx))
 
-/* starting address of data block and inode array */
-#define INODE_BLOCK_ARR ((inode_t *)(boot_block + 1))
-#define DATA_BLOCK_ARR ((data_block_t *)(boot_block + NUM_INODE_BLOCK + 1))
+/* Holds the address of the boot block */
+static boot_block_t *fs_boot_block = NULL;
 
-/* global pointer to store the address of the boot_block */
-static boot_block_t* boot_block = NULL;
-
-/* declaration of private util functions*/
-static data_block_t* fs_get_data_block(inode_t* inode, uint32_t entry_idx);
-static int32_t fs_compute_num_block(uint32_t file_size, uint32_t block_size);
-static void fs_copy_within_block(data_block_t* data_block, uint32_t offset, uint8_t* buf, uint32_t length);
-static int32_t fs_cmp_fname(const uint8_t* tgt_fname, const uint8_t* src_fname);
-
-
-/* Saves the starting address of the file system */
-void
-filesys_init(void* boot_block_addr)
+/*
+ * Compares a search (NUL-terminated) file name with a
+ * potentially non-NUL-terminated raw file name. Essentially
+ * the same as strcmp(), but limited to at most 32 chars.
+ */
+static int32_t
+fs_cmp_name(const uint8_t *search_name, const uint8_t *file_name)
 {
-    boot_block = (boot_block_t *)boot_block_addr;
+    int32_t i;
+    for (i = 0; i < FS_MAX_FNAME_LEN; i++) {
+        if (search_name[i] != file_name[i] || file_name[i] == '\0') {
+            return search_name[i] - file_name[i];
+        }
+    }
+
+    /*
+     * We checked all 32 chars, now check if the search filename
+     * is also 32 chars long (meaning a \0 at the 33rd byte),
+     * otherwise the filenames don't actually match.
+     */
+    return search_name[i] - '\0';
+}
+
+/*
+ * Finds a directory entry by name. If the entry is found,
+ * it is copied to dentry and 0 is returned; otherwise,
+ * -1 is returned.
+ */
+int32_t
+read_dentry_by_name(const uint8_t *fname, dentry_t *dentry)
+{
+    int32_t i;
+    for (i = 0; i < fs_boot_block->stat.dentry_count; ++i) {
+        dentry_t* curr_dentry = &fs_boot_block->dir_entries[i];
+        if (fs_cmp_name(fname, curr_dentry->name) == 0) {
+            *dentry = *curr_dentry;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+/*
+ * Gets a directory entry by its index. If the entry exists,
+ * it is copied to dentry and 0 is returned; otherwise,
+ * -1 is returned.
+ */
+int32_t
+read_dentry_by_index(uint32_t index, dentry_t *dentry)
+{
+    if (index >= fs_boot_block->stat.dentry_count) {
+        return -1;
+    }
+
+    *dentry = fs_boot_block->dir_entries[index];
+    return 0;
+}
+
+/*
+ * Copies the data from the specified file at the given offset
+ * into a buffer. If offset + length extends past the end of the
+ * file, it is clamped to the end of the file. Returns the number
+ * of bytes read, or -1 on error.
+ */
+int32_t
+read_data(uint32_t inode, uint32_t offset, uint8_t *buf, uint32_t length)
+{
+    /* Check inode index bounds */
+    if (inode >= fs_boot_block->stat.inode_count) {
+        return -1;
+    }
+
+    inode_t *inode_p = FS_INODE(inode);
+
+    /* Reading past EOF is an error */
+    if (offset > inode_p->size) {
+        return -1;
+    }
+
+    /* Clamp read length to end of file */
+    if (length > inode_p->size - offset) {
+        length = inode_p->size - offset;
+    }
+
+    /* Compute intra-block offsets */
+    uint32_t first_block = offset / FS_BLOCK_SIZE;
+    uint32_t first_offset = offset % FS_BLOCK_SIZE;
+    uint32_t last_block = (offset + length) / FS_BLOCK_SIZE;
+    uint32_t last_offset = (offset + length) % FS_BLOCK_SIZE;
+
+    /* Now copy the data! */
+    uint32_t i;
+    for (i = first_block; i <= last_block; ++i) {
+        /* Adjust start offset */
+        uint32_t start_offset = 0;
+        if (i == first_block) {
+            start_offset = first_offset;
+        }
+
+        /* Adjust end offset */
+        uint32_t end_offset = FS_BLOCK_SIZE;
+        if (i == last_block) {
+            end_offset = last_offset;
+        }
+
+        /* Check 0-sized copy to avoid out-of-bound read */
+        uint32_t copy_len = end_offset - start_offset;
+        if (copy_len > 0) {
+            uint8_t *data = FS_DATA(inode_p->data_blocks[i]);
+            memcpy(buf, data + start_offset, copy_len);
+            buf += copy_len;
+        }
+    }
+
+    return length;
 }
 
 /*
  * Open syscall for files/directories. Always succeeds.
  */
 int32_t
-filesys_open(const uint8_t *filename, file_obj_t *file)
+fs_open(const uint8_t *filename, file_obj_t *file)
 {
     return 0;
 }
@@ -41,36 +139,31 @@ filesys_open(const uint8_t *filename, file_obj_t *file)
  * Read syscall for directories. Writes the name of the next
  * entry in the directory to the buffer, NOT including the
  * NUL terminator. Returns the number of characters written.
- *
- * file - the file object representing the directory
- * buf - output buffer, must point to a uint8_t array
- * nbytes - maximum characters to read to the output buffer
  */
 int32_t
-filesys_dir_read(file_obj_t *file, void *buf, int32_t nbytes)
+fs_dir_read(file_obj_t *file, void *buf, int32_t nbytes)
 {
-    dentry_t file_dentry;
-    uint8_t *out = (uint8_t *)buf;
-    int32_t i;
-
     /* Ensure buffer is valid */
     if (!is_user_writable(buf, nbytes)) {
         return -1;
     }
 
     /* Read next file dentry, return 0 if no more entries */
+    dentry_t file_dentry;
     if (read_dentry_by_index(file->offset, &file_dentry) != 0) {
         return 0;
     }
 
     /* Limit to 32 chars */
-    if (nbytes > FNAME_LEN) {
-        nbytes = FNAME_LEN;
+    if (nbytes > FS_MAX_FNAME_LEN) {
+        nbytes = FS_MAX_FNAME_LEN;
     }
 
     /* Copy filename directly to userspace buffer */
+    int32_t i;
+    uint8_t *out = (uint8_t *)buf;
     for (i = 0; i < nbytes; ++i) {
-        uint8_t c = file_dentry.fname[i];
+        uint8_t c = file_dentry.name[i];
         if (c == '\0') {
             break;
         }
@@ -87,14 +180,10 @@ filesys_dir_read(file_obj_t *file, void *buf, int32_t nbytes)
 /*
  * Read syscall for files. Writes the contents of the file
  * to the buffer, starting from where the previous call to read
- * left off. Returns the number of characters written.
- *
- * file - the file object representing the file
- * buf - output buffer, must point to a uint8_t array
- * nbytes - maximum characters to read to the output buffer
+ * left off. Returns the number of bytes written.
  */
 int32_t
-filesys_file_read(file_obj_t *file, void *buf, int32_t nbytes)
+fs_file_read(file_obj_t *file, void *buf, int32_t nbytes)
 {
     /* Ensure buffer is valid */
     if (!is_user_writable(buf, nbytes)) {
@@ -107,23 +196,15 @@ filesys_file_read(file_obj_t *file, void *buf, int32_t nbytes)
     /* Increment byte offset for next read */
     file->offset += read_count;
 
+    /* Return how many bytes we read */
     return read_count;
 }
 
 /*
- * File write syscall. Always fails.
+ * Write syscall for files/directories. Always fails.
  */
 int32_t
-filesys_file_write(file_obj_t *file, const void *buf, int32_t nbytes)
-{
-    return -1;
-}
-
-/*
- * Directory write syscall. Always fails.
- */
-int32_t
-filesys_dir_write(file_obj_t *file, const void *buf, int32_t nbytes)
+fs_write(file_obj_t *file, const void *buf, int32_t nbytes)
 {
     return -1;
 }
@@ -132,210 +213,21 @@ filesys_dir_write(file_obj_t *file, const void *buf, int32_t nbytes)
  * Close syscall for files/directories. Always succeeds.
  */
 int32_t
-filesys_close(file_obj_t *file)
+fs_close(file_obj_t *file)
 {
     return 0;
 }
 
-/*
- * Inputs: a pointer to dentry struct of the file we want to read
- * Return Value: return the file size
- * Function: get the size in Byte of this file
- */
-uint32_t filesys_get_fsize(dentry_t* dentry)
+/* Initializes the filesystem */
+void
+fs_init(uint32_t fs_start)
 {
-    inode_t* tgt_inode = INODE_BLOCK_ARR + dentry->inode_idx;
-    return tgt_inode->len;
-}
+    /* Some basic sanity checks */
+    ASSERT(sizeof(dentry_t) == 64);
+    ASSERT(sizeof(stat_entry_t) == 64);
+    ASSERT(sizeof(boot_block_t) == 4096);
+    ASSERT(sizeof(inode_t) == 4096);
 
-/*
- * Inputs: A pointer fname to the string of characters of the name
- *         of the file we need, and a dentry_t struct.
- * Return Value: 0 on success and -1 on failure
- * Function: The dentry_t struct passed with the function is filled with
- *           the corresponding entries of the given index.
- *           The entries are file name, file type and inode #.
- *           Returns -1 if dentry does not exist.
- */
-int32_t
-read_dentry_by_name(const uint8_t* fname, dentry_t* dentry)
-{
-    uint32_t i;
-    for (i = 0; i < NUM_DENTRY; ++i) {
-        dentry_t* curr_dentry = &boot_block->dentry_arr[i];
-        uint8_t* curr_fname = curr_dentry->fname;
-        if (fs_cmp_fname(fname, curr_fname) == 0) {
-            *dentry = *curr_dentry;
-            return 0;
-        }
-    }
-    return -1;
-}
-
-/*
- * Inputs: An index to the boot block dir. entries and
- *         a dentry_t struct.
- * Return Value: 0 on success and -1 on failure
- * Function: The dentry_t struct passed with the function is filled with
- *           the corresponding entries of the given index. The entries are file name,
- *           file type and inode #. Returns -1 if dentry does not exist.
- */
-int32_t
-read_dentry_by_index(uint32_t index, dentry_t* dentry)
-{
-    if (index < NUM_DENTRY) {
-        *dentry = boot_block->dentry_arr[index];
-        return 0;
-    }
-    return -1;
-}
-
-/*
- * Inputs:
- *     inode: inode # of the file to read from
- *     offset: byte offset of the start of the file
- *     buf: the buffer to copy data into
- *     length: the length of the data to read in bytes
- * Return Value: number of bytes read, or -1 if error
- * Function: fills the buffer with the bytes read and returns the buffer.
- * Returns the bytes read until the end of the file if the length was larger.
- */
-int32_t
-read_data(uint32_t inode, uint32_t offset, uint8_t* buf, uint32_t length)
-{
-    if (inode >= NUM_INODE_BLOCK) {
-        return -1;
-    }
-
-    /* offset 1 block to get the starting addr of
-     * inode block array
-     */
-    inode_t* tgt_inode = INODE_BLOCK_ARR + inode;
-
-    /* compute the number of block_indices that is valid in target inode */
-    uint32_t num_entry = fs_compute_num_block(tgt_inode->len, BLOCK_SIZE);
-
-    /* check if num_entry exceed max number of entries
-     * an inode can have;
-     * deduct 1 for num_entry itself
-     */
-    if (num_entry > INODE_CAPACITY - 1) return -1;
-
-    /* invalid offset */
-    if (offset > tgt_inode->len) return -1;
-
-    /* if length exceed the end of the file
-     * reset the length such that offset + length reach the last byte of file
-     */
-    if (offset + length > tgt_inode->len)
-        length = tgt_inode->len - offset;
-
-    /* compute the start and end position in terms of data block index
-     * and start and end offset in start and end data block
-     */
-    uint32_t start_entry = offset / BLOCK_SIZE;
-    uint32_t start_offset = offset % BLOCK_SIZE;
-    uint32_t end_entry = (offset + length) / BLOCK_SIZE;
-    uint32_t end_offset = (offset + length) % BLOCK_SIZE;
-    /* prepare to loop through entries */
-    uint32_t curr_entry = start_entry;
-    uint32_t curr_offset = start_offset;
-    uint32_t bytes_read = 0;
-    uint32_t bytes_to_read = BLOCK_SIZE - start_offset;
-    data_block_t* tgt_data_block;
-
-    while (curr_entry <= end_entry) {
-        /* get the data block pointer with given inode and
-         * its entry which contain the index to data_block_array
-         */
-        tgt_data_block = fs_get_data_block(tgt_inode, curr_entry);
-        if (!tgt_data_block) return -1;
-
-        /* if current entry is the same with end entry, we are reading the final block */
-        if (curr_entry == end_entry)
-            bytes_to_read = end_offset - curr_offset;
-
-        /* copy the data to the buffer */
-        fs_copy_within_block(tgt_data_block, curr_offset, buf + bytes_read, bytes_to_read);
-
-        /* loop tail */
-        curr_offset = 0;
-        bytes_read += bytes_to_read;
-        bytes_to_read = BLOCK_SIZE;
-        curr_entry++;
-    }
-    return bytes_read;
-}
-
-/* private utility functions */
-
-/*
- * Inputs: inode_t* inode = the inode where we get block index from
- *         uint32_t entry_idx = index of the target data block
- * Return Value: pointer to target data block
- * Function: get pointer the data block of the given index.
- *              return NULL if the index of the target block is
- *              out of boundry
- */
-static data_block_t*
-fs_get_data_block(inode_t* inode, uint32_t entry_idx)
-{
-    uint32_t data_block_idx = inode->data_block_idx[entry_idx];
-    /* check if invalid data block index */
-    if (data_block_idx >= NUM_DATA_BLOCK)
-        return NULL;
-    return DATA_BLOCK_ARR + data_block_idx;
-}
-
-/*
- * Inputs: uint32_t file_size = Size of the file
- *         uint32_t block_size = Size of a block
- * Function: Returns the number of blocks file_size would fit in as an
- *           integer.
- */
-static int32_t
-fs_compute_num_block(uint32_t file_size, uint32_t block_size)
-{
-    return file_size / block_size + (file_size % block_size ? 1 : 0);
-}
-
-/*
- * Inputs: data_block_t* data_block = pointer to the data block that we copy from
- *         uint32_t offset = the offset of the start of the data that we copy from
- *         uint32_t *buf = the buffer that we copy to
- *         uint32_t length = length of the copied data in bytes
- * Return Value: none
- * Function: copies the specified length of data from the data_block_t struct into buffer
- */
-static void
-fs_copy_within_block(data_block_t* data_block, uint32_t offset, uint8_t* buf, uint32_t length)
-{
-    uint8_t* data_block_start = data_block->data + offset;
-    memcpy((void *)buf, (void *)data_block_start, length);
-}
-
-/*
- * Inputs: int8_t* tgt_fname = target array
- *         int8_t* src_fname = source array
- * Return Value: 0 for success, -1 or any non-zero number on failure
- * Function: filename comparison function (adapted from strncmp)
- */
-static int32_t
-fs_cmp_fname(const uint8_t* tgt_fname, const uint8_t* src_fname)
-{
-    int32_t i;
-    for (i = 0; i < FNAME_LEN; i++) {
-        if ((tgt_fname[i] != src_fname[i]) || (tgt_fname[i] == '\0')) {
-            return tgt_fname[i] - src_fname[i];
-        }
-    }
-
-    /* We checked all 32 chars, now check if the target filename
-     * is also 32 chars long (meaning a \0 at the 33rd byte),
-     * otherwise the filenames don't actually match */
-    if (tgt_fname[i] == '\0') {
-        return 0;
-    }
-
-    return -1;
+    /* Save address of boot block for future use */
+    fs_boot_block = (boot_block_t *)fs_start;
 }

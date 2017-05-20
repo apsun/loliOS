@@ -24,18 +24,18 @@ static file_ops_t fops_stdout = {
 
 /* File (the real kind) file ops */
 static file_ops_t fops_file = {
-    .open = filesys_open,
-    .read = filesys_file_read,
-    .write = filesys_file_write,
-    .close = filesys_close
+    .open = fs_open,
+    .read = fs_file_read,
+    .write = fs_write,
+    .close = fs_close
 };
 
 /* Directory file ops */
 static file_ops_t fops_dir = {
-    .open = filesys_open,
-    .read = filesys_dir_read,
-    .write = filesys_dir_write,
-    .close = filesys_close
+    .open = fs_open,
+    .read = fs_dir_read,
+    .write = fs_write,
+    .close = fs_close
 };
 
 /* RTC file ops */
@@ -60,7 +60,7 @@ init_file_obj(file_obj_t *file, dentry_t *dentry)
 {
     file->inode_idx = 0;
     file->offset = 0;
-    switch (dentry->ftype) {
+    switch (dentry->type) {
     case FTYPE_RTC:
         file->ops_table = &fops_rtc;
         break;
@@ -75,7 +75,7 @@ init_file_obj(file_obj_t *file, dentry_t *dentry)
         file->ops_table = &fops_mouse;
         break;
     default:
-        debugf("Unknown file type: %d\n", dentry->ftype);
+        debugf("Unknown file type: %d\n", dentry->type);
         return false;
     }
 
