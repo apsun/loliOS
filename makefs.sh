@@ -29,7 +29,7 @@ sudo mknod "/tmp/fsdir/rtc" c 10 61
 
 # Generate new filesystem image
 rm -f "${mp3_dir}/student-distrib/filesys_img"
-"${mp3_dir}/createfs" "/tmp/fsdir" -o "${mp3_dir}/student-distrib/filesys_img"
+python "${mp3_dir}/createfs.py" -i "${mp3_dir}/fsdir" -o "${mp3_dir}/student-distrib/filesys_img"
 
 # Build OS image
 cd "${mp3_dir}/student-distrib"
