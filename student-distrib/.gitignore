@@ -1,0 +1,5 @@
+*.o
+Makefile.dep
+mp3.img
+bootimg
+filesys_img
