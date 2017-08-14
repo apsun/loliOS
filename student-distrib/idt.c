@@ -15,7 +15,7 @@ do {                                        \
 } while (0)
 
 /* Exception number to name table */
-static const char *exception_names[] = {
+static const char *exception_names[NUM_EXC] = {
     "Divide error exception",
     "Debug exception",
     "Nonmaskable interrupt",
@@ -72,7 +72,7 @@ dump_registers(int_regs_t *regs)
  * be executed. Otherwise, kills the process.
  */
 static void
-handle_user_exception(uint32_t int_num)
+handle_user_exception(int32_t int_num)
 {
     debugf("Userspace exception: %s\n", exception_names[int_num]);
     pcb_t *pcb = get_executing_pcb();
@@ -126,7 +126,7 @@ handle_syscall(int_regs_t *regs)
 __cdecl void
 idt_handle_interrupt(int_regs_t *regs)
 {
-    if (regs->int_num < NUM_EXC) {
+    if (regs->int_num >= 0 && regs->int_num < NUM_EXC) {
         handle_exception(regs);
     } else if (regs->int_num >= INT_IRQ0 && regs->int_num <= INT_IRQ15) {
         handle_irq(regs);
@@ -153,40 +153,23 @@ idt_handle_interrupt(int_regs_t *regs)
 void
 idt_init(void)
 {
-    idt_desc_t desc;
-    int i;
-
     /* Initialize template interrupt descriptor */
+    idt_desc_t desc;
     desc.present      = 1;
     desc.dpl          = 0;
-    desc.reserved0    = 0;
-    desc.size         = 1;
-    desc.reserved1    = 1;
-    desc.reserved2    = 1;
-    desc.reserved3    = 1;
-    desc.reserved4    = 0;
+    desc.storage_seg  = 0;
+    desc.type         = GATE_INTERRUPT;
+    desc.reserved     = 0;
     desc.seg_selector = KERNEL_CS;
-    desc.offset_15_00 = 0;
-    desc.offset_31_16 = 0;
 
-    /* Load the IDT */
-    lidt(idt_desc_ptr);
-
-    /* Initialize exception (trap) gates */
-    desc.dpl = 0;
-
-    /* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-     * Use 0 (interrupt gate) for now. In order
-     * to switch to an actual trap gate in the
-     * future, change this from 0 to 1
-     * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-     */
-    desc.reserved3 = 0;
-    for (i = 0; i < NUM_EXC; ++i) {
+    /* Default initialization for most gates */
+    int32_t i;
+    for (i = 0; i < NUM_VEC; ++i) {
         idt[i] = desc;
+        WRITE_IDT_ENTRY(i, idt_handle_int_unknown);
     }
 
-    /* Write exception handlers */
+    /* Exception handlers */
     WRITE_IDT_ENTRY(EXC_DE, idt_handle_exc_de);
     WRITE_IDT_ENTRY(EXC_DB, idt_handle_exc_db);
     WRITE_IDT_ENTRY(EXC_NI, idt_handle_exc_ni);
@@ -208,15 +191,7 @@ idt_init(void)
     WRITE_IDT_ENTRY(EXC_MC, idt_handle_exc_mc);
     WRITE_IDT_ENTRY(EXC_XF, idt_handle_exc_xf);
 
-    /* Initialize interrupt gates */
-    desc.dpl = 0;
-    desc.reserved3 = 0;
-    for (; i < NUM_VEC; ++i) {
-        idt[i] = desc;
-        WRITE_IDT_ENTRY(i, idt_handle_int_unknown);
-    }
-
-    /* Initialize IRQ interrupt gates */
+    /* IRQ handlers */
     WRITE_IDT_ENTRY(INT_IRQ0, idt_handle_int_irq0);
     WRITE_IDT_ENTRY(INT_IRQ1, idt_handle_int_irq1);
     WRITE_IDT_ENTRY(INT_IRQ2, idt_handle_int_irq2);
@@ -234,7 +209,10 @@ idt_init(void)
     WRITE_IDT_ENTRY(INT_IRQ14, idt_handle_int_irq14);
     WRITE_IDT_ENTRY(INT_IRQ15, idt_handle_int_irq15);
 
-    /* Initialize syscall interrupt gate */
+    /* Syscall handler (DPL = 3 to allow userspace access) */
     idt[INT_SYSCALL].dpl = 3;
     WRITE_IDT_ENTRY(INT_SYSCALL, idt_handle_int_syscall);
+
+    /* Load the IDT */
+    lidt(idt_desc_ptr);
 }

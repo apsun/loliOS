@@ -17,8 +17,8 @@
 /* Number of vectors in the interrupt descriptor table (IDT) */
 #define NUM_VEC 256
 
-/* Number of exceptions in the IDT */
-#define NUM_EXC 32
+/* Number of KNOWN exceptions in the IDT */
+#define NUM_EXC 20
 
 #ifndef ASM
 
@@ -126,20 +126,20 @@ extern tss_t tss;
 #define SET_LDT_PARAMS(str, addr, lim) \
 do { \
     str.base_31_24 = ((uint32_t)(addr) & 0xFF000000) >> 24; \
-        str.base_23_16 = ((uint32_t)(addr) & 0x00FF0000) >> 16; \
-        str.base_15_00 = (uint32_t)(addr) & 0x0000FFFF; \
-        str.seg_lim_19_16 = ((lim) & 0x000F0000) >> 16; \
-        str.seg_lim_15_00 = (lim) & 0x0000FFFF; \
+    str.base_23_16 = ((uint32_t)(addr) & 0x00FF0000) >> 16; \
+    str.base_15_00 = (uint32_t)(addr) & 0x0000FFFF; \
+    str.seg_lim_19_16 = ((lim) & 0x000F0000) >> 16; \
+    str.seg_lim_15_00 = (lim) & 0x0000FFFF; \
 } while(0)
 
 /* Sets runtime parameters for the TSS */
 #define SET_TSS_PARAMS(str, addr, lim) \
 do { \
     str.base_31_24 = ((uint32_t)(addr) & 0xFF000000) >> 24; \
-        str.base_23_16 = ((uint32_t)(addr) & 0x00FF0000) >> 16; \
-        str.base_15_00 = (uint32_t)(addr) & 0x0000FFFF; \
-        str.seg_lim_19_16 = ((lim) & 0x000F0000) >> 16; \
-        str.seg_lim_15_00 = (lim) & 0x0000FFFF; \
+    str.base_23_16 = ((uint32_t)(addr) & 0x00FF0000) >> 16; \
+    str.base_15_00 = (uint32_t)(addr) & 0x0000FFFF; \
+    str.seg_lim_19_16 = ((lim) & 0x000F0000) >> 16; \
+    str.seg_lim_15_00 = (lim) & 0x0000FFFF; \
 } while(0)
 
 /* An interrupt descriptor entry (goes into the IDT) */
@@ -148,14 +148,11 @@ typedef union idt_desc_t {
     struct {
         uint16_t offset_15_00;
         uint16_t seg_selector;
-        uint8_t reserved4;
-        uint32_t reserved3 : 1;
-        uint32_t reserved2 : 1;
-        uint32_t reserved1 : 1;
-        uint32_t size : 1;
-        uint32_t reserved0 : 1;
-        uint32_t dpl : 2;
-        uint32_t present : 1;
+        uint8_t reserved;
+        uint8_t type        : 4;
+        uint8_t storage_seg : 1;
+        uint8_t dpl         : 2;
+        uint8_t present     : 1;
         uint16_t offset_31_16;
     } __attribute__((packed));
 } idt_desc_t;

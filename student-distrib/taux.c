@@ -32,7 +32,7 @@ static uint8_t button_status = 0;
 /* Holds the last value sent to the TUX_SET_LED ioctl */
 static uint32_t led_status = 0;
 
-/* Whether we should send a SET_LED packet when free (no pending ACKs) */
+/* Whether we should send a LED_SET packet when free (no pending ACKs) */
 static bool set_led_pending = false;
 
 /*
@@ -314,7 +314,7 @@ taux_handle_packet(uint8_t packet[3])
         debugf("Received ERROR packet\n");
         break;
     default:
-        debugf("Unhandled packet: %x", a);
+        debugf("Unhandled packet: %x\n", a);
         break;
     }
 }
