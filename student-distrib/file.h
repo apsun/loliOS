@@ -22,7 +22,7 @@ typedef struct file_ops_t file_ops_t;
 /* File object structure */
 typedef struct {
     /* O/R/W/C file operation table for this file */
-    struct file_ops_t *ops_table;
+    file_ops_t *ops_table;
 
     /*
      * inode index of this file, unused if the file
@@ -37,8 +37,7 @@ typedef struct {
      * *offset in bytes* of the current file position.
      * For the RTC, this holds the virtual interrupt
      * frequency. For the mouse, this holds the index
-     * of the corresponding input buffer. For the taux
-     * controller, this holds the 
+     * of the corresponding input buffer.
      */
     uint32_t offset;
 
