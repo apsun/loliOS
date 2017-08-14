@@ -343,9 +343,9 @@ taux_handle_irq(void)
              * alignment goes out of sync, just discard it
              * and find the next good reference point.
              */
-            if ((buf[count + 0] & 0x80) == 0 &&
-                (buf[count + 1] & 0x80) != 0 &&
-                (buf[count + 2] & 0x80) != 0) {
+            if ((buf[i + 0] & 0x80) == 0 &&
+                (buf[i + 1] & 0x80) != 0 &&
+                (buf[i + 2] & 0x80) != 0) {
 
                 /* Process the packet */
                 taux_handle_packet(&buf[i]);
