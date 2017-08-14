@@ -211,7 +211,7 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
     }
 
     /* Read the magic bytes from the file */
-    uint32_t magic = 0xffffaaaa;
+    uint32_t magic;
     if (read_data(dentry.inode_idx, 0, (uint8_t *)&magic, 4) != 4) {
         debugf("Could not read magic\n");
         return -1;

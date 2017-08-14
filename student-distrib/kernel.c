@@ -13,6 +13,7 @@
 #include "terminal.h"
 #include "filesys.h"
 #include "file.h"
+#include "taux.h"
 
 /* Macros. */
 /* Check if the bit BIT in FLAGS is set. */
@@ -188,6 +189,9 @@ entry (unsigned long magic, unsigned long addr)
 
     printf("Initializing processes...\n");
     process_init();
+
+    printf("Initializing taux controller driver...\n");
+    taux_init();
 
     /* We made it! */
     printf("Boot successful!\n");

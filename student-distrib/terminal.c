@@ -463,6 +463,15 @@ terminal_kbd_close(file_obj_t *file)
 }
 
 /*
+ * Ioctl syscall for stdin/stdout. Always fails.
+ */
+int32_t
+terminal_kbd_ioctl(file_obj_t *file, uint32_t req, uint32_t arg)
+{
+    return -1;
+}
+
+/*
  * Open syscall for the mouse. Always succeeds.
  */
 int32_t
@@ -526,6 +535,15 @@ int32_t
 terminal_mouse_close(file_obj_t *file)
 {
     return 0;
+}
+
+/*
+ * Ioctl syscall for the mouse. Always fails.
+ */
+int32_t
+terminal_mouse_ioctl(file_obj_t *file, uint32_t req, uint32_t arg)
+{
+    return -1;
 }
 
 /*

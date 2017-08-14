@@ -5,13 +5,15 @@
 #include "filesys.h"
 #include "terminal.h"
 #include "process.h"
+#include "taux.h"
 
 /* Terminal stdin file ops */
 static file_ops_t fops_stdin = {
     .open = terminal_kbd_open,
     .read = terminal_stdin_read,
     .write = terminal_stdin_write,
-    .close = terminal_kbd_close
+    .close = terminal_kbd_close,
+    .ioctl = terminal_kbd_ioctl,
 };
 
 /* Terminal stdout file ops */
@@ -19,7 +21,8 @@ static file_ops_t fops_stdout = {
     .open = terminal_kbd_open,
     .read = terminal_stdout_read,
     .write = terminal_stdout_write,
-    .close = terminal_kbd_close
+    .close = terminal_kbd_close,
+    .ioctl = terminal_kbd_ioctl,
 };
 
 /* File (the real kind) file ops */
@@ -27,7 +30,8 @@ static file_ops_t fops_file = {
     .open = fs_open,
     .read = fs_file_read,
     .write = fs_write,
-    .close = fs_close
+    .close = fs_close,
+    .ioctl = fs_ioctl,
 };
 
 /* Directory file ops */
@@ -35,7 +39,8 @@ static file_ops_t fops_dir = {
     .open = fs_open,
     .read = fs_dir_read,
     .write = fs_write,
-    .close = fs_close
+    .close = fs_close,
+    .ioctl = fs_ioctl,
 };
 
 /* RTC file ops */
@@ -43,7 +48,8 @@ static file_ops_t fops_rtc = {
     .open = rtc_open,
     .read = rtc_read,
     .write = rtc_write,
-    .close = rtc_close
+    .close = rtc_close,
+    .ioctl = rtc_ioctl,
 };
 
 /* Mouse file ops */
@@ -51,15 +57,23 @@ static file_ops_t fops_mouse = {
     .open = terminal_mouse_open,
     .read = terminal_mouse_read,
     .write = terminal_mouse_write,
-    .close = terminal_mouse_close
+    .close = terminal_mouse_close,
+    .ioctl = terminal_mouse_ioctl,
+};
+
+/* Taux controller file ops */
+static file_ops_t fops_taux = {
+    .open = taux_open,
+    .read = taux_read,
+    .write = taux_write,
+    .close = taux_close,
+    .ioctl = taux_ioctl,
 };
 
 /* Initializes the file object from the given dentry */
 static bool
 init_file_obj(file_obj_t *file, dentry_t *dentry)
 {
-    file->inode_idx = 0;
-    file->offset = 0;
     switch (dentry->type) {
     case FTYPE_RTC:
         file->ops_table = &fops_rtc;
@@ -69,16 +83,20 @@ init_file_obj(file_obj_t *file, dentry_t *dentry)
         break;
     case FTYPE_FILE:
         file->ops_table = &fops_file;
-        file->inode_idx = dentry->inode_idx;
         break;
     case FTYPE_MOUSE:
         file->ops_table = &fops_mouse;
+        break;
+    case FTYPE_TAUX:
+        file->ops_table = &fops_taux;
         break;
     default:
         debugf("Unknown file type: %d\n", dentry->type);
         return false;
     }
 
+    file->offset = 0;
+    file->inode_idx = dentry->inode_idx;
     file->valid = true;
     return true;
 }
@@ -118,10 +136,15 @@ get_executing_file_obj(int32_t fd)
 void
 file_init(file_obj_t *files)
 {
-    files[FD_STDIN].valid = true;
-    files[FD_STDIN].ops_table = &fops_stdin;
-    files[FD_STDOUT].valid = true;
-    files[FD_STDOUT].ops_table = &fops_stdout;
+    /* Initialize stdin as fd = 0 */
+    files[0].valid = true;
+    files[0].ops_table = &fops_stdin;
+
+    /* Initialize stdout as fd = 1 */
+    files[1].valid = true;
+    files[1].ops_table = &fops_stdout;
+
+    /* Clear the remaining files */
     int32_t i;
     for (i = 2; i < MAX_FILES; ++i) {
         files[i].valid = false;
@@ -204,4 +227,14 @@ file_close(int32_t fd)
     }
     file->valid = false;
     return 0;
+}
+
+__cdecl int32_t
+file_ioctl(int32_t fd, uint32_t req, uint32_t arg)
+{
+    file_obj_t *file = get_executing_file_obj(fd);
+    if (file == NULL) {
+        return -1;
+    }
+    return file->ops_table->ioctl(file, req, arg);
 }

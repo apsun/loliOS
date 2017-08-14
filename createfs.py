@@ -22,14 +22,14 @@ class FileInfo:
             self.file_type = 0
         elif file_name == 'mouse':
             self.file_type = 3
-        elif file_name == 'audio':
+        elif file_name == 'taux':
             self.file_type = 4
         elif file_name == '.':
             self.file_type = 1
         else:
             self.file_type = 2
 
-        if file_name in ('.', 'rtc', 'mouse', 'audio'):
+        if file_name in ('.', 'rtc', 'mouse', 'taux'):
             self.file_size = 0
         else:
             self.file_size = os.path.getsize(os.path.join(dir_name, file_name))
@@ -103,6 +103,9 @@ def _main():
     if not os.path.isfile(os.path.join(arg_input, 'mouse')):
         open(os.path.join(arg_input, 'mouse'), 'w').close()
 
+    if not os.path.isfile(os.path.join(arg_input, 'taux')):
+        open(os.path.join(arg_input, 'taux'), 'w').close()
+
     # if not os.path.isfile(os.path.join(arg_input, 'audio')):
     #     open(os.path.join(arg_input, 'audio'), 'w').close()
 
@@ -111,11 +114,15 @@ def _main():
     f.close()
 
     fs_file_names = ['.']
-    fs_file_names.extend([f for f in os.listdir(arg_input) if os.path.isfile(os.path.join(arg_input, f))])
+    fs_file_names.extend([
+        f for f in os.listdir(arg_input)
+        if os.path.isfile(os.path.join(arg_input, f))
+        and not f == '.gitignore'
+    ])
 
     fs_dentry_num = len(fs_file_names)
     if fs_dentry_num > 61:
-        print 'error: too many files, max is 61 (including ".", "rtc", "mouse", and "audio")\n'
+        print 'error: too many files, max is 61 (including ".", "rtc", "mouse", and "taux")\n'
         sys.exit(1)
 
     # create some unused inodes, since the max inode in use will be the
@@ -142,7 +149,7 @@ def _main():
     for file_name in fs_file_names:
 
         # directory and device files don't have an inode
-        if file_name in ('.', 'rtc', 'mouse', 'audio'):
+        if file_name in ('.', 'rtc', 'mouse', 'taux'):
             inode = 0
         else:
             inode = random.choice(fs_inode_list)
@@ -281,7 +288,7 @@ def _main():
     try:
         os.remove(os.path.join(arg_input, 'rtc'))
         os.remove(os.path.join(arg_input, 'mouse'))
-        os.remove(os.path.join(arg_input, 'audio'))
+        os.remove(os.path.join(arg_input, 'taux'))
         os.remove(os.path.join(arg_input, 'created.txt'))
     except:
         pass

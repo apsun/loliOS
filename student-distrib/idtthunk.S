@@ -8,14 +8,14 @@
     name:                                        \
         pushl $0; /* Dummy value */              \
         pushl $ code;                            \
-        jmp idt_handle_common_thunk
+        jmp idt_handle_common_thunk;
 
 /* Interrupt handler thunk with error code */
 #define MAKE_THUNK_WITH_ERR(code, name)          \
     .globl name;                                 \
     name:                                        \
         pushl $ code;                            \
-        jmp idt_handle_common_thunk
+        jmp idt_handle_common_thunk;
 
 .text
 

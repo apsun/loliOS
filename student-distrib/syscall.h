@@ -4,7 +4,7 @@
 #include "types.h"
 #include "idt.h"
 
-#define NUM_SYSCALL     10
+#define NUM_SYSCALL     11
 
 #define SYS_HALT        1
 #define SYS_EXECUTE     2
@@ -16,6 +16,7 @@
 #define SYS_VIDMAP      8
 #define SYS_SET_HANDLER 9
 #define SYS_SIGRETURN   10
+#define SYS_IOCTL       11
 
 #ifndef ASM
 

@@ -222,6 +222,15 @@ rtc_close(file_obj_t *file)
 }
 
 /*
+ * Ioctl syscall for RTC. Always fails.
+ */
+int32_t
+rtc_ioctl(file_obj_t *file, uint32_t req, uint32_t arg)
+{
+    return -1;
+}
+
+/*
  * Returns the current value of the RTC counter.
  */
 uint32_t

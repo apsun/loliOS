@@ -10,12 +10,6 @@
 /* Maximum filename length */
 #define FS_MAX_FNAME_LEN 32
 
-/* File type constants */
-#define FTYPE_RTC 0
-#define FTYPE_DIR 1
-#define FTYPE_FILE 2
-#define FTYPE_MOUSE 3
-
 #ifndef ASM
 
 /* dentry structure */
@@ -84,6 +78,7 @@ int32_t fs_file_read(file_obj_t *file, void *buf, int32_t nbytes);
 int32_t fs_dir_read(file_obj_t *file, void *buf, int32_t nbytes);
 int32_t fs_write(file_obj_t *file, const void *buf, int32_t nbytes);
 int32_t fs_close(file_obj_t *file);
+int32_t fs_ioctl(file_obj_t *file, uint32_t req, uint32_t arg);
 
 #endif /* ASM */
 

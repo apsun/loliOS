@@ -22,6 +22,7 @@ syscall_jump_table:
     .long process_vidmap
     .long signal_set_handler
     .long signal_sigreturn
+    .long file_ioctl
 
 .text
 

@@ -218,6 +218,15 @@ fs_close(file_obj_t *file)
     return 0;
 }
 
+/*
+ * Ioctl syscall for files/directories. Always fails.
+ */
+int32_t
+fs_ioctl(file_obj_t *file, uint32_t req, uint32_t arg)
+{
+    return -1;
+}
+
 /* Initializes the filesystem */
 void
 fs_init(uint32_t fs_start)

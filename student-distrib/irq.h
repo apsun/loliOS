@@ -9,6 +9,8 @@
 /* IRQ number constants */
 #define IRQ_PIT      0
 #define IRQ_KEYBOARD 1
+#define IRQ_COM2     3
+#define IRQ_COM1     4
 #define IRQ_RTC      8
 #define IRQ_MOUSE    12
 
