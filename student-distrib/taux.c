@@ -311,6 +311,7 @@ taux_handle_packet(uint8_t packet[3])
         break;
     case MTCP_ERROR:
         debugf("Received ERROR packet\n");
+        taux_handle_ack();
         break;
     default:
         debugf("Unhandled packet: %x\n", a);
