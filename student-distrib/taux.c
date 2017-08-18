@@ -193,7 +193,7 @@ taux_handle_reset(void)
     pending_acks = 0;
 
     /* Re-initialize the taux controller */
-    taux_init();
+    taux_ioctl_init();
 }
 
 /*
@@ -268,7 +268,6 @@ taux_close(file_obj_t *file)
 int32_t
 taux_ioctl(file_obj_t *file, uint32_t req, uint32_t arg)
 {
-    printf("Got ioctl, req=%x, arg=%x\n", req, arg);
     switch (req) {
     case TUX_INIT:
         return taux_ioctl_init();
@@ -373,5 +372,6 @@ taux_init(void)
         TAUX_CHAR_BITS,
         TAUX_STOP_BITS,
         TAUX_PARITY,
+        TAUX_TRIGGER_LEVEL,
         taux_handle_irq);
 }

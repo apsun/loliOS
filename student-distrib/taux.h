@@ -8,11 +8,12 @@
 /*
  * Taux controller serial configuration.
  */
-#define TAUX_COM_PORT  1
-#define TAUX_BAUD_RATE 9600
-#define TAUX_CHAR_BITS SERIAL_LC_CHAR_BITS_8 /* 8-bit data */
-#define TAUX_PARITY    SERIAL_LC_PARITY_NONE /* no parity bit */
-#define TAUX_STOP_BITS SERIAL_LC_STOP_BITS_1 /* 1 stop bit */
+#define TAUX_COM_PORT      1
+#define TAUX_BAUD_RATE     9600
+#define TAUX_CHAR_BITS     SERIAL_LC_CHAR_BITS_8 /* 8-bit data */
+#define TAUX_PARITY        SERIAL_LC_PARITY_NONE /* no parity bit */
+#define TAUX_STOP_BITS     SERIAL_LC_STOP_BITS_1 /* 1 stop bit */
+#define TAUX_TRIGGER_LEVEL SERIAL_FC_TRIGGER_LEVEL_14 /* prevents freezing */
 
 /*
  * Accepted ioctl() request values.
@@ -41,7 +42,7 @@
 #define MTCP_CLK_SET   MTCP_CMD(0xa)
 #define MTCP_CLK_POLL  MTCP_CMD(0xb)
 #define MTCP_CLK_RUN   MTCP_CMD(0xc)
-#define MTCP_CLK_STOP  MTCP_CMD(0xd)   
+#define MTCP_CLK_STOP  MTCP_CMD(0xd)
 #define MTCP_CLK_UP    MTCP_CMD(0xe)
 #define MTCP_CLK_DOWN  MTCP_CMD(0xf)
 #define MTCP_CLK_MAX   MTCP_CMD(0x10)

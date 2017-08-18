@@ -53,8 +53,9 @@ serial_out(int32_t which, uint32_t port_offset, uint8_t data)
 bool
 serial_can_read(int32_t which)
 {
-    uint8_t ls = serial_in(which, SERIAL_PORT_LINE_STATUS);
-    return (ls & SERIAL_LS_DATA_READY) != 0;
+    serial_line_status_t status;
+    status.raw = serial_in(which, SERIAL_PORT_LINE_STATUS);
+    return status.data_ready;
 }
 
 /*
@@ -65,8 +66,9 @@ serial_can_read(int32_t which)
 bool
 serial_can_write(int32_t which)
 {
-    uint8_t ls = serial_in(which, SERIAL_PORT_LINE_STATUS);
-    return (ls & SERIAL_LS_THR_EMPTY) != 0;
+    serial_line_status_t status;
+    status.raw = serial_in(which, SERIAL_PORT_LINE_STATUS);
+    return status.empty_tx_holding;
 }
 
 /*
@@ -133,32 +135,61 @@ serial_init(
     uint32_t char_bits,
     uint32_t stop_bits,
     uint32_t parity,
+    uint32_t trigger_level,
     void (*irq_handler)(void))
 {
-    /* Reset interrupt state */
-    serial_out(which, SERIAL_PORT_INT_ENABLE, 0);
+    /* Disable all interrupts */
+    serial_int_enable_t ie;
+    ie.data_available = 0;
+    ie.empty_tx_holding = 0;
+    ie.line_status = 0;
+    ie.modem_status = 0;
+    ie.reserved = 0;
+    serial_out(which, SERIAL_PORT_INT_ENABLE, ie.raw);
 
-    /* Get original line control state */
-    serial_lc_t lc;
-    lc.raw = serial_in(which, SERIAL_PORT_LINE_CTRL);
-
-    /* Put serial into DLAB mode to set baud rate */
+    /* Put serial into DLAB mode, also set some parameters */
+    serial_line_ctrl_t lc;
+    lc.char_bits = char_bits;
+    lc.stop_bits = stop_bits;
+    lc.parity = parity;
+    lc.reserved = 0;
     lc.dlab = 1;
     serial_out(which, SERIAL_PORT_LINE_CTRL, lc.raw);
 
-    /* Write baud rate to registers */
+    /* Write baud rate */
     uint32_t baud_divisor = SERIAL_CLOCK_HZ / baud_rate;
     ASSERT(baud_divisor * baud_rate == SERIAL_CLOCK_HZ);
     ASSERT((baud_divisor & ~0xffff) == 0);
     serial_out(which, SERIAL_PORT_BAUD_LO, (baud_divisor >> 0) & 0xff);
     serial_out(which, SERIAL_PORT_BAUD_HI, (baud_divisor >> 8) & 0xff);
 
-    /* Disable DLAB mode and set other parameters */
+    /* Disable DLAB mode */
     lc.dlab = 0;
-    lc.char_bits = char_bits;
-    lc.stop_bits = stop_bits;
-    lc.parity = parity;
     serial_out(which, SERIAL_PORT_LINE_CTRL, lc.raw);
+
+    /* Enable FIFO, set trigger level */
+    serial_fifo_ctrl_t fc;
+    fc.enable_fifo = 1;
+    fc.clear_rx = 1;
+    fc.clear_tx = 1;
+    fc.reserved = 0;
+    fc.trigger_level = trigger_level;
+    serial_out(which, SERIAL_PORT_FIFO_CTRL, fc.raw);
+
+    /* Apparently aux output 2 needs to be 1 to receive interrupts */
+    serial_modem_ctrl_t mc;
+    mc.data_terminal_ready = 1;
+    mc.request_to_send = 1;
+    mc.aux_output_1 = 0;
+    mc.aux_output_2 = 1;
+    mc.loopback = 0;
+    mc.autoflow_control = 0;
+    mc.reserved = 0;
+    serial_out(which, SERIAL_PORT_MODEM_CTRL, mc.raw);
+
+    /* Re-enable interrupts */
+    ie.data_available = 1;
+    serial_out(which, SERIAL_PORT_INT_ENABLE, ie.raw);
 
     /* Register IRQ handler */
     if (which == 1) {
