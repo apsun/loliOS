@@ -13,13 +13,12 @@
 
 #if DEBUG_ASSERT
 
-#define ASSERT(EXP)            \
-do {                           \
-    if(!(EXP)) {               \
-        cli();                 \
+#define ASSERT(EXP) do {                                                    \
+    if(!(EXP)) {                                                            \
+        cli();                                                              \
         printf(__FILE__ ":%u: Assertion `" #EXP "\' failed.\n", __LINE__);  \
-        loop();                \
-    }                          \
+        loop();                                                             \
+    }                                                                       \
 } while(0)
 
 #else /* DEBUG_ASSERT */
@@ -30,10 +29,9 @@ do {                           \
 
 #if DEBUG_PRINT
 
-#define debugf(...)            \
-do {                           \
-    printf(__FILE__ ":%u: ", __LINE__);    \
-    printf(__VA_ARGS__);       \
+#define debugf(...) do {                \
+    printf(__FILE__ ":%u: ", __LINE__); \
+    printf(__VA_ARGS__);                \
 } while(0)
 
 #else /* DEBUG_PRINT */

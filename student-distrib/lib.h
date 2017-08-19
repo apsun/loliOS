@@ -181,9 +181,11 @@ inl(uint16_t port)
         "jmp . - 1;"); \
 } while (0)
 
-/* Restore flags
- * Puts the value in "flags" into the EFLAGS register.  Most often used
- * after a cli_and_save_flags(flags) */
+/*
+ * Restore flags
+ * Puts the value in "flags" into the EFLAGS register. Most often used
+ * after a cli_and_save(flags)
+ */
 #define restore_flags(flags) do { \
     asm volatile(                 \
         "pushl %0;"               \

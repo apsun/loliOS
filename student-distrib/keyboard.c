@@ -100,14 +100,14 @@ keycode_to_modifier(uint8_t keycode)
  * 1, both bits will be set to 1 so you can just
  * test against KMOD_CTRL).
  */
-static int
+static kbd_modifiers_t
 get_modifiers(void)
 {
     kbd_modifiers_t mod = modifiers;
     if (mod & (KMOD_CTRL))  mod |= KMOD_CTRL;
     if (mod & (KMOD_SHIFT)) mod |= KMOD_SHIFT;
     if (mod & (KMOD_ALT))   mod |= KMOD_ALT;
-    return (int)mod;
+    return mod;
 }
 
 /*

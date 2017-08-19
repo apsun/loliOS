@@ -16,7 +16,7 @@
 #include "taux.h"
 
 /* Check if the bit BIT in FLAGS is set. */
-#define CHECK_FLAG(flags, bit)   ((flags) & (1 << (bit)))
+#define CHECK_FLAG(flags, bit) ((flags) & (1 << (bit)))
 
 void
 entry(unsigned long magic, unsigned long addr)

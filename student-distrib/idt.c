@@ -8,8 +8,7 @@
 #include "signal.h"
 
 /* Convenience wrapper around SET_IDT_ENTRY */
-#define WRITE_IDT_ENTRY(i, name)            \
-do {                                        \
+#define WRITE_IDT_ENTRY(i, name) do {       \
     extern void name(void);                 \
     SET_IDT_ENTRY(idt[i], name);            \
 } while (0)
