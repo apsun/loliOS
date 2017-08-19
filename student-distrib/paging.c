@@ -2,9 +2,6 @@
 #include "debug.h"
 #include "terminal.h"
 
-#define SIZE_4KB 0
-#define SIZE_4MB 1
-
 #define TO_4MB_BASE(x) (((uint32_t)x) >> 22)
 #define TO_4KB_BASE(x) (((uint32_t)x) >> 12)
 
@@ -14,13 +11,13 @@
 #define ALIGN_4KB __attribute__((aligned(KB(4))))
 
 /* Page directory */
-static ALIGN_4KB page_dir_entry_t page_dir[NUM_PDE];
+static ALIGN_4KB page_dir_entry_t page_dir[1024];
 
 /* Page table for first 4MB of memory */
-static ALIGN_4KB page_table_entry_4kb_t page_table[NUM_PTE];
+static ALIGN_4KB page_table_entry_4kb_t page_table[1024];
 
 /* Page table for vidmap area */
-static ALIGN_4KB page_table_entry_4kb_t page_table_vidmap[NUM_PTE];
+static ALIGN_4KB page_table_entry_4kb_t page_table_vidmap[1024];
 
 /* Helpful macros to access page table stuff */
 #define DIR_4KB(addr) (&page_dir[TO_DIR_INDEX(addr)].dir_4kb)
@@ -117,35 +114,36 @@ static void
 paging_init_registers(void)
 {
     asm volatile(
-                 /* Point PDR to page directory */
-                 "movl %%cr3, %%eax;"
-                 "andl $0x00000fff, %%eax;"
-                 "orl $page_dir, %%eax;"
-                 "movl %%eax, %%cr3;"
-         
-                 /* Enable 4MB pages */
-                 "movl %%cr4, %%eax;"
-                 "orl $0x00000010, %%eax;"
-                 "movl %%eax, %%cr4;"
-         
-                 /* Enable paging (this must come last!) */
-                 "movl %%cr0, %%eax;"
-                 "orl $0x80000000, %%eax;"
-                 "movl %%eax, %%cr0;"
-                 :
-                 :
-                 : "eax", "cc");
+        /* Point PDR to page directory */
+        "movl %%cr3, %%eax;"
+        "andl $0x00000fff, %%eax;"
+        "orl $page_dir, %%eax;"
+        "movl %%eax, %%cr3;"
+        
+        /* Enable 4MB pages */
+        "movl %%cr4, %%eax;"
+        "orl $0x00000010, %%eax;"
+        "movl %%eax, %%cr4;"
+        
+        /* Enable paging (this must come last!) */
+        "movl %%cr0, %%eax;"
+        "orl $0x80000000, %%eax;"
+        "movl %%eax, %%cr0;"
+        :
+        :
+        : "eax", "cc");
 }
 
 /* Flushes the TLB */
 static void
 paging_flush_tlb(void)
 {
-    asm volatile("movl %%cr3, %%eax;"
-                 "movl %%eax, %%cr3;"
-                 :
-                 :
-                 : "eax");
+    asm volatile(
+        "movl %%cr3, %%eax;"
+        "movl %%eax, %%cr3;"
+        :
+        :
+        : "eax");
 }
 
 /* Enables paging. */

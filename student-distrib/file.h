@@ -49,7 +49,7 @@ typedef struct {
 
 /* File operations table */
 struct file_ops_t {
-    int32_t (*open)(const uint8_t *filename, file_obj_t *file);
+    int32_t (*open)(const char *filename, file_obj_t *file);
     int32_t (*read)(file_obj_t *file, void *buf, int32_t nbytes);
     int32_t (*write)(file_obj_t *file, const void *buf, int32_t nbytes);
     int32_t (*close)(file_obj_t *file);
@@ -60,7 +60,7 @@ struct file_ops_t {
 void file_init(file_obj_t *files);
 
 /* Direct syscall handlers */
-__cdecl int32_t file_open(const uint8_t *filename);
+__cdecl int32_t file_open(const char *filename);
 __cdecl int32_t file_read(int32_t fd, void *buf, int32_t nbytes);
 __cdecl int32_t file_write(int32_t fd, const void *buf, int32_t nbytes);
 __cdecl int32_t file_close(int32_t fd);

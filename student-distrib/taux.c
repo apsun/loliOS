@@ -94,7 +94,7 @@ taux_send_cmd_set_led(uint32_t led_status)
 {
     uint8_t buf[6];
     taux_fill_led_set_packet(led_status, buf);
-    int32_t i;
+    uint32_t i;
     for (i = 0; i < sizeof(buf); ++i) {
         serial_write(TAUX_COM_PORT, buf[i]);
     }
@@ -211,7 +211,6 @@ taux_handle_bioc_event(uint8_t b, uint8_t c)
     button_status_new |= !(c & 0x2) << 6; /* Left    */
     button_status_new |= !(c & 0x8) << 7; /* Right   */
     button_status = button_status_new;
-    debugf("Button status -> %x\n", button_status_new);
 }
 
 /*
@@ -229,7 +228,7 @@ taux_handle_poll_ok(uint8_t b, uint8_t c)
  * Taux controller open syscall handler. Always succeeds.
  */
 int32_t
-taux_open(const uint8_t *filename, file_obj_t *file)
+taux_open(const char *filename, file_obj_t *file)
 {
     return 0;
 }
@@ -294,23 +293,18 @@ taux_handle_packet(uint8_t packet[3])
 
     switch (a) {
     case MTCP_POLL_OK:
-        debugf("Received POLL_OK packet\n");
         taux_handle_poll_ok(b, c);
         break;
     case MTCP_BIOC_EVENT:
-        debugf("Received BIOC_EVENT packet\n");
         taux_handle_bioc_event(b, c);
         break;
     case MTCP_RESET:
-        debugf("Received RESET packet\n");
         taux_handle_reset();
         break;
     case MTCP_ACK:
-        debugf("Received ACK packet\n");
         taux_handle_ack();
         break;
     case MTCP_ERROR:
-        debugf("Received ERROR packet\n");
         taux_handle_ack();
         break;
     default:

@@ -15,14 +15,11 @@
 #include "file.h"
 #include "taux.h"
 
-/* Macros. */
 /* Check if the bit BIT in FLAGS is set. */
-#define CHECK_FLAG(flags,bit)   ((flags) & (1 << (bit)))
+#define CHECK_FLAG(flags, bit)   ((flags) & (1 << (bit)))
 
-/* Check if MAGIC is valid and print the Multiboot information structure
-   pointed by ADDR. */
 void
-entry (unsigned long magic, unsigned long addr)
+entry(unsigned long magic, unsigned long addr)
 {
     multiboot_info_t *mbi;
 
@@ -36,8 +33,7 @@ entry (unsigned long magic, unsigned long addr)
     clear();
 
     /* Am I booted by a Multiboot-compliant boot loader? */
-    if (magic != MULTIBOOT_BOOTLOADER_MAGIC)
-    {
+    if (magic != MULTIBOOT_BOOTLOADER_MAGIC) {
         printf ("Invalid magic number: 0x%#x\n", (unsigned) magic);
         return;
     }
@@ -62,8 +58,7 @@ entry (unsigned long magic, unsigned long addr)
         printf ("cmdline = %s\n", (char *) mbi->cmdline);
 
     if (CHECK_FLAG (mbi->flags, 3)) {
-        int mod_count = 0;
-        int i;
+        uint32_t mod_count = 0;
         module_t *mod = (module_t *)mbi->mods_addr;
 
         /*
@@ -77,6 +72,7 @@ entry (unsigned long magic, unsigned long addr)
             printf("Module %d loaded at address: 0x%#x\n", mod_count, (unsigned int)mod->mod_start);
             printf("Module %d ends at address: 0x%#x\n", mod_count, (unsigned int)mod->mod_end);
             printf("First few bytes of module:\n");
+            int32_t i;
             for (i = 0; i < 16; i++) {
                 printf("0x%x ", *((uint8_t *)(mod->mod_start + i)));
             }

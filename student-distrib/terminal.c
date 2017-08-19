@@ -68,7 +68,7 @@ vga_clear_region(uint8_t *ptr, int32_t num_chars)
      * Screen clear memset pattern, same as [0] = ' ', [1] = ATTRIB
      * Why not a simple for loop? Because I can.
      */
-    int32_t pattern = (' ' << 0) | (ATTRIB << 8);
+    uint16_t pattern = (' ' << 0) | (ATTRIB << 8);
     memset_word(ptr, pattern, num_chars);
 }
 
@@ -139,7 +139,7 @@ terminal_scroll_down(terminal_state_t *term)
  * the cursor position!
  */
 static void
-terminal_write_char(terminal_state_t *term, uint8_t c)
+terminal_write_char(terminal_state_t *term, char c)
 {
     int32_t x = term->cursor.screen_x;
     int32_t y = term->cursor.screen_y;
@@ -152,7 +152,7 @@ terminal_write_char(terminal_state_t *term, uint8_t c)
  * This does NOT update the cursor position!
  */
 static void
-terminal_putc_impl(terminal_state_t *term, uint8_t c)
+terminal_putc_impl(terminal_state_t *term, char c)
 {
     if (c == '\n') {
         /* Reset x position, increment y position */
@@ -263,20 +263,24 @@ set_display_terminal(int32_t index)
 
 /* Prints a character to the currently displayed terminal */
 void
-terminal_putc(uint8_t c)
+terminal_putc(char c)
 {
     terminal_state_t *term = get_display_terminal();
     terminal_putc_impl(term, c);
     terminal_update_cursor(term);
 }
 
-/* Clears the curently displayed terminal screen */
+/*
+ * Clears the curently displayed terminal screen and
+ * all associated input.
+ */
 void
 terminal_clear(void)
 {
     terminal_state_t *term = get_display_terminal();
     terminal_clear_impl(term);
     term->kbd_input.count = 0;
+    term->mouse_input.count = 0;
 }
 
 /* Clears the specified terminal's input buffers */
@@ -340,7 +344,7 @@ terminal_wait_kbd_input(kbd_input_buf_t *input_buf, int32_t nbytes)
  * Open syscall for stdin/stdout. Always succeeds.
  */
 int32_t
-terminal_kbd_open(const uint8_t *filename, file_obj_t *file)
+terminal_kbd_open(const char *filename, file_obj_t *file)
 {
     return 0;
 }
@@ -353,10 +357,6 @@ terminal_kbd_open(const uint8_t *filename, file_obj_t *file)
  *
  * This call will block until the requested number of
  * characters are available or a newline is encountered.
- *
- * file - ignored.
- * buf - must point to a uint8_t array.
- * nbytes - the maximum number of chars to read.
  */
 int32_t
 terminal_stdin_read(file_obj_t *file, void *buf, int32_t nbytes)
@@ -421,10 +421,6 @@ terminal_stdout_read(file_obj_t *file, void *buf, int32_t nbytes)
  * Write syscall for the terminal (stdout). Echos the characters
  * in buf to the terminal. The buffer should not contain any
  * NUL characters. Returns the number of characters written.
- *
- * file - ignored.
- * buf - must point to a uint8_t array
- * nbytes - the number of characters to write to the terminal
  */
 int32_t
 terminal_stdout_write(file_obj_t *file, const void *buf, int32_t nbytes)
@@ -438,7 +434,7 @@ terminal_stdout_write(file_obj_t *file, const void *buf, int32_t nbytes)
         return -1;
     }
 
-    const uint8_t *src = (const uint8_t *)buf;
+    const char *src = (const char *)buf;
     terminal_state_t *term = get_executing_terminal();
 
     /* Print characters to the terminal (don't update cursor) */
@@ -475,7 +471,7 @@ terminal_kbd_ioctl(file_obj_t *file, uint32_t req, uint32_t arg)
  * Open syscall for the mouse. Always succeeds.
  */
 int32_t
-terminal_mouse_open(const uint8_t *filename, file_obj_t *file)
+terminal_mouse_open(const char *filename, file_obj_t *file)
 {
     return 0;
 }
@@ -586,7 +582,7 @@ handle_ctrl_input(kbd_input_ctrl_t ctrl)
 
 /* Handles single-character keyboard input */
 static void
-handle_char_input(uint8_t c)
+handle_char_input(char c)
 {
     /* We should insert characters into the currently displayed
      * terminal's input stream, not the currently executing terminal.
@@ -611,10 +607,10 @@ terminal_handle_kbd_input(kbd_input_t input)
 {
     switch (input.type) {
     case KTYP_CHAR:
-        handle_char_input(input.value.character);
+        handle_char_input(input.character);
         break;
     case KTYP_CTRL:
-        handle_ctrl_input(input.value.control);
+        handle_ctrl_input(input.control);
         break;
     case KTYP_NONE:
         break;

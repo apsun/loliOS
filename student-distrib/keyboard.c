@@ -147,7 +147,7 @@ keycode_to_ctrl(uint8_t keycode)
  * or '\0' if the character cannot be printed. Note that
  * '\n', '\t', and '\b' are considered "printable characters".
  */
-static uint8_t
+static char
 keycode_to_char(uint8_t keycode)
 {
     /* Check if the keycode was out of range */
@@ -178,23 +178,21 @@ static kbd_input_t
 keycode_to_input(uint8_t keycode)
 {
     kbd_input_t input;
-    kbd_input_ctrl_t ctrl;
-    uint8_t c;
     input.type = KTYP_NONE;
 
     /* Check if it's a known control sequence */
-    ctrl = keycode_to_ctrl(keycode);
+    kbd_input_ctrl_t ctrl = keycode_to_ctrl(keycode);
     if (ctrl != KCTL_NONE) {
         input.type = KTYP_CTRL;
-        input.value.control = ctrl;
+        input.control = ctrl;
         return input;
     }
 
     /* Check if it's a printable character */
-    c = keycode_to_char(keycode);
+    char c = keycode_to_char(keycode);
     if (c != '\0') {
         input.type = KTYP_CHAR;
-        input.value.character = c;
+        input.character = c;
         return input;
     }
 
@@ -230,11 +228,9 @@ process_packet(uint8_t packet)
         /* Key pressed was a modifier */
         if (mod == KMOD_CAPS) {
             if (status == 1) {
-                debugf("Toggled caps lock\n");
                 toggle_modifier_bit(mod);
             }
         } else {
-            debugf("Set modifier 0x%#x -> %d\n", mod, status);
             set_modifier_bit(status, mod);
         }
     } else if (status == 1) {

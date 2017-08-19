@@ -48,7 +48,7 @@ serial_out(int32_t which, uint32_t port_offset, uint8_t data)
 /*
  * Returns whether there is data in the serial UART rx
  * queue available to be read immediately. If the rx queue
- * is empty, return false.
+ * is empty, returns false.
  */
 bool
 serial_can_read(int32_t which)

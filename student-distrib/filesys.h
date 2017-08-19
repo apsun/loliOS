@@ -15,7 +15,7 @@
 /* dentry structure */
 typedef struct {
     /* Name of the file */
-    uint8_t name[FS_MAX_FNAME_LEN];
+    char name[FS_MAX_FNAME_LEN];
 
     /* Type of the file */
     uint32_t type;
@@ -61,7 +61,7 @@ typedef struct {
 } inode_t;
 
 /* Finds a dentry by its name */
-int32_t read_dentry_by_name(const uint8_t *fname, dentry_t *dentry);
+int32_t read_dentry_by_name(const char *fname, dentry_t *dentry);
 
 /* Finds a dentry by its index */
 int32_t read_dentry_by_index(uint32_t index, dentry_t* dentry);
@@ -73,7 +73,7 @@ int32_t read_data(uint32_t inode, uint32_t offset, uint8_t *buf, uint32_t length
 void fs_init(uint32_t fs_start);
 
 /* Filesystem syscall interface */
-int32_t fs_open(const uint8_t *filename, file_obj_t *file);
+int32_t fs_open(const char *filename, file_obj_t *file);
 int32_t fs_file_read(file_obj_t *file, void *buf, int32_t nbytes);
 int32_t fs_dir_read(file_obj_t *file, void *buf, int32_t nbytes);
 int32_t fs_write(file_obj_t *file, const void *buf, int32_t nbytes);

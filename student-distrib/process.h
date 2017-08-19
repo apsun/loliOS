@@ -123,7 +123,7 @@ typedef struct {
      * Arguments passed when creating this process. Will always be
      * NUL-terminated (holds up to MAX_ARGS_LEN - 1 characters).
      */
-    uint8_t args[MAX_ARGS_LEN];
+    char args[MAX_ARGS_LEN];
 } pcb_t;
 
 /* Kernel stack struct */
@@ -143,8 +143,8 @@ pcb_t *get_pcb_by_terminal(int32_t terminal);
 
 /* Process syscall handlers */
 __cdecl int32_t process_halt(uint32_t status);
-__cdecl int32_t process_execute(const uint8_t *command);
-__cdecl int32_t process_getargs(uint8_t *buf, int32_t nbytes);
+__cdecl int32_t process_execute(const char *command);
+__cdecl int32_t process_getargs(char *buf, int32_t nbytes);
 __cdecl int32_t process_vidmap(uint8_t **screen_start);
 
 /* Initializes processes. */

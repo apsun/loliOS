@@ -70,15 +70,15 @@ typedef enum {
 typedef struct {
     kbd_input_type_t type;
     union {
-        uint8_t character;
+        char character;
         kbd_input_ctrl_t control;
-    } value;
+    };
 } kbd_input_t;
 
 /* Character input buffer */
 typedef struct {
     /* Buffer to hold the characters */
-    volatile uint8_t buf[KEYBOARD_BUF_SIZE];
+    volatile char buf[KEYBOARD_BUF_SIZE];
 
     /* Number of characters in the buffer */
     volatile int32_t count;

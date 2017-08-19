@@ -1,14 +1,11 @@
 #ifndef _PAGING_H
 #define _PAGING_H
 
+#define SIZE_4KB 0
+#define SIZE_4MB 1
+
 #define KB(x) ((x) * 1024)
 #define MB(x) ((x) * 1024 * 1024)
-
-/* number of entries in page directory */
-#define NUM_PDE 1024
-
-/* number of entries in page table */
-#define NUM_PTE 1024
 
 #define VIDEO_PAGE_START    0x000B8000
 #define VIDEO_PAGE_END      0x000B9000

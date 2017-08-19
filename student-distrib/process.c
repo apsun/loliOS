@@ -129,7 +129,7 @@ process_new_pcb(void)
  * the arguments to out_args, and returns 0. Otherwise, returns -1.
  */
 static int32_t
-process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_args)
+process_parse_cmd(const char *command, uint32_t *out_inode_idx, char *out_args)
 {
     /*
      * Scan for the end of the exe filename
@@ -159,10 +159,10 @@ process_parse_cmd(const uint8_t *command, uint32_t *out_inode_idx, uint8_t *out_
     }
 
     /* Read the filename (up to 33 chars with NUL terminator) */
-    uint8_t filename[FS_MAX_FNAME_LEN + 1];
+    char filename[FS_MAX_FNAME_LEN + 1];
     int32_t fname_i;
     for (fname_i = 0; fname_i < FS_MAX_FNAME_LEN + 1; ++fname_i, ++i) {
-        uint8_t c = command[i];
+        char c = command[i];
         if (c == ' ' || c == '\0') {
             filename[fname_i] = '\0';
             break;
@@ -330,59 +330,60 @@ process_run_impl(pcb_t *pcb)
      * DO NOT MODIFY ANY CODE HERE UNLESS YOU ARE 100% SURE
      * ABOUT WHAT YOU ARE DOING!
      */
-    asm volatile("movl %%esp, %0;"
-                 "movl %%ebp, %1;"
-                 : "=g"(pcb->parent_esp),
-                   "=g"(pcb->parent_ebp)
-                 :
-                 : "memory");
+    asm volatile(
+        "movl %%esp, %0;"
+        "movl %%ebp, %1;"
+        : "=g"(pcb->parent_esp),
+          "=g"(pcb->parent_ebp)
+        :
+        : "memory");
 
     /* Jump into userspace and execute */
     asm volatile(
-                 /* Segment registers */
-                 "movw %1, %%ax;"
-                 "movw %%ax, %%ds;"
-                 "movw %%ax, %%es;"
-                 "movw %%ax, %%fs;"
-                 "movw %%ax, %%gs;"
+        /* Segment registers */
+        "movw %1, %%ax;"
+        "movw %%ax, %%ds;"
+        "movw %%ax, %%es;"
+        "movw %%ax, %%fs;"
+        "movw %%ax, %%gs;"
 
-                 /* SS register */
-                 "pushl %1;"
+        /* SS register */
+        "pushl %1;"
 
-                 /* ESP */
-                 "pushl %2;"
+        /* ESP */
+        "pushl %2;"
 
-                 /* EFLAGS */
-                 "pushfl;"
-                 "popl %%eax;"
-                 "andl $0xfffffbff, %%eax;" /* Clear DF */
-                 "orl $0x200, %%eax;" /* Set IF */
-                 "pushl %%eax;"
+        /* EFLAGS */
+        "pushfl;"
+        "popl %%eax;"
+        "andl $0xfffffbff, %%eax;" /* Clear DF */
+        "orl $0x200, %%eax;" /* Set IF */
+        "pushl %%eax;"
 
-                 /* CS register */
-                 "pushl %3;"
+        /* CS register */
+        "pushl %3;"
 
-                 /* EIP */
-                 "pushl %0;"
+        /* EIP */
+        "pushl %0;"
 
-                 /* Zero all general purpose registers for security */
-                 "xorl %%eax, %%eax;"
-                 "xorl %%ebx, %%ebx;"
-                 "xorl %%ecx, %%ecx;"
-                 "xorl %%edx, %%edx;"
-                 "xorl %%esi, %%esi;"
-                 "xorl %%edi, %%edi;"
-                 "xorl %%ebp, %%ebp;"
+        /* Zero all general purpose registers for security */
+        "xorl %%eax, %%eax;"
+        "xorl %%ebx, %%ebx;"
+        "xorl %%ecx, %%ecx;"
+        "xorl %%edx, %%edx;"
+        "xorl %%esi, %%esi;"
+        "xorl %%edi, %%edi;"
+        "xorl %%ebp, %%ebp;"
 
-                 /* GO! */
-                 "iret;"
+        /* GO! */
+        "iret;"
 
-                 : /* No outputs */
-                 : "r"(pcb->entry_point),
-                   "i"(USER_DS),
-                   "i"(USER_PAGE_END),
-                   "i"(USER_CS)
-                 : "eax", "cc");
+        : /* No outputs */
+        : "r"(pcb->entry_point),
+          "i"(USER_DS),
+          "i"(USER_PAGE_END),
+          "i"(USER_CS)
+        : "eax", "cc");
 
     /* Can't touch this */
     ASSERT(0);
@@ -403,12 +404,13 @@ process_run(pcb_t *pcb)
      * knows to save them somewhere.
      */
     int32_t ret;
-    asm volatile("pushl %1;"
-                 "call process_run_impl;"
-                 "addl $4, %%esp;"
-                 : "=a"(ret)
-                 : "g"(pcb)
-                 : "ebx", "ecx", "edx", "esi", "edi", "cc");
+    asm volatile(
+        "pushl %1;"
+        "call process_run_impl;"
+        "addl $4, %%esp;"
+        : "=a"(ret)
+        : "g"(pcb)
+        : "ebx", "ecx", "edx", "esi", "edi", "cc");
     return ret;
 }
 
@@ -420,10 +422,10 @@ process_run(pcb_t *pcb)
  * context switching.
  */
 static pcb_t *
-process_create_child(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal)
+process_create_child(const char *command, pcb_t *parent_pcb, int32_t terminal)
 {
     uint32_t inode;
-    uint8_t args[MAX_ARGS_LEN];
+    char args[MAX_ARGS_LEN];
 
     /* First make sure we have a valid executable... */
     if (process_parse_cmd(command, &inode, args) != 0) {
@@ -456,7 +458,7 @@ process_create_child(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
     child_pcb->last_alarm = rtc_get_counter();
     signal_init(child_pcb->signals);
     file_init(child_pcb->files);
-    strncpy((int8_t *)child_pcb->args, (const int8_t *)args, MAX_ARGS_LEN);
+    strncpy(child_pcb->args, args, MAX_ARGS_LEN);
 
     /* Update PCB pointer in the kernel data for this process */
     process_data[child_pcb->pid].pcb = child_pcb;
@@ -478,7 +480,7 @@ process_create_child(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
  * the process on if there is no parent.
  */
 static int32_t
-process_execute_impl(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal)
+process_execute_impl(const char *command, pcb_t *parent_pcb, int32_t terminal)
 {
     /* Create the child process */
     pcb_t *child_pcb = process_create_child(command, parent_pcb, terminal);
@@ -498,7 +500,7 @@ process_execute_impl(const uint8_t *command, pcb_t *parent_pcb, int32_t terminal
 
 /* execute() syscall handler */
 __cdecl int32_t
-process_execute(const uint8_t *command)
+process_execute(const char *command)
 {
     /* Validate command */
     if (!is_user_readable_string(command)) {
@@ -544,7 +546,7 @@ process_halt_impl(uint32_t status)
 
     /* If no parent process, just re-spawn a new shell in the same terminal */
     if (parent_pcb == NULL) {
-        process_execute_impl((uint8_t *)"shell", NULL, child_pcb->terminal);
+        process_execute_impl("shell", NULL, child_pcb->terminal);
 
         /* Should never get back to this point */
         ASSERT(0);
@@ -563,16 +565,17 @@ process_halt_impl(uint32_t status)
      * DO NOT MODIFY ANY CODE HERE UNLESS YOU ARE 100% SURE
      * ABOUT WHAT YOU ARE DOING!
      */
-    asm volatile("movl %1, %%esp;"
-                 "movl %2, %%ebp;"
-                 "movl %0, %%eax;"
-                 "leave;"
-                 "ret;"
-                 :
-                 : "r"(status),
-                   "r"(child_pcb->parent_esp),
-                   "r"(child_pcb->parent_ebp)
-                 : "eax");
+    asm volatile(
+        "movl %1, %%esp;"
+        "movl %2, %%ebp;"
+        "movl %0, %%eax;"
+        "leave;"
+        "ret;"
+        :
+        : "r"(status),
+          "r"(child_pcb->parent_esp),
+          "r"(child_pcb->parent_ebp)
+        : "eax");
 
     /* Should never get here! */
     ASSERT(0);
@@ -595,10 +598,11 @@ process_switch_impl(void)
      * Save current stack pointer so we can "return" to this
      * stack frame.
      */
-    asm volatile("movl %%esp, %0;"
-                 "movl %%ebp, %1;"
-                 : "=g"(curr->kernel_esp),
-                   "=g"(curr->kernel_ebp));
+    asm volatile(
+        "movl %%esp, %0;"
+        "movl %%ebp, %1;"
+        : "=g"(curr->kernel_esp),
+          "=g"(curr->kernel_ebp));
 
     if (next->status == PROCESS_SCHED) {
         /*
@@ -621,11 +625,12 @@ process_switch_impl(void)
         process_set_context(next);
 
         /* "Return" into the other process's process_switch_impl frame */
-        asm volatile("movl %0, %%esp;"
-                     "movl %1, %%ebp;"
-                     :
-                     : "r"(next->kernel_esp),
-                       "r"(next->kernel_ebp));
+        asm volatile(
+            "movl %0, %%esp;"
+            "movl %1, %%ebp;"
+            :
+            : "r"(next->kernel_esp),
+              "r"(next->kernel_ebp));
     }
 }
 
@@ -636,10 +641,11 @@ process_switch_impl(void)
 void
 process_switch(void)
 {
-    asm volatile("call process_switch_impl;"
-                 :
-                 :
-                 : "eax", "ebx", "ecx", "edx", "esi", "edi", "cc");
+    asm volatile(
+        "call process_switch_impl;"
+        :
+        :
+        : "eax", "ebx", "ecx", "edx", "esi", "edi", "cc");
 }
 
 /* halt() syscall handler */
@@ -657,7 +663,7 @@ process_halt(uint32_t status)
 
 /* getargs() syscall handler */
 __cdecl int32_t
-process_getargs(uint8_t *buf, int32_t nbytes)
+process_getargs(char *buf, int32_t nbytes)
 {
     /* Ensure buffer is valid */
     if (!is_user_writable(buf, nbytes)) {
@@ -671,7 +677,7 @@ process_getargs(uint8_t *buf, int32_t nbytes)
 
     /* Copy the args into the buffer */
     pcb_t *pcb = get_executing_pcb();
-    strncpy((int8_t *)buf, (int8_t *)pcb->args, nbytes);
+    strncpy(buf, pcb->args, nbytes);
 
     /* Ensure the string is NUL-terminated */
     if (nbytes > 0) {
@@ -720,9 +726,9 @@ process_start_shell(void)
 {
     int32_t i;
     for (i = 1; i < NUM_TERMINALS; ++i) {
-        process_create_child((uint8_t *)"shell", NULL, i);
+        process_create_child("shell", NULL, i);
     }
-    process_execute_impl((uint8_t *)"shell", NULL, 0);
+    process_execute_impl("shell", NULL, 0);
 }
 
 /*

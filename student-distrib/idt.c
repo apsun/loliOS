@@ -113,9 +113,7 @@ handle_irq(int_regs_t *regs)
 static void
 handle_syscall(int_regs_t *regs)
 {
-    debugf("Syscall: %d\n", regs->eax);
     regs->eax = syscall_handle(regs->ebx, regs->ecx, regs->edx, regs, regs->eax);
-    debugf("Return value: 0x%#x\n", regs->eax);
 }
 
 /*

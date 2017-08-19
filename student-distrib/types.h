@@ -17,12 +17,13 @@ typedef unsigned int uint32_t;
 typedef short int16_t;
 typedef unsigned short uint16_t;
 
-typedef char int8_t;
+typedef signed char int8_t;
 typedef unsigned char uint8_t;
 
-typedef int bool;
-#define false 0
-#define true 1
+//typedef int bool;
+typedef enum { false, true } bool;
+//#define false 0
+// #define true 1
 
 #endif /* ASM */
 

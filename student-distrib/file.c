@@ -153,7 +153,7 @@ file_init(file_obj_t *files)
 
 /* open() syscall handler */
 __cdecl int32_t
-file_open(const uint8_t *filename)
+file_open(const char *filename)
 {
     /* Ensure the string is valid */
     if (!is_user_readable_string(filename)) {

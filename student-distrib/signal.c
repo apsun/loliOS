@@ -111,7 +111,7 @@ __cdecl int32_t
 signal_sigreturn(
     int32_t signum,
     int_regs_t *user_regs,
-    __unused uint32_t unused,
+    uint32_t unused,
     int_regs_t *kernel_regs)
 {
     /* Check signal number range */

@@ -77,7 +77,7 @@
 #ifndef ASM
 
 /* Taux controller syscalls */
-int32_t taux_open(const uint8_t *filename, file_obj_t *file);
+int32_t taux_open(const char *filename, file_obj_t *file);
 int32_t taux_read(file_obj_t *file, void *buf, int32_t nbytes);
 int32_t taux_write(file_obj_t *file, const void *buf, int32_t nbytes);
 int32_t taux_close(file_obj_t *file);

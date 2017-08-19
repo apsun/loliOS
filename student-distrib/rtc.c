@@ -119,7 +119,7 @@ rtc_set_frequency(int32_t freq)
  * Open syscall for RTC. Frequency is set to 2Hz by default.
  */
 int32_t
-rtc_open(const uint8_t *filename, file_obj_t *file)
+rtc_open(const char *filename, file_obj_t *file)
 {
     /*
      * File offset field holds the virtual interrupt frequency

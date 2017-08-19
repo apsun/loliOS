@@ -15,7 +15,7 @@ static boot_block_t *fs_boot_block = NULL;
  * the same as strcmp(), but limited to at most 32 chars.
  */
 static int32_t
-fs_cmp_name(const uint8_t *search_name, const uint8_t *file_name)
+fs_cmp_name(const char *search_name, const char *file_name)
 {
     int32_t i;
     for (i = 0; i < FS_MAX_FNAME_LEN; i++) {
@@ -38,9 +38,9 @@ fs_cmp_name(const uint8_t *search_name, const uint8_t *file_name)
  * -1 is returned.
  */
 int32_t
-read_dentry_by_name(const uint8_t *fname, dentry_t *dentry)
+read_dentry_by_name(const char *fname, dentry_t *dentry)
 {
-    int32_t i;
+    uint32_t i;
     for (i = 0; i < fs_boot_block->stat.dentry_count; ++i) {
         dentry_t* curr_dentry = &fs_boot_block->dir_entries[i];
         if (fs_cmp_name(fname, curr_dentry->name) == 0) {
@@ -130,7 +130,7 @@ read_data(uint32_t inode, uint32_t offset, uint8_t *buf, uint32_t length)
  * Open syscall for files/directories. Always succeeds.
  */
 int32_t
-fs_open(const uint8_t *filename, file_obj_t *file)
+fs_open(const char *filename, file_obj_t *file)
 {
     return 0;
 }
