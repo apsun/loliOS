@@ -7,14 +7,14 @@
  */
 #define DO_CALL(name,number)   \
 .GLOBL name                   ;\
-name:   PUSHL	%EBX          ;\
-	MOVL	$number,%EAX  ;\
-	MOVL	8(%ESP),%EBX  ;\
-	MOVL	12(%ESP),%ECX ;\
-	MOVL	16(%ESP),%EDX ;\
-	INT	$0x80         ;\
-	POPL	%EBX          ;\
-	RET
+name:   PUSHL   %EBX          ;\
+        MOVL    $number,%EAX  ;\
+        MOVL    8(%ESP),%EBX  ;\
+        MOVL    12(%ESP),%ECX ;\
+        MOVL    16(%ESP),%EDX ;\
+        INT     $0x80         ;\
+        POPL    %EBX          ;\
+        RET
 
 /* the system call library wrappers */
 DO_CALL(ece391_halt,SYS_HALT)
@@ -28,15 +28,16 @@ DO_CALL(ece391_vidmap,SYS_VIDMAP)
 DO_CALL(ece391_set_handler,SYS_SET_HANDLER)
 DO_CALL(ece391_sigreturn,SYS_SIGRETURN)
 DO_CALL(ece391_ioctl,SYS_IOCTL)
+DO_CALL(ece391_time,SYS_TIME)
 
 
 /* Call the main() function, then halt with its return value. */
 
 .GLOBAL _start
 _start:
-	CALL	main
+    CALL    main
     PUSHL   $0
     PUSHL   $0
-	PUSHL	%EAX
-	CALL	ece391_halt
+    PUSHL   %EAX
+    CALL    ece391_halt
 

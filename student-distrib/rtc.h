@@ -2,6 +2,7 @@
 #define _RTC_H
 
 #include "types.h"
+#include "syscall.h"
 #include "file.h"
 
 /*
@@ -15,10 +16,17 @@
 #define RTC_PORT_INDEX 0x70
 #define RTC_PORT_DATA  0x71
 
-/* RTC register addresses */
-#define RTC_REG_A 0x8A
-#define RTC_REG_B 0x8B
-#define RTC_REG_C 0x8C
+/* RTC registers */
+#define RTC_SECOND  0
+#define RTC_MINUTE  2
+#define RTC_HOUR    4
+#define RTC_DAY     7
+#define RTC_MONTH   8
+#define RTC_YEAR    9
+#define RTC_CENTURY 50
+#define RTC_REG_A   10
+#define RTC_REG_B   11
+#define RTC_REG_C   12
 
 /* RTC A register bits */
 #define RTC_A_RS   0x0f /* Rate selector */
@@ -27,7 +35,7 @@
 
 /* RTC B register bits */
 #define RTC_B_DSE  (1 << 0) /* Daylight saving enable */
-#define RTC_B_2412 (1 << 1) /* 24/12 hour byte format */
+#define RTC_B_24H  (1 << 1) /* 24/12 hour byte format */
 #define RTC_B_DM   (1 << 2) /* Binary or BCD format */
 #define RTC_B_SQWE (1 << 3) /* Square wave enable */
 #define RTC_B_UIE  (1 << 4) /* Interrupt on update */
@@ -59,6 +67,9 @@ int32_t rtc_read(file_obj_t *file, void *buf, int32_t nbytes);
 int32_t rtc_write(file_obj_t *file, const void *buf, int32_t nbytes);
 int32_t rtc_close(file_obj_t *file);
 int32_t rtc_ioctl(file_obj_t *file, uint32_t req, uint32_t arg);
+
+/* time() syscall handler */
+__cdecl int32_t rtc_time(void);
 
 /* Returns the current value of the RTC counter. */
 uint32_t rtc_get_counter(void);

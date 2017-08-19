@@ -23,6 +23,7 @@ syscall_jump_table:
     .long signal_set_handler
     .long signal_sigreturn
     .long file_ioctl
+    .long rtc_time
 
 .text
 

@@ -231,6 +231,52 @@ rtc_ioctl(file_obj_t *file, uint32_t req, uint32_t arg)
 }
 
 /*
+ * Converts a separate-component time to a Unix timestamp.
+ */
+static uint32_t
+rtc_mktime(uint32_t year, uint32_t month, uint32_t day,
+           uint32_t hour, uint32_t min, uint32_t sec)
+{
+    /* Algorithm shamelessly stolen from Linux mktime() */
+
+    if ((int32_t)(month -= 2) <= 0) {
+        month += 12;
+        year -= 1;
+    }
+
+    return ((((year / 4 - year / 100 + year / 400 + 367 * month / 12 + day
+                ) + year * 365 - 719499
+            ) * 24 + hour
+        ) * 60 + min
+    ) * 60 + sec;
+}
+
+/*
+ * Returns the number of seconds since the Unix Epoch
+ * (1970-01-01 00:00:00 UTC). This value will overflow
+ * in 2038.
+ */
+__cdecl int32_t
+rtc_time(void)
+{
+    /* Wait until update finishes */
+    while (rtc_read_reg(RTC_REG_A) & RTC_A_UIP);
+
+    /* Read all time components */
+    uint32_t sec = rtc_read_reg(RTC_SECOND);
+    uint32_t min = rtc_read_reg(RTC_MINUTE);
+    uint32_t hour = rtc_read_reg(RTC_HOUR);
+    uint32_t day = rtc_read_reg(RTC_DAY);
+    uint32_t month = rtc_read_reg(RTC_MONTH);
+    uint32_t year = rtc_read_reg(RTC_YEAR);
+    uint32_t century = rtc_read_reg(RTC_CENTURY);
+    year += 100 * century;
+
+    /* Convert to Unix timestamp */
+    return (int32_t)rtc_mktime(year, month, day, hour, min, sec);
+}
+
+/*
  * Returns the current value of the RTC counter.
  */
 uint32_t
@@ -243,11 +289,18 @@ rtc_get_counter(void)
 void
 rtc_init(void)
 {
+    /* Wait until update finishes */
+    while (rtc_read_reg(RTC_REG_A) & RTC_A_UIP);
+
     /* Read RTC register B */
     uint8_t reg_b = rtc_read_reg(RTC_REG_B);
 
     /* Enable periodic interrupts */
     reg_b |= RTC_B_PIE;
+
+    /* Read time in binary, 24 hour format */
+    reg_b |= RTC_B_DM;
+    reg_b |= RTC_B_24H;
 
     /* Write RTC register B */
     rtc_write_reg(RTC_REG_B, reg_b);
