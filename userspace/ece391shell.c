@@ -1,0 +1,40 @@
+#include "lolibc/types.h"
+#include "lolibc/sys.h"
+#include "lolibc/io.h"
+
+int32_t
+main(void)
+{
+    puts("Starting 391 Shell");
+
+    while (1) {
+        printf("loliOS> ");
+
+        /* Read command */
+        char buf[1024];
+        if (gets(buf, sizeof(buf)) == NULL) {
+            puts("read from keyboard failed");
+            return 3;
+        }
+
+        /* No action on empty input */
+        if (buf[0] == '\0') {
+            continue;
+        }
+
+        /* Handle exit command */
+        if (strcmp(buf, "exit") == 0) {
+            return 0;
+        }
+
+        /* Execute command */
+        int32_t ret = execute(buf);
+        if (ret < 0) {
+            puts("no such command");
+        } else if (ret == 256) {
+            puts("program terminated by exception");
+        } else if (ret != 0) {
+            puts("program terminated abnormally");
+        }
+    }
+}
