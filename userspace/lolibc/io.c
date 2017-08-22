@@ -138,9 +138,9 @@ format_char_switch:
             esp++;
             break;
 
-        /* Prevent reading past end if string ends with % */
-        case '\0':
-            format--;
+        /* Fail fast on any other characters */
+        default:
+            abort();
             break;
         }
     }

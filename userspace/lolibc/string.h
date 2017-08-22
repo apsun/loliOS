@@ -19,5 +19,19 @@ int32_t memcmp(const void *s1, const void *s2, int32_t n);
 void *memset(void *s, uint8_t c, int32_t n);
 void *memcpy(void *dest, const void *src, int32_t n);
 void *memmove(void *dest, const void *src, int32_t n);
+bool islower(char c);
+bool isupper(char c);
+bool isalpha(char c);
+bool isdigit(char c);
+bool isalnum(char c);
+bool iscntrl(char c);
+bool isblank(char c);
+bool isspace(char c);
+bool isprint(char c);
+bool isgraph(char c);
+bool ispunct(char c);
+bool isxdigit(char c);
+char tolower(char c);
+char toupper(char c);
 
 #endif /* _LOLIBC_STRING_H */
