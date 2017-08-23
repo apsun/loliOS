@@ -181,11 +181,12 @@ main(void)
     test_memcpy();
     test_memmove();
     
-    if (setjmp(env) == 0) {
+    int32_t ret;
+    if ((ret = setjmp(env)) == 0) {
         test_longjmp();
         assert(false);
     } else {
-        assert(true);
+        assert(ret == 42);
     }
 
     return 0;
