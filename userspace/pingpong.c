@@ -17,7 +17,7 @@ main(void)
 {
     int32_t ret = 0;
     int32_t rtc_fd = -1;
-    uint8_t buf[BUFMAX];
+    char buf[BUFMAX];
 
     int32_t i;
     for (i = 0; i < BUFMAX; i++) {
@@ -42,7 +42,7 @@ main(void)
         goto exit;
     }
 
-    uint8_t curchar = STARTCHAR;
+    char curchar = STARTCHAR;
     while (1) {
         int32_t j;
         for (j = STARTLOOP; j < LOOPMAX; j++) {

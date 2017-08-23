@@ -4,7 +4,6 @@
 #include "lolibc/io.h"
 
 #define BUFSIZE 1024
-#define SBUFSIZE 33
 
 int32_t
 do_one_file(const char *s, const char *fname)
@@ -71,10 +70,9 @@ main(void)
 {
     int32_t ret = 0;
     int32_t fd = -1;
-    char buf[SBUFSIZE];
-    char search[BUFSIZE];
 
-    if (getargs(search, sizeof(search)) < 0) {
+    char args[BUFSIZE];
+    if (getargs(args, sizeof(args)) < 0) {
         puts("could not read argument");
         ret = 3;
         goto exit;
@@ -86,20 +84,21 @@ main(void)
         goto exit;
     }
 
+    char fname[33];
     int32_t cnt;
-    while ((cnt = read(fd, buf, sizeof(buf) - 1)) != 0) {
+    while ((cnt = read(fd, fname, sizeof(fname) - 1)) != 0) {
         if (cnt < 0) {
             puts("directory entry read failed");
             ret = 3;
             goto exit;
         }
-        buf[cnt] = '\0';
+        fname[cnt] = '\0';
 
-        if (buf[0] == '.') {
+        if (fname[0] == '.') {
             continue;
         }
 
-        if (do_one_file(search, buf) != 0) {
+        if (do_one_file(args, fname) != 0) {
             ret = 3;
             goto exit;
         }

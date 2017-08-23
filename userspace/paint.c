@@ -339,6 +339,6 @@ main(void)
     }
 
 exit:
-    if (mouse_fd >= 0) close (mouse_fd);
+    if (mouse_fd >= 0) close(mouse_fd);
     return ret;
 }

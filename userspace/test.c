@@ -32,6 +32,7 @@ test_strncmp(void)
     assert(strncmp("a", "ab", 1) == 0);
     assert(strncmp("a", "ab", 2) != 0);
 }
+
 void
 test_strcpy(void)
 {
@@ -189,5 +190,6 @@ main(void)
         assert(ret == 42);
     }
 
+    puts("All tests passed!");
     return 0;
 }
