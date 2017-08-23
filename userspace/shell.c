@@ -1,5 +1,6 @@
 #include "lolibc/types.h"
 #include "lolibc/sys.h"
+#include "lolibc/string.h"
 #include "lolibc/io.h"
 
 int32_t

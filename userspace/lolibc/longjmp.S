@@ -15,7 +15,8 @@ longjmp:
     movl 28(%esp), %eax
     movl 4(%esp), %ecx
     movl 8(%esp), %esp
-    jmp *%ecx
+    movl %ecx, 0(%esp)
+    ret
 
 /*
  * int32_t setjmp_impl(jmp_buf *env)

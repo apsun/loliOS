@@ -28,7 +28,7 @@ char
 getc(void)
 {
     char c;
-    read(1, &c, 1);
+    read(0, &c, 1);
     return c;
 }
 
@@ -38,7 +38,7 @@ gets(char *buf, int32_t n)
     assert(buf != NULL);
     assert(n > 0);
 
-    int32_t cnt = read(1, buf, n - 1);
+    int32_t cnt = read(0, buf, n - 1);
     if (cnt > 0 && buf[cnt - 1] == '\n') {
         cnt--;
     }

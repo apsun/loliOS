@@ -31,5 +31,5 @@ main(void)
 
 exit:
     if (fd >= 0) close(fd);
-    return 0;
+    return ret;
 }
