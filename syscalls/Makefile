@@ -9,7 +9,7 @@ FISH_OBJ = $(call objs,fish)
 
 ELF_BIN = $(patsubst %.c,to_fsdir/%.elf,$(wildcard *.c))
 ELF_BIN += to_fsdir/missiles.elf
-# ELF_BIN += to_fsdir/fish.elf
+ELF_BIN += to_fsdir/fish.elf
 OUT_BIN = $(patsubst to_fsdir/%.elf,to_fsdir/%,$(ELF_BIN))
 
 .PHONY: all

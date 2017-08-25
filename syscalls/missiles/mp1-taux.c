@@ -41,6 +41,39 @@ taux_display_time(int32_t taux_fd, int32_t num_seconds)
     ioctl(taux_fd, TUX_SET_LED, packed);
 }
 
+void
+taux_display_coords(int32_t taux_fd, int32_t x, int32_t y)
+{
+    uint32_t packed = 0;
+
+    packed |= (uint8_t)(y % 10 + y / 10 * 16);
+    packed |= (uint8_t)(x % 10 + x / 10 * 16) << 8;
+    packed |= 0xf << 16; /* All LEDs on */
+    packed |= 0x2 << 24; /* Decimal point in middle */
+
+    ioctl(taux_fd, TUX_SET_LED, packed);
+}
+
+void
+taux_display_num(int32_t taux_fd, int32_t num)
+{
+    uint32_t packed = 0;
+
+    packed |= (uint16_t)(
+        num / 1 % 10 +
+        num / 10 % 10 * 16 +
+        num / 100 % 10 * 256 +
+        num / 1000 % 10 * 4096);
+
+    /* Don't display leading zeros */
+    if (num >= 0) packed |= 1 << 16;
+    if (num >= 10) packed |= 1 << 17;
+    if (num >= 100) packed |= 1 << 18;
+    if (num >= 1000) packed |= 1 << 19;
+
+    ioctl(taux_fd, TUX_SET_LED, packed);
+}
+
 uint8_t
 taux_get_input(int32_t taux_fd)
 {

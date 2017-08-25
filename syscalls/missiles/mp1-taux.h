@@ -20,6 +20,8 @@ enum {
 };
 
 void taux_display_time(int32_t taux_fd, int32_t num_seconds);
+void taux_display_coords(int32_t taux_fd, int32_t x, int32_t y);
+void taux_display_num(int32_t taux_fd, int32_t score);
 uint8_t taux_get_input(int32_t taux_fd);
 
 #endif /* _MP1_TAUX_H */

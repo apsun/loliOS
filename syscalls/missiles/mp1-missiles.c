@@ -1,4 +1,5 @@
 #include "mp1.h"
+#include "mp1-math.h"
 #include "mp1-taux.h"
 #include "mp1-vga.h"
 #include <assert.h>
@@ -13,31 +14,41 @@
 #define MISSILE_CHAR '*'
 #define ENEMY_CHAR 'e'
 #define EXPLOSION_CHAR '@'
-#define TICKS_PER_SEC 128
+#define TICKS_PER_SEC 32
 
 static int32_t fired = 0;
 static int32_t score = 0;
 static int32_t bases_left = 3;
+static int32_t crosshairs_x = 40;
+static int32_t crosshairs_y = 12;
+static enum {
+    TDM_SCORE,
+    TDM_FIRED,
+    TDM_XHAIR,
+    TDM_TIME,
+    TDM_MAX,
+} taux_display_mode = TDM_SCORE;
 
 static void
 draw_starting_screen(void)
 {
     int32_t line = 5;
-    draw_centered_string(line++, "            MISSILE COMMAND | TAUX EDITION            ");
-    draw_centered_string(line++, "          Mark Murphy, 2007 | Andrew Sun, 2017        ");
-    draw_centered_string(line++, "                                                      ");
-    draw_centered_string(line++, "                        Commands:                     ");
-    draw_centered_string(line++, "                  a ................. fire missile    ");
-    draw_centered_string(line++, " up,down,left,right ................. move crosshairs ");
-    draw_centered_string(line++, "              start ................. exit the game   ");
-    draw_centered_string(line++, "                                                      ");
-    draw_centered_string(line++, "                                                      ");
-    draw_centered_string(line++, " Protect your bases by destroying the enemy missiles  ");
-    draw_centered_string(line++, " (e's) with your missiles. You get 1 point for each   ");
-    draw_centered_string(line++, " enemy missile you destroy. The game ends when your   ");
-    draw_centered_string(line++, " bases are all dead or you hit the START button.      ");
-    draw_centered_string(line++, "                                                      ");
-    draw_centered_string(line++, "           Press the START button to continue.        ");
+    draw_centered_string(line++, "            MISSILE COMMAND | TAUX EDITION             ");
+    draw_centered_string(line++, "          Mark Murphy, 2007 | Andrew Sun, 2017         ");
+    draw_centered_string(line++, "                                                       ");
+    draw_centered_string(line++, "                        Commands:                      ");
+    draw_centered_string(line++, "                  a ................. fire missile     ");
+    draw_centered_string(line++, "                  c ................. toggle taux LEDs ");
+    draw_centered_string(line++, " up,down,left,right ................. move crosshairs  ");
+    draw_centered_string(line++, "              start ................. exit the game    ");
+    draw_centered_string(line++, "                                                       ");
+    draw_centered_string(line++, "                                                       ");
+    draw_centered_string(line++, " Protect your bases by destroying the enemy missiles   ");
+    draw_centered_string(line++, " (e's) with your missiles. You get 1 point for each    ");
+    draw_centered_string(line++, " enemy missile you destroy. The game ends when your    ");
+    draw_centered_string(line++, " bases are all dead or you hit the START button.       ");
+    draw_centered_string(line++, "                                                       ");
+    draw_centered_string(line++, "           Press the START button to continue.         ");
 }
 
 static void
@@ -47,42 +58,6 @@ draw_ending_screen(void)
     draw_centered_string(line++, "+--------------------------------+");
     draw_centered_string(line++, "| Game over. Press START to exit |");
     draw_centered_string(line++, "+--------------------------------+");
-}
-
-static int32_t
-abs(int32_t x)
-{
-    return x < 0 ? -x : x;
-}
-
-static int32_t
-sqrt(int32_t x)
-{
-    /* Algorithm from linux/lib/int_sqrt.c */
-    assert(x >= 0);
-    if (x <= 1) {
-        return x;
-    }
-
-    int32_t y = 0;
-    int32_t m = 1 << 30;
-    while (m != 0) {
-        int32_t b = y + m;
-        y >>= 1;
-        if (x >= b) {
-            x -= b;
-            y += m;
-        }
-        m >>= 2;
-    }
-
-    return y;
-}
-
-static int32_t
-clamp(int32_t x, int32_t min, int32_t max)
-{
-    return (x < min) ? min : (x > max) ? max : x;
 }
 
 static void
@@ -119,9 +94,6 @@ spawn_missile(
 static void
 handle_taux_input(uint8_t buttons)
 {
-    static int32_t crosshairs_x = 40;
-    static int32_t crosshairs_y = 12;
-
     int32_t dx = 0;
     int32_t dy = 0;
 
@@ -147,6 +119,10 @@ handle_taux_input(uint8_t buttons)
     if (buttons & TB_A) {
         spawn_missile(79, 24, crosshairs_x, crosshairs_y, '*', 200);
         fired++;
+    }
+
+    if (buttons & TB_C) {
+        taux_display_mode = (taux_display_mode + 1) % TDM_MAX;
     }
 }
 
@@ -178,7 +154,7 @@ spawn_enemies(int32_t ticks)
         /* Spawn enemy missile */
         int src_sx = rand() % SCREEN_WIDTH;
         int dest_sx = 20 * (rand() % 3 + 1);
-        int vel = rand() % 4 + 8;
+        int vel = rand() % 5 + 10;
         spawn_missile(src_sx, 0, dest_sx, SCREEN_HEIGHT - 1, 'e', vel);
         total_enemies++;
 
@@ -220,7 +196,7 @@ enemy_explode(int32_t sx, int32_t sy)
     int32_t exploded = 0;
     missile_t *e;
     for (e = mp1_missile_list; e != NULL; e = e->next) {
-        if (e->c != ENEMY_CHAR || e->exploded == 0) {
+        if (e->c != ENEMY_CHAR || e->exploded != 0) {
             continue;
         }
 
@@ -236,9 +212,24 @@ enemy_explode(int32_t sx, int32_t sy)
 }
 
 static void
-update_taux_lcd(int32_t taux_fd, int32_t ticks)
+update_taux_leds(int32_t taux_fd, int32_t ticks)
 {
-    taux_display_time(taux_fd, ticks / TICKS_PER_SEC);
+    switch (taux_display_mode) {
+    case TDM_SCORE:
+        taux_display_num(taux_fd, mp1_score);
+        break;
+    case TDM_FIRED:
+        taux_display_num(taux_fd, fired);
+        break;
+    case TDM_XHAIR:
+        taux_display_coords(taux_fd, crosshairs_x, crosshairs_y);
+        break;
+    case TDM_TIME:
+        taux_display_time(taux_fd, ticks / TICKS_PER_SEC);
+        break;
+    default:
+        break;
+    }
 }
 
 ASM_VISIBLE int32_t
@@ -260,7 +251,7 @@ missile_explode(struct missile *m)
     if (m->c == MISSILE_CHAR) {
         exploded += enemy_explode(m->x >> 16, m->y >> 16);
     }
-    
+
     return exploded;
 }
 
@@ -318,7 +309,7 @@ main(void)
         spawn_enemies(ticks);
 
         /* Update display on the taux controller */
-        update_taux_lcd(taux_fd, ticks);
+        update_taux_leds(taux_fd, ticks);
 
         /* Perform in-game updates */
         mp1_rtc_tasklet(0);
