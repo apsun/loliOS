@@ -219,6 +219,10 @@ test_snprintf(void)
     assert(strcmp(buf, "") == 0);
     assert(snprintf(buf, sizeof(buf), "%d", -10) == 3);
     assert(strcmp(buf, "-10") == 0);
+    assert(snprintf(buf, sizeof(buf), "%3d", -1000) == 5);
+    assert(strcmp(buf, "-1000") == 0);
+    assert(snprintf(buf, sizeof(buf), "%3d", 10000) == 5);
+    assert(strcmp(buf, "10000") == 0);
     assert(snprintf(buf, sizeof(buf), "%-5x", 0xabc) == 5);
     assert(strcmp(buf, "ABC  ") == 0);
     assert(snprintf(buf, sizeof(buf), "% d", 10) == 3);
