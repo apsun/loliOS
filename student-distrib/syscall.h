@@ -4,7 +4,7 @@
 #include "types.h"
 #include "idt.h"
 
-#define NUM_SYSCALL     12
+#define NUM_SYSCALL     14
 
 #define SYS_HALT        1
 #define SYS_EXECUTE     2
@@ -14,10 +14,12 @@
 #define SYS_CLOSE       6
 #define SYS_GETARGS     7
 #define SYS_VIDMAP      8
-#define SYS_SET_HANDLER 9
+#define SYS_SIGACTION   9
 #define SYS_SIGRETURN   10
-#define SYS_IOCTL       11
-#define SYS_TIME        12
+#define SYS_SIGRAISE    11
+#define SYS_SIGMASK     12
+#define SYS_IOCTL       13
+#define SYS_TIME        14
 
 #ifndef ASM
 

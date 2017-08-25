@@ -1,7 +1,7 @@
-#include "lolibc/types.h"
-#include "lolibc/sys.h"
-#include "lolibc/string.h"
-#include "lolibc/io.h"
+#include <types.h>
+#include <sys.h>
+#include <io.h>
+#include <string.h>
 
 #define TUX_SET_LED 0x10
 #define TUX_BUTTONS 0x12

@@ -1,6 +1,6 @@
-#include "lolibc/types.h"
-#include "lolibc/sys.h"
-#include "lolibc/io.h"
+#include <types.h>
+#include <sys.h>
+#include <io.h>
 
 int32_t
 main(void)

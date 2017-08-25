@@ -1,24 +1,36 @@
-CFLAGS += -Wall -Wextra -ffreestanding -fno-stack-protector -O2 -m32
+CFLAGS += -Ilolibc -Wall -Wextra -ffreestanding -fno-stack-protector -O2 -m32
 ASFLAGS += -Wall -Wextra -m32
 LDFLAGS += -nostdlib -static -m32
-LOLIBC_OBJ = $(patsubst %.c,%.o,$(wildcard lolibc/*.c))
-LOLIBC_OBJ += $(patsubst %.S,%.o,$(wildcard lolibc/*.S))
-ELF_BIN = $(patsubst %.c,elf/%,$(wildcard *.c))
-OUT_BIN = $(patsubst elf/%,out/%,$(ELF_BIN))
+
+objs = $(patsubst %.c,%.o,$(patsubst %.S,%.o,$(wildcard $(1)/*.c $(1)/*.S)))
+LOLIBC_OBJ = $(call objs,lolibc)
+MISSILES_OBJ = $(call objs,missiles)
+FISH_OBJ = $(call objs,fish)
+
+ELF_BIN = $(patsubst %.c,to_fsdir/%.elf,$(wildcard *.c))
+ELF_BIN += to_fsdir/missiles.elf
+# ELF_BIN += to_fsdir/fish.elf
+OUT_BIN = $(patsubst to_fsdir/%.elf,to_fsdir/%,$(ELF_BIN))
 
 .PHONY: all
 all: $(OUT_BIN)
 
-elf/%: %.o $(LOLIBC_OBJ)
+.INTERMEDIATE: to_fsdir/missiles.elf
+to_fsdir/missiles.elf: $(MISSILES_OBJ) $(LOLIBC_OBJ)
 	$(CC) $(LDFLAGS) -o $@ $^
 
-out/%: elf/%
+.INTERMEDIATE: to_fsdir/fish.elf
+to_fsdir/fish.elf: $(FISH_OBJ) $(LOLIBC_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $^
+
+to_fsdir/%.elf: %.o $(LOLIBC_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $^
+
+to_fsdir/%: to_fsdir/%.elf
 	../elfconvert $<
 	mv $<.converted $@
 
 .PHONY: clean
 clean:
-	$(RM) *.o
-	$(RM) $(LOLIBC_OBJ)
-	$(RM) $(ELF_BIN)
-	$(RM) $(OUT_BIN)
+	$(RM) *.o */*.o
+	$(RM) to_fsdir/*

@@ -8,7 +8,7 @@ strlen(const char *s)
     assert(s != NULL);
 
     const char *end = s;
-    while (*end) {
+    while (*end != '\0') {
         end++;
     }
     return end - s;
@@ -20,11 +20,18 @@ strcmp(const char *s1, const char *s2)
     assert(s1 != NULL);
     assert(s2 != NULL);
 
-    while (*s1 && (*s1 == *s2)) {
-        s1++;
-        s2++;
+    while (1) {
+        unsigned char c1 = (unsigned char)*s1++;
+        unsigned char c2 = (unsigned char)*s2++;
+        int32_t delta = c1 - c2;
+        if (delta != 0) {
+            return delta;
+        }
+        if (c1 == '\0') {
+            break;
+        }
     }
-    return *(unsigned char *)s1 - *(unsigned char *)s2;
+    return 0;
 }
 
 int32_t
@@ -34,17 +41,18 @@ strncmp(const char *s1, const char *s2, int32_t n)
     assert(s2 != NULL);
     assert(n >= 0);
 
-    while (n && *s1 && (*s1 == *s2)) {
-        s1++;
-        s2++;
-        n--;
+    while (n--) {
+        unsigned char c1 = (unsigned char)*s1++;
+        unsigned char c2 = (unsigned char)*s2++;
+        int32_t delta = c1 - c2;
+        if (delta != 0) {
+            return delta;
+        }
+        if (c1 == '\0') {
+            break;
+        }
     }
-
-    if (n == 0) {
-        return 0;
-    } else {
-        return *(unsigned char *)s1 - *(unsigned char *)s2;
-    }
+    return 0;
 }
 
 char *
@@ -67,6 +75,60 @@ strncpy(char *dest, const char *src, int32_t n)
 
     char *new_dest = dest;
     while (n-- && (*new_dest++ = *src++));
+    return dest;
+}
+
+int32_t
+strscpy(char *dest, const char *src, int32_t n)
+{
+    assert(dest != NULL);
+    assert(src != NULL);
+    assert(n > 0);
+
+    int32_t i = 0;
+    while (i < n) {
+        if ((dest[i] = src[i]) == '\0') {
+            return i;
+        }
+        i++;
+    }
+    dest[i - 1] = '\0';
+    return -1;
+}
+
+char *
+strcat(char *dest, const char *src)
+{
+    assert(dest != NULL);
+    assert(src != NULL);
+
+    char *new_dest = dest;
+    while (*new_dest) {
+        new_dest++;
+    }
+    while ((*new_dest++ = *src++));
+    return dest;
+}
+
+char *
+strncat(char *dest, const char *src, int32_t n)
+{
+    assert(dest != NULL);
+    assert(src != NULL);
+    assert(n >= 0);
+
+    if (n > 0) {
+        char *new_dest = dest;
+        while (*new_dest) {
+            new_dest++;
+        }
+        while ((*new_dest++ = *src++)) {
+            if (--n == 0) {
+                *new_dest = '\0';
+                break;
+            }
+        }
+    }
     return dest;
 }
 

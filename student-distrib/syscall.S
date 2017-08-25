@@ -20,8 +20,10 @@ syscall_jump_table:
     .long file_close
     .long process_getargs
     .long process_vidmap
-    .long signal_set_handler
+    .long signal_sigaction
     .long signal_sigreturn
+    .long signal_sigraise
+    .long signal_sigmask
     .long file_ioctl
     .long rtc_time
 

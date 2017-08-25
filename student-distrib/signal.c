@@ -70,7 +70,7 @@ signal_deliver(signal_info_t *sig, int_regs_t *regs)
     copy_to_user(linkage_addr + 11, &intregs_addr, 4);
 
     /* Change EIP of userspace program to the signal handler */
-    regs->eip = sig->handler_addr;
+    regs->eip = (uint32_t)sig->handler_addr;
 
     /* Change ESP to point to new stack bottom */
     regs->esp = (uint32_t)esp;
@@ -92,9 +92,9 @@ signal_deliver(signal_info_t *sig, int_regs_t *regs)
     return true;
 }
 
-/* set_handler() syscall handler */
+/* sigaction() syscall handler */
 __cdecl int32_t
-signal_set_handler(int32_t signum, uint32_t handler_address)
+signal_sigaction(int32_t signum, void *handler_address)
 {
     /* Check signal number range */
     if (signum < 0 || signum >= NUM_SIGNALS) {
@@ -103,6 +103,9 @@ signal_set_handler(int32_t signum, uint32_t handler_address)
 
     pcb_t *pcb = get_executing_pcb();
     pcb->signals[signum].handler_addr = handler_address;
+
+    /* Additional effect: unmask the signal (for longjmp use) */
+    pcb->signals[signum].masked = false;
     return 0;
 }
 
@@ -155,6 +158,37 @@ signal_sigreturn(
     return kernel_regs->eax;
 }
 
+/* sigraise() syscall handler */
+__cdecl int32_t
+signal_sigraise(int32_t signum)
+{
+    pcb_t *pcb = get_executing_pcb();
+    pcb->signals[signum].pending = true;
+    return 0;
+}
+
+/* sigmask() syscall handler */
+__cdecl int32_t
+signal_sigmask(int32_t signum, int32_t action)
+{
+    pcb_t *pcb = get_executing_pcb();
+    signal_info_t *sig = &pcb->signals[signum];
+    int32_t orig_masked = sig->masked ? SIGMASK_BLOCK : SIGMASK_UNBLOCK;
+    switch (action) {
+    case SIGMASK_NONE:
+        break;
+    case SIGMASK_BLOCK:
+        sig->masked = true;
+        break;
+    case SIGMASK_UNBLOCK:
+        sig->masked = false;
+        break;
+    default:
+        return -1;
+    }
+    return orig_masked;
+}
+
 /*
  * Attempts to deliver a signal to the currently
  * executing process. Returns true if the signal
@@ -165,7 +199,7 @@ static bool
 signal_handle(signal_info_t *sig, int_regs_t *regs)
 {
     /* If handler is set and signal isn't masked, run it */
-    if (sig->handler_addr != 0 && !sig->masked) {
+    if (sig->handler_addr != NULL && !sig->masked) {
         /* If no more space on stack to push signal context, kill process */
         if (!signal_deliver(sig, regs)) {
             debugf("Failed to push signal context, killing process\n");
@@ -202,7 +236,7 @@ signal_init(signal_info_t *signals)
     int32_t i;
     for (i = 0; i < NUM_SIGNALS; ++i) {
         signals[i].signum = i;
-        signals[i].handler_addr = 0;
+        signals[i].handler_addr = NULL;
         signals[i].masked = false;
         signals[i].pending = false;
     }
@@ -243,7 +277,7 @@ signal_has_pending(void)
              * If user manually registered a handler and the
              * signal is not masked, then we always execute it.
              */
-            if (sig->handler_addr != 0 && !sig->masked) {
+            if (sig->handler_addr != NULL && !sig->masked) {
                 return true;
             }
 
@@ -271,6 +305,5 @@ void
 signal_raise(int32_t pid, int32_t signum)
 {
     pcb_t *pcb = get_pcb_by_pid(pid);
-    signal_info_t *sig = &pcb->signals[signum];
-    sig->pending = true;
+    pcb->signals[signum].pending = true;
 }

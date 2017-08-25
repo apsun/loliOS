@@ -15,6 +15,11 @@
 #define SIG_ALARM     3
 #define SIG_USER1     4
 
+/* sigmask() actions and return values */
+#define SIGMASK_NONE    0
+#define SIGMASK_BLOCK   1
+#define SIGMASK_UNBLOCK 2
+
 /* Period of the alarm signal, in seconds */
 #define SIG_ALARM_PERIOD 10
 
@@ -28,9 +33,9 @@ typedef struct {
 
     /*
      * Userspace address of the signal handler. Equal
-     * to 0 if no handler has been set.
+     * to NULL if no handler has been set.
      */
-    uint32_t handler_addr;
+    void *handler_addr;
 
     /*
      * Whether this signal is currently masked.
@@ -44,8 +49,10 @@ typedef struct {
 } signal_info_t;
 
 /* Signal syscall handlers */
-__cdecl int32_t signal_set_handler(int32_t signum, uint32_t handler_address);
+__cdecl int32_t signal_sigaction(int32_t signum, void *handler_address);
 __cdecl int32_t signal_sigreturn(int32_t signum, int_regs_t *user_regs, uint32_t, int_regs_t *kernel_regs);
+__cdecl int32_t signal_sigraise(int32_t signum);
+__cdecl int32_t signal_sigmask(int32_t signum, int32_t action);
 
 /* Initializes the signal info array */
 void signal_init(signal_info_t *signals);

@@ -1,7 +1,7 @@
-#include "lolibc/types.h"
-#include "lolibc/sys.h"
-#include "lolibc/string.h"
-#include "lolibc/io.h"
+#include <types.h>
+#include <sys.h>
+#include <io.h>
+#include <string.h>
 
 /* Mouse bits */
 #define MOUSE_LEFT (1 << 0)
@@ -259,7 +259,7 @@ main(void)
     int32_t mouse_fd = -1;
 
     /* Set signal handler */
-    if (set_handler(SIG_INTERRUPT, (void *)sig_interrupt_handler) < 0) {
+    if (sigaction(SIG_INTERRUPT, (void *)sig_interrupt_handler) < 0) {
         puts("Could not set interrupt handler");
         ret = 3;
         goto exit;

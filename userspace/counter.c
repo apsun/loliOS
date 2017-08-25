@@ -1,7 +1,7 @@
-#include "lolibc/types.h"
-#include "lolibc/sys.h"
-#include "lolibc/io.h"
-#include "lolibc/string.h"
+#include <types.h>
+#include <sys.h>
+#include <io.h>
+#include <string.h>
 
 int32_t
 main(void)

@@ -19,14 +19,14 @@ longjmp:
     ret
 
 /*
- * int32_t setjmp_impl(jmp_buf *env)
+ * int32_t __setjmp_ptr(jmp_buf *env)
  *
  * Implementation for setjmp, since setjmp does not take
  * a pointer. Instead we have a macro "thunk" take care of
  * that for us, we just worry about filling in the struct.
  */
-.globl setjmp_impl
-setjmp_impl:
+.globl __setjmp_ptr
+__setjmp_ptr:
     movl 4(%esp), %eax
     movl 0(%esp), %ecx
     movl %ecx, 0(%eax)

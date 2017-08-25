@@ -1,9 +1,9 @@
-#include "lolibc/types.h"
-#include "lolibc/sys.h"
-#include "lolibc/io.h"
-#include "lolibc/longjmp.h"
-#include "lolibc/string.h"
-#include "lolibc/assert.h"
+#include <types.h>
+#include <sys.h>
+#include <io.h>
+#include <string.h>
+#include <assert.h>
+#include <longjmp.h>
 
 void
 test_strlen(void)
@@ -46,9 +46,19 @@ void
 test_strncpy(void)
 {
     char buf[5];
-    buf[5] = '\0';
-    strncpy(buf, "Hello world!", 5);
+    buf[4] = '\0';
+    strncpy(buf, "Hello world!", sizeof(buf));
     assert(strcmp(buf, "Hello") == 0);
+}
+
+void
+test_strscpy(void)
+{
+    char buf[16];
+    assert(strscpy(buf, "Hello world!", sizeof(buf)) == strlen("Hello world!"));
+    assert(strcmp(buf, "Hello world!") == 0);
+    assert(strscpy(buf, "AAAAAAAAAAAAAAAAAAAAAAAA", 5) < 0);
+    assert(strcmp(buf, "AAAA") == 0);
 }
 
 void
@@ -163,6 +173,16 @@ test_longjmp(void)
     assert(false);
 }
 
+void
+test_snprintf(void)
+{
+    char buf[8];
+    assert(snprintf(buf, sizeof(buf), "%s!", "Hello") == strlen("Hello!"));
+    assert(strcmp(buf, "Hello!") == 0);
+    assert(snprintf(buf, sizeof(buf), "%s %s", "LONG", "STRING") < 0);
+    assert(strcmp(buf, "LONG ST") == 0);
+}
+
 int32_t
 main(void)
 {
@@ -171,6 +191,7 @@ main(void)
     test_strncmp();
     test_strcpy();
     test_strncpy();
+    test_strscpy();
     test_strrev();
     test_strchr();
     test_strrchr();
@@ -181,6 +202,7 @@ main(void)
     test_memset();
     test_memcpy();
     test_memmove();
+    test_snprintf();
     
     int32_t ret;
     if ((ret = setjmp(env)) == 0) {

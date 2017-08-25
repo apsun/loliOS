@@ -1,3 +1,2 @@
 *.o
-elf/*
-out/*
+to_fsdir/*

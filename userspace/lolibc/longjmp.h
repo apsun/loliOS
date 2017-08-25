@@ -13,7 +13,7 @@ typedef struct {
 } jmp_buf;
 
 void longjmp(jmp_buf env, int32_t status);
-int32_t setjmp_impl(jmp_buf *env);
-#define setjmp(env) setjmp_impl(&(env))
+int32_t __setjmp_ptr(jmp_buf *env);
+#define setjmp(env) __setjmp_ptr(&(env))
 
 #endif /* _LOLIBC_LONGJMP */

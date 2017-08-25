@@ -3,13 +3,7 @@
 #include "sys.h"
 #include "string.h"
 #include "assert.h"
-
-static void
-writes(const char *s)
-{
-    assert(s != NULL);
-    write(1, s, strlen(s));
-}
+#include "arg.h"
 
 void
 putc(char c)
@@ -20,7 +14,8 @@ putc(char c)
 void
 puts(const char *s)
 {
-    writes(s);
+    assert(s != NULL);
+    write(1, s, strlen(s));
     putc('\n');
 }
 
@@ -46,21 +41,55 @@ gets(char *buf, int32_t n)
     return buf;
 }
 
-void
-printf(const char *format, ...)
+static void
+strpcats(char **dest, const char *src, int32_t *size)
 {
+    if (*dest != NULL) {
+        int32_t ret = strscpy(*dest, src, *size);
+        if (ret < 0) {
+            *dest = NULL;
+        } else {
+            *dest += ret;
+            *size -= ret;
+        }
+    }
+}
+
+static void
+strpcatc(char **dest, char c, int32_t *size)
+{
+    if (*dest != NULL && *size > 1) {
+        **dest = c;
+        (*dest)++;
+        **dest = '\0';
+        (*size)--;
+    } else {
+        *dest = NULL;
+    }
+}
+
+int32_t
+vsnprintf(char *buf, int32_t size, const char *format, va_list args)
+{
+    assert(buf != NULL);
+    assert(size > 0);
     assert(format != NULL);
 
     /* itoa() buffer */
-    char conv_buf[64];
+    char itoa_buf[64];
 
-    /* Stack pointer for the other parameters */
-    uint32_t *esp = (void *)&format;
-    esp++;
+    /* Where we currently are in buf (NULL if it's full) */
+    char *new_buf = buf;
+
+    /* How much space we have left in buf */
+    int32_t new_size = size;
+
+    /* Ensure nul-terminated just in case */
+    *new_buf = '\0';
 
     for (; *format != '\0'; format++) {
         if (*format != '%') {
-            putc(*format);
+            strpcatc(&new_buf, *format, &new_size);
             continue;
         }
 
@@ -70,72 +99,66 @@ printf(const char *format, ...)
         /* Consume the % character */
         format++;
 
-format_char_switch:
+print_format:
         /* Conversion specifiers */
         switch (*format) {
 
         /* Print a literal '%' character */
         case '%':
-            putc('%');
+            strpcatc(&new_buf, '%', &new_size);
             break;
 
         /* Use alternate formatting */
         case '#':
             alternate = true;
             format++;
-            goto format_char_switch;
+            goto print_format;
 
         /* Print a number in hexadecimal form */
         case 'x':
             if (!alternate) {
-                utoa(*(uint32_t *)esp, conv_buf, 16);
-                writes(conv_buf);
+                utoa(va_arg(args, uint32_t), itoa_buf, 16);
+                strpcats(&new_buf, itoa_buf, &new_size);
             } else {
-                utoa(*(uint32_t *)esp, &conv_buf[8], 16);
+                utoa(va_arg(args, uint32_t), &itoa_buf[8], 16);
                 int32_t starting_index;
                 int32_t i;
-                i = starting_index = strlen(&conv_buf[8]);
+                i = starting_index = strlen(&itoa_buf[8]);
                 while (i < 8) {
-                    conv_buf[i] = '0';
+                    itoa_buf[i] = '0';
                     i++;
                 }
-                writes(&conv_buf[starting_index]);
+                strpcats(&new_buf, &itoa_buf[starting_index], &new_size);
             }
-            esp++;
             break;
 
         /* Print a number in unsigned int form */
         case 'u':
-            utoa(*(uint32_t *)esp, conv_buf, 10);
-            writes(conv_buf);
-            esp++;
+            utoa(va_arg(args, uint32_t), itoa_buf, 10);
+            strpcats(&new_buf, itoa_buf, &new_size);
             break;
 
         /* Print a number in signed int form */
         case 'd':
         case 'i':
-            itoa(*(int32_t *)esp, conv_buf, 10);
-            writes(conv_buf);
-            esp++;
+            itoa(va_arg(args, int32_t), itoa_buf, 10);
+            strpcats(&new_buf, itoa_buf, &new_size);
             break;
 
         /* Print a number in octal form */
         case 'o':
-            utoa(*(uint32_t *)esp, conv_buf, 8);
-            writes(conv_buf);
-            esp++;
+            utoa(va_arg(args, uint32_t), itoa_buf, 8);
+            strpcats(&new_buf, itoa_buf, &new_size);
             break;
 
         /* Print a single character */
         case 'c':
-            putc(*(char *)esp);
-            esp++;
+            strpcatc(&new_buf, (char)va_arg(args, uint32_t), &new_size);
             break;
 
         /* Print a NULL-terminated string */
         case 's':
-            writes(*(char **)esp);
-            esp++;
+            strpcats(&new_buf, va_arg(args, const char *), &new_size);
             break;
 
         /* Fail fast on any other characters */
@@ -144,4 +167,46 @@ format_char_switch:
             break;
         }
     }
+
+    /* Return number of chars (excluding NUL) printed */
+    if (new_buf == NULL) {
+        return -1;
+    } else {
+        return size - new_size;
+    }
+}
+
+int32_t
+snprintf(char *buf, int32_t size, const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    int32_t ret = vsnprintf(buf, size, format, args);
+    va_end(args);
+    return ret;
+}
+
+int32_t
+vprintf(const char *format, va_list args)
+{
+    /*
+     * Too lazy to write this properly, just pray that
+     * nobody has strings longer than 4096 characters...
+     */
+    char buf[4096];
+    int32_t len = vsnprintf(buf, sizeof(buf), format, args);
+    if (len > 0) {
+        write(1, buf, len);
+    }
+    return len;
+}
+
+int32_t
+printf(const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    int32_t ret = vprintf(format, args);
+    va_end(args);
+    return ret;
 }

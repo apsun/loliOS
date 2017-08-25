@@ -1,0 +1,47 @@
+#include "mp1-vga.h"
+#include <types.h>
+#include <sys.h>
+#include <string.h>
+#include <assert.h>
+
+/* Needs to be visible to mp1.S, so not static */
+uint8_t *vmem_base_addr;
+
+void
+draw_char(int32_t x, int32_t y, char c)
+{
+    vmem_base_addr[(y * SCREEN_WIDTH + x) << 1] = c;
+}
+
+void
+draw_string(int32_t x, int32_t y, const char *s)
+{
+    while (*s) {
+        draw_char(x++, y, *s++);
+    }
+}
+
+void
+draw_centered_string(int32_t y, const char *s)
+{
+    draw_string((SCREEN_WIDTH - strlen(s)) / 2, y, s);
+}
+
+void
+clear_screen(void)
+{
+    int32_t x, y;
+    for (y = 0; y < SCREEN_HEIGHT; ++y) {
+        for (x = 0; x < SCREEN_WIDTH; ++x) {
+            draw_char(x, y, ' ');
+        }
+    }
+}
+
+void
+vga_init(void)
+{
+    if (vidmap(&vmem_base_addr) < 0) {
+        assert(0);
+    }
+}
