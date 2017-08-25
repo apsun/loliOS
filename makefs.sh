@@ -13,9 +13,9 @@ chmod +x "${mp3_dir}/createfs"
 chmod +x "${mp3_dir}/elfconvert"
 
 # Compile userspace programs
-mkdir -p "${mp3_dir}/userspace/to_fsdir"
-make -C "${mp3_dir}/userspace"
-cp "${mp3_dir}/userspace/to_fsdir/"* "${mp3_dir}/fsdir"
+mkdir -p "${mp3_dir}/syscalls/to_fsdir"
+make -C "${mp3_dir}/syscalls"
+cp "${mp3_dir}/syscalls/to_fsdir/"* "${mp3_dir}/fsdir"
 
 # Compile fish program
 make -C "${mp3_dir}/fish"
