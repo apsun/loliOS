@@ -1,8 +1,9 @@
 #include "mp1-vga.h"
-#include <types.h>
-#include <sys.h>
-#include <string.h>
 #include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+#include <syscall.h>
 
 /* Needs to be visible to mp1.S, so not static */
 uint8_t *vmem_base_addr;

@@ -1,7 +1,7 @@
 #ifndef _MP1_TAUX_H
 #define _MP1_TAUX_H
 
-#include <types.h>
+#include <stdint.h>
 
 #define TUX_SET_LED 0x10
 #define TUX_BUTTONS 0x12

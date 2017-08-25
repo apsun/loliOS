@@ -1,7 +1,8 @@
-#include <types.h>
-#include <sys.h>
-#include <io.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <string.h>
+#include <syscall.h>
 
 #define TUX_SET_LED 0x10
 #define TUX_BUTTONS 0x12

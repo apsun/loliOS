@@ -1,7 +1,7 @@
 #ifndef _MP1_H
 #define _MP1_H
 
-#include <types.h>
+#include <stdint.h>
 
 enum {
     IOCTL_STARTGAME,

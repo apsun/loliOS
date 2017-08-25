@@ -1,7 +1,7 @@
 #ifndef _MP1_VGA_H
 #define _MP1_VGA_H
 
-#include <types.h>
+#include <stdint.h>
 
 #define SCREEN_WIDTH 80
 #define SCREEN_HEIGHT 25

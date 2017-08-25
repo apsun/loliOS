@@ -1,7 +1,8 @@
-#include <types.h>
-#include <sys.h>
-#include <io.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <string.h>
+#include <syscall.h>
 
 int32_t
 main(void)

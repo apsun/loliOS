@@ -1,9 +1,11 @@
-#include "io.h"
-#include "types.h"
-#include "sys.h"
-#include "string.h"
-#include "assert.h"
-#include "arg.h"
+#include <stdio.h>
+#include <assert.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+#include <syscall.h>
 
 void
 putc(char c)

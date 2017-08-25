@@ -1,7 +1,8 @@
 #include "mp1-taux.h"
-#include <types.h>
-#include <sys.h>
 #include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <syscall.h>
 
 void
 taux_display_time(int32_t taux_fd, int32_t num_seconds)
@@ -43,28 +44,26 @@ taux_display_time(int32_t taux_fd, int32_t num_seconds)
 uint8_t
 taux_get_input(int32_t taux_fd)
 {
-    static uint8_t prev_buttons = 0;
-    uint8_t new_buttons = 0;
-    uint8_t raw_buttons;
+    static uint8_t prev_raw_buttons = 0;
 
-    /* Update raw button state */
+    /* Get raw button data from driver... */
+    uint8_t raw_buttons;
     ioctl(taux_fd, TUX_BUTTONS, (uint32_t)&raw_buttons);
 
-    /*
-     * Check if A/B/C/start button states changed
-     * This state will be cleared in get_command()
-     * when it is acknowledged
-     */
-    if ((raw_buttons & TB_A) && !(prev_buttons & TB_A)) new_buttons |= TB_A;
-    if ((raw_buttons & TB_B) && !(prev_buttons & TB_B)) new_buttons |= TB_B;
-    if ((raw_buttons & TB_C) && !(prev_buttons & TB_C)) new_buttons |= TB_C;
-    if ((raw_buttons & TB_START) && !(prev_buttons & TB_START)) new_buttons |= TB_START;
+    /* ... and convert to normalized form */
+    uint8_t buttons = 0;
 
-    /* Update state for Up/Down/Left/Right */
-    new_buttons &= 0x0f;
-    new_buttons |= (raw_buttons & 0xf0);
+    /* Check if A/B/C/start button changed from up -> down */
+    if ((raw_buttons & TB_A) && !(prev_raw_buttons & TB_A)) buttons |= TB_A;
+    if ((raw_buttons & TB_B) && !(prev_raw_buttons & TB_B)) buttons |= TB_B;
+    if ((raw_buttons & TB_C) && !(prev_raw_buttons & TB_C)) buttons |= TB_C;
+    if ((raw_buttons & TB_START) && !(prev_raw_buttons & TB_START)) buttons |= TB_START;
 
-    /* Update global button state */
-    prev_buttons = new_buttons;
-    return new_buttons;
+    /* Update state for up/down/left/right */
+    buttons &= 0x0f;
+    buttons |= (raw_buttons & 0xf0);
+
+    /* Update saved raw button data */
+    prev_raw_buttons = raw_buttons;
+    return buttons;
 }

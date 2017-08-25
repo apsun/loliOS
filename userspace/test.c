@@ -1,9 +1,13 @@
-#include <types.h>
-#include <sys.h>
-#include <io.h>
-#include <string.h>
 #include <assert.h>
-#include <longjmp.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <syscall.h>
 
 void
 test_strlen(void)
@@ -46,9 +50,8 @@ void
 test_strncpy(void)
 {
     char buf[5];
-    buf[4] = '\0';
     strncpy(buf, "Hello world!", sizeof(buf));
-    assert(strcmp(buf, "Hello") == 0);
+    assert(strncmp(buf, "Hello", 5) == 0);
 }
 
 void
@@ -164,13 +167,24 @@ test_memmove(void)
     assert(buf[3] == 3);
 }
 
-jmp_buf env;
+void
+test_longjmp_helper(jmp_buf *envp)
+{
+    longjmp(*envp, 42);
+    assert(false);
+}
 
 void
 test_longjmp(void)
 {
-    longjmp(env, 42);
-    assert(false);
+    jmp_buf env;
+    int32_t ret;
+    if ((ret = setjmp(env)) == 0) {
+        test_longjmp_helper(&env);
+        assert(false);
+    } else {
+        assert(ret == 42);
+    }
 }
 
 void
@@ -181,6 +195,26 @@ test_snprintf(void)
     assert(strcmp(buf, "Hello!") == 0);
     assert(snprintf(buf, sizeof(buf), "%s %s", "LONG", "STRING") < 0);
     assert(strcmp(buf, "LONG ST") == 0);
+}
+
+void
+test_varargs(char dummy, ...)
+{
+    va_list args;
+    va_start(args, dummy);
+    assert(va_arg(args, int32_t) == 1);
+    va_list args2;
+    va_copy(args2, args);
+    va_end(args);
+    assert(va_arg(args2, int32_t) == 2);
+    assert(va_arg(args2, int32_t) == 3);
+    va_end(args2);
+}
+
+void
+test_atexit(void)
+{
+    puts("All tests passed!");
 }
 
 int32_t
@@ -203,15 +237,14 @@ main(void)
     test_memcpy();
     test_memmove();
     test_snprintf();
+    test_longjmp();
     
-    int32_t ret;
-    if ((ret = setjmp(env)) == 0) {
-        test_longjmp();
-        assert(false);
-    } else {
-        assert(ret == 42);
-    }
 
-    puts("All tests passed!");
-    return 0;
+    test_varargs('c', 1, 2, 3);
+
+    atexit(test_atexit);
+    exit(0);
+
+    puts("Should not reach this!");
+    return 1;
 }

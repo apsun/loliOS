@@ -1,7 +1,9 @@
-#include <types.h>
-#include <sys.h>
-#include <io.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <string.h>
+#include <syscall.h>
 
 /* Mouse bits */
 #define MOUSE_LEFT (1 << 0)

@@ -1,6 +1,7 @@
-#include <types.h>
-#include <sys.h>
-#include <io.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <syscall.h>
 
 #define BUFSIZE 1024
 

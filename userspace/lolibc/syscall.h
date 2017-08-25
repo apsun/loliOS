@@ -1,5 +1,5 @@
-#ifndef _LOLIBC_SYS_H
-#define _LOLIBC_SYS_H
+#ifndef _LOLIBC_SYSCALL_H
+#define _LOLIBC_SYSCALL_H
 
 #define SYS_HALT        1
 #define SYS_EXECUTE     2
@@ -28,7 +28,7 @@
 
 #ifndef ASM
 
-#include "types.h"
+#include <stdint.h>
 
 int32_t halt(uint8_t status);
 int32_t execute(const char *command);
@@ -47,4 +47,4 @@ int32_t time(void);
 
 #endif /* ASM */
 
-#endif /* _LOLIBC_SYS_H */
+#endif /* _LOLIBC_SYSCALL_H */

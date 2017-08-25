@@ -1,7 +1,8 @@
-#include <types.h>
-#include <sys.h>
-#include <io.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <string.h>
+#include <syscall.h>
 
 #define SCREENWIDTH 79
 #define ENDING 2
@@ -46,8 +47,8 @@ main(void)
     while (1) {
         int32_t j;
         for (j = STARTLOOP; j < LOOPMAX; j++) {
-            for(i = STARTLOOP; i < LOOPMAX; i++) {
-                buf[i]=' ';
+            for (i = STARTLOOP; i < LOOPMAX; i++) {
+                buf[i] = ' ';
             }
 
             buf[j] = curchar;
@@ -58,8 +59,8 @@ main(void)
         }
 
         for (j = LOOPMAX - 1; j >= STARTLOOP; j--) {
-            for(i = STARTLOOP; i < LOOPMAX; i++) {
-                buf[i]=' ';
+            for (i = STARTLOOP; i < LOOPMAX; i++) {
+                buf[i] = ' ';
             }
 
             buf[j] = curchar;

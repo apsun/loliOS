@@ -1,10 +1,12 @@
 #include "mp1.h"
-#include <types.h>
-#include <sys.h>
-#include <io.h>
-#include <longjmp.h>
-#include <string.h>
 #include <assert.h>
+#include <setjmp.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include <syscall.h>
 
 #define MAX_MISSILES 64
 
