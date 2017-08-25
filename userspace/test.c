@@ -65,6 +65,26 @@ test_strscpy(void)
 }
 
 void
+test_strcat(void)
+{
+    char buf[8] = {0};
+    assert(strcat(buf, "foo") == buf);
+    assert(strcat(buf, "bar") == buf);
+    assert(strcmp(buf, "foobar") == 0);
+}
+
+void
+test_strncat(void)
+{
+    char buf[8] = {0};
+    assert(strncat(buf, "foo", 3) == buf);
+    assert(strncat(buf, "bar", 3) == buf);
+    assert(strcmp(buf, "foobar") == 0);
+    assert(strncat(buf, "long", 3) == buf);
+    assert(strncmp(buf, "foobarlo", sizeof(buf)) == 0);
+}
+
+void
 test_strrev(void)
 {
     char buf[] = "Hello world!";
@@ -195,6 +215,24 @@ test_snprintf(void)
     assert(strcmp(buf, "Hello!") == 0);
     assert(snprintf(buf, sizeof(buf), "%s %s", "LONG", "STRING") < 0);
     assert(strcmp(buf, "LONG ST") == 0);
+    assert(snprintf(buf, 1, "wat") < 0);
+    assert(strcmp(buf, "") == 0);
+    assert(snprintf(buf, sizeof(buf), "%d", -10) == 3);
+    assert(strcmp(buf, "-10") == 0);
+    assert(snprintf(buf, sizeof(buf), "%-5x", 0xabc) == 5);
+    assert(strcmp(buf, "ABC  ") == 0);
+    assert(snprintf(buf, sizeof(buf), "% d", 10) == 3);
+    assert(strcmp(buf, " 10") == 0);
+    assert(snprintf(buf, sizeof(buf), "%+d", 10) == 3);
+    assert(strcmp(buf, "+10") == 0);
+    assert(snprintf(buf, sizeof(buf), "%-5d", -10) == 5);
+    assert(strcmp(buf, "-10  ") == 0);
+    assert(snprintf(buf, sizeof(buf), "%05d", -10) == 5);
+    assert(strcmp(buf, "-0010") == 0);
+    assert(snprintf(buf, sizeof(buf), "%5d", -10) == 5);
+    assert(strcmp(buf, "  -10") == 0);
+    assert(snprintf(buf, sizeof(buf), "%025d", 10) < 0);
+    assert(strcmp(buf, "0000000") == 0);
 }
 
 void
@@ -226,6 +264,8 @@ main(void)
     test_strcpy();
     test_strncpy();
     test_strscpy();
+    test_strcat();
+    test_strncat();
     test_strrev();
     test_strchr();
     test_strrchr();
@@ -238,13 +278,7 @@ main(void)
     test_memmove();
     test_snprintf();
     test_longjmp();
-    
-
     test_varargs('c', 1, 2, 3);
-
     atexit(test_atexit);
-    exit(0);
-
-    puts("Should not reach this!");
-    return 1;
+    return 0;
 }

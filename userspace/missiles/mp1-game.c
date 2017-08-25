@@ -155,7 +155,7 @@ draw_status_bar(void)
 {
     int32_t accuracy = (fired > 0) ? (100 * score) / fired : 0;
     char buf[80];
-    snprintf(buf, sizeof(buf), "[score %d] [fired %d] [accuracy %d%%]   ",
+    snprintf(buf, sizeof(buf), "[score %3d] [fired %3d] [accuracy %3d%%]   ",
         score, fired, accuracy);
     draw_string(0, 0, buf);
 }

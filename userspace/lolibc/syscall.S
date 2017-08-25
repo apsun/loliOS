@@ -31,8 +31,7 @@ MAKE_SYS(time, SYS_TIME)
 
 .globl _start
 _start:
+    subl    $16, %esp /* Prevents page faults from syscalls since ESP is at end of user page */
     call    main
-    pushl   $0 /* Prevents page fault since ESP is at end of user page */
-    pushl   $0
     pushl   %eax
-    call    halt
+    call    exit

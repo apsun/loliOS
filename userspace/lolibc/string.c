@@ -116,18 +116,16 @@ strncat(char *dest, const char *src, int32_t n)
 {
     assert(dest != NULL);
     assert(src != NULL);
-    assert(n >= 0);
+    assert(n > 0);
 
-    if (n > 0) {
-        char *new_dest = dest;
-        while (*new_dest) {
-            new_dest++;
-        }
-        while ((*new_dest++ = *src++)) {
-            if (--n == 0) {
-                *new_dest = '\0';
-                break;
-            }
+    char *new_dest = dest;
+    while (*new_dest) {
+        new_dest++;
+    }
+    while ((*new_dest++ = *src++)) {
+        if (--n == 0) {
+            *new_dest = '\0';
+            break;
         }
     }
     return dest;
