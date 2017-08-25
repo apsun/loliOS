@@ -1,6 +1,6 @@
 #define ASM 1
 
-#include "syscall.h"
+#include <syscall.h>
 
 #define MAKE_SYS(name, number) \
 .globl name;                   \

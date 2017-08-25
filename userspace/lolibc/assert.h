@@ -3,8 +3,8 @@
 
 #ifndef NDEBUG
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define assert(x) do {                                                   \
     if (!(x)) {                                                          \
