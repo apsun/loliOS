@@ -241,7 +241,7 @@ update_taux_lcd(int32_t taux_fd, int32_t ticks)
     taux_display_time(taux_fd, ticks / TICKS_PER_SEC);
 }
 
-__attribute__((cdecl)) int32_t
+ASM_VISIBLE int32_t
 missile_explode(struct missile *m)
 {
     int32_t exploded = 0;
@@ -264,7 +264,7 @@ missile_explode(struct missile *m)
     return exploded;
 }
 
-__attribute__((cdecl)) void
+ASM_VISIBLE void
 mp1_notify_user(void)
 {
     uint32_t status;

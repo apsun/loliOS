@@ -20,7 +20,7 @@ segv_handler(void)
     longjmp(memcpy_env, 1);
 }
 
-__attribute__((cdecl)) int32_t
+ASM_VISIBLE int32_t
 mp1_copy_to_user(void *dest, const void *src, int32_t n)
 {
     sigaction(SIG_SEGFAULT, segv_handler);
@@ -35,13 +35,13 @@ mp1_copy_to_user(void *dest, const void *src, int32_t n)
     return ret;
 }
 
-__attribute__((cdecl)) int32_t
+ASM_VISIBLE int32_t
 mp1_copy_from_user(void *dest, const void *src, int32_t n)
 {
     return mp1_copy_to_user(dest, src, n);
 }
 
-__attribute__((cdecl)) void *
+ASM_VISIBLE void *
 mp1_malloc(int32_t size)
 {
     assert(size == sizeof(missile_t));
@@ -54,7 +54,7 @@ mp1_malloc(int32_t size)
     return NULL;
 }
 
-__attribute__((cdecl)) void
+ASM_VISIBLE void
 mp1_free(void *ptr)
 {
     missile_t *m = ptr;
