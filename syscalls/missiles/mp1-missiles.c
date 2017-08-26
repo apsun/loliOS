@@ -285,6 +285,7 @@ main(void)
     /* Wait for user to begin */
     clear_screen();
     draw_starting_screen();
+    taux_display_str(taux_fd, "strt");
     while (!(taux_get_input(taux_fd) & TB_START));
 
     /* Here we go! */
@@ -296,7 +297,20 @@ main(void)
     /* Main game loop */
     int32_t ticks = 0;
     uint8_t buttons;
-    while (bases_left > 0 && !((buttons = taux_get_input(taux_fd)) & TB_START)) {
+    while (1) {
+        /* Check if all bases are dead */
+        if (bases_left == 0) {
+            taux_display_str(taux_fd, "bye ");
+            break;
+        }
+
+        /* Update taux input, exit if start is pressed */
+        buttons = taux_get_input(taux_fd);
+        if (buttons & TB_START) {
+            taux_display_str(taux_fd, "dead");
+            break;
+        }
+
         /* Delay to target tick rate */
         int32_t garbage;
         read(rtc_fd, &garbage, sizeof(garbage));
@@ -326,6 +340,7 @@ main(void)
     /* Wait for user to exit */
     draw_ending_screen();
     while (!(taux_get_input(taux_fd) & TB_START));
+    taux_display_str(taux_fd, "    ");
 
     /* Bye! */
     clear_screen();

@@ -24,6 +24,7 @@
 #define TUX_INIT        0x13
 #define TUX_LED_REQUEST 0x14
 #define TUX_LED_ACK     0x15
+#define TUX_SET_LED_STR 0x16
 
 /*
  * Commands have the top 2 bits set to 11.

@@ -3,8 +3,10 @@
 #include "debug.h"
 #include "lib.h"
 
+#define DECIMAL_PT (1 << 4)
+
 /* Maps hexadecimal digits to bits on the segment display */
-static const uint8_t digit_to_segment_map[16] = {
+static const uint8_t hex_to_segment_map[16] = {
     0xe7, /* 0 - ABCDEF  */
     0x06, /* 1 - BC      */
     0xcb, /* 2 - ABGED   */
@@ -23,54 +25,130 @@ static const uint8_t digit_to_segment_map[16] = {
     0xe8, /* F - AFGE    */
 };
 
+/* Maps letters to bits on the segment display */
+static const uint8_t alpha_to_segment_map[26] = {
+    0xee, /* A */
+    0x6d, /* b */
+    0xe1, /* C */
+    0x4f, /* d */
+    0xe9, /* E */
+    0xe8, /* F */
+    0xaf, /* g */
+    0x6c, /* h */
+    0x60, /* I */
+    0x47, /* J */
+    0x00, /* K - undisplayable */
+    0x61, /* L */
+    0x00, /* M - undisplayable */
+    0xe6, /* n */
+    0xe7, /* O */
+    0xea, /* P */
+    0xae, /* q */
+    0xe2, /* r */
+    0xad, /* S */
+    0x69, /* t */
+    0x67, /* U */
+    0x00, /* V - undisplayable */
+    0x00, /* W - undisplayable */
+    0x00, /* X - undisplayable */
+    0x2f, /* y */
+    0xcb, /* Z */
+};
+
 /* Number of pending ACKs */
 static int32_t pending_acks = 0;
 
 /* Holds the current pressed state of the buttons */
 static uint8_t button_status = 0;
 
-/* Holds the last value sent to the TUX_SET_LED ioctl */
-static uint32_t led_status = 0;
+/* Holds the last converted value sent to the TUX_SET_LED[_STR] ioctl */
+static uint8_t led_segments[4];
 
 /* Whether we should send a LED_SET packet when free (no pending ACKs) */
 static bool set_led_pending = false;
 
 /*
  * Converts a LED status value (from the TUX_SET_LED
- * ioctl) to a packet to send to the taux controller.
- * The buffer must be at least 6 bytes long.
+ * ioctl) to the LED segment format used by the taux
+ * controller. The buffer must be at 4 bytes long.
  */
 static void
-taux_fill_led_set_packet(uint32_t led_status, uint8_t buf[6])
+taux_convert_set_led(uint32_t led_status, uint8_t buf[4])
 {
     uint16_t num = (uint16_t)(led_status);
     uint8_t which = (uint8_t)(led_status >> 16);
     uint8_t decimals = (uint8_t)(led_status >> 24);
 
-    /* LED set opcode */
-    buf[0] = MTCP_LED_SET;
-
-    /* Modify all LEDs */
-    buf[1] = 0xf;
-
     /* Map digits to segments */
-    buf[2] = digit_to_segment_map[(num & 0x000f) >> 0];
-    buf[3] = digit_to_segment_map[(num & 0x00f0) >> 4];
-    buf[4] = digit_to_segment_map[(num & 0x0f00) >> 8];
-    buf[5] = digit_to_segment_map[(num & 0xf000) >> 12];
+    buf[0] = hex_to_segment_map[(num & 0x000f) >> 0];
+    buf[1] = hex_to_segment_map[(num & 0x00f0) >> 4];
+    buf[2] = hex_to_segment_map[(num & 0x0f00) >> 8];
+    buf[3] = hex_to_segment_map[(num & 0xf000) >> 12];
 
     /* Clear LEDs which shouldn't be "on" */
-    if (!(which & 0x1)) buf[2] = 0;
-    if (!(which & 0x2)) buf[3] = 0;
-    if (!(which & 0x4)) buf[4] = 0;
-    if (!(which & 0x8)) buf[5] = 0;
+    if (!(which & 0x1)) buf[0] = 0;
+    if (!(which & 0x2)) buf[1] = 0;
+    if (!(which & 0x4)) buf[2] = 0;
+    if (!(which & 0x8)) buf[3] = 0;
 
     /* Add decimal segment to appropriate LEDs */
-    /* (Bit 4 controls the decimal segment) */
-    if (decimals & 0x1) buf[2] |= (1 << 4);
-    if (decimals & 0x2) buf[3] |= (1 << 4);
-    if (decimals & 0x4) buf[4] |= (1 << 4);
-    if (decimals & 0x8) buf[5] |= (1 << 4);
+    if (decimals & 0x1) buf[0] |= DECIMAL_PT;
+    if (decimals & 0x2) buf[1] |= DECIMAL_PT;
+    if (decimals & 0x4) buf[2] |= DECIMAL_PT;
+    if (decimals & 0x8) buf[3] |= DECIMAL_PT;
+}
+
+/*
+ * Converts a 4 char array to the LED segment
+ * format used by the taux controller. The buffer
+ * must be at 4 bytes long. Note that some characters
+ * are undisplayable: K, M, V, W, X, and all
+ * non-alphanumeric characters.
+ */
+static int32_t
+taux_convert_set_led_str(const char *str, uint8_t buf[4])
+{
+    uint8_t tmp[4] = {0};
+
+    int32_t i, j;
+    for (i = 0, j = 0; i < 4; ++i, ++j) {
+        char c = str[j];
+        uint8_t seg;
+
+        /* Convert characters from string */
+        if (c == ' ') {
+            seg = 0;
+        } else {
+            if (c >= '0' && c <= '9') {
+                seg = hex_to_segment_map[c - '0'];
+            } else if (c >= 'a' && c <= 'z') {
+                seg = alpha_to_segment_map[c - 'a'];
+            } else if (c >= 'A' && c <= 'Z') {
+                seg = alpha_to_segment_map[c - 'A'];
+            } else {
+                return -1;
+            }
+        }
+
+        /* If next char in string is a decimal point, turn on DP LED */
+        if (str[j + 1] == '.') {
+            seg |= DECIMAL_PT;
+            j++;
+        }
+
+        tmp[i] = seg;
+    }
+
+    /* String must be exactly 4 chars (excluding decimal points) */
+    if (str[j] != '\0') {
+        return -1;
+    }
+
+    /* Copy string to buffer in reverse */
+    for (i = 0; i < 4; ++i) {
+        buf[i] = tmp[3 - i];
+    }
+    return 0;
 }
 
 /*
@@ -90,10 +168,17 @@ taux_send_cmd(uint8_t cmd)
  * the SET_LED pending flag.
  */
 static void
-taux_send_cmd_set_led(uint32_t led_status)
+taux_send_cmd_set_led(uint8_t led_segments[4])
 {
     uint8_t buf[6];
-    taux_fill_led_set_packet(led_status, buf);
+    buf[0] = MTCP_LED_SET;
+
+    /* Always set all 4 LEDs */
+    buf[1] = 0xf;
+
+    /* Copy in the segment data */
+    memcpy(&buf[2], led_segments, 4);
+
     uint32_t i;
     for (i = 0; i < sizeof(buf); ++i) {
         serial_write(TAUX_COM_PORT, buf[i]);
@@ -121,7 +206,7 @@ taux_ioctl_init(void)
     taux_send_cmd(MTCP_BIOC_ON);
     taux_send_cmd(MTCP_LED_USR);
     taux_send_cmd(MTCP_POLL);
-    taux_send_cmd_set_led(led_status);
+    taux_send_cmd_set_led(led_segments);
     return 0;
 }
 
@@ -131,16 +216,44 @@ taux_ioctl_init(void)
 static int32_t
 taux_ioctl_set_led(uint32_t arg)
 {
-    /* Save the LED status for future use */
-    led_status = arg;
+    /* Convert and save the LED status */
+    taux_convert_set_led(arg, led_segments);
     set_led_pending = true;
 
     /* If we're not waiting for something else, send the packet immediately */
     if (pending_acks == 0) {
-        taux_send_cmd_set_led(arg);
+        taux_send_cmd_set_led(led_segments);
     }
 
     /* No way we can fail under normal circumstances */
+    return 0;
+}
+
+/*
+ * Handles the SET_LED_STR ioctl() call.
+ */
+static int32_t
+taux_ioctl_set_led_str(uint32_t arg)
+{
+    /* Read 4 chars from provided pointer */
+    const char *ptr = (const char *)arg;
+    if (!is_user_readable_string(ptr)) {
+        debugf("Invalid pointer; cannot read string\n");
+        return -1;
+    }
+
+    /* Convert the string to led segment format */
+    if (taux_convert_set_led_str(ptr, led_segments) < 0) {
+        debugf("Invalid string format\n");
+        return -1;
+    }
+    set_led_pending = true;
+
+    /* If we're not waiting for something else, send the packet immediately */
+    if (pending_acks == 0) {
+        taux_send_cmd_set_led(led_segments);
+    }
+
     return 0;
 }
 
@@ -179,7 +292,7 @@ taux_handle_ack(void)
      * while we were waiting, handle that now.
      */
     if (pending_acks == 0 && set_led_pending) {
-        taux_send_cmd_set_led(led_status);
+        taux_send_cmd_set_led(led_segments);
     }
 }
 
@@ -274,6 +387,8 @@ taux_ioctl(file_obj_t *file, uint32_t req, uint32_t arg)
         return taux_ioctl_set_led(arg);
     case TUX_BUTTONS:
         return taux_ioctl_get_buttons(arg);
+    case TUX_SET_LED_STR:
+        return taux_ioctl_set_led_str(arg);
     default:
         return -1;
     }

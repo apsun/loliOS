@@ -5,6 +5,14 @@
 #include <syscall.h>
 
 void
+taux_display_str(int32_t taux_fd, const char *str)
+{
+    if (ioctl(taux_fd, TUX_SET_LED_STR, (uint32_t)str) < 0) {
+        assert(0);
+    }
+}
+
+void
 taux_display_time(int32_t taux_fd, int32_t num_seconds)
 {
     uint32_t packed = 0;
@@ -38,7 +46,9 @@ taux_display_time(int32_t taux_fd, int32_t num_seconds)
     packed |= 0x4 << 24; /* 0100 */
 
     /* Call the ioctl! */
-    ioctl(taux_fd, TUX_SET_LED, packed);
+    if (ioctl(taux_fd, TUX_SET_LED, packed) < 0) {
+        assert(0);
+    }
 }
 
 void
@@ -51,7 +61,9 @@ taux_display_coords(int32_t taux_fd, int32_t x, int32_t y)
     packed |= 0xf << 16; /* All LEDs on */
     packed |= 0x2 << 24; /* Decimal point in middle */
 
-    ioctl(taux_fd, TUX_SET_LED, packed);
+    if (ioctl(taux_fd, TUX_SET_LED, packed) < 0) {
+        assert(0);
+    }
 }
 
 void
@@ -71,7 +83,9 @@ taux_display_num(int32_t taux_fd, int32_t num)
     if (num >= 100) packed |= 1 << 18;
     if (num >= 1000) packed |= 1 << 19;
 
-    ioctl(taux_fd, TUX_SET_LED, packed);
+    if (ioctl(taux_fd, TUX_SET_LED, packed) < 0) {
+        assert(0);
+    }
 }
 
 uint8_t

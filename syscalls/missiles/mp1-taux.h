@@ -3,9 +3,10 @@
 
 #include <stdint.h>
 
-#define TUX_SET_LED 0x10
-#define TUX_BUTTONS 0x12
-#define TUX_INIT    0x13
+#define TUX_SET_LED     0x10
+#define TUX_BUTTONS     0x12
+#define TUX_INIT        0x13
+#define TUX_SET_LED_STR 0x16
 
 enum {
     TB_START  = 0x01,
@@ -19,6 +20,7 @@ enum {
     TB_ALL    = 0xff,
 };
 
+void taux_display_str(int32_t taux_fd, const char *str);
 void taux_display_time(int32_t taux_fd, int32_t num_seconds);
 void taux_display_coords(int32_t taux_fd, int32_t x, int32_t y);
 void taux_display_num(int32_t taux_fd, int32_t score);
