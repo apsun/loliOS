@@ -300,14 +300,14 @@ main(void)
     while (1) {
         /* Check if all bases are dead */
         if (bases_left == 0) {
-            taux_display_str(taux_fd, "bye ");
+            taux_display_str(taux_fd, "dead");
             break;
         }
 
         /* Update taux input, exit if start is pressed */
         buttons = taux_get_input(taux_fd);
         if (buttons & TB_START) {
-            taux_display_str(taux_fd, "dead");
+            taux_display_str(taux_fd, "bye ");
             break;
         }
 
