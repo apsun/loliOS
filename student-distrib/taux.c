@@ -108,7 +108,7 @@ taux_convert_set_led(uint32_t led_status, uint8_t buf[4])
 static int32_t
 taux_convert_set_led_str(const char *str, uint8_t buf[4])
 {
-    uint8_t tmp[4] = {0};
+    uint8_t tmp[4];
 
     int32_t i, j;
     for (i = 0, j = 0; i < 4; ++i, ++j) {
