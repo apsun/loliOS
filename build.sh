@@ -8,6 +8,13 @@ if [ "$EUID" -eq 0 ]; then
     exit 1
 fi
 
+# If first arg is "clean", run make clean
+if [ "$1" == "clean" ]; then
+    make -C "${mp3_dir}/syscalls" clean
+    make -C "${mp3_dir}/student-distrib" clean
+    exit 0
+fi
+
 # Make binaries executable
 chmod +x "${mp3_dir}/elfconvert"
 
