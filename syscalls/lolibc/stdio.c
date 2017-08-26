@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <assert.h>
+#include <ctype.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -43,115 +44,157 @@ gets(char *buf, int32_t n)
     return buf;
 }
 
+typedef struct {
+    char *buf;
+    int32_t size;
+} printf_buf_t;
+
+typedef struct {
+    int32_t pad_width;
+    bool left_align;
+    bool positive_sign;
+    bool space_sign;
+    bool alternate_format;
+    bool pad_zeros;
+} printf_arg_t;
+
 static void
-strpcats(char **dest, const char *src, int32_t *size)
+printf_append_string(printf_buf_t *b, const char *s)
 {
-    if (*dest != NULL) {
-        int32_t ret = strscpy(*dest, src, *size);
+    if (b->buf != NULL) {
+        int32_t ret = strscpy(b->buf, s, b->size);
         if (ret >= 0) {
-            *dest += ret;
-            *size -= ret;
+            b->buf += ret;
+            b->size -= ret;
         } else {
-            *dest = NULL;
+            b->buf = NULL;
         }
     }
 }
 
 static void
-strpcatc(char **dest, char c, int32_t *size)
+printf_append_char(printf_buf_t *b, char c)
 {
-    if (*dest != NULL) {
-        if (*size > 1) {
-            **dest = c;
-            (*dest)++;
-            **dest = '\0';
-            (*size)--;
+    if (b->buf != NULL) {
+        if (b->size > 1) {
+            b->buf[0] = c;
+            b->buf[1] = '\0';
+            b->buf++;
+            b->size--;
         } else {
-            *dest = NULL;
+            b->buf = NULL;
         }
     }
 }
 
 static void
-strppadc(char **dest, char pad, int32_t *size, int32_t width)
+printf_pad(printf_buf_t *b, char pad, int32_t width)
 {
     while (width-- > 0) {
-        strpcatc(dest, pad, size);
+        printf_append_char(b, pad);
     }
 }
 
 static void
-strpcatu(
-    char **dest, uint32_t num, int32_t radix, int32_t *size,
-    int32_t pad_width,
-    bool left_align, /* - */
-    bool pad_zeros)  /* 0 */
+printf_do_string(printf_buf_t *b, printf_arg_t *a, const char *s)
+{
+    if (a->left_align) {
+        printf_append_string(b, s);
+        printf_pad(b, ' ', a->pad_width - strlen(s));
+    } else {
+        printf_pad(b, ' ', a->pad_width - strlen(s));
+        printf_append_string(b, s);
+    }
+}
+
+static void
+printf_do_char(printf_buf_t *b, printf_arg_t *a, char c)
+{
+    if (a->left_align) {
+        printf_append_char(b, c);
+        printf_pad(b, ' ', a->pad_width - 1);
+    } else {
+        printf_pad(b, ' ', a->pad_width - 1);
+        printf_append_char(b, c);
+    }
+}
+
+static void
+printf_stoupper(char *buf)
+{
+    while (*buf) {
+        *buf = toupper(*buf);
+        buf++;
+    }
+}
+
+static void
+printf_do_uint(printf_buf_t *b, printf_arg_t *a, uint32_t num, int32_t radix, bool upper)
 {
     char utoa_buf[64];
     utoa(num, utoa_buf, radix);
+    if (upper) {
+        printf_stoupper(utoa_buf);
+    }
 
-    pad_width -= strlen(utoa_buf);
-
-    if (!left_align) {
-        strppadc(dest, pad_zeros ? '0' : ' ', size, pad_width);
-        strpcats(dest, utoa_buf, size);
+    int32_t pad_width = a->pad_width - strlen(utoa_buf);
+    if (a->left_align) {
+        printf_append_string(b, utoa_buf);
+        printf_pad(b, ' ', pad_width);
     } else {
-        strpcats(dest, utoa_buf, size);
-        strppadc(dest, ' ', size, pad_width);
+        printf_pad(b, a->pad_zeros ? '0' : ' ', pad_width);
+        printf_append_string(b, utoa_buf);
     }
 }
 
 static void
-strpcatd(
-    char **dest, int32_t num, int32_t radix, int32_t *size,
-    int32_t pad_width,
-    bool left_align,    /* - */
-    bool positive_sign, /* + */
-    bool space_sign,    /*   */
-    bool pad_zeros)     /* 0 */
+printf_do_int(printf_buf_t *b, printf_arg_t *a, int32_t num, int32_t radix, bool upper)
 {
     char utoa_buf[64];
     utoa((num < 0) ? -num : num, utoa_buf, radix);
+    if (upper) {
+        printf_stoupper(utoa_buf);
+    }
 
     /* What sign to print? */
     char sign_char = '\0';
     if (num < 0) {
         sign_char = '-';
-    } else if (positive_sign) {
+    } else if (a->positive_sign) {
         sign_char = '+';
-    } else if (space_sign) {
+    } else if (a->space_sign) {
         sign_char = ' ';
     }
 
     /* Save one additional character for sign */
-    pad_width -= strlen(utoa_buf);
+    int32_t pad_width = a->pad_width - strlen(utoa_buf);
     if (sign_char != '\0') {
         pad_width--;
     }
 
-    if (!left_align) {
+    if (a->left_align) {
+        if (sign_char != '\0') {
+            printf_append_char(b, sign_char);
+        }
+        printf_append_string(b, utoa_buf);
+        printf_pad(b, ' ', pad_width);
+    } else {
         /*
          * If padding with zeros, print sign then padding,
          * otherwise print padding then sign.
          */
-        if (pad_zeros) {
+        if (a->pad_zeros) {
             if (sign_char != '\0') {
-                strpcatc(dest, sign_char, size);
+                printf_append_char(b, sign_char);
             }
-            strppadc(dest, '0', size, pad_width);
+            printf_pad(b, '0', pad_width);
         } else {
-            strppadc(dest, ' ', size, pad_width);
+            printf_pad(b, ' ', pad_width);
             if (sign_char != '\0') {
-                strpcatc(dest, sign_char, size);
+                printf_append_char(b, sign_char);
             }
         }
-        strpcats(dest, utoa_buf, size);
-    } else {
-        if (sign_char != '\0') {
-            strpcatc(dest, sign_char, size);
-        }
-        strpcats(dest, utoa_buf, size);
-        strppadc(dest, ' ', size, pad_width);
+        printf_append_string(b, utoa_buf);
     }
 }
 
@@ -162,41 +205,43 @@ vsnprintf(char *buf, int32_t size, const char *format, va_list args)
     assert(size > 0);
     assert(format != NULL);
 
-    /* Where we currently are in buf (NULL if it's full) */
-    char *new_buf = buf;
+    /* Put these together to make them more convenient to pass */
+    printf_buf_t b;
+    b.buf = buf;
+    b.size = size;
 
-    /* How much space we have left in buf */
-    int32_t new_size = size;
-
-    /* Ensure nul-terminated just in case */
-    *new_buf = '\0';
+    /* Ensure string is NUL-terminated */
+    *buf = '\0';
 
     for (; *format != '\0'; format++) {
         if (*format != '%') {
-            strpcatc(&new_buf, *format, &new_size);
+            printf_append_char(&b, *format);
             continue;
         }
-
-        /* Width of numbers with padding */
-        int32_t pad_width = 0;
 
         /* Whether we're currently reading a width format */
         bool in_width_format = false;
 
+        /* Conversion spec arguments */
+        printf_arg_t a;
+
+        /* Width of numbers with padding */
+        a.pad_width = 0;
+
         /* Align numbers on the left instead of right? */
-        bool left_align = false;
+        a.left_align = false;
 
         /* Print the sign even if positive? */
-        bool positive_sign = false;
+        a.positive_sign = false;
 
         /* Insert space for sign if positive? */
-        bool space_sign = false;
+        a.space_sign = false;
 
         /* Use alternate conversion format? */
-        bool alternate_format = false;
+        a.alternate_format = false;
 
         /* Pad numbers with zeros? */
-        bool pad_zeros = false;
+        a.pad_zeros = false;
 
 consume_format:
 
@@ -205,31 +250,32 @@ consume_format:
 
         /* Conversion specifiers */
         switch (*format) {
+
         /* Align left instead of right */
         case '-':
-            left_align = true;
+            a.left_align = true;
             goto consume_format;
 
         /* Prepend + if positive signed number */
         case '+':
-            positive_sign = true;
+            a.positive_sign = true;
             goto consume_format;
 
         /* Prepend space if positive signed number */
         case ' ':
-            space_sign = true;
+            a.space_sign = true;
             goto consume_format;
 
         /* Use alternate formatting */
         case '#':
-            alternate_format = true;
+            a.alternate_format = true;
             goto consume_format;
 
         /* Padding width */
         case '0':
             /* If not in a width specifier, treat as flag */
             if (!in_width_format) {
-                pad_zeros = true;
+                a.pad_zeros = true;
                 goto consume_format;
             }
 
@@ -244,47 +290,48 @@ consume_format:
         case '8':
         case '9':
             in_width_format = true;
-            pad_width = pad_width * 10 + (*format - '0');
+            a.pad_width = a.pad_width * 10 + (*format - '0');
             goto consume_format;
 
         /* Print a literal '%' character */
         case '%':
-            strpcatc(&new_buf, '%', &new_size);
+            printf_append_char(&b, '%');
             break;
 
-        /* Print a number in hexadecimal form */
+        /* Print a number in lowercase hexadecimal form */
         case 'x':
-            strpcatu(&new_buf, va_arg(args, uint32_t), 16, &new_size,
-                pad_width, left_align, pad_zeros);
+            printf_do_uint(&b, &a, va_arg(args, uint32_t), 16, false);
+            break;
+
+        /* Print a number in uppercase hexadecimal form */
+        case 'X':
+            printf_do_uint(&b, &a, va_arg(args, uint32_t), 16, true);
             break;
 
         /* Print a number in unsigned decimal form */
         case 'u':
-            strpcatu(&new_buf, va_arg(args, uint32_t), 10, &new_size,
-                pad_width, left_align, pad_zeros);
+            printf_do_uint(&b, &a, va_arg(args, uint32_t), 10, false);
             break;
 
         /* Print a number in signed decimal form */
         case 'd':
         case 'i':
-            strpcatd(&new_buf, va_arg(args, int32_t), 10, &new_size,
-                pad_width, left_align, positive_sign, space_sign, pad_zeros);
+            printf_do_int(&b, &a, va_arg(args, int32_t), 10, false);
             break;
 
         /* Print a number in octal form */
         case 'o':
-            strpcatu(&new_buf, va_arg(args, uint32_t), 8, &new_size,
-                pad_width, left_align, pad_zeros);
+            printf_do_uint(&b, &a, va_arg(args, uint32_t), 8, false);
             break;
 
         /* Print a single character */
         case 'c':
-            strpcatc(&new_buf, (char)va_arg(args, uint32_t), &new_size);
+            printf_do_char(&b, &a, (char)va_arg(args, uint32_t));
             break;
 
         /* Print a NULL-terminated string */
         case 's':
-            strpcats(&new_buf, va_arg(args, const char *), &new_size);
+            printf_do_string(&b, &a, va_arg(args, const char *));
             break;
 
         /* Fail fast on any other characters */
@@ -294,11 +341,11 @@ consume_format:
         }
     }
 
-    /* Return number of chars (excluding NUL) printed */
-    if (new_buf == NULL) {
+    /* Return number of chars (excluding NUL) printed or -1 on error */
+    if (b.buf == NULL) {
         return -1;
     } else {
-        return size - new_size;
+        return size - b.size;
     }
 }
 

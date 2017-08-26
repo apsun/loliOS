@@ -125,7 +125,7 @@ test_utoa(void)
     assert(utoa(42, buf, 10) == buf);
     assert(strcmp(buf, "42") == 0);
     assert(utoa(0xff, buf, 16) == buf);
-    assert(strcmp(buf, "FF") == 0);
+    assert(strcmp(buf, "ff") == 0);
 }
 
 void
@@ -137,7 +137,7 @@ test_itoa(void)
     assert(itoa(-42, buf, 10) == buf);
     assert(strcmp(buf, "-42") == 0);
     assert(itoa(-0xff, buf, 16) == buf);
-    assert(strcmp(buf, "-FF") == 0);
+    assert(strcmp(buf, "-ff") == 0);
     assert(itoa(-2147483647 - 1, buf, 10) == buf);
     assert(strcmp(buf, "-2147483648") == 0);
 }
@@ -224,6 +224,8 @@ test_snprintf(void)
     assert(snprintf(buf, sizeof(buf), "%3d", 10000) == 5);
     assert(strcmp(buf, "10000") == 0);
     assert(snprintf(buf, sizeof(buf), "%-5x", 0xabc) == 5);
+    assert(strcmp(buf, "abc  ") == 0);
+    assert(snprintf(buf, sizeof(buf), "%-5X", 0xabc) == 5);
     assert(strcmp(buf, "ABC  ") == 0);
     assert(snprintf(buf, sizeof(buf), "% d", 10) == 3);
     assert(strcmp(buf, " 10") == 0);
@@ -237,6 +239,12 @@ test_snprintf(void)
     assert(strcmp(buf, "  -10") == 0);
     assert(snprintf(buf, sizeof(buf), "%025d", 10) < 0);
     assert(strcmp(buf, "0000000") == 0);
+    assert(snprintf(buf, sizeof(buf), "%5s", "hi") == 5);
+    assert(strcmp(buf, "   hi") == 0);
+    assert(snprintf(buf, sizeof(buf), "%-5s", "hi") == 5);
+    assert(strcmp(buf, "hi   ") == 0);
+    assert(snprintf(buf, sizeof(buf), "") == 0);
+    assert(strcmp(buf, "") == 0);
 }
 
 void

@@ -199,7 +199,7 @@ utoa(uint32_t value, char *buf, int32_t radix)
     assert(buf != NULL);
     assert(radix >= 2 && radix <= 36);
 
-    const char *lookup = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const char *lookup = "0123456789abcdefghijklmnopqrstuvwxyz";
     char *newbuf = buf;
     uint32_t newval = value;
 
