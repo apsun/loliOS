@@ -156,9 +156,7 @@ write_invalid_buffer(void)
         result = 1;
     }
 
-    /*
-     * Same as read, accept 0 or -1.
-     */
+    /* Same as read, accept 0 or -1. */
     if (write(1, addr, 0) > 0) {
         result = 1;
     }
@@ -280,21 +278,25 @@ set_garbage_ds(void)
 int32_t
 main(void)
 {
-    int32_t result =
-        read_kernel_buffer() +
-        vidmap_kernel_buffer() +
-        open_invalid_string() +
-        execute_invalid_string() +
-        read_invalid_buffer() +
-        write_invalid_buffer() +
-        vidmap_invalid_buffer() +
-        read_large_buffer();
+    #define TEST(x) do {           \
+        if ((ret |= x())) {        \
+            puts(#x " failed!");   \
+        }                          \
+    } while (0)
 
-    if (result == 0) {
+    int32_t ret = 0;
+    TEST(read_kernel_buffer);
+    TEST(vidmap_kernel_buffer);
+    TEST(open_invalid_string);
+    TEST(execute_invalid_string);
+    TEST(read_invalid_buffer);
+    TEST(write_invalid_buffer);
+    TEST(vidmap_invalid_buffer);
+    TEST(read_large_buffer);
+
+    if (!ret) {
         puts("All tests passed!");
-        return 0;
-    } else {
-        puts("One or more tests failed!");
-        return 1;
     }
+
+    return 0;
 }
