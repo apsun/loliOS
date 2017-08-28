@@ -239,7 +239,7 @@ taux_ioctl_set_led(uint32_t arg)
 static int32_t
 taux_ioctl_set_led_str(uint32_t arg)
 {
-    /* Read 4 chars from provided pointer */
+    /* Check user pointer validity */
     const char *ptr = (const char *)arg;
     if (!is_user_readable_string(ptr)) {
         debugf("Invalid pointer; cannot read string\n");
