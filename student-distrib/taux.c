@@ -128,6 +128,10 @@ taux_convert_set_led_str(const char *str, uint8_t buf[4])
             } else {
                 return -1;
             }
+
+            if (seg == 0) {
+                return -1;
+            }
         }
 
         /* If next char in string is a decimal point, turn on DP LED */

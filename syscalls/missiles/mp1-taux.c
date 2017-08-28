@@ -59,7 +59,7 @@ taux_display_coords(int32_t taux_fd, int32_t x, int32_t y)
     packed |= (uint8_t)(y % 10 + y / 10 * 16);
     packed |= (uint8_t)(x % 10 + x / 10 * 16) << 8;
     packed |= 0xf << 16; /* All LEDs on */
-    packed |= 0x2 << 24; /* Decimal point in middle */
+    packed |= 0x4 << 24; /* Decimal point in middle */
 
     if (ioctl(taux_fd, TUX_SET_LED, packed) < 0) {
         assert(0);
