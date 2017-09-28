@@ -117,7 +117,7 @@ paging_init_registers(void)
         /* Point PDR to page directory */
         "movl %%cr3, %%eax;"
         "andl $0x00000fff, %%eax;"
-        "orl $page_dir, %%eax;"
+        "orl %0, %%eax;"
         "movl %%eax, %%cr3;"
         
         /* Enable 4MB pages */
@@ -130,7 +130,7 @@ paging_init_registers(void)
         "orl $0x80000000, %%eax;"
         "movl %%eax, %%cr0;"
         :
-        :
+        : "g"(&page_dir)
         : "eax", "cc");
 }
 

@@ -386,7 +386,7 @@ process_run_impl(pcb_t *pcb)
         : "eax", "cc");
 
     /* Can't touch this */
-    ASSERT(0);
+    PANIC("Should not have returned from iret");
     return -1;
 }
 
@@ -549,7 +549,7 @@ process_halt_impl(uint32_t status)
         process_execute_impl("shell", NULL, child_pcb->terminal);
 
         /* Should never get back to this point */
-        ASSERT(0);
+        PANIC("Should not have returned from shell");
     }
 
     /* Mark parent as runnable again */
@@ -578,7 +578,7 @@ process_halt_impl(uint32_t status)
         : "eax");
 
     /* Should never get here! */
-    ASSERT(0);
+    PANIC("Should not have returned from halt");
     return -1;
 }
 

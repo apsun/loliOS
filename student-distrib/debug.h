@@ -11,14 +11,19 @@
 /* Whether to enable debugf printing */
 #define DEBUG_PRINT 0
 
+/* Always-enabled panic macro */
+#define PANIC(msg) do {                                    \
+    cli();                                                 \
+    printf("%s:%d: PANIC: %s\n", __FILE__, __LINE__, msg); \
+    loop();                                                \
+} while (0)
+
 #if DEBUG_ASSERT
 
-#define ASSERT(x) do {                                                   \
-    if(!(x)) {                                                           \
-        cli();                                                           \
-        printf("%s:%d: Assertion failed: %s\n", __FILE__, __LINE__, #x); \
-        loop();                                                          \
-    }                                                                    \
+#define ASSERT(x) do {                  \
+    if(!(x)) {                          \
+        PANIC("Assertion failed: " #x); \
+    }                                   \
 } while(0)
 
 #else /* DEBUG_ASSERT */

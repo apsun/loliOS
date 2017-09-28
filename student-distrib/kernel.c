@@ -197,8 +197,5 @@ entry(unsigned long magic, unsigned long addr)
     process_start_shell();
 
     /* Shouldn't get here... */
-    ASSERT(0);
-
-    /* Spin (nicely, so we don't chew up cycles) */
-    loop();
+    PANIC("Should not have returned from shell");
 }

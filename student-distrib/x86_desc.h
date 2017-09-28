@@ -188,9 +188,9 @@ do {                                    \
  * the base address of the IDT. */
 #define lidt(desc)                      \
 do {                                    \
-    asm volatile("lidt (%0)"            \
+    asm volatile("lidt %0"              \
             :                           \
-            : "g" (desc)                \
+            : "m" (desc)                \
             : "memory");                \
 } while(0)
 
