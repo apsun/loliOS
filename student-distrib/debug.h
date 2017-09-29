@@ -21,7 +21,7 @@
 #if DEBUG_ASSERT
 
 #define ASSERT(x) do {                  \
-    if(!(x)) {                          \
+    if (!(x)) {                         \
         PANIC("Assertion failed: " #x); \
     }                                   \
 } while(0)
