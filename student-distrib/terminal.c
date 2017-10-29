@@ -392,7 +392,10 @@ terminal_stdin_read(file_obj_t *file, void *buf, int32_t nbytes)
     }
 
     /* Shift remaining characters to the front of the buffer */
-    memmove((void *)&input_buf->buf[0], (void *)&input_buf->buf[nbytes], nbytes);
+    memmove(
+        (void *)&input_buf->buf[0],
+        (void *)&input_buf->buf[nbytes],
+        sizeof(input_buf->buf) - nbytes);
     input_buf->count -= nbytes;
 
     /* nbytes holds the number of characters read */
@@ -636,7 +639,7 @@ terminal_handle_mouse_input(mouse_input_t input)
 /*
  * Updates the vidmap page to point to the specified terminal's
  * active video memory page. If present is false, the vidmap page
- * is disabled. Returns the address of the vidmap page.
+ * is disabled.
  */
 void
 terminal_update_vidmap(int32_t term_index, bool present)
