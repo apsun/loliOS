@@ -20,6 +20,10 @@
 /* Number of KNOWN exceptions in the IDT */
 #define NUM_EXC 20
 
+/* IDT gate types */
+#define GATE_INTERRUPT 0xE
+#define GATE_TRAP 0xF
+
 #ifndef ASM
 
 /* This structure is used to load descriptor base registers

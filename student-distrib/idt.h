@@ -3,10 +3,6 @@
 
 #include "types.h"
 
-/* Gate types */
-#define GATE_INTERRUPT 0xE
-#define GATE_TRAP 0xF
-
 /* Interrupt codes */
 #define EXC_DE 0
 #define EXC_DB 1

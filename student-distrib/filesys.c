@@ -3,8 +3,8 @@
 #include "debug.h"
 
 /* Macros to access inode/data blocks */
-#define FS_INODE(idx) ((inode_t *)(fs_boot_block + 1 + idx))
-#define FS_DATA(idx) ((uint8_t *)(fs_boot_block + 1 + fs_boot_block->stat.inode_count + idx))
+#define FS_INODE(idx) ((inode_t *)(fs_boot_block + 1 + (idx)))
+#define FS_DATA(idx) ((uint8_t *)(fs_boot_block + 1 + fs_boot_block->stat.inode_count + (idx)))
 
 /* Holds the address of the boot block */
 static boot_block_t *fs_boot_block = NULL;

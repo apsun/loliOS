@@ -229,6 +229,7 @@ file_close(int32_t fd)
     return 0;
 }
 
+/* ioctl() syscall handler */
 __cdecl int32_t
 file_ioctl(int32_t fd, uint32_t req, uint32_t arg)
 {
