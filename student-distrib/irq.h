@@ -11,14 +11,14 @@
 #define IRQ_KEYBOARD 1
 #define IRQ_COM2     3
 #define IRQ_COM1     4
+#define IRQ_SB16     5
 #define IRQ_RTC      8
 #define IRQ_MOUSE    12
 
 #ifndef ASM
 
 /* IRQ handler */
-typedef struct irq_handler_t
-{
+typedef struct irq_handler_t {
     /* Callback to run when the interrupt occurs */
     void (*callback)(void);
 } irq_handler_t;

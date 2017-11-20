@@ -6,6 +6,7 @@
 #include "terminal.h"
 #include "process.h"
 #include "taux.h"
+#include "sb16.h"
 
 /* Terminal stdin file ops */
 static file_ops_t fops_stdin = {
@@ -70,6 +71,15 @@ static file_ops_t fops_taux = {
     .ioctl = taux_ioctl,
 };
 
+/* Sound Blaster 16 file ops */
+static file_ops_t fops_sb16 = {
+    .open = sb16_open,
+    .read = sb16_read,
+    .write = sb16_write,
+    .close = sb16_close,
+    .ioctl = sb16_ioctl,
+};
+
 /* Initializes the file object from the given dentry */
 static bool
 init_file_obj(file_obj_t *file, dentry_t *dentry)
@@ -89,6 +99,9 @@ init_file_obj(file_obj_t *file, dentry_t *dentry)
         break;
     case FTYPE_TAUX:
         file->ops_table = &fops_taux;
+        break;
+    case FTYPE_SOUND:
+        file->ops_table = &fops_sb16;
         break;
     default:
         debugf("Unknown file type: %d\n", dentry->type);

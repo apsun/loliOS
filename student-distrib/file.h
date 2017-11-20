@@ -13,6 +13,7 @@
 #define FTYPE_FILE 2
 #define FTYPE_MOUSE 3
 #define FTYPE_TAUX 4
+#define FTYPE_SOUND 5
 
 #ifndef ASM
 
@@ -36,8 +37,7 @@ typedef struct {
      * file when enumerating. For files, this is the
      * *offset in bytes* of the current file position.
      * For the RTC, this holds the virtual interrupt
-     * frequency. For the mouse, this holds the index
-     * of the corresponding input buffer.
+     * frequency.
      */
     uint32_t offset;
 

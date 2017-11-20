@@ -24,12 +24,14 @@ class FileInfo:
             self.file_type = 3
         elif file_name == 'taux':
             self.file_type = 4
+        elif file_name == 'sound':
+            self.file_type = 5
         elif file_name == '.':
             self.file_type = 1
         else:
             self.file_type = 2
 
-        if file_name in ('.', 'rtc', 'mouse', 'taux'):
+        if file_name in ('.', 'rtc', 'mouse', 'taux', 'sound'):
             self.file_size = 0
         else:
             self.file_size = os.path.getsize(os.path.join(dir_name, file_name))
@@ -106,8 +108,8 @@ def _main():
     if not os.path.isfile(os.path.join(arg_input, 'taux')):
         open(os.path.join(arg_input, 'taux'), 'w').close()
 
-    # if not os.path.isfile(os.path.join(arg_input, 'audio')):
-    #     open(os.path.join(arg_input, 'audio'), 'w').close()
+    if not os.path.isfile(os.path.join(arg_input, 'sound')):
+        open(os.path.join(arg_input, 'sound'), 'w').close()
 
     f = open(os.path.join(arg_input, 'created.txt'), 'w')
     f.write('%s\n' % (time.strftime('%Y-%m-%d, %H:%M:%S', time.localtime())))
@@ -121,8 +123,8 @@ def _main():
     ])
 
     fs_dentry_num = len(fs_file_names)
-    if fs_dentry_num > 61:
-        print 'error: too many files, max is 61 (including ".", "rtc", "mouse", and "taux")\n'
+    if fs_dentry_num > 63:
+        print 'error: too many files, max is 63 (including ".", "rtc", "mouse", "taux", and "sound")\n'
         sys.exit(1)
 
     # create some unused inodes, since the max inode in use will be the
@@ -149,7 +151,7 @@ def _main():
     for file_name in fs_file_names:
 
         # directory and device files don't have an inode
-        if file_name in ('.', 'rtc', 'mouse', 'taux'):
+        if file_name in ('.', 'rtc', 'mouse', 'taux', 'sound'):
             inode = 0
         else:
             inode = random.choice(fs_inode_list)
@@ -289,6 +291,7 @@ def _main():
         os.remove(os.path.join(arg_input, 'rtc'))
         os.remove(os.path.join(arg_input, 'mouse'))
         os.remove(os.path.join(arg_input, 'taux'))
+        os.remove(os.path.join(arg_input, 'sound'))
         os.remove(os.path.join(arg_input, 'created.txt'))
     except:
         pass
