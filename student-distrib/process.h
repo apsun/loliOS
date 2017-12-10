@@ -8,7 +8,7 @@
 #include "signal.h"
 
 /* Maximum argument length, including the NUL terminator */
-#define MAX_ARGS_LEN 1024
+#define MAX_ARGS_LEN 128
 
 /* Maximum number of processes */
 #define MAX_PROCESSES 6
