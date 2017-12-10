@@ -39,7 +39,7 @@ typedef struct {
     uint8_t global         : 1;
     uint8_t avail          : 3;
     uint32_t base_addr     : 20;
-} __attribute__((packed)) page_table_entry_4kb_t;
+} __packed page_table_entry_4kb_t;
 
 /* Structure for 4KB page directory entry */
 typedef struct {
@@ -54,7 +54,7 @@ typedef struct {
     uint8_t global         : 1;
     uint8_t avail          : 3;
     uint32_t base_addr     : 20;
-} __attribute__((packed)) page_dir_entry_4kb_t;
+} __packed page_dir_entry_4kb_t;
 
 /* Structure for 4MB page directory entry */
 typedef struct {
@@ -71,7 +71,7 @@ typedef struct {
     uint8_t page_attr_idx  : 1;
     uint16_t reserved      : 9;
     uint16_t base_addr     : 10;
-} __attribute__((packed)) page_dir_entry_4mb_t;
+} __packed page_dir_entry_4mb_t;
 
 /* Union of 4MB page table and 4KB page directory entries */
 typedef union {

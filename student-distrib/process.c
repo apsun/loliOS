@@ -14,7 +14,7 @@
 static pcb_t process_info[MAX_PROCESSES];
 
 /* Kernel stack + pointer to PCB, one for each process */
-__attribute__((aligned(PROCESS_DATA_SIZE)))
+__aligned(PROCESS_DATA_SIZE)
 static process_data_t process_data[MAX_PROCESSES];
 
 /*
@@ -303,14 +303,12 @@ process_set_context(pcb_t *to)
 
 /*
  * Jumps into userspace and executes the specified process.
- *
- * This is annotated with __cdecl since we rely on the return
- * value being placed into EAX, not by this function, but by
- * process_halt_impl.
  */
-__used __cdecl static int32_t
-process_run_impl(pcb_t *pcb)
+__noinline static int32_t
+process_run(pcb_t *pcb)
 {
+    int32_t ret;
+
     ASSERT(pcb != NULL);
     ASSERT(pcb->pid >= 0);
 
@@ -325,46 +323,41 @@ process_run_impl(pcb_t *pcb)
 
     /*
      * Save ESP and EBP of the current call frame so that we
-     * can safely return from halt() inside the child.
+     * can safely return from halt() inside the child, then
+     * jump into userspace and execute.
      *
      * DO NOT MODIFY ANY CODE HERE UNLESS YOU ARE 100% SURE
      * ABOUT WHAT YOU ARE DOING!
      */
     asm volatile(
-        "movl %%esp, %0;"
-        "movl %%ebp, %1;"
-        : "=g"(pcb->parent_esp),
-          "=g"(pcb->parent_ebp)
-        :
-        : "memory");
+        /* Save ESP and EBP */
+        "movl %%esp, (%1);"
+        "movl %%ebp, (%2);"
 
-    /* Jump into userspace and execute */
-    asm volatile(
         /* Segment registers */
-        "movw %1, %%ax;"
+        "movw %4, %%ax;"
         "movw %%ax, %%ds;"
         "movw %%ax, %%es;"
         "movw %%ax, %%fs;"
         "movw %%ax, %%gs;"
 
         /* SS register */
-        "pushl %1;"
+        "pushl %4;"
 
         /* ESP */
-        "pushl %2;"
+        "pushl %5;"
 
         /* EFLAGS */
         "pushfl;"
         "popl %%eax;"
-        "andl $0xfffffbff, %%eax;" /* Clear DF */
         "orl $0x200, %%eax;" /* Set IF */
         "pushl %%eax;"
 
         /* CS register */
-        "pushl %3;"
+        "pushl %6;"
 
         /* EIP */
-        "pushl %0;"
+        "pushl %3;"
 
         /* Zero all general purpose registers for security */
         "xorl %%eax, %%eax;"
@@ -378,39 +371,18 @@ process_run_impl(pcb_t *pcb)
         /* GO! */
         "iret;"
 
-        : /* No outputs */
-        : "r"(pcb->entry_point),
+        /* Get back here from halt */
+        "process_run_ret:"
+
+        : "=a"(ret)
+        : "b"(&pcb->parent_esp),
+          "c"(&pcb->parent_ebp),
+          "d"(pcb->entry_point),
           "i"(USER_DS),
           "i"(USER_PAGE_END),
           "i"(USER_CS)
-        : "eax", "cc");
+        : "esi", "edi", "cc", "memory");
 
-    /* Can't touch this */
-    PANIC("Should not have returned from iret");
-    return -1;
-}
-
-/*
- * Wrapper function for process_run_impl that takes care of clobbering
- * the appropriate registers.
- */
-static int32_t
-process_run(pcb_t *pcb)
-{
-    /*
-     * Since we can't rely on anything other than EAX,
-     * ESP, and EBP being intact when we "return" from
-     * process_run_impl, we explicitly clobber them so GCC
-     * knows to save them somewhere.
-     */
-    int32_t ret;
-    asm volatile(
-        "pushl %1;"
-        "call process_run_impl;"
-        "addl $4, %%esp;"
-        : "=a"(ret)
-        : "g"(pcb)
-        : "ebx", "ecx", "edx", "esi", "edi", "cc");
     return ret;
 }
 
@@ -559,8 +531,8 @@ process_halt_impl(uint32_t status)
     process_set_context(parent_pcb);
 
     /*
-     * This "returns" from the PARENT'S process_run_impl call frame
-     * by restoring its esp/ebp and executing leave + ret.
+     * This returns back into the PARENT'S process_run call frame
+     * by restoring its esp/ebp and doing a cross-function JMP.
      *
      * DO NOT MODIFY ANY CODE HERE UNLESS YOU ARE 100% SURE
      * ABOUT WHAT YOU ARE DOING!
@@ -569,8 +541,7 @@ process_halt_impl(uint32_t status)
         "movl %1, %%esp;"
         "movl %2, %%ebp;"
         "movl %0, %%eax;"
-        "leave;"
-        "ret;"
+        "jmp process_run_ret;"
         :
         : "r"(status),
           "r"(child_pcb->parent_esp),
@@ -645,7 +616,7 @@ process_switch(void)
         "call process_switch_impl;"
         :
         :
-        : "eax", "ebx", "ecx", "edx", "esi", "edi", "cc");
+        : "eax", "ebx", "ecx", "edx", "esi", "edi", "cc", "memory");
 }
 
 /* halt() syscall handler */

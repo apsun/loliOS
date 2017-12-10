@@ -1,4 +1,4 @@
-CFLAGS += -Ilolibc -Wall -Wextra -ffreestanding -fno-stack-protector -O2 -m32
+CFLAGS += -Ilolibc -Wall -Wextra -ffreestanding -fno-stack-protector -O3 -m32
 ASFLAGS += -Ilolibc -Wall -Wextra -m32
 LDFLAGS += -nostdlib -static -m32
 
@@ -7,10 +7,9 @@ LOLIBC_OBJ = $(call objs,lolibc)
 MISSILES_OBJ = $(call objs,missiles)
 FISH_OBJ = $(call objs,fish)
 
-ELF_BIN = $(patsubst %.c,to_fsdir/%.elf,$(wildcard *.c))
-ELF_BIN += to_fsdir/missiles.elf
-ELF_BIN += to_fsdir/fish.elf
-OUT_BIN = $(patsubst to_fsdir/%.elf,to_fsdir/%,$(ELF_BIN))
+OUT_BIN = $(patsubst %.c,to_fsdir/%,$(wildcard *.c))
+OUT_BIN += to_fsdir/missiles
+OUT_BIN += to_fsdir/fish
 
 .PHONY: all
 all: $(OUT_BIN)

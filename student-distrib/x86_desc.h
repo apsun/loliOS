@@ -52,12 +52,12 @@ typedef struct seg_desc {
             uint32_t opsize : 1;
             uint32_t granularity : 1;
             uint8_t base_31_24;
-        } __attribute__((packed));
+        } __packed;
     };
 } seg_desc_t;
 
 /* TSS structure */
-typedef struct __attribute__((packed)) tss_t {
+typedef struct __packed tss_t {
     uint16_t prev_task_link;
     uint16_t prev_task_link_pad;
 
@@ -158,7 +158,7 @@ typedef union idt_desc_t {
         uint8_t dpl         : 2;
         uint8_t present     : 1;
         uint16_t offset_31_16;
-    } __attribute__((packed));
+    } __packed;
 } idt_desc_t;
 
 /* The IDT itself (declared in x86_desc.S */

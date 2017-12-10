@@ -2,22 +2,23 @@
 #include "debug.h"
 #include "terminal.h"
 
-#define TO_4MB_BASE(x) (((uint32_t)x) >> 22)
-#define TO_4KB_BASE(x) (((uint32_t)x) >> 12)
+#define TO_4MB_BASE(x) (((uint32_t)(x)) >> 22)
+#define TO_4KB_BASE(x) (((uint32_t)(x)) >> 12)
 
-#define TO_DIR_INDEX(x) (((uint32_t)x) >> 22)
-#define TO_TABLE_INDEX(x) ((((uint32_t)x) >> 12) & 0x3ff)
-
-#define ALIGN_4KB __attribute__((aligned(KB(4))))
+#define TO_DIR_INDEX(x) (((uint32_t)(x)) >> 22)
+#define TO_TABLE_INDEX(x) ((((uint32_t)(x)) >> 12) & 0x3ff)
 
 /* Page directory */
-static ALIGN_4KB page_dir_entry_t page_dir[1024];
+__aligned(KB(4))
+static page_dir_entry_t page_dir[1024];
 
 /* Page table for first 4MB of memory */
-static ALIGN_4KB page_table_entry_4kb_t page_table[1024];
+__aligned(KB(4))
+static page_table_entry_4kb_t page_table[1024];
 
 /* Page table for vidmap area */
-static ALIGN_4KB page_table_entry_4kb_t page_table_vidmap[1024];
+__aligned(KB(4))
+static page_table_entry_4kb_t page_table_vidmap[1024];
 
 /* Helpful macros to access page table stuff */
 #define DIR_4KB(addr) (&page_dir[TO_DIR_INDEX(addr)].dir_4kb)

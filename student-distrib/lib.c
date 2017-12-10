@@ -179,16 +179,16 @@ void *
 memset(void *s, uint8_t c, int32_t n)
 {
     asm volatile("              \n\
-        .memset_top:            \n\
+        1:                      \n\
         testl   %%ecx, %%ecx    \n\
-        jz      .memset_done    \n\
+        jz      4f              \n\
         testl   $0x3, %%edi     \n\
-        jz      .memset_aligned \n\
+        jz      2f              \n\
         movb    %%al, (%%edi)   \n\
         addl    $1, %%edi       \n\
         subl    $1, %%ecx       \n\
-        jmp     .memset_top     \n\
-        .memset_aligned:        \n\
+        jmp     1b              \n\
+        2:                      \n\
         movw    %%ds, %%dx      \n\
         movw    %%dx, %%es      \n\
         movl    %%ecx, %%edx    \n\
@@ -196,14 +196,14 @@ memset(void *s, uint8_t c, int32_t n)
         andl    $0x3, %%edx     \n\
         cld                     \n\
         rep     stosl           \n\
-        .memset_bottom:         \n\
+        3:                      \n\
         testl   %%edx, %%edx    \n\
-        jz      .memset_done    \n\
+        jz      4f              \n\
         movb    %%al, (%%edi)   \n\
         addl    $1, %%edi       \n\
         subl    $1, %%edx       \n\
-        jmp     .memset_bottom  \n\
-        .memset_done:           \n"
+        jmp     3b              \n\
+        4:                      \n"
         :
         : "a"(c << 24 | c << 16 | c << 8 | c), "D"(s), "c"(n)
         : "edx", "memory", "cc");
@@ -259,18 +259,18 @@ void *
 memcpy(void *dest, const void *src, int32_t n)
 {
     asm volatile("              \n\
-        .memcpy_top:            \n\
+        1:                      \n\
         testl   %%ecx, %%ecx    \n\
-        jz      .memcpy_done    \n\
+        jz      4f              \n\
         testl   $0x3, %%edi     \n\
-        jz      .memcpy_aligned \n\
+        jz      2f              \n\
         movb    (%%esi), %%al   \n\
         movb    %%al, (%%edi)   \n\
         addl    $1, %%edi       \n\
         addl    $1, %%esi       \n\
         subl    $1, %%ecx       \n\
-        jmp     .memcpy_top     \n\
-        .memcpy_aligned:        \n\
+        jmp     1b              \n\
+        2:                      \n\
         movw    %%ds, %%dx      \n\
         movw    %%dx, %%es      \n\
         movl    %%ecx, %%edx    \n\
@@ -278,16 +278,16 @@ memcpy(void *dest, const void *src, int32_t n)
         andl    $0x3, %%edx     \n\
         cld                     \n\
         rep     movsl           \n\
-        .memcpy_bottom:         \n\
+        3:                      \n\
         testl   %%edx, %%edx    \n\
-        jz      .memcpy_done    \n\
+        jz      4f              \n\
         movb    (%%esi), %%al   \n\
         movb    %%al, (%%edi)   \n\
         addl    $1, %%edi       \n\
         addl    $1, %%esi       \n\
         subl    $1, %%edx       \n\
-        jmp     .memcpy_bottom  \n\
-        .memcpy_done:           \n"
+        jmp     3b              \n\
+        4:                      \n"
         :
         : "S"(src), "D"(dest), "c"(n)
         : "eax", "edx", "memory", "cc");
@@ -307,11 +307,11 @@ memmove(void *dest, const void *src, int32_t n)
         movw    %%dx, %%es                 \n\
         cld                                \n\
         cmp     %%edi, %%esi               \n\
-        jae     .memmove_go                \n\
+        jae     1f                         \n\
         leal    -1(%%esi, %%ecx), %%esi    \n\
         leal    -1(%%edi, %%ecx), %%edi    \n\
         std                                \n\
-        .memmove_go:                       \n\
+        1:                                 \n\
         rep     movsb                      \n"
         :
         : "D"(dest), "S"(src), "c"(n)

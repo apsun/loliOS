@@ -48,7 +48,7 @@ typedef union {
         uint8_t line_status      : 1;
         uint8_t modem_status     : 1;
         uint8_t reserved         : 4;
-    } __attribute__((packed));
+    } __packed;
     uint8_t raw;
 } serial_int_enable_t;
 
@@ -61,7 +61,7 @@ typedef union {
         uint8_t dma_mode      : 1;
         uint8_t reserved      : 2;
         uint8_t trigger_level : 2;
-    } __attribute__((packed));
+    } __packed;
     uint8_t raw;
 } serial_fifo_ctrl_t;
 
@@ -73,7 +73,7 @@ typedef union {
         uint8_t parity    : 3;
         uint8_t reserved  : 1;
         uint8_t dlab      : 1;
-    } __attribute__((packed));
+    } __packed;
     uint8_t raw;
 } serial_line_ctrl_t;
 
@@ -88,7 +88,7 @@ typedef union {
         uint8_t empty_tx_holding   : 1;
         uint8_t empty_data_holding : 1;
         uint8_t rx_error           : 1;
-    } __attribute__((packed));
+    } __packed;
     uint8_t raw;
 } serial_line_status_t;
 
@@ -102,7 +102,7 @@ typedef union {
         uint8_t loopback            : 1;
         uint8_t autoflow_control    : 1;
         uint8_t reserved            : 2;
-    } __attribute__((packed));
+    } __packed;
     uint8_t raw;
 } serial_modem_ctrl_t;
 

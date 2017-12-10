@@ -3,6 +3,8 @@
 
 #include "types.h"
 
+#ifndef ASM
+
 /* String functions */
 int32_t strlen(const char *s);
 int32_t strcmp(const char *s1, const char *s2);
@@ -204,5 +206,7 @@ inl(uint16_t port)
         "movl %%" name ", %0;"         \
         : "=m"(dest));                 \
 } while (0)
+
+#endif /* ASM */
 
 #endif /* _LIB_H */

@@ -10,6 +10,13 @@
 
 #ifndef ASM
 
+/* Commonly used attributes */
+#define __cdecl __attribute__((cdecl))
+#define __used __attribute__((used))
+#define __noinline __attribute__((noinline))
+#define __packed __attribute__((packed))
+#define __aligned(x) __attribute__((aligned(x)))
+
 /* Types defined here just like in <stdint.h> */
 typedef int int32_t;
 typedef unsigned int uint32_t;
