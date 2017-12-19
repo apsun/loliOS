@@ -143,8 +143,9 @@ terminal_write_char(terminal_state_t *term, char c)
 {
     int32_t x = term->cursor.screen_x;
     int32_t y = term->cursor.screen_y;
-    term->video_mem[((y * NUM_COLS + x) << 1) + 0] = c;
-    term->video_mem[((y * NUM_COLS + x) << 1) + 1] = ATTRIB;
+    int32_t offset = (y * NUM_COLS + x) << 1;
+    term->video_mem[offset + 0] = c;
+    term->video_mem[offset + 1] = ATTRIB;
 }
 
 /*
@@ -395,7 +396,7 @@ terminal_stdin_read(file_obj_t *file, void *buf, int32_t nbytes)
     memmove(
         (void *)&input_buf->buf[0],
         (void *)&input_buf->buf[nbytes],
-        sizeof(input_buf->buf) - nbytes);
+        input_buf->count - nbytes);
     input_buf->count -= nbytes;
 
     /* nbytes holds the number of characters read */
