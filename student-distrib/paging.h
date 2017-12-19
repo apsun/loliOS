@@ -7,6 +7,9 @@
 #define KB(x) ((x) * 1024)
 #define MB(x) ((x) * 1024 * 1024)
 
+#define ISA_DMA_PAGE_START  0x000A0000
+#define ISA_DMA_PAGE_END    0x000B0000
+
 #define VIDEO_PAGE_START    0x000B8000
 #define VIDEO_PAGE_END      0x000B9000
 
@@ -39,7 +42,7 @@ typedef struct {
     uint8_t global         : 1;
     uint8_t avail          : 3;
     uint32_t base_addr     : 20;
-} __packed page_table_entry_4kb_t;
+} __packed pte_t;
 
 /* Structure for 4KB page directory entry */
 typedef struct {
@@ -54,7 +57,7 @@ typedef struct {
     uint8_t global         : 1;
     uint8_t avail          : 3;
     uint32_t base_addr     : 20;
-} __packed page_dir_entry_4kb_t;
+} __packed pde_4kb_t;
 
 /* Structure for 4MB page directory entry */
 typedef struct {
@@ -71,13 +74,13 @@ typedef struct {
     uint8_t page_attr_idx  : 1;
     uint16_t reserved      : 9;
     uint16_t base_addr     : 10;
-} __packed page_dir_entry_4mb_t;
+} __packed pde_4mb_t;
 
 /* Union of 4MB page table and 4KB page directory entries */
 typedef union {
-    page_dir_entry_4mb_t dir_4mb;
-    page_dir_entry_4kb_t dir_4kb;
-} page_dir_entry_t;
+    pde_4mb_t dir_4mb;
+    pde_4kb_t dir_4kb;
+} pde_t;
 
 /* Enables paging */
 void paging_enable(void);

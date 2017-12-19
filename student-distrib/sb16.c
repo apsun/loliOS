@@ -2,6 +2,7 @@
 #include "lib.h"
 #include "debug.h"
 #include "irq.h"
+#include "isa.h"
 
 /* Tracks the single open sound file */
 static file_obj_t *open_device = NULL;

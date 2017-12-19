@@ -10,15 +10,15 @@
 
 /* Page directory */
 __aligned(KB(4))
-static page_dir_entry_t page_dir[1024];
+static pde_t page_dir[1024];
 
 /* Page table for first 4MB of memory */
 __aligned(KB(4))
-static page_table_entry_4kb_t page_table[1024];
+static pte_t page_table[1024];
 
 /* Page table for vidmap area */
 __aligned(KB(4))
-static page_table_entry_4kb_t page_table_vidmap[1024];
+static pte_t page_table_vidmap[1024];
 
 /* Helpful macros to access page table stuff */
 #define DIR_4KB(addr) (&page_dir[TO_DIR_INDEX(addr)].dir_4kb)
@@ -26,16 +26,27 @@ static page_table_entry_4kb_t page_table_vidmap[1024];
 #define TABLE(addr) (&page_table[TO_TABLE_INDEX(addr)])
 #define TABLE_VIDMAP(addr) (&page_table_vidmap[TO_TABLE_INDEX(addr)])
 
-/* Initializes the 4MB kernel page */
+/* Initializes the page directory for the first 4MB of memory */
+static void
+paging_init_dir(void)
+{
+    pde_4kb_t *dir = DIR_4KB(0);
+    dir->present = 1;
+    dir->write = 1;
+    dir->user = 0;
+    dir->size = SIZE_4KB;
+    dir->base_addr = TO_4KB_BASE(page_table);
+}
+
+/* Initializes the page directory for the 4MB kernel page */
 static void
 paging_init_kernel(void)
 {
-    page_dir_entry_4mb_t *dir = DIR_4MB(KERNEL_PAGE_START);
+    pde_4mb_t *dir = DIR_4MB(KERNEL_PAGE_START);
     dir->present = 1;
     dir->write = 1;
     dir->user = 0;
     dir->size = SIZE_4MB;
-    dir->global = 1;
     dir->base_addr = TO_4MB_BASE(KERNEL_PAGE_START);
 }
 
@@ -43,34 +54,21 @@ paging_init_kernel(void)
 static void
 paging_init_video(void)
 {
-    page_dir_entry_4kb_t *dir = DIR_4KB(VIDEO_PAGE_START);
-    dir->present = 1;
-    dir->write = 1;
-    dir->user = 0;
-    dir->cache_disabled = 1;
-    dir->size = SIZE_4KB;
-    dir->global = 1;
-    dir->base_addr = TO_4KB_BASE(page_table);
-
     /* Global (VGA) video memory page */
-    page_table_entry_4kb_t *global_table = TABLE(VIDEO_PAGE_START);
+    pte_t *global_table = TABLE(VIDEO_PAGE_START);
     global_table->present = 1;
     global_table->write = 1;
     global_table->user = 0;
-    global_table->cache_disabled = 1;
-    global_table->global = 1;
     global_table->base_addr = TO_4KB_BASE(VIDEO_PAGE_START);
 
     /* Virtual video memory pages, one per terminal */
     int32_t i;
     for (i = 0; i < NUM_TERMINALS; ++i) {
         uint32_t term_addr = TERMINAL_PAGE_START + i * KB(4);
-        page_table_entry_4kb_t *term_table = TABLE(term_addr);
+        pte_t *term_table = TABLE(term_addr);
         term_table->present = 1;
         term_table->write = 1;
         term_table->user = 0;
-        term_table->cache_disabled = 1;
-        term_table->global = 1;
         term_table->base_addr = TO_4KB_BASE(term_addr);
     }
 }
@@ -79,32 +77,43 @@ paging_init_video(void)
 static void
 paging_init_user(void)
 {
-    page_dir_entry_4mb_t *dir = DIR_4MB(USER_PAGE_START);
+    pde_4mb_t *dir = DIR_4MB(USER_PAGE_START);
     dir->present = 1;
     dir->write = 1;
     dir->user = 1;
     dir->size = SIZE_4MB;
-    dir->global = 0;
 }
 
 /* Initializes the 4KB vidmap page */
 static void
 paging_init_vidmap(void)
 {
-    page_dir_entry_4kb_t *dir = DIR_4KB(VIDMAP_PAGE_START);
+    pde_4kb_t *dir = DIR_4KB(VIDMAP_PAGE_START);
     dir->present = 1;
     dir->write = 1;
     dir->user = 1;
-    dir->cache_disabled = 1;
     dir->size = SIZE_4KB;
-    dir->global = 0;
     dir->base_addr = TO_4KB_BASE(page_table_vidmap);
 
-    page_table_entry_4kb_t *table = TABLE_VIDMAP(VIDMAP_PAGE_START);
+    pte_t *table = TABLE_VIDMAP(VIDMAP_PAGE_START);
     table->present = 0;
     table->write = 1;
     table->user = 1;
-    table->cache_disabled = 1;
+}
+
+/* Initializes the 64KB ISA DMA zone pages */
+static void
+paging_init_isa_dma(void)
+{
+    uint32_t addr = ISA_DMA_PAGE_START;
+    while (addr < ISA_DMA_PAGE_END) {
+        pte_t *table = TABLE(addr);
+        table->present = 1;
+        table->write = 1;
+        table->user = 0;
+        table->base_addr = TO_4KB_BASE(addr);
+        addr += KB(4);
+    }
 }
 
 /*
@@ -157,10 +166,12 @@ paging_enable(void)
     ASSERT(((uint32_t)page_table_vidmap & 0xfff) == 0);
 
     /* Initialize page table entries */
+    paging_init_dir();
     paging_init_kernel();
     paging_init_video();
     paging_init_user();
     paging_init_vidmap();
+    paging_init_isa_dma();
 
     /* Set control registers */
     paging_init_registers();
@@ -195,7 +206,7 @@ void
 paging_update_vidmap_page(uint8_t *video_mem, bool present)
 {
     /* Update page table structures */
-    page_table_entry_4kb_t *table = TABLE_VIDMAP(VIDMAP_PAGE_START);
+    pte_t *table = TABLE_VIDMAP(VIDMAP_PAGE_START);
     table->present = present ? 1 : 0;
     table->base_addr = TO_4KB_BASE(video_mem);
 

@@ -145,7 +145,7 @@ keycode_to_ctrl(uint8_t keycode)
 /*
  * Maps a keycode to the corresponding printable character,
  * or '\0' if the character cannot be printed. Note that
- * '\n', '\t', and '\b' are considered "printable characters".
+ * '\n', and '\b' are considered "printable characters".
  */
 static char
 keycode_to_char(uint8_t keycode)
