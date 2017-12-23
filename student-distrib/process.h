@@ -6,6 +6,7 @@
 #include "syscall.h"
 #include "idt.h"
 #include "signal.h"
+#include "paging.h"
 
 /* Maximum argument length, including the NUL terminator */
 #define MAX_ARGS_LEN 128
@@ -120,6 +121,11 @@ typedef struct {
     file_obj_t files[MAX_FILES];
 
     /*
+     * Heap metadata for this process.
+     */
+    paging_heap_t heap;
+
+    /*
      * Arguments passed when creating this process. Will always be
      * NUL-terminated (holds up to MAX_ARGS_LEN - 1 characters).
      */
@@ -146,6 +152,7 @@ __cdecl int32_t process_halt(uint32_t status);
 __cdecl int32_t process_execute(const char *command);
 __cdecl int32_t process_getargs(char *buf, int32_t nbytes);
 __cdecl int32_t process_vidmap(uint8_t **screen_start);
+__cdecl int32_t process_sbrk(int32_t delta);
 
 /* Initializes processes. */
 void process_init(void);

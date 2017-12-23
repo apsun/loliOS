@@ -11,7 +11,6 @@
 #define MAX_MISSILES 64
 
 static jmp_buf memcpy_env;
-static missile_t malloc_buf[MAX_MISSILES];
 
 static void
 segv_handler(void)
@@ -44,19 +43,11 @@ mp1_copy_from_user(void *dest, const void *src, int32_t n)
 ASM_VISIBLE void *
 mp1_malloc(int32_t size)
 {
-    assert(size == sizeof(missile_t));
-    int32_t i;
-    for (i = 0; i < MAX_MISSILES; ++i) {
-        if (malloc_buf[i].c == '\0') {
-            return &malloc_buf[i];
-        }
-    }
-    return NULL;
+    return malloc(size);
 }
 
 ASM_VISIBLE void
 mp1_free(void *ptr)
 {
-    missile_t *m = ptr;
-    m->c = '\0';
+    free(ptr);
 }

@@ -2,6 +2,7 @@
 #define _LOLIBC_STDLIB_H
 
 #include <stdint.h>
+#include <myalloc.h>
 
 void exit(int32_t status);
 int32_t atexit(void (*fn)(void));

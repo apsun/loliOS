@@ -15,6 +15,7 @@
 #define SYS_SIGMASK     12
 #define SYS_IOCTL       13
 #define SYS_TIME        14
+#define SYS_SBRK        15
 
 #define SIG_DIV_ZERO  0
 #define SIG_SEGFAULT  1
@@ -44,6 +45,7 @@ int32_t sigraise(int32_t signum);
 int32_t sigmask(int32_t signum, int32_t action);
 int32_t ioctl(int32_t fd, uint32_t req, uint32_t arg);
 int32_t time(void);
+int32_t sbrk(int32_t delta);
 
 #endif /* ASM */
 

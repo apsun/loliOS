@@ -292,7 +292,7 @@ static void
 process_set_context(pcb_t *to)
 {
     /* Restore process page */
-    paging_update_process_page(to->pid);
+    paging_set_context(to->pid, &to->heap);
 
     /* Restore vidmap status */
     terminal_update_vidmap(to->terminal, to->vidmap);
@@ -430,13 +430,14 @@ process_create_child(const char *command, pcb_t *parent_pcb, int32_t terminal)
     child_pcb->last_alarm = rtc_get_counter();
     signal_init(child_pcb->signals);
     file_init(child_pcb->files);
+    paging_heap_init(&child_pcb->heap);
     strncpy(child_pcb->args, args, MAX_ARGS_LEN);
 
     /* Update PCB pointer in the kernel data for this process */
     process_data[child_pcb->pid].pcb = child_pcb;
 
     /* Copy our program into physical memory */
-    paging_update_process_page(child_pcb->pid);
+    paging_set_context(child_pcb->pid, &child_pcb->heap);
     child_pcb->entry_point = process_load_exe(inode);
 
     return child_pcb;
@@ -509,6 +510,9 @@ process_halt_impl(uint32_t status)
             file_close(i);
         }
     }
+
+    /* Free all heap pages allocated by this process */
+    paging_heap_destroy(&child_pcb->heap);
 
     /* Clear terminal input buffers */
     terminal_clear_input(child_pcb->terminal);
@@ -679,6 +683,14 @@ process_vidmap(uint8_t **screen_start)
     *screen_start = (uint8_t *)VIDMAP_PAGE_START;
 
     return 0;
+}
+
+/* sbrk() syscall handler */
+__cdecl int32_t
+process_sbrk(int32_t delta)
+{
+    pcb_t *pcb = get_executing_pcb();
+    return paging_heap_sbrk(&pcb->heap, delta);
 }
 
 /* Initializes all process control related data */

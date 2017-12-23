@@ -26,6 +26,7 @@ syscall_jump_table:
     .long signal_sigmask
     .long file_ioctl
     .long rtc_time
+    .long process_sbrk
 
 .text
 

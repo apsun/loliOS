@@ -28,6 +28,7 @@ MAKE_SYS(sigraise, SYS_SIGRAISE)
 MAKE_SYS(sigmask, SYS_SIGMASK)
 MAKE_SYS(ioctl, SYS_IOCTL)
 MAKE_SYS(time, SYS_TIME)
+MAKE_SYS(sbrk, SYS_SBRK)
 
 .globl _start
 _start:

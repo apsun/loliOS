@@ -13,7 +13,10 @@
 #define VIDEO_PAGE_START    0x000B8000
 #define VIDEO_PAGE_END      0x000B9000
 
-#define TERMINAL_PAGE_START 0x000BA000
+#define VIDMAP_PAGE_START   0x000B9000
+#define VIDMAP_PAGE_END     0x000BA000
+
+#define TERMINAL_PAGE_START 0x000BB000
 /* End point is determined by the number of terminals */
 
 #define KERNEL_PAGE_START   0x00400000
@@ -22,8 +25,11 @@
 #define USER_PAGE_START     0x08000000
 #define USER_PAGE_END       0x08400000
 
-#define VIDMAP_PAGE_START   0x084B8000
-#define VIDMAP_PAGE_END     0x084B9000
+#define HEAP_PAGE_START     0x08400000
+#define HEAP_PAGE_END       0x10000000
+
+/* Maximum number of pages = physical RAM size - HEAP_PAGE_START */
+#define MAX_HEAP_PAGES ((HEAP_PAGE_END - HEAP_PAGE_START) / (MB(4)))
 
 #ifndef ASM
 
@@ -82,11 +88,35 @@ typedef union {
     pde_4kb_t dir_4kb;
 } pde_t;
 
+/* Container for a process's heap info */
+typedef struct {
+    /* Size of the heap in bytes, might not be a multiple of 4MB */
+    int32_t size;
+
+    /* Number of valid entries in the array below */
+    int32_t num_pages;
+
+    /*
+     * Holds a list of allocated heap pages, represented as
+     * an index offset from HEAP_PAGE_START.
+     */
+    int32_t pages[MAX_HEAP_PAGES];
+} paging_heap_t;
+
 /* Enables paging */
 void paging_enable(void);
 
-/* Updates the process page */
-void paging_update_process_page(int32_t pid);
+/* Initializes a process heap */
+void paging_heap_init(paging_heap_t *heap);
+
+/* Expands or shrinks the data break */
+int32_t paging_heap_sbrk(paging_heap_t *heap, int32_t delta);
+
+/* Frees a process heap */
+void paging_heap_destroy(paging_heap_t *heap);
+
+/* Updates the process pages */
+void paging_set_context(int32_t pid, paging_heap_t *heap);
 
 /* Updates the vidmap page to point to the specified address */
 void paging_update_vidmap_page(uint8_t *video_mem, bool present);
