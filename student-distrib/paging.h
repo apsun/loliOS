@@ -28,8 +28,8 @@
 #define HEAP_PAGE_START     0x08400000
 #define HEAP_PAGE_END       0x10000000
 
-/* Maximum number of pages = physical RAM size - HEAP_PAGE_START */
-#define MAX_HEAP_PAGES ((HEAP_PAGE_END - HEAP_PAGE_START) / (MB(4)))
+#define MAX_HEAP_SIZE (HEAP_PAGE_END - HEAP_PAGE_START)
+#define MAX_HEAP_PAGES (MAX_HEAP_SIZE / (MB(4)))
 
 #ifndef ASM
 

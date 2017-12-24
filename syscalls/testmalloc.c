@@ -1,5 +1,3 @@
-
-
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -8,12 +6,11 @@
 #include <stdio.h>
 #include <syscall.h>
 
-
 #define SMALL_SIZE_MIN 0
 #define SMALL_SIZE_MAX 64
 #define LARGE_SIZE_MIN 512
-#define LARGE_SIZE_MAX 1000000
-#define ITERATION_COUNT 100000
+#define LARGE_SIZE_MAX 8192
+#define ITERATION_COUNT 10000
 #define RAND_RANGE(a, b) ((a) + rand() % ((b) - (a)))
 #define RAND_SIZE() \
     ((rand() & 1) \
@@ -24,6 +21,11 @@ int
 main(void)
 {
     int i;
+
+    /* sbrk correctness checks */
+    assert(sbrk(-2147483647) < 0);
+    assert(sbrk(-2147483647 - 1) < 0);
+    assert(sbrk(2147483647) < 0);
 
     /* 0-sized allocation checks */
     (void)malloc(0);

@@ -253,7 +253,20 @@ paging_heap_sbrk(paging_heap_t *heap, int32_t delta)
     int32_t orig_num_pages = heap->num_pages;
     int32_t orig_brk = HEAP_PAGE_START + orig_size;
 
-    /* TODO: Overflow and bound checks needed here */
+    /* Overflow-aware code below, proceed with caution! */
+
+    /* Upper bound limit (if delta is huge, rhs is negative -> true) */
+    if (delta > 0 && orig_size > MAX_HEAP_SIZE - delta) {
+        debugf("Trying to expand heap beyond virtual capacity\n");
+        return -1;
+    }
+
+    /* Lower bound limit */
+    if (delta == INT_MIN || (delta < 0 && orig_size < -delta)) {
+        debugf("Trying to deallocate more than was allocated\n");
+        return -1;
+    }
+
     int32_t new_size = orig_size + delta;
     int32_t new_num_pages = (new_size + MB(4) - 1) / MB(4);
 
@@ -263,6 +276,8 @@ paging_heap_sbrk(paging_heap_t *heap, int32_t delta)
 
         /* If we don't have enough pages, undo allocation */
         if (page < 0) {
+            debugf("Physical memory exhausted\n");
+
             while (heap->num_pages > orig_num_pages) {
                 int32_t vi = --heap->num_pages;
                 int32_t pi = heap->pages[vi];
