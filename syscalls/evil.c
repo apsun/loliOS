@@ -279,7 +279,8 @@ int32_t
 main(void)
 {
     #define TEST(x) do {           \
-        if ((ret |= x())) {        \
+        if (x()) {                 \
+            ret = 1;               \
             puts(#x " failed!");   \
         }                          \
     } while (0)
