@@ -196,25 +196,15 @@ fs_dir_read(file_obj_t *file, void *buf, int32_t nbytes)
 int32_t
 fs_file_read(file_obj_t *file, void *buf, int32_t nbytes)
 {
-    if (nbytes < 0) {
+    /* Check that the buffer is valid */
+    if (!is_user_accessible(buf, nbytes, true)) {
         return -1;
     }
 
-    /* Copy to an intermediate buffer so we can use copy_to_user */
-    uint8_t tmp[4096];
-    if (nbytes > (int32_t)sizeof(tmp)) {
-        nbytes = (int32_t)sizeof(tmp);
-    }
-
-    /* Copy to intermediate buffer first... */
-    int32_t count = read_data(file->inode_idx, file->offset, tmp, nbytes);
+    /* Read directly into userspace buffer */
+    int32_t count = read_data(file->inode_idx, file->offset, buf, nbytes);
     if (count <= 0) {
         return count;
-    }
-
-    /* ... then copy to userspace. */
-    if (!copy_to_user(buf, tmp, count)) {
-        return -1;
     }
 
     /* Increment byte offset for next read */

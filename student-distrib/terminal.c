@@ -427,21 +427,18 @@ terminal_stdout_read(file_obj_t *file, void *buf, int32_t nbytes)
 int32_t
 terminal_stdout_write(file_obj_t *file, const void *buf, int32_t nbytes)
 {
+    /* Early check, so we don't get partial writes to the terminal */
+    if (!is_user_accessible(buf, nbytes, false)) {
+        return -1;
+    }
+
     const char *src = (const char *)buf;
     terminal_state_t *term = get_executing_terminal();
 
-    /*
-     * Super-lame algorithm: just copy the characters one-by-one.
-     * Note that this causes 0 to be returned even if the whole
-     * buffer is invalid.
-     */
+    /* Print characters to the terminal (don't update cursor) */
     int32_t i;
     for (i = 0; i < nbytes; ++i) {
-        char c;
-        if (!copy_from_user(&c, &src[i], 1)) {
-            break;
-        }
-        terminal_putc_impl(term, c);
+        terminal_putc_impl(term, src[i]);
     }
 
     /* Update cursor position */

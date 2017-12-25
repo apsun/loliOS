@@ -122,6 +122,7 @@ void paging_set_context(int32_t pid, paging_heap_t *heap);
 void paging_update_vidmap_page(uint8_t *video_mem, bool present);
 
 /* User-kernel copy functions */
+bool is_user_accessible(const void *addr, int32_t nbytes, bool write);
 bool strscpy_from_user(char *dest, const char *src, int32_t n);
 bool copy_from_user(void *dest, const void *src, int32_t n);
 bool copy_to_user(void *dest, const void *src, int32_t n);

@@ -2,12 +2,6 @@
 #include "debug.h"
 #include "terminal.h"
 
-#define TO_4MB_BASE(x) (((uint32_t)(x)) >> 22)
-#define TO_4KB_BASE(x) (((uint32_t)(x)) >> 12)
-
-#define TO_DIR_INDEX(x) (((uint32_t)(x)) >> 22)
-#define TO_TABLE_INDEX(x) ((((uint32_t)(x)) >> 12) & 0x3ff)
-
 /* Page directory */
 __aligned(KB(4))
 static pde_t page_dir[1024];
@@ -30,6 +24,11 @@ static pte_t page_table[1024];
  * a bit vector (since there are only 31 heap pages).
  */
 static bool heap_map[MAX_HEAP_PAGES];
+
+#define TO_4MB_BASE(x) (((uint32_t)(x)) >> 22)
+#define TO_4KB_BASE(x) (((uint32_t)(x)) >> 12)
+#define TO_DIR_INDEX(x) (((uint32_t)(x)) >> 22)
+#define TO_TABLE_INDEX(x) ((((uint32_t)(x)) >> 12) & 0x3ff)
 
 /* Helpful macros to access page table stuff */
 #define DIR_4KB(addr) (&page_dir[TO_DIR_INDEX(addr)].dir_4kb)
@@ -369,52 +368,69 @@ paging_update_vidmap_page(uint8_t *video_mem, bool present)
 }
 
 /*
- * Checks whether a userspace buffer is readable, that
- * is, the address is valid and the entire buffer lies
- * within user memory.
+ * Returns whether a single page access would be valid in userspace.
+ * addr should point to some address to check on input. On output,
+ * it will point to the next page that may need to be checked. This
+ * only checks a single byte, since it does not support accesses
+ * spanning multiple pages.
  */
-bool
-is_user_readable(const void *user_buf, int32_t n)
+static bool
+is_page_user_accessible(const void **addrp, bool write)
 {
-    /* Buffer size must be non-negative */
-    if (n < 0) {
+    const char *addr = (const char *)*addrp;
+
+    /* Access page info through the directory */
+    pde_4kb_t *dir = DIR_4KB(addr);
+    if (!dir->present || !dir->user || (!dir->write && write)) {
         return false;
     }
 
-    uint32_t start = (uint32_t)user_buf;
-    uint32_t end = start + (uint32_t)n;
-
-    /* Check for integer overflow */
-    if (end < start) {
-        return false;
+    /* If it's a 4MB page, we're done. */
+    if (dir->size == SIZE_4MB) {
+        *addrp = (const void *)(((uint32_t)addr + MB(4)) & -MB(4));
+        return true;
     }
 
     /*
-     * Buffer must start and end inside the user page.
-     * This is kind of a hacky way to determine whether the
-     * buffer is valid, but the only other alternative is
-     * EAFP which is much worse.
+     * It's a 4KB page so it must be in the first 4MB.
+     * Access it through the single page table.
      */
-    if (start < USER_PAGE_START || end >= USER_PAGE_END) {
+    pte_t *table = TABLE(addr);
+    if (!table->present || !table->user || (!table->write && write)) {
         return false;
     }
 
+    *addrp = (const void *)(((uint32_t)addr + KB(4)) & -KB(4));
     return true;
 }
 
 /*
- * Checks whether a userspace buffer is writable, that
- * is, the address is valid and the entire buffer lies
- * within user memory, and the buffer is user-writable.
+ * Checks whether a memory access would be valid in userspace.
+ * That is, this function will return true iff accessing
+ * the same address in ring 3 would not cause a page fault.
  */
 bool
-is_user_writable(const void *user_buf, int32_t n)
+is_user_accessible(const void *addr, int32_t nbytes, bool write)
 {
-    /*
-     * Everything is in one massive R/W/X page, so we don't
-     * distingush readable and writable memory blocks
-     */
-    return is_user_readable(user_buf, n);
+    /* Negative accesses are obviously impossible */
+    if (nbytes < 0) {
+        return false;
+    }
+
+    /* Check for overflow */
+    uint32_t end = (uint32_t)addr + (uint32_t)nbytes;
+    if (end < (uint32_t)addr) {
+        return false;
+    }
+
+    /* Go through pages and ensure they're all accessible */
+    while ((uint32_t)addr < end) {
+        if (!is_page_user_accessible(&addr, write)) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /*
@@ -426,22 +442,12 @@ is_user_writable(const void *user_buf, int32_t n)
 bool
 strscpy_from_user(char *dest, const char *src, int32_t n)
 {
-    /*
-     * Make sure we start in the user page
-     * (The upper bound check is in the loop)
-     */
-    if ((uint32_t)src < USER_PAGE_START) {
-        return false;
-    }
-
     int32_t i;
     for (i = 0; i < n; ++i) {
-        /* Stop at the end of the user page */
-        if ((uint32_t)(src + i) >= USER_PAGE_END) {
+        if (!is_user_accessible(&src[i], 1, false)) {
             return false;
         }
 
-        /* Copy character, stop after reaching NUL terminator */
         if ((dest[i] = src[i]) == '\0') {
             return true;
         }
@@ -459,7 +465,7 @@ strscpy_from_user(char *dest, const char *src, int32_t n)
 bool
 copy_from_user(void *dest, const void *src, int32_t n)
 {
-    if (!is_user_readable(src, n)) {
+    if (!is_user_accessible(src, n, false)) {
         return false;
     }
 
@@ -475,7 +481,7 @@ copy_from_user(void *dest, const void *src, int32_t n)
 bool
 copy_to_user(void *dest, const void *src, int32_t n)
 {
-    if (!is_user_writable(dest, n)) {
+    if (!is_user_accessible(dest, n, true)) {
         return false;
     }
 

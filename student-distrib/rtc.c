@@ -143,7 +143,7 @@ rtc_read(file_obj_t *file, void *buf, int32_t nbytes)
     uint32_t max_ticks = MAX_RTC_FREQ / file->offset;
 
     /* Wait until we reach the next multiple of max ticks */
-    uint32_t target_counter = (rtc_counter / max_ticks + 1) * max_ticks;
+    uint32_t target_counter = (rtc_counter + max_ticks) & -max_ticks;
 
     /*
      * We should break out of the wait loop early if we receive
