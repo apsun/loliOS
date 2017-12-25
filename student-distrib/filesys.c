@@ -1,6 +1,7 @@
 #include "filesys.h"
 #include "lib.h"
 #include "debug.h"
+#include "paging.h"
 
 /* Macros to access inode/data blocks */
 #define FS_INODE(idx) ((inode_t *)(fs_boot_block + 1 + (idx)))
@@ -15,10 +16,10 @@ static boot_block_t *fs_boot_block = NULL;
  * the same as strcmp(), but limited to at most 32 chars.
  */
 static int32_t
-fs_cmp_name(const char *search_name, const char *file_name)
+fs_namecmp(const char *search_name, const char *file_name)
 {
     int32_t i;
-    for (i = 0; i < FS_MAX_FNAME_LEN; i++) {
+    for (i = 0; i < MAX_FILENAME_LEN; i++) {
         if (search_name[i] != file_name[i] || file_name[i] == '\0') {
             return search_name[i] - file_name[i];
         }
@@ -33,6 +34,22 @@ fs_cmp_name(const char *search_name, const char *file_name)
 }
 
 /*
+ * Returns the length of a file name. This is like
+ * strlen, but will return 32 if no NUL terminator is hit.
+ */
+static int32_t
+fs_namelen(const char *file_name)
+{
+    int32_t i;
+    for (i = 0; i < MAX_FILENAME_LEN; ++i) {
+        if (file_name[i] == '\0') {
+            break;
+        }
+    }
+    return i;
+}
+
+/*
  * Finds a directory entry by name. If the entry is found,
  * it is copied to dentry and 0 is returned; otherwise,
  * -1 is returned.
@@ -43,7 +60,7 @@ read_dentry_by_name(const char *fname, dentry_t *dentry)
     uint32_t i;
     for (i = 0; i < fs_boot_block->stat.dentry_count; ++i) {
         dentry_t* curr_dentry = &fs_boot_block->dir_entries[i];
-        if (fs_cmp_name(fname, curr_dentry->name) == 0) {
+        if (fs_namecmp(fname, curr_dentry->name) == 0) {
             *dentry = *curr_dentry;
             return 0;
         }
@@ -143,38 +160,32 @@ fs_open(const char *filename, file_obj_t *file)
 int32_t
 fs_dir_read(file_obj_t *file, void *buf, int32_t nbytes)
 {
-    /* Ensure buffer is valid */
-    if (!is_user_writable(buf, nbytes)) {
+    if (nbytes < 0) {
         return -1;
     }
 
     /* Read next file dentry, return 0 if no more entries */
-    dentry_t file_dentry;
-    if (read_dentry_by_index(file->offset, &file_dentry) != 0) {
+    dentry_t dentry;
+    if (read_dentry_by_index(file->offset, &dentry) != 0) {
         return 0;
     }
 
-    /* Limit to 32 chars */
-    if (nbytes > FS_MAX_FNAME_LEN) {
-        nbytes = FS_MAX_FNAME_LEN;
+    /* Calculate length so we can copy in one go */
+    int32_t length = fs_namelen(dentry.name);
+    if (nbytes > length) {
+        nbytes = length;
     }
 
-    /* Copy filename directly to userspace buffer */
-    int32_t i;
-    uint8_t *out = (uint8_t *)buf;
-    for (i = 0; i < nbytes; ++i) {
-        uint8_t c = file_dentry.name[i];
-        if (c == '\0') {
-            break;
-        }
-        out[i] = c;
+    /* Perform copy */
+    if (!copy_to_user(buf, dentry.name, nbytes)) {
+        return -1;
     }
 
     /* Increment offset for next read */
     file->offset++;
 
-    /* i = number of chars read, excluding NUL terminator */
-    return i;
+    /* Return number of chars read, excluding NUL terminator */
+    return nbytes;
 }
 
 /*
@@ -185,19 +196,32 @@ fs_dir_read(file_obj_t *file, void *buf, int32_t nbytes)
 int32_t
 fs_file_read(file_obj_t *file, void *buf, int32_t nbytes)
 {
-    /* Ensure buffer is valid */
-    if (!is_user_writable(buf, nbytes)) {
+    if (nbytes < 0) {
         return -1;
     }
 
-    /* Read contents of file directly into userspace buffer */
-    uint32_t read_count = read_data(file->inode_idx, file->offset, buf, nbytes);
+    /* Copy to an intermediate buffer so we can use copy_to_user */
+    uint8_t tmp[4096];
+    if (nbytes > (int32_t)sizeof(tmp)) {
+        nbytes = (int32_t)sizeof(tmp);
+    }
+
+    /* Copy to intermediate buffer first... */
+    int32_t count = read_data(file->inode_idx, file->offset, tmp, nbytes);
+    if (count <= 0) {
+        return count;
+    }
+
+    /* ... then copy to userspace. */
+    if (!copy_to_user(buf, tmp, count)) {
+        return -1;
+    }
 
     /* Increment byte offset for next read */
-    file->offset += read_count;
+    file->offset += count;
 
     /* Return how many bytes we read */
-    return read_count;
+    return count;
 }
 
 /*

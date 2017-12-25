@@ -33,41 +33,55 @@ signal_deliver(signal_info_t *sig, int_regs_t *regs)
     /* Make sure shellcode is 4-byte aligned for stack */
     ASSERT((sizeof(shellcode) & 0x3) == 0);
 
-    /* Holds the userspace stack pointer */
+    /* Two-step copy: first copy to buffer, then copy buffer to userspace */
+    uint8_t buf[
+        sizeof(shellcode) +  /* shellcode */
+        sizeof(int_regs_t) + /* regs */
+        sizeof(int32_t) +    /* signum */
+        sizeof(uint32_t)];   /* return address */
+    uint8_t *bufp = buf + sizeof(buf);
     uint8_t *esp = (uint8_t *)regs->esp;
 
-    /* Push sigreturn linkage onto user stack */
-    esp -= sizeof(shellcode);
-    uint8_t *linkage_addr = esp;
-    if (!copy_to_user(esp, shellcode, sizeof(shellcode))) {
+    /* No way we can fit this onto the user stack, abort! */
+    if ((uint32_t)esp < sizeof(buf)) {
         return false;
     }
+
+    /* Push sigreturn linkage onto user stack */
+    bufp -= sizeof(shellcode);
+    esp -= sizeof(shellcode);
+    memcpy(bufp, shellcode, sizeof(shellcode));
+    uint8_t *shellcode_addr = esp;
+    uint8_t *shellcode_bufp = bufp;
 
     /* Push interrupt context onto user stack */
+    bufp -= sizeof(int_regs_t);
     esp -= sizeof(int_regs_t);
+    memcpy(bufp, regs, sizeof(int_regs_t));
     uint8_t *intregs_addr = esp;
-    if (!copy_to_user(esp, regs, sizeof(int_regs_t))) {
-        return false;
-    }
 
     /* Push signal number onto user stack */
+    bufp -= sizeof(int32_t);
     esp -= sizeof(int32_t);
+    memcpy(bufp, &sig->signum, sizeof(int32_t));
     uint8_t *signum_addr = esp;
-    if (!copy_to_user(esp, &sig->signum, sizeof(int32_t))) {
-        return false;
-    }
 
     /* Push return address (which is sigreturn linkage) onto user stack */
+    bufp -= sizeof(uint32_t);
     esp -= sizeof(uint32_t);
-    if (!copy_to_user(esp, &linkage_addr, sizeof(uint32_t))) {
-        return false;
-    }
+    memcpy(bufp, &shellcode_addr, sizeof(uint32_t));
 
     /* Fill in shellcode values */
     int32_t syscall_num = SYS_SIGRETURN;
-    copy_to_user(linkage_addr + 1, &syscall_num, 4);
-    copy_to_user(linkage_addr + 6, signum_addr, 4);
-    copy_to_user(linkage_addr + 11, &intregs_addr, 4);
+    memcpy(shellcode_bufp + 1, &syscall_num, 4);
+    memcpy(shellcode_bufp + 6, signum_addr, 4);
+    memcpy(shellcode_bufp + 11, &intregs_addr, 4);
+
+    /* Copy everything into userspace */
+    ASSERT(bufp == buf);
+    if (!copy_to_user(esp, bufp, sizeof(buf))) {
+        return false;
+    }
 
     /* Change EIP of userspace program to the signal handler */
     regs->eip = (uint32_t)sig->handler_addr;

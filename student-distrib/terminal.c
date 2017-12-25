@@ -362,8 +362,7 @@ terminal_kbd_open(const char *filename, file_obj_t *file)
 int32_t
 terminal_stdin_read(file_obj_t *file, void *buf, int32_t nbytes)
 {
-    /* Ensure buffer is valid */
-    if (!is_user_writable(buf, nbytes)) {
+    if (nbytes < 0) {
         return -1;
     }
 
@@ -423,34 +422,33 @@ terminal_stdout_read(file_obj_t *file, void *buf, int32_t nbytes)
 
 /*
  * Write syscall for the terminal (stdout). Echos the characters
- * in buf to the terminal. The buffer should not contain any
- * NUL characters. Returns the number of characters written.
+ * in buf to the terminal. Returns the number of characters written.
  */
 int32_t
 terminal_stdout_write(file_obj_t *file, const void *buf, int32_t nbytes)
 {
-    /*
-     * Ensure the entire buffer is readable
-     * before we begin, since we shouldn't have
-     * partial writes to the terminal
-     */
-    if (!is_user_readable(buf, nbytes)) {
-        return -1;
-    }
-
     const char *src = (const char *)buf;
     terminal_state_t *term = get_executing_terminal();
 
-    /* Print characters to the terminal (don't update cursor) */
+    /*
+     * Super-lame algorithm: just copy the characters one-by-one.
+     * Note that this causes 0 to be returned even if the whole
+     * buffer is invalid.
+     */
     int32_t i;
     for (i = 0; i < nbytes; ++i) {
-        terminal_putc_impl(term, src[i]);
+        char c;
+        if (!copy_from_user(&c, &src[i], 1)) {
+            break;
+        }
+        terminal_putc_impl(term, c);
     }
 
     /* Update cursor position */
     terminal_update_cursor(term);
 
-    return nbytes;
+    /* Return number of characters successfully written */
+    return i;
 }
 
 /*
@@ -489,6 +487,10 @@ terminal_mouse_open(const char *filename, file_obj_t *file)
 int32_t
 terminal_mouse_read(file_obj_t *file, void *buf, int32_t nbytes)
 {
+    if (nbytes < 0) {
+        return -1;
+    }
+
     /* Get the mouse buffer for the executing terminal */
     terminal_state_t *term = get_executing_terminal();
     mouse_input_buf_t *input_buf = &term->mouse_input;

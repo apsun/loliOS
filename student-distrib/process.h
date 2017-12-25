@@ -8,6 +8,9 @@
 #include "signal.h"
 #include "paging.h"
 
+/* Maximum length of string passed to execute() */
+#define MAX_EXEC_LEN 128
+
 /* Maximum argument length, including the NUL terminator */
 #define MAX_ARGS_LEN 128
 

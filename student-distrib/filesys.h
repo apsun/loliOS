@@ -8,14 +8,14 @@
 #define FS_BLOCK_SIZE 4096
 
 /* Maximum filename length */
-#define FS_MAX_FNAME_LEN 32
+#define MAX_FILENAME_LEN 32
 
 #ifndef ASM
 
 /* dentry structure */
 typedef struct {
     /* Name of the file */
-    char name[FS_MAX_FNAME_LEN];
+    char name[MAX_FILENAME_LEN];
 
     /* Type of the file */
     uint32_t type;

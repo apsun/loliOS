@@ -2,6 +2,7 @@
 #include "serial.h"
 #include "debug.h"
 #include "lib.h"
+#include "paging.h"
 
 #define DECIMAL_PT (1 << 4)
 
@@ -239,15 +240,15 @@ taux_ioctl_set_led(uint32_t arg)
 static int32_t
 taux_ioctl_set_led_str(uint32_t arg)
 {
-    /* Check user pointer validity */
-    const char *ptr = (const char *)arg;
-    if (!is_user_readable_string(ptr)) {
-        debugf("Invalid pointer; cannot read string\n");
+    /* Copy string to kernel (max length = 8 chars + NUL) */
+    char str[8 + 1];
+    if (!strscpy_from_user(str, (const char *)arg, sizeof(str))) {
+        debugf("String too long or invalid\n");
         return -1;
     }
 
     /* Convert the string to led segment format */
-    if (taux_convert_set_led_str(ptr, led_segments) < 0) {
+    if (taux_convert_set_led_str(str, led_segments) < 0) {
         debugf("Invalid string format\n");
         return -1;
     }

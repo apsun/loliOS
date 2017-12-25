@@ -28,14 +28,6 @@ void putc(char c);
 void puts(const char *s);
 void clear(void);
 
-/* User-kernel copy functions */
-bool is_user_readable_string(const char *str);
-bool is_user_readable(const void *user_buf, int32_t n);
-bool is_user_writable(const void *user_buf, int32_t n);
-bool strncpy_from_user(char *dest, const char *src, int32_t n);
-bool copy_from_user(void *dest, const void *src, int32_t n);
-bool copy_to_user(void *dest, const void *src, int32_t n);
-
 /*
  * Reads a byte from the specified I/O port.
  */

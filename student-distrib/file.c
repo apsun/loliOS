@@ -168,20 +168,21 @@ file_init(file_obj_t *files)
 __cdecl int32_t
 file_open(const char *filename)
 {
-    /* Ensure the string is valid */
-    if (!is_user_readable_string(filename)) {
+    /* Copy filename into kernel memory */
+    char tmp[MAX_FILENAME_LEN + 1];
+    if (!strscpy_from_user(tmp, filename, sizeof(tmp))) {
         return -1;
     }
 
-    dentry_t dentry;
-    int32_t i;
     file_obj_t *files = get_executing_file_objs();
 
     /* Skip fd = 0 (stdin) and fd = 1 (stdout) */
+    int32_t i;
     for (i = 2; i < MAX_FILES; ++i) {
         if (!files[i].valid) {
             /* Try to read filesystem entry */
-            if (read_dentry_by_name(filename, &dentry) != 0) {
+            dentry_t dentry;
+            if (read_dentry_by_name(tmp, &dentry) != 0) {
                 return -1;
             }
 
@@ -191,7 +192,7 @@ file_open(const char *filename)
             }
 
             /* Perform post-initialization setup */
-            if (files[i].ops_table->open(filename, &files[i]) != 0) {
+            if (files[i].ops_table->open(tmp, &files[i]) != 0) {
                 files[i].valid = false;
                 return -1;
             }

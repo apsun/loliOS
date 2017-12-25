@@ -109,9 +109,8 @@ get_next_pcb(void)
 static pcb_t *
 process_new_pcb(void)
 {
-    int32_t i;
-
     /* Look for an empty process slot we can fill */
+    int32_t i;
     for (i = 0; i < MAX_PROCESSES; ++i) {
         if (process_info[i].pid < 0) {
             process_info[i].pid = i;
@@ -147,7 +146,7 @@ process_parse_cmd(const char *command, uint32_t *out_inode_idx, char *out_args)
      *
      * Invalid case:
      * ccccccccccccaaaaaaaaaaaattttttttt myfile.txt@
-     *                                  |___________ i = FNAME_LEN + 1
+     *                                  |___________ i = MAX_FILENAME_LEN + 1
      */
 
     /* Command index */
@@ -159,9 +158,9 @@ process_parse_cmd(const char *command, uint32_t *out_inode_idx, char *out_args)
     }
 
     /* Read the filename (up to 33 chars with NUL terminator) */
-    char filename[FS_MAX_FNAME_LEN + 1];
+    char filename[MAX_FILENAME_LEN + 1];
     int32_t fname_i;
-    for (fname_i = 0; fname_i < FS_MAX_FNAME_LEN + 1; ++fname_i, ++i) {
+    for (fname_i = 0; fname_i < MAX_FILENAME_LEN + 1; ++fname_i, ++i) {
         char c = command[i];
         if (c == ' ' || c == '\0') {
             filename[fname_i] = '\0';
@@ -171,7 +170,7 @@ process_parse_cmd(const char *command, uint32_t *out_inode_idx, char *out_args)
     }
 
     /* If we didn't break out of the loop, the filename is too long */
-    if (fname_i == FS_MAX_FNAME_LEN + 1) {
+    if (fname_i == MAX_FILENAME_LEN + 1) {
         debugf("Filename too long\n");
         return -1;
     }
@@ -212,7 +211,7 @@ process_parse_cmd(const char *command, uint32_t *out_inode_idx, char *out_args)
 
     /* Read the magic bytes from the file */
     uint32_t magic;
-    if (read_data(dentry.inode_idx, 0, (uint8_t *)&magic, 4) != 4) {
+    if (read_data(dentry.inode_idx, 0, (uint8_t *)&magic, sizeof(magic)) != sizeof(magic)) {
         debugf("Could not read magic\n");
         return -1;
     }
@@ -475,9 +474,9 @@ process_execute_impl(const char *command, pcb_t *parent_pcb, int32_t terminal)
 __cdecl int32_t
 process_execute(const char *command)
 {
-    /* Validate command */
-    if (!is_user_readable_string(command)) {
-        debugf("Invalid string passed to process_execute\n");
+    char tmp[MAX_EXEC_LEN];
+    if (!strscpy_from_user(tmp, command, sizeof(tmp))) {
+        debugf("Executed string too long or invalid\n");
         return -1;
     }
 
@@ -486,7 +485,7 @@ process_execute(const char *command)
      * there MUST be an executing process, so we can pass
      * -1 as the terminal since it will never be used anyways
      */
-    return process_execute_impl(command, get_executing_pcb(), -1);
+    return process_execute_impl(tmp, get_executing_pcb(), -1);
 }
 
 /*
@@ -640,23 +639,26 @@ process_halt(uint32_t status)
 __cdecl int32_t
 process_getargs(char *buf, int32_t nbytes)
 {
-    /* Ensure buffer is valid */
-    if (!is_user_writable(buf, nbytes)) {
+    if (nbytes < 0) {
         return -1;
     }
 
-    /* Can only read at most MAX_ARGS_LEN characters */
-    if (nbytes > MAX_ARGS_LEN) {
-        nbytes = MAX_ARGS_LEN;
+    pcb_t *pcb = get_executing_pcb();
+
+    /*
+     * Limit the number of characters read (include NUL). Note
+     * that we fail if the buffer is too small, as per the spec.
+     */
+    int32_t length = strlen(pcb->args) + 1;
+    if (nbytes > length) {
+        nbytes = length;
+    } else if (nbytes < length) {
+        return -1;
     }
 
-    /* Copy the args into the buffer */
-    pcb_t *pcb = get_executing_pcb();
-    strncpy(buf, pcb->args, nbytes);
-
-    /* Ensure the string is NUL-terminated */
-    if (nbytes > 0) {
-        buf[nbytes - 1] = '\0';
+    /* Copy arguments to userspace */
+    if (!copy_to_user(buf, pcb->args, nbytes)) {
+        return -1;
     }
 
     return 0;
@@ -666,21 +668,19 @@ process_getargs(char *buf, int32_t nbytes)
 __cdecl int32_t
 process_vidmap(uint8_t **screen_start)
 {
-    /* Ensure buffer is valid */
-    if (!is_user_writable(screen_start, sizeof(uint8_t *))) {
+    pcb_t *pcb = get_executing_pcb();
+
+    /* Check and copy before actually enabling vidmap */
+    uint8_t *addr = (uint8_t *)VIDMAP_PAGE_START;
+    if (!copy_to_user(screen_start, &addr, sizeof(addr))) {
         return -1;
     }
-
-    pcb_t *pcb = get_executing_pcb();
 
     /* Update vidmap status */
     terminal_update_vidmap(pcb->terminal, true);
 
     /* Save vidmap state in PCB */
     pcb->vidmap = true;
-
-    /* Write vidmap page address to userspace */
-    *screen_start = (uint8_t *)VIDMAP_PAGE_START;
 
     return 0;
 }

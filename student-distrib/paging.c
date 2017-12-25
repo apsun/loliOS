@@ -178,8 +178,8 @@ void
 paging_enable(void)
 {
     /* Ensure page table arrays are 4096-byte aligned */
-    ASSERT(((uint32_t)page_dir          & 0xfff) == 0);
-    ASSERT(((uint32_t)page_table        & 0xfff) == 0);
+    ASSERT(((uint32_t)page_dir   & 0xfff) == 0);
+    ASSERT(((uint32_t)page_table & 0xfff) == 0);
 
     /* Initialize page table entries */
     paging_init_common();
@@ -194,7 +194,7 @@ paging_enable(void)
     paging_init_registers();
 }
 
-/**
+/*
  * Allocates a new 4MB heap page on behalf of the
  * calling process. This will modify the page directory,
  * but will NOT flush the TLB.
@@ -216,7 +216,7 @@ paging_heap_alloc(int32_t vi)
     return -1;
 }
 
-/**
+/*
  * Frees a 4MB heap page previously allocated using
  * paging_heap_alloc. This will modify the page directory,
  * but will NOT flush the TLB.
@@ -230,7 +230,7 @@ paging_heap_free(int32_t vi, int32_t pi)
     heap_map[pi] = false;
 }
 
-/**
+/*
  * Initializes a new process heap.
  */
 void
@@ -240,7 +240,7 @@ paging_heap_init(paging_heap_t *heap)
     heap->num_pages = 0;
 }
 
-/**
+/*
  * Grows or shrinks a heap, depending on the value
  * of delta. Returns -1 on error (e.g. shrinking by
  * more than available, or not enough physical memory).
@@ -303,7 +303,7 @@ paging_heap_sbrk(paging_heap_t *heap, int32_t delta)
     return orig_brk;
 }
 
-/**
+/*
  * Deallocates a heap, freeing all pages used by it.
  */
 void
@@ -366,4 +366,119 @@ paging_update_vidmap_page(uint8_t *video_mem, bool present)
 
     /* Also flush the TLB */
     paging_flush_tlb();
+}
+
+/*
+ * Checks whether a userspace buffer is readable, that
+ * is, the address is valid and the entire buffer lies
+ * within user memory.
+ */
+bool
+is_user_readable(const void *user_buf, int32_t n)
+{
+    /* Buffer size must be non-negative */
+    if (n < 0) {
+        return false;
+    }
+
+    uint32_t start = (uint32_t)user_buf;
+    uint32_t end = start + (uint32_t)n;
+
+    /* Check for integer overflow */
+    if (end < start) {
+        return false;
+    }
+
+    /*
+     * Buffer must start and end inside the user page.
+     * This is kind of a hacky way to determine whether the
+     * buffer is valid, but the only other alternative is
+     * EAFP which is much worse.
+     */
+    if (start < USER_PAGE_START || end >= USER_PAGE_END) {
+        return false;
+    }
+
+    return true;
+}
+
+/*
+ * Checks whether a userspace buffer is writable, that
+ * is, the address is valid and the entire buffer lies
+ * within user memory, and the buffer is user-writable.
+ */
+bool
+is_user_writable(const void *user_buf, int32_t n)
+{
+    /*
+     * Everything is in one massive R/W/X page, so we don't
+     * distingush readable and writable memory blocks
+     */
+    return is_user_readable(user_buf, n);
+}
+
+/*
+ * Copies a string from userspace, with page boundary checking.
+ * Returns true if the buffer was big enough and the source string
+ * could be fully copied to the buffer. Returns false otherwise.
+ * This does NOT pad excess chars in dest with zeros!
+ */
+bool
+strscpy_from_user(char *dest, const char *src, int32_t n)
+{
+    /*
+     * Make sure we start in the user page
+     * (The upper bound check is in the loop)
+     */
+    if ((uint32_t)src < USER_PAGE_START) {
+        return false;
+    }
+
+    int32_t i;
+    for (i = 0; i < n; ++i) {
+        /* Stop at the end of the user page */
+        if ((uint32_t)(src + i) >= USER_PAGE_END) {
+            return false;
+        }
+
+        /* Copy character, stop after reaching NUL terminator */
+        if ((dest[i] = src[i]) == '\0') {
+            return true;
+        }
+    }
+
+    /* Didn't reach the terminator before n characters */
+    return false;
+}
+
+/*
+ * Copies a buffer from userspace to kernelspace, checking
+ * that the source buffer is a valid userspace buffer. Returns
+ * true if the entire buffer could be copied, and false otherwise.
+ */
+bool
+copy_from_user(void *dest, const void *src, int32_t n)
+{
+    if (!is_user_readable(src, n)) {
+        return false;
+    }
+
+    memcpy(dest, src, n);
+    return true;
+}
+
+/*
+ * Copies a buffer from kernelspace to userspace, checking
+ * that the destination buffer is a valid userspace buffer. Returns
+ * true if the entire buffer could be copied, and false otherwise.
+ */
+bool
+copy_to_user(void *dest, const void *src, int32_t n)
+{
+    if (!is_user_writable(dest, n)) {
+        return false;
+    }
+
+    memcpy(dest, src, n);
+    return true;
 }

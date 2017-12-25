@@ -121,6 +121,11 @@ void paging_set_context(int32_t pid, paging_heap_t *heap);
 /* Updates the vidmap page to point to the specified address */
 void paging_update_vidmap_page(uint8_t *video_mem, bool present);
 
+/* User-kernel copy functions */
+bool strscpy_from_user(char *dest, const char *src, int32_t n);
+bool copy_from_user(void *dest, const void *src, int32_t n);
+bool copy_to_user(void *dest, const void *src, int32_t n);
+
 #endif /* ASM */
 
 #endif /* _PAGING_H */
