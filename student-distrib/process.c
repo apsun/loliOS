@@ -646,10 +646,18 @@ process_getargs(char *buf, int32_t nbytes)
     pcb_t *pcb = get_executing_pcb();
 
     /*
+     * Compute length of arguments. If they are empty, then we
+     * should fail, as per the spec.
+     */
+    int32_t length = strlen(pcb->args) + 1;
+    if (length == 1) {
+        return -1;
+    }
+
+    /*
      * Limit the number of characters read (include NUL). Note
      * that we fail if the buffer is too small, as per the spec.
      */
-    int32_t length = strlen(pcb->args) + 1;
     if (nbytes > length) {
         nbytes = length;
     } else if (nbytes < length) {
