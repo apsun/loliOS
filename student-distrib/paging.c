@@ -195,8 +195,7 @@ paging_enable(void)
 
 /*
  * Allocates a new 4MB heap page on behalf of the
- * calling process. This will modify the page directory,
- * but will NOT flush the TLB.
+ * calling process. This will modify the page directory.
  */
 static int32_t
 paging_heap_alloc(int32_t vi)
@@ -204,11 +203,21 @@ paging_heap_alloc(int32_t vi)
     int32_t pi;
     for (pi = 0; pi < MAX_HEAP_PAGES; ++pi) {
         if (!heap_map[pi]) {
-            pde_4mb_t *entry = DIR_4MB(HEAP_PAGE_START + vi * MB(4));
+            uint32_t vaddr = HEAP_PAGE_START + vi * MB(4);
+            uint32_t paddr = HEAP_PAGE_START + pi * MB(4);
+
+            /* Update PDE */
+            pde_4mb_t *entry = DIR_4MB(vaddr);
             ASSERT(!entry->present);
             entry->present = 1;
-            entry->base_addr = TO_4MB_BASE(HEAP_PAGE_START + pi * MB(4));
+            entry->base_addr = TO_4MB_BASE(paddr);
+
+            /* Mark page as allocated */
             heap_map[pi] = true;
+
+            /* Zero out page */
+            paging_flush_tlb();
+            memset_dword((void *)vaddr, 0, MB(4) / 4);
             return pi;
         }
     }
@@ -217,8 +226,7 @@ paging_heap_alloc(int32_t vi)
 
 /*
  * Frees a 4MB heap page previously allocated using
- * paging_heap_alloc. This will modify the page directory,
- * but will NOT flush the TLB.
+ * paging_heap_alloc. This will modify the page directory.
  */
 static void
 paging_heap_free(int32_t vi, int32_t pi)
@@ -227,6 +235,7 @@ paging_heap_free(int32_t vi, int32_t pi)
     pde_4mb_t *entry = DIR_4MB(HEAP_PAGE_START + vi * MB(4));
     entry->present = 0;
     heap_map[pi] = false;
+    paging_flush_tlb();
 }
 
 /*
@@ -252,8 +261,6 @@ paging_heap_sbrk(paging_heap_t *heap, int32_t delta)
     int32_t orig_num_pages = heap->num_pages;
     int32_t orig_brk = HEAP_PAGE_START + orig_size;
 
-    /* Overflow-aware code below, proceed with caution! */
-
     /* Upper bound limit (if delta is huge, rhs is negative -> true) */
     if (delta > 0 && orig_size > MAX_HEAP_SIZE - delta) {
         debugf("Trying to expand heap beyond virtual capacity\n");
@@ -261,7 +268,7 @@ paging_heap_sbrk(paging_heap_t *heap, int32_t delta)
     }
 
     /* Lower bound limit */
-    if (delta == INT_MIN || (delta < 0 && orig_size < -delta)) {
+    if (delta < 0 && orig_size + delta < 0) {
         debugf("Trying to deallocate more than was allocated\n");
         return -1;
     }
@@ -283,7 +290,6 @@ paging_heap_sbrk(paging_heap_t *heap, int32_t delta)
                 paging_heap_free(vi, pi);
             }
 
-            paging_flush_tlb();
             return -1;
         }
 
@@ -298,7 +304,6 @@ paging_heap_sbrk(paging_heap_t *heap, int32_t delta)
     }
 
     heap->size = new_size;
-    paging_flush_tlb();
     return orig_brk;
 }
 
