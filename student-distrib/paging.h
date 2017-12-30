@@ -7,9 +7,6 @@
 #define KB(x) ((x) * 1024)
 #define MB(x) ((x) * 1024 * 1024)
 
-#define ISA_DMA_PAGE_START  0x000A0000
-#define ISA_DMA_PAGE_END    0x000B0000
-
 #define VIDEO_PAGE_START    0x000B8000
 #define VIDEO_PAGE_END      0x000B9000
 
@@ -18,6 +15,9 @@
 
 #define TERMINAL_PAGE_START 0x000BB000
 /* End point is determined by the number of terminals */
+
+#define DMA_PAGE_START      0x003C0000
+#define DMA_PAGE_END        0x003D0000
 
 #define KERNEL_PAGE_START   0x00400000
 #define KERNEL_PAGE_END     0x00800000

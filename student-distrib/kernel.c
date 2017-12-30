@@ -191,7 +191,7 @@ entry(unsigned long magic, unsigned long addr)
 
     /* We made it! */
     printf("Boot successful!\n");
-    clear();
+    //clear();
 
     /* Execute the first program (`shell') ... */
     process_start_shell();

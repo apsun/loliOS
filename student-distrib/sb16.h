@@ -5,6 +5,10 @@
 #include "syscall.h"
 #include "file.h"
 
+#define SOUND_SET_BITS_PER_SAMPLE 1
+#define SOUND_SET_NUM_CHANNELS 2
+#define SOUND_SET_SAMPLE_RATE 3
+
 #ifndef ASM
 
 /* Sound Blaster 16 syscall handlers */

@@ -103,12 +103,12 @@ paging_init_vidmap(void)
     table->user = 1;
 }
 
-/* Initializes the 64KB ISA DMA zone pages */
+/* Initializes the 64KB DMA zone pages */
 static void
-paging_init_isa_dma(void)
+paging_init_dma(void)
 {
-    uint32_t addr = ISA_DMA_PAGE_START;
-    while (addr < ISA_DMA_PAGE_END) {
+    uint32_t addr = DMA_PAGE_START;
+    while (addr < DMA_PAGE_END) {
         pte_t *table = TABLE(addr);
         table->present = 1;
         table->write = 1;
@@ -186,7 +186,7 @@ paging_enable(void)
     paging_init_video();
     paging_init_user();
     paging_init_vidmap();
-    paging_init_isa_dma();
+    paging_init_dma();
     paging_init_heap();
 
     /* Set control registers */
@@ -215,7 +215,7 @@ paging_heap_alloc(int32_t vi)
             /* Mark page as allocated */
             heap_map[pi] = true;
 
-            /* Zero out page */
+            /* Zero out page for security */
             paging_flush_tlb();
             memset_dword((void *)vaddr, 0, MB(4) / 4);
             return pi;
