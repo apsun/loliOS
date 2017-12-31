@@ -45,6 +45,9 @@ static int32_t bits_per_sample = 8;
 /* Whether there is currently audio being played */
 static bool is_playing = false;
 
+/* Whether the SB16 device is installed */
+static bool device_exists = false;
+
 /* Writes a single byte to the SB16 DSP */
 static void
 sb16_out(uint8_t value)
@@ -61,13 +64,17 @@ sb16_in(void)
     return inb(SB16_PORT_READ_DATA);
 }
 
-/* Resets the SB16 DSP state */
-static void
+/*
+ * Resets the SB16 DSP state. Returns a boolean indicating
+ * whether the reset was successful (i.e. the device actually
+ * exists).
+ */
+static bool
 sb16_reset(void)
 {
     outb(1, SB16_PORT_RESET);
     outb(0, SB16_PORT_RESET);
-    while (sb16_in() != 0xAA);
+    return (sb16_in() == 0xAA);
 }
 
 /* Sets the SB16 sample rate to the current global value */
@@ -138,6 +145,11 @@ sb16_swap_buffers(void)
 int32_t
 sb16_open(const char *filename, file_obj_t *file)
 {
+    if (!device_exists) {
+        debugf("Sound Blaster 16 device not installed\n");
+        return -1;
+    }
+
     /* Only allow one open sound file at a time, since no mixer support */
     if (open_device != NULL) {
         debugf("Device busy, cannot open\n");
@@ -290,6 +302,11 @@ sb16_handle_irq(void)
 void
 sb16_init(void)
 {
-    sb16_reset();
-    irq_register_handler(IRQ_SB16, sb16_handle_irq);
+    if (sb16_reset()) {
+        debugf("Sound Blaster 16 device installed, registering IRQ handler\n");
+        device_exists = true;
+        irq_register_handler(IRQ_SB16, sb16_handle_irq);
+    } else {
+        debugf("Sound Blaster 16 device not installed\n");
+    }
 }
