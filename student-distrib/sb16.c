@@ -121,7 +121,7 @@ sb16_start_playback(void)
     sb16_out((len >> 8) & 0xff);
 
     /* Start DMA transfer */
-    dma_start(audio_buf, audio_buf_count, channel, false);
+    dma_start(audio_buf, audio_buf_count, channel, DMA_OP_READ | DMA_MODE_SINGLE);
 
     is_playing = true;
 }

@@ -34,18 +34,6 @@ static dma_info_t dma2 = {
     .clear_ff_port = 0xD8,
 };
 
-/* Bit struct for the DMA mode register */
-typedef union {
-    struct {
-        uint8_t channel        : 2;
-        uint8_t operation      : 2;
-        uint8_t auto_init      : 1;
-        uint8_t direction      : 1;
-        uint8_t mode           : 2;
-    } __packed;
-    uint8_t raw;
-} dma_mode_t;
-
 static void
 dma_start_impl(
     const dma_info_t *dma,
@@ -78,36 +66,32 @@ dma_start_impl(
     outb(channel, dma->mask_port);
 }
 
+/* Begins a DMA transfer on the specified channel */
 void
 dma_start(
     void *buf,
     uint16_t nbytes,
     uint8_t channel,
-    bool write)
+    uint8_t mode)
 {
+    /* Basic sanity checks */
     ASSERT(channel < 8);
+    ASSERT((mode & 3) == 0);
 
     /* Buffer must be in the first 16 = 2^24 MB of memory */
     uint32_t addr = (uint32_t)buf;
     ASSERT((addr & ~0xffffff) == 0);
     ASSERT(((addr + nbytes - 1) & ~0xffffff) == 0);
 
-    debugf("dma(buf=0x%x, nbytes=0x%x, channel=%d, write=%d)\n",
-        buf, nbytes, channel, write);
-
-    dma_mode_t mode;
-    mode.channel = channel & 3;
-    mode.operation = write ? 1 : 2; /* 1 = write, 2 = read */
-    mode.auto_init = 0; /* Single cycle */
-    mode.direction = 0; /* Incrementing */
-    mode.mode = 1; /* Single mode */
+    debugf("dma(buf=0x%x, nbytes=0x%x, channel=%d, mode=0x%x)\n",
+        buf, nbytes, channel, mode);
 
     if (channel < 4) {
         /* 8-bit DMA */
         dma_start_impl(
             &dma1,
             channel,
-            mode.raw,
+            mode | channel,
             (addr >> 16) & 0xff,
             (addr >> 0) & 0xffff,
             (nbytes >> 0) - 1);
@@ -118,7 +102,7 @@ dma_start(
         dma_start_impl(
             &dma2,
             channel - 4,
-            mode.raw,
+            mode | (channel - 4),
             (addr >> 16) & 0xff,
             (addr >> 1) & 0xffff,
             (nbytes >> 1) - 1);
