@@ -4,6 +4,7 @@
 
 #define DMA_MASK_DISABLE 4
 
+/* DMA port info */
 typedef struct {
     uint16_t address_ports[4];
     uint16_t count_ports[4];
@@ -33,6 +34,7 @@ static dma_info_t dma2 = {
     .clear_ff_port = 0xD8,
 };
 
+/* Bit struct for the DMA mode register */
 typedef union {
     struct {
         uint8_t channel        : 2;
@@ -51,11 +53,8 @@ dma_start_impl(
     uint8_t mode,    /* dma_mode_t raw value */
     uint8_t page,    /* bits 16-23 of the physical address, in bytes */
     uint16_t offset, /* bits 0-15 of the physical address, in "units" */
-    uint16_t count)  /* number of "units" to transfer */
+    uint16_t count)  /* number of "units" to transfer, minus 1 */
 {
-    printf("dma(chan=%d, mode=0x%x, page=%d, offset=0x%x, count=0x%x)\n",
-            channel, mode, page, offset, count);
-
     /* Mask channel */
     outb(channel | DMA_MASK_DISABLE, dma->mask_port);
     
@@ -67,10 +66,10 @@ dma_start_impl(
     outb((offset >> 0) & 0xff, dma->address_ports[channel]);
     outb((offset >> 8) & 0xff, dma->address_ports[channel]);
 
-    /* Set transfer length in "units" */
+    /* Set transfer length in "units" minus 1 */
     outb(0x00, dma->clear_ff_port);
-    outb(((count - 1) >> 0) & 0xff, dma->count_ports[channel]);
-    outb(((count - 1) >> 8) & 0xff, dma->count_ports[channel]);
+    outb((count >> 0) & 0xff, dma->count_ports[channel]);
+    outb((count >> 8) & 0xff, dma->count_ports[channel]);
 
     /* Set buffer page number */
     outb(page, dma->page_ports[channel]);
@@ -81,49 +80,48 @@ dma_start_impl(
 
 void
 dma_start(
-    void *addr,
+    void *buf,
     uint16_t nbytes,
     uint8_t channel,
     bool write)
 {
-    uint8_t chan_index = channel & 3;
-    uint32_t addr_d = (uint32_t)addr;
-
     ASSERT(channel < 8);
 
-    /* Buffer must be in the first 2^24 bytes of memory */
-    ASSERT((addr_d & ~0xffffff) == 0);
-    ASSERT(((addr_d + nbytes - 1) & ~0xffffff) == 0);
+    /* Buffer must be in the first 16 = 2^24 MB of memory */
+    uint32_t addr = (uint32_t)buf;
+    ASSERT((addr & ~0xffffff) == 0);
+    ASSERT(((addr + nbytes - 1) & ~0xffffff) == 0);
+
+    debugf("dma(buf=0x%x, nbytes=0x%x, channel=%d, write=%d)\n",
+        buf, nbytes, channel, write);
 
     dma_mode_t mode;
-    mode.channel = chan_index;
+    mode.channel = channel & 3;
     mode.operation = write ? 1 : 2; /* 1 = write, 2 = read */
     mode.auto_init = 0; /* Single cycle */
     mode.direction = 0; /* Incrementing */
     mode.mode = 1; /* Single mode */
 
     if (channel < 4) {
-        printf("8-bit dma\n");
         /* 8-bit DMA */
         dma_start_impl(
             &dma1,
-            chan_index,
+            channel,
             mode.raw,
-            (addr_d >> 16) & 0xff,
-            (addr_d >> 0) & 0xffff,
-            nbytes);
+            (addr >> 16) & 0xff,
+            (addr >> 0) & 0xffff,
+            (nbytes >> 0) - 1);
     } else {
-        printf("16-bit dma\n");
         /* 16-bit DMA */
-        ASSERT((addr_d & 1) == 0);
+        ASSERT((addr & 1) == 0);
         ASSERT((nbytes & 1) == 0);
         dma_start_impl(
             &dma2,
-            chan_index,
+            channel - 4,
             mode.raw,
-            (addr_d >> 16) & 0xff,
-            (addr_d >> 1) & 0xffff,
-            nbytes / 2);
+            (addr >> 16) & 0xff,
+            (addr >> 1) & 0xffff,
+            (nbytes >> 1) - 1);
     }
 }
 

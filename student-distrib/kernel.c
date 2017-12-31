@@ -14,6 +14,7 @@
 #include "filesys.h"
 #include "file.h"
 #include "taux.h"
+#include "sb16.h"
 
 /* Check if the bit BIT in FLAGS is set. */
 #define CHECK_FLAG(flags, bit) ((flags) & (1 << (bit)))
@@ -189,9 +190,12 @@ entry(unsigned long magic, unsigned long addr)
     printf("Initializing taux controller driver...\n");
     taux_init();
 
+    printf("Initializing Sound Blaster 16 driver..\n");
+    sb16_init();
+
     /* We made it! */
     printf("Boot successful!\n");
-    //clear();
+    clear();
 
     /* Execute the first program (`shell') ... */
     process_start_shell();

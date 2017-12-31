@@ -133,7 +133,7 @@ main(void)
     /* And now we just pipe the audio data to the SB16 driver */
     int32_t buf_offset = 0;
     int32_t data_offset = 0;
-    char buf[409600];
+    char buf[4096];
     while (1) {
         /* Pull bytes from the file into the buffer */
         int32_t read_cnt = read(soundfd, &buf[buf_offset], sizeof(buf) - buf_offset);

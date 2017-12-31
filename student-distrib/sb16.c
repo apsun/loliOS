@@ -5,10 +5,12 @@
 #include "irq.h"
 #include "dma.h"
 
-#define SOUND_FLUSH 0
-#define SB16_IOBASE 0x220
+/* DMA channels */
 #define SB16_DMA8_CHANNEL 1
 #define SB16_DMA16_CHANNEL 5
+
+/* I/O port numbers */
+#define SB16_IOBASE 0x220
 #define SB16_PORT_RESET (SB16_IOBASE + 0x6)
 #define SB16_PORT_CAN_WRITE (SB16_IOBASE + 0xC)
 #define SB16_PORT_CAN_READ (SB16_IOBASE + 0xE)
@@ -16,17 +18,22 @@
 #define SB16_PORT_INTACK_8BIT (SB16_IOBASE + 0xE)
 #define SB16_PORT_WRITE_DATA (SB16_IOBASE + 0xC)
 #define SB16_PORT_READ_DATA (SB16_IOBASE + 0xA)
+
+/* Playback commands and flags */
 #define SB16_CMD_SAMPLE_RATE 0x41
 #define SB16_CMD_BEGIN_CMD_16BIT 0xB0
 #define SB16_CMD_BEGIN_CMD_8BIT 0xC0
 #define SB16_CMD_BEGIN_MODE_STEREO (1 << 5)
 #define SB16_CMD_BEGIN_MODE_SIGNED (1 << 4)
-#define SB16_BUFFER_SIZE 0x10000
+
+/* Sample DMA buffer */
+#define SB16_BUFFER_SIZE (DMA_PAGE_END - DMA_PAGE_START)
 #define SB16_HALF_BUFFER_SIZE (SB16_BUFFER_SIZE / 2)
 
 /* Tracks the single open sound file */
 static file_obj_t *open_device = NULL;
 
+/* Tracks the currently active sample buffer */
 static uint8_t *audio_buf = (uint8_t *)DMA_PAGE_START;
 static int32_t audio_buf_count = 0;
 
@@ -63,15 +70,16 @@ sb16_reset(void)
     while (sb16_in() != 0xAA);
 }
 
+/* Sets the SB16 sample rate to the current global value */
 static void
 sb16_write_sample_rate(void)
 {
-    /* Set sample rate */
     sb16_out(SB16_CMD_SAMPLE_RATE);
     sb16_out((sample_rate >> 8) & 0xff);
     sb16_out((sample_rate >> 0) & 0xff);
 }
 
+/* Begins audio playback, must not be called during playback */
 static void
 sb16_start_playback(void)
 {
@@ -90,13 +98,8 @@ sb16_start_playback(void)
         channel = SB16_DMA16_CHANNEL;
         cmd |= SB16_CMD_BEGIN_CMD_16BIT;
         mode |= SB16_CMD_BEGIN_MODE_SIGNED;
-
-        /* Length is in samples, not bytes */
         len /= 2;
     }
-
-    /* Start DMA transfer */
-    dma_start(audio_buf, audio_buf_count, channel, false);
 
     if (num_channels == 1) {
         /* Mono */
@@ -104,28 +107,26 @@ sb16_start_playback(void)
     } else if (num_channels == 2) {
         /* Stereo */
         mode |= SB16_CMD_BEGIN_MODE_STEREO;
-
-        /*
-         * As per code in QEMU source hw/audio/sb16.c,
-         * if we are not using auto-init mode, the length
-         * should NOT account for stereo.
-         */
+        len /= 2;
     }
 
     /* SB16 takes the length minus 1 */
     len--;
 
     /* Packet byte order is cmd, mode, LO(len), HI(len) */
-
-    printf("sb16(cmd=0x%x, mode=0x%x, len=0x%x)\n", cmd, mode, len);
+    debugf("sb16(cmd=0x%x, mode=0x%x, len=0x%x)\n", cmd, mode, len);
     sb16_out(cmd);
     sb16_out(mode);
     sb16_out((len >> 0) & 0xff);
     sb16_out((len >> 8) & 0xff);
 
+    /* Start DMA transfer */
+    dma_start(audio_buf, audio_buf_count, channel, false);
+
     is_playing = true;
 }
 
+/* Swaps the active audio buffer */
 static void
 sb16_swap_buffers(void)
 {
@@ -133,6 +134,7 @@ sb16_swap_buffers(void)
     audio_buf_count = 0;
 }
 
+/* SB16 open() syscall handler */
 int32_t
 sb16_open(const char *filename, file_obj_t *file)
 {
@@ -146,12 +148,18 @@ sb16_open(const char *filename, file_obj_t *file)
     return 0;
 }
 
+/* SB16 read() syscall handler, does nothing */
 int32_t
 sb16_read(file_obj_t *file, void *buf, int32_t nbytes)
 {
     return 0;
 }
 
+/*
+ * SB16 write() syscall handler. If audio is not already
+ * playing, this will begin playback. To set playback
+ * parameters, use ioctl().
+ */
 int32_t
 sb16_write(file_obj_t *file, const void *buf, int32_t nbytes)
 {
@@ -172,9 +180,10 @@ sb16_write(file_obj_t *file, const void *buf, int32_t nbytes)
         sb16_swap_buffers();
     }
 
-    return 0;
+    return nbytes;
 }
 
+/* SB16 close() syscall handler */
 int32_t
 sb16_close(file_obj_t *file)
 {
@@ -183,6 +192,7 @@ sb16_close(file_obj_t *file)
     return 0;
 }
 
+/* Sets the bits per sample playback parameter */
 static int32_t
 sb16_ioctl_set_bits_per_sample(uint32_t arg)
 {
@@ -195,6 +205,7 @@ sb16_ioctl_set_bits_per_sample(uint32_t arg)
     return -1;
 }
 
+/* Sets the mono/stereo playback parameter */
 static int32_t
 sb16_ioctl_set_num_channels(uint32_t arg)
 {
@@ -207,6 +218,7 @@ sb16_ioctl_set_num_channels(uint32_t arg)
     return -1;
 }
 
+/* Sets the sample rate playback parameter */
 static int32_t
 sb16_ioctl_set_sample_rate(uint32_t arg)
 {
@@ -226,6 +238,14 @@ sb16_ioctl_set_sample_rate(uint32_t arg)
     }
 }
 
+/*
+ * SB16 ioctl() syscall handler. Supports the following
+ * arguments:
+ *
+ * SOUND_SET_BITS_PER_SAMPLE: arg = 8 (unsigned) or 16 (signed)
+ * SOUND_SET_NUM_CHANNELS: arg = 1 (mono) or 2 (stereo)
+ * SOUND_SET_SAMPLE_RATE: arg = 8000, 11025, etc., 44100
+ */
 int32_t
 sb16_ioctl(file_obj_t *file, uint32_t req, uint32_t arg)
 {
@@ -246,11 +266,10 @@ sb16_ioctl(file_obj_t *file, uint32_t req, uint32_t arg)
     }
 }
 
+/* SB16 IRQ handler */
 static void
 sb16_handle_irq(void)
 {
-    printf("sb16 irq\n");
-
     /* Acknowledge the interuupt */
     if (bits_per_sample == 8) {
         inb(SB16_PORT_INTACK_8BIT);

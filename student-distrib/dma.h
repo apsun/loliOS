@@ -5,6 +5,7 @@
 
 #ifndef ASM
 
+/* Begins a single-cycle auto-increment DMA transfer */
 void
 dma_start(
     void *addr,
