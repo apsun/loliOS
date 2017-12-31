@@ -2,6 +2,59 @@
 #include "debug.h"
 #include "terminal.h"
 
+/* Structure for 4KB page table entry */
+typedef struct {
+    uint8_t present        : 1;
+    uint8_t write          : 1;
+    uint8_t user           : 1;
+    uint8_t write_through  : 1;
+    uint8_t cache_disabled : 1;
+    uint8_t accessed       : 1;
+    uint8_t dirty          : 1;
+    uint8_t page_attr_idx  : 1;
+    uint8_t global         : 1;
+    uint8_t avail          : 3;
+    uint32_t base_addr     : 20;
+} __packed pte_t;
+
+/* Structure for 4KB page directory entry */
+typedef struct {
+    uint8_t present        : 1;
+    uint8_t write          : 1;
+    uint8_t user           : 1;
+    uint8_t write_through  : 1;
+    uint8_t cache_disabled : 1;
+    uint8_t accessed       : 1;
+    uint8_t reserved       : 1;
+    uint8_t size           : 1;
+    uint8_t global         : 1;
+    uint8_t avail          : 3;
+    uint32_t base_addr     : 20;
+} __packed pde_4kb_t;
+
+/* Structure for 4MB page directory entry */
+typedef struct {
+    uint8_t present        : 1;
+    uint8_t write          : 1;
+    uint8_t user           : 1;
+    uint8_t write_through  : 1;
+    uint8_t cache_disabled : 1;
+    uint8_t accessed       : 1;
+    uint8_t dirty          : 1;
+    uint8_t size           : 1;
+    uint8_t global         : 1;
+    uint8_t avail          : 3;
+    uint8_t page_attr_idx  : 1;
+    uint16_t reserved      : 9;
+    uint16_t base_addr     : 10;
+} __packed pde_4mb_t;
+
+/* Union of 4MB page table and 4KB page directory entries */
+typedef union {
+    pde_4mb_t dir_4mb;
+    pde_4kb_t dir_4kb;
+} pde_t;
+
 /* Page directory */
 __aligned(KB(4))
 static pde_t page_dir[1024];

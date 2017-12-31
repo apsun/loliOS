@@ -34,6 +34,7 @@ static dma_info_t dma2 = {
     .clear_ff_port = 0xD8,
 };
 
+/* Generic DMA transfer start implementation */
 static void
 dma_start_impl(
     const dma_info_t *dma,
@@ -45,10 +46,10 @@ dma_start_impl(
 {
     /* Mask channel */
     outb(channel | DMA_MASK_DISABLE, dma->mask_port);
-    
+
     /* Set DMA mode */
     outb(mode, dma->mode_port);
-    
+
     /* Set buffer offset */
     outb(0x00, dma->clear_ff_port);
     outb((offset >> 0) & 0xff, dma->address_ports[channel]);

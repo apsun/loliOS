@@ -4,6 +4,32 @@
 #include "terminal.h"
 #include "ps2.h"
 
+/* Various special keycodes */
+#define KC_ESC       0x01
+#define KC_LCTRL     0x1D
+#define KC_RCTRL     0x61
+#define KC_LSHIFT    0x2A
+#define KC_RSHIFT    0x36
+#define KC_LALT      0x38
+#define KC_RALT      0x64
+#define KC_CAPS_LOCK 0x3A
+#define KC_C         0x2E
+#define KC_L         0x26
+#define KC_F1        0x3B
+#define KC_F2        0x3C
+#define KC_F3        0x3D
+#define KC_BACKSPACE 0x0E
+#define KC_DELETE    0x53
+#define KC_TAB       0x0F
+#define KC_1         0x02
+#define KC_2         0x03
+#define KC_3         0x04
+#define KC_4         0x05
+#define KC_5         0x06
+
+/* Number of keys we handle */
+#define NUM_KEYS 58
+
 /* Current pressed/toggled modifier key state */
 static kbd_modifiers_t modifiers = KMOD_NONE;
 
