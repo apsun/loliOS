@@ -9,7 +9,7 @@
 #define DEBUG_ASSERT 1
 
 /* Whether to enable debugf printing */
-#define DEBUG_PRINT 1
+#define DEBUG_PRINT 0
 
 /* Always-enabled panic macro */
 #define PANIC(msg) do {                                    \
