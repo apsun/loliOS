@@ -279,23 +279,26 @@ rtc_ioctl(file_obj_t *file, uint32_t req, uint32_t arg)
 
 /*
  * Converts a separate-component time to a Unix timestamp.
+ * Hopefully nobody is using our OS in 2038 ;-)
  */
-static uint32_t
-rtc_mktime(uint32_t year, uint32_t month, uint32_t day,
-           uint32_t hour, uint32_t min, uint32_t sec)
+static int32_t
+rtc_mktime(
+    int32_t year, int32_t month, int32_t day,
+    int32_t hour, int32_t min, int32_t sec)
 {
-    /* Algorithm shamelessly stolen from Linux mktime() */
-
-    if ((int32_t)(month -= 2) <= 0) {
+    /* Below algorithm shamelessly stolen from Linux mktime() */
+    month -= 2;
+    if ((int32_t)month <= 0) {
         month += 12;
         year -= 1;
     }
 
-    return ((((year / 4 - year / 100 + year / 400 + 367 * month / 12 + day
-                ) + year * 365 - 719499
-            ) * 24 + hour
-        ) * 60 + min
-    ) * 60 + sec;
+    int32_t leap_days = year / 4 - year / 100 + year / 400;
+    int32_t days = leap_days + 367 * month / 12 + day + year * 365 - 719499;
+    int32_t hours = days * 24 + hour;
+    int32_t mins = hours * 60 + min;
+    int32_t secs = mins * 60 + sec;
+    return secs;
 }
 
 /*
@@ -310,17 +313,17 @@ rtc_time(void)
     while (rtc_read_reg(RTC_REG_A) & RTC_A_UIP);
 
     /* Read all time components */
-    uint32_t sec = rtc_read_reg(RTC_SECOND);
-    uint32_t min = rtc_read_reg(RTC_MINUTE);
-    uint32_t hour = rtc_read_reg(RTC_HOUR);
-    uint32_t day = rtc_read_reg(RTC_DAY);
-    uint32_t month = rtc_read_reg(RTC_MONTH);
-    uint32_t year = rtc_read_reg(RTC_YEAR);
-    uint32_t century = rtc_read_reg(RTC_CENTURY);
+    int32_t sec = rtc_read_reg(RTC_SECOND);
+    int32_t min = rtc_read_reg(RTC_MINUTE);
+    int32_t hour = rtc_read_reg(RTC_HOUR);
+    int32_t day = rtc_read_reg(RTC_DAY);
+    int32_t month = rtc_read_reg(RTC_MONTH);
+    int32_t year = rtc_read_reg(RTC_YEAR);
+    int32_t century = rtc_read_reg(RTC_CENTURY);
     year += 100 * century;
 
     /* Convert to Unix timestamp */
-    return (int32_t)rtc_mktime(year, month, day, hour, min, sec);
+    return rtc_mktime(year, month, day, hour, min, sec);
 }
 
 /*
