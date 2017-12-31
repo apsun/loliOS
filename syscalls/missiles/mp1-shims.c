@@ -8,8 +8,6 @@
 #include <string.h>
 #include <syscall.h>
 
-#define MAX_MISSILES 64
-
 static jmp_buf memcpy_env;
 
 static void

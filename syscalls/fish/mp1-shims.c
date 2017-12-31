@@ -1,5 +1,4 @@
 #include "mp1.h"
-#include "mp1-vga.h"
 #include <assert.h>
 #include <setjmp.h>
 #include <stdbool.h>
@@ -8,8 +7,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <syscall.h>
-
-#define MAX_BLINKS (SCREEN_WIDTH * SCREEN_HEIGHT)
 
 static jmp_buf memcpy_env;
 
