@@ -73,12 +73,6 @@ main(void)
     /* Read filename as an argument */
     char filename[128];
     if (getargs(filename, sizeof(filename)) < 0) {
-        puts("Could not read file name");
-        ret = 1;
-        goto cleanup;
-    }
-
-    if (filename[0] == '\0') {
         puts("usage: music <filename>");
         ret = 1;
         goto cleanup;

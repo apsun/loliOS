@@ -288,7 +288,7 @@ rtc_mktime(
 {
     /* Below algorithm shamelessly stolen from Linux mktime() */
     month -= 2;
-    if ((int32_t)month <= 0) {
+    if (month <= 0) {
         month += 12;
         year -= 1;
     }
