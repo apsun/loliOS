@@ -204,7 +204,7 @@ mp1_ioctl_add:
 mp1_ioctl_add_copy_err:
     pushl %ebx
     call mp1_free
-    addl $4, %eax
+    addl $4, %esp
 mp1_ioctl_add_err:
     movl $-1, %eax
 mp1_ioctl_add_ret:
