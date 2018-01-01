@@ -117,9 +117,6 @@ signal_sigaction(int32_t signum, void *handler_address)
 
     pcb_t *pcb = get_executing_pcb();
     pcb->signals[signum].handler_addr = handler_address;
-
-    /* Additional effect: unmask the signal (for longjmp use) */
-    pcb->signals[signum].masked = false;
     return 0;
 }
 
@@ -176,6 +173,11 @@ signal_sigreturn(
 __cdecl int32_t
 signal_sigraise(int32_t signum)
 {
+    /* Check signal number range */
+    if (signum < 0 || signum >= NUM_SIGNALS) {
+        return -1;
+    }
+
     pcb_t *pcb = get_executing_pcb();
     pcb->signals[signum].pending = true;
     return 0;
