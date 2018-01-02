@@ -69,19 +69,36 @@ main(void)
     int32_t ret = 0;
     int32_t soundfd = -1;
     int32_t devfd = -1;
+    bool loop = false;
 
     /* Read filename as an argument */
-    char filename[128];
-    if (getargs(filename, sizeof(filename)) < 0) {
+    char filename_buf[128];
+    if (getargs(filename_buf, sizeof(filename_buf)) < 0) {
         puts("usage: music <filename>");
         ret = 1;
         goto cleanup;
+    }
+
+    /* If argument starts with --loop, enable loop mode */
+    char *filename = filename_buf;
+    if (strncmp("--loop ", filename, strlen("--loop ")) == 0) {
+        filename += strlen("--loop ");
+        loop = true;
+        puts("Loop mode enabled");
     }
 
     /* Open the audio file */
     soundfd = open(filename);
     if (soundfd < 0) {
         printf("Could not open '%s'\n", filename);
+        ret = 1;
+        goto cleanup;
+    }
+
+    /* Open and initialize sound device */
+    devfd = open("sound");
+    if (devfd < 0) {
+        puts("Could not open sound device -- busy?");
         ret = 1;
         goto cleanup;
     }
@@ -107,14 +124,6 @@ main(void)
     printf("Number of channels: %d\n", wav_hdr.num_channels);
     printf("Sample rate:        %dHz\n", wav_hdr.sample_rate);
 
-    /* Open and initialize sound device */
-    devfd = open("sound");
-    if (devfd < 0) {
-        puts("Could not open sound device -- busy?");
-        ret = 1;
-        goto cleanup;
-    }
-
     /* Set sound parameters using header */
     if (ioctl(devfd, SOUND_SET_BITS_PER_SAMPLE, wav_hdr.bits_per_sample) < 0 ||
         ioctl(devfd, SOUND_SET_NUM_CHANNELS, wav_hdr.num_channels) < 0 ||
@@ -125,30 +134,42 @@ main(void)
     }
 
     /* And now we just pipe the audio data to the SB16 driver */
-    int32_t buf_offset = 0;
-    int32_t data_offset = 0;
-    char buf[4096];
     while (1) {
-        /* Pull bytes from the file into the buffer */
-        int32_t read_cnt = read(soundfd, &buf[buf_offset], sizeof(buf) - buf_offset);
-        buf_offset += read_cnt;
+        int32_t buf_offset = 0;
+        int32_t data_offset = 0;
+        char buf[4096];
+        while (1) {
+            /* Pull bytes from the file into the buffer */
+            int32_t read_cnt = read(soundfd, &buf[buf_offset], sizeof(buf) - buf_offset);
+            buf_offset += read_cnt;
 
-        /* Don't write garbage beyond end of chunk */
-        int32_t to_write = buf_offset;
-        if (to_write > (int32_t)wav_hdr.data_size - data_offset) {
-            to_write = (int32_t)wav_hdr.data_size - data_offset;
+            /* Don't write garbage beyond end of chunk */
+            int32_t to_write = buf_offset;
+            if (to_write > (int32_t)wav_hdr.data_size - data_offset) {
+                to_write = (int32_t)wav_hdr.data_size - data_offset;
+            }
+
+            /* Push bytes from the buffer to the sound driver */
+            int32_t write_cnt = write(devfd, buf, to_write);
+            memmove(&buf[0], &buf[write_cnt], buf_offset - write_cnt);
+            buf_offset -= write_cnt;
+            data_offset += write_cnt;
+
+            /* Once we've finished writing all the sound data, we're done */
+            if (data_offset == (int32_t)wav_hdr.data_size) {
+                break;
+            }
         }
 
-        /* Push bytes from the buffer to the sound driver */
-        int32_t write_cnt = write(devfd, buf, to_write);
-        memmove(&buf[0], &buf[write_cnt], buf_offset - write_cnt);
-        buf_offset -= write_cnt;
-        data_offset += write_cnt;
-
-        /* Once we've finished writing all the sound data, we're done */
-        if (data_offset == (int32_t)wav_hdr.data_size) {
+        /* Stop if not in loop mode */
+        if (!loop) {
             break;
         }
+
+        /* Re-open sound file and restart playback */
+        close(soundfd);
+        soundfd = open(filename);
+        read_wave_header(soundfd, &wav_hdr);
     }
 
 cleanup:
