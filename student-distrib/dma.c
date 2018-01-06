@@ -15,7 +15,7 @@ typedef struct {
 } dma_info_t;
 
 /* 8-bit slave DMA (channels 0-3) */
-static dma_info_t dma1 = {
+static const dma_info_t dma1 = {
     .address_ports = {0x00, 0x02, 0x04, 0x06},
     .count_ports = {0x01, 0x03, 0x05, 0x07},
     .page_ports = {0x87, 0x83, 0x81, 0x82},
@@ -25,7 +25,7 @@ static dma_info_t dma1 = {
 };
 
 /* 16-bit master DMA (channels 4-7) */
-static dma_info_t dma2 = {
+static const dma_info_t dma2 = {
     .address_ports = {0xC0, 0xC4, 0xC8, 0xCC},
     .count_ports = {0xC2, 0xC6, 0xCA, 0xCE},
     .page_ports = {0xFFFF, 0x8B, 0x89, 0x8A},

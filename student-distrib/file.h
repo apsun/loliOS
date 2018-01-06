@@ -23,7 +23,7 @@ typedef struct file_ops_t file_ops_t;
 /* File object structure */
 typedef struct {
     /* O/R/W/C file operation table for this file */
-    file_ops_t *ops_table;
+    const file_ops_t *ops_table;
 
     /*
      * inode index of this file, unused if the file

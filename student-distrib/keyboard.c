@@ -36,7 +36,7 @@ static kbd_modifiers_t modifiers = KMOD_NONE;
 /* Maps keycode values to printable characters. Data from:
  * http://www.comptechdoc.org/os/linux/howlinuxworks/linux_hlkeycodes.html
  */
-static char keycode_map[4][NUM_KEYS] = {
+static const char keycode_map[4][NUM_KEYS] = {
     /* Neutral */
     {
         '\0', '\0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=',

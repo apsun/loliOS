@@ -9,7 +9,7 @@
 #include "sb16.h"
 
 /* Terminal stdin file ops */
-static file_ops_t fops_stdin = {
+static const file_ops_t fops_stdin = {
     .open = terminal_kbd_open,
     .read = terminal_stdin_read,
     .write = terminal_stdin_write,
@@ -18,7 +18,7 @@ static file_ops_t fops_stdin = {
 };
 
 /* Terminal stdout file ops */
-static file_ops_t fops_stdout = {
+static const file_ops_t fops_stdout = {
     .open = terminal_kbd_open,
     .read = terminal_stdout_read,
     .write = terminal_stdout_write,
@@ -27,7 +27,7 @@ static file_ops_t fops_stdout = {
 };
 
 /* File (the real kind) file ops */
-static file_ops_t fops_file = {
+static const file_ops_t fops_file = {
     .open = fs_open,
     .read = fs_file_read,
     .write = fs_write,
@@ -36,7 +36,7 @@ static file_ops_t fops_file = {
 };
 
 /* Directory file ops */
-static file_ops_t fops_dir = {
+static const file_ops_t fops_dir = {
     .open = fs_open,
     .read = fs_dir_read,
     .write = fs_write,
@@ -45,7 +45,7 @@ static file_ops_t fops_dir = {
 };
 
 /* RTC file ops */
-static file_ops_t fops_rtc = {
+static const file_ops_t fops_rtc = {
     .open = rtc_open,
     .read = rtc_read,
     .write = rtc_write,
@@ -54,7 +54,7 @@ static file_ops_t fops_rtc = {
 };
 
 /* Mouse file ops */
-static file_ops_t fops_mouse = {
+static const file_ops_t fops_mouse = {
     .open = terminal_mouse_open,
     .read = terminal_mouse_read,
     .write = terminal_mouse_write,
@@ -63,7 +63,7 @@ static file_ops_t fops_mouse = {
 };
 
 /* Taux controller file ops */
-static file_ops_t fops_taux = {
+static const file_ops_t fops_taux = {
     .open = taux_open,
     .read = taux_read,
     .write = taux_write,
@@ -72,7 +72,7 @@ static file_ops_t fops_taux = {
 };
 
 /* Sound Blaster 16 file ops */
-static file_ops_t fops_sb16 = {
+static const file_ops_t fops_sb16 = {
     .open = sb16_open,
     .read = sb16_read,
     .write = sb16_write,
