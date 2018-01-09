@@ -386,11 +386,8 @@ paging_set_context(int32_t pid, paging_heap_t *heap)
 {
     ASSERT(pid >= 0);
 
-    /* Each process page is mapped starting from 8MB, each 4MB */
-    uint32_t phys_addr = MB(pid * 4 + 8);
-
     /* Point the user page to the corresponding physical address */
-    DIR_4MB(USER_PAGE_START)->base_addr = TO_4MB_BASE(phys_addr);
+    DIR_4MB(USER_PAGE_START)->base_addr = TO_4MB_BASE(MB(pid * 4 + 8));
 
     /* Replace heap page directory entries */
     int32_t i;
@@ -433,19 +430,17 @@ paging_update_vidmap_page(uint8_t *video_mem, bool present)
  * spanning multiple pages.
  */
 static bool
-is_page_user_accessible(const void **addrp, bool write)
+is_page_user_accessible(uint32_t *addr, bool write)
 {
-    const char *addr = (const char *)*addrp;
-
     /* Access page info through the directory */
-    pde_4kb_t *dir = DIR_4KB(addr);
+    pde_4kb_t *dir = DIR_4KB(*addr);
     if (!dir->present || !dir->user || (!dir->write && write)) {
         return false;
     }
 
     /* If it's a 4MB page, we're done. */
     if (dir->size == SIZE_4MB) {
-        *addrp = (const void *)(((uint32_t)addr + MB(4)) & -MB(4));
+        *addr = (*addr + MB(4)) & -MB(4);
         return true;
     }
 
@@ -453,12 +448,12 @@ is_page_user_accessible(const void **addrp, bool write)
      * It's a 4KB page so it must be in the first 4MB.
      * Access it through the single page table.
      */
-    pte_t *table = TABLE(addr);
+    pte_t *table = TABLE(*addr);
     if (!table->present || !table->user || (!table->write && write)) {
         return false;
     }
 
-    *addrp = (const void *)(((uint32_t)addr + KB(4)) & -KB(4));
+    *addr = (*addr + KB(4)) & -KB(4);
     return true;
 }
 
@@ -468,7 +463,7 @@ is_page_user_accessible(const void **addrp, bool write)
  * the same address in ring 3 would not cause a page fault.
  */
 bool
-is_user_accessible(const void *addr, int32_t nbytes, bool write)
+is_user_accessible(const void *start, int32_t nbytes, bool write)
 {
     /* Negative accesses are obviously impossible */
     if (nbytes < 0) {
@@ -476,13 +471,14 @@ is_user_accessible(const void *addr, int32_t nbytes, bool write)
     }
 
     /* Check for overflow */
-    uint32_t end = (uint32_t)addr + (uint32_t)nbytes;
-    if (end < (uint32_t)addr) {
+    uint32_t addr = (uint32_t)start;
+    uint32_t end = addr + (uint32_t)nbytes;
+    if (end < addr) {
         return false;
     }
 
     /* Go through pages and ensure they're all accessible */
-    while ((uint32_t)addr < end) {
+    while (addr < end) {
         if (!is_page_user_accessible(&addr, write)) {
             return false;
         }

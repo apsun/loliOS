@@ -4,6 +4,15 @@
 #include "process.h"
 #include "x86_desc.h"
 
+/* User-modifiable bits in EFLAGS */
+#define EFLAGS_USER 0xDD5
+
+/* Interrupt flag */
+#define EFLAGS_IF (1 << 9)
+
+/* Direction flag */
+#define EFLAGS_DF (1 << 10)
+
 /*
  * Pushes the signal handler context onto the user stack
  * and modifies the register context to start execution

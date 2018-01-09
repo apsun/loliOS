@@ -7,8 +7,44 @@
 #include "x86_desc.h"
 #include "rtc.h"
 
+/* Maximum length of string passed to execute() */
+#define MAX_EXEC_LEN 128
+
+/* Maximum number of processes */
+#define MAX_PROCESSES 6
+
+/* Executable magic bytes ('\x7fELF') */
+#define EXE_MAGIC 0x464c457f
+
+/* Process data block size, MUST BE A POWER OF 2! */
+#define PROCESS_DATA_SIZE 8192
+
 /* The virtual address that the process should be copied to */
 #define PROCESS_VADDR (USER_PAGE_START + 0x48000)
+
+/*
+ * The process has been initialized and is running or
+ * is scheduled to run
+ */
+#define PROCESS_RUN 0
+
+/*
+ * The process is waiting for a child process to exit
+ * and should not be scheduled for execution
+ */
+#define PROCESS_SLEEP 1
+
+/*
+ * The process has been created, but not initialized
+ * (i.e. process_run has not yet been called)
+ */
+#define PROCESS_SCHED 2
+
+/* Kernel stack struct */
+typedef struct {
+    pcb_t *pcb;
+    uint8_t kernel_stack[PROCESS_DATA_SIZE - sizeof(pcb_t *)];
+} process_data_t;
 
 /* Process control blocks */
 static pcb_t process_info[MAX_PROCESSES];
@@ -705,6 +741,8 @@ process_sbrk(int32_t delta)
 void
 process_init(void)
 {
+    ASSERT(sizeof(process_data_t) == PROCESS_DATA_SIZE);
+
     int32_t i;
     for (i = 0; i < MAX_PROCESSES; ++i) {
         process_info[i].pid = -1;

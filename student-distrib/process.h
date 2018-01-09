@@ -8,47 +8,8 @@
 #include "signal.h"
 #include "paging.h"
 
-/* Maximum length of string passed to execute() */
-#define MAX_EXEC_LEN 128
-
 /* Maximum argument length, including the NUL terminator */
 #define MAX_ARGS_LEN 128
-
-/* Maximum number of processes */
-#define MAX_PROCESSES 6
-
-/* Executable magic bytes ('\x7fELF') */
-#define EXE_MAGIC 0x464c457f
-
-/* Process data block size, MUST BE A POWER OF 2! */
-#define PROCESS_DATA_SIZE 8192
-
-/* User-modifiable bits in EFLAGS */
-#define EFLAGS_USER 0xDD5
-
-/* Interrupt flag */
-#define EFLAGS_IF (1 << 9)
-
-/* Direction flag */
-#define EFLAGS_DF (1 << 10)
-
-/*
- * The process has been initialized and is running or
- * is scheduled to run
- */
-#define PROCESS_RUN 0
-
-/*
- * The process is waiting for a child process to exit
- * and should not be scheduled for execution
- */
-#define PROCESS_SLEEP 1
-
-/*
- * The process has been created, but not initialized
- * (i.e. process_run has not yet been called)
- */
-#define PROCESS_SCHED 2
 
 #ifndef ASM
 
@@ -135,12 +96,6 @@ typedef struct {
     char args[MAX_ARGS_LEN];
 } pcb_t;
 
-/* Kernel stack struct */
-typedef struct {
-    pcb_t *pcb;
-    uint8_t kernel_stack[PROCESS_DATA_SIZE - sizeof(pcb_t *)];
-} process_data_t;
-
 /* Gets a PCB by its process ID */
 pcb_t *get_pcb_by_pid(int32_t pid);
 
@@ -166,7 +121,7 @@ void process_switch(void);
 /* Halts the executing process with the specified status code */
 int32_t process_halt_impl(uint32_t status);
 
-/* Starts the shell. This must only be called after all kernel init has completed. */
+/* Starts the shell. This must only be called after kernel initialization. */
 void process_start_shell(void);
 
 /* Handles RTC updates and delivers SIG_ALARM when necessary */

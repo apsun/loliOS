@@ -50,7 +50,11 @@ typedef struct {
 
 /* Signal syscall handlers */
 __cdecl int32_t signal_sigaction(int32_t signum, void *handler_address);
-__cdecl int32_t signal_sigreturn(int32_t signum, int_regs_t *user_regs, uint32_t, int_regs_t *kernel_regs);
+__cdecl int32_t signal_sigreturn(
+    int32_t signum,
+    int_regs_t *user_regs,
+    uint32_t unused,
+    int_regs_t *kernel_regs);
 __cdecl int32_t signal_sigraise(int32_t signum);
 __cdecl int32_t signal_sigmask(int32_t signum, int32_t action);
 
