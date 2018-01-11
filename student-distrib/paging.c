@@ -14,7 +14,7 @@ typedef struct {
     uint32_t page_attr_idx  : 1;
     uint32_t global         : 1;
     uint32_t avail          : 3;
-    uint32_t base_addr     : 20;
+    uint32_t base_addr      : 20;
 } __packed pte_t;
 
 /* Structure for 4KB page directory entry */
@@ -29,7 +29,7 @@ typedef struct {
     uint32_t size           : 1;
     uint32_t global         : 1;
     uint32_t avail          : 3;
-    uint32_t base_addr     : 20;
+    uint32_t base_addr      : 20;
 } __packed pde_4kb_t;
 
 /* Structure for 4MB page directory entry */
@@ -45,8 +45,8 @@ typedef struct {
     uint32_t global         : 1;
     uint32_t avail          : 3;
     uint32_t page_attr_idx  : 1;
-    uint32_t reserved      : 9;
-    uint32_t base_addr     : 10;
+    uint32_t reserved       : 9;
+    uint32_t base_addr      : 10;
 } __packed pde_4mb_t;
 
 /* Union of 4MB page table and 4KB page directory entries */
