@@ -4,49 +4,49 @@
 
 /* Structure for 4KB page table entry */
 typedef struct {
-    uint8_t present        : 1;
-    uint8_t write          : 1;
-    uint8_t user           : 1;
-    uint8_t write_through  : 1;
-    uint8_t cache_disabled : 1;
-    uint8_t accessed       : 1;
-    uint8_t dirty          : 1;
-    uint8_t page_attr_idx  : 1;
-    uint8_t global         : 1;
-    uint8_t avail          : 3;
+    uint32_t present        : 1;
+    uint32_t write          : 1;
+    uint32_t user           : 1;
+    uint32_t write_through  : 1;
+    uint32_t cache_disabled : 1;
+    uint32_t accessed       : 1;
+    uint32_t dirty          : 1;
+    uint32_t page_attr_idx  : 1;
+    uint32_t global         : 1;
+    uint32_t avail          : 3;
     uint32_t base_addr     : 20;
 } __packed pte_t;
 
 /* Structure for 4KB page directory entry */
 typedef struct {
-    uint8_t present        : 1;
-    uint8_t write          : 1;
-    uint8_t user           : 1;
-    uint8_t write_through  : 1;
-    uint8_t cache_disabled : 1;
-    uint8_t accessed       : 1;
-    uint8_t reserved       : 1;
-    uint8_t size           : 1;
-    uint8_t global         : 1;
-    uint8_t avail          : 3;
+    uint32_t present        : 1;
+    uint32_t write          : 1;
+    uint32_t user           : 1;
+    uint32_t write_through  : 1;
+    uint32_t cache_disabled : 1;
+    uint32_t accessed       : 1;
+    uint32_t reserved       : 1;
+    uint32_t size           : 1;
+    uint32_t global         : 1;
+    uint32_t avail          : 3;
     uint32_t base_addr     : 20;
 } __packed pde_4kb_t;
 
 /* Structure for 4MB page directory entry */
 typedef struct {
-    uint8_t present        : 1;
-    uint8_t write          : 1;
-    uint8_t user           : 1;
-    uint8_t write_through  : 1;
-    uint8_t cache_disabled : 1;
-    uint8_t accessed       : 1;
-    uint8_t dirty          : 1;
-    uint8_t size           : 1;
-    uint8_t global         : 1;
-    uint8_t avail          : 3;
-    uint8_t page_attr_idx  : 1;
-    uint16_t reserved      : 9;
-    uint16_t base_addr     : 10;
+    uint32_t present        : 1;
+    uint32_t write          : 1;
+    uint32_t user           : 1;
+    uint32_t write_through  : 1;
+    uint32_t cache_disabled : 1;
+    uint32_t accessed       : 1;
+    uint32_t dirty          : 1;
+    uint32_t size           : 1;
+    uint32_t global         : 1;
+    uint32_t avail          : 3;
+    uint32_t page_attr_idx  : 1;
+    uint32_t reserved      : 9;
+    uint32_t base_addr     : 10;
 } __packed pde_4mb_t;
 
 /* Union of 4MB page table and 4KB page directory entries */
