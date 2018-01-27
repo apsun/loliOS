@@ -79,7 +79,7 @@ dma_start(
     ASSERT(channel < 8);
     ASSERT((mode & 3) == 0);
 
-    /* Buffer must be in the first 16 = 2^24 MB of memory */
+    /* Buffer must be in the first 16MB = 2^24 bytes of memory */
     uint32_t addr = (uint32_t)buf;
     ASSERT((addr & ~0xffffff) == 0);
     ASSERT(((addr + nbytes - 1) & ~0xffffff) == 0);

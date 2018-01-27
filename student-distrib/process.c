@@ -274,14 +274,12 @@ process_parse_cmd(const char *command, uint32_t *out_inode_idx, char *out_args)
 static uint32_t
 process_load_exe(uint32_t inode_idx)
 {
-    uint32_t count;
+    /* Copy program into memory */
+    int32_t count;
     uint32_t offset = 0;
     do {
-        /*
-         * Copy the program to the process page.
-         * The chunk size (4096B) is arbitrary.
-         */
-        count = read_data(inode_idx, offset, (uint8_t *)PROCESS_VADDR + offset, 4096);
+        uint8_t *vaddr = (uint8_t *)PROCESS_VADDR + offset;
+        count = read_data(inode_idx, offset, vaddr, MB(4));
         offset += count;
     } while (count > 0);
 
@@ -291,7 +289,12 @@ process_load_exe(uint32_t inode_idx)
     memset((uint8_t *)USER_PAGE_START, 0, head_size);
     memset((uint8_t *)PROCESS_VADDR + offset, 0, tail_size);
 
-    /* The entry point is located at bytes 24-27 of the executable */
+    /*
+     * The entry point is located at bytes 24-27 of the executable.
+     * If the "executable" is less than 28 bytes long, this will just
+     * read garbage, which will cause the program to fault in userspace.
+     * No need to handle it here.
+     */
     uint32_t entry_point = *(uint32_t *)(PROCESS_VADDR + 24);
     return entry_point;
 }
