@@ -156,12 +156,12 @@ paging_init_vidmap(void)
     table->user = 1;
 }
 
-/* Initializes the 64KB DMA zone pages */
+/* Initializes the 64KB SB16 DMA zone pages */
 static void
-paging_init_dma(void)
+paging_init_sb16(void)
 {
-    uint32_t addr = DMA_PAGE_START;
-    while (addr < DMA_PAGE_END) {
+    uint32_t addr = SB16_PAGE_START;
+    while (addr < SB16_PAGE_END) {
         pte_t *table = TABLE(addr);
         table->present = 1;
         table->write = 1;
@@ -239,7 +239,7 @@ paging_enable(void)
     paging_init_video();
     paging_init_user();
     paging_init_vidmap();
-    paging_init_dma();
+    paging_init_sb16();
     paging_init_heap();
 
     /* Set control registers */

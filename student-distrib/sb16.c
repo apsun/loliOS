@@ -27,14 +27,14 @@
 #define SB16_CMD_BEGIN_MODE_SIGNED (1 << 4)
 
 /* Sample DMA buffer */
-#define SB16_BUFFER_SIZE (DMA_PAGE_END - DMA_PAGE_START)
+#define SB16_BUFFER_SIZE (SB16_PAGE_END - SB16_PAGE_START)
 #define SB16_HALF_BUFFER_SIZE (SB16_BUFFER_SIZE / 2)
 
 /* Tracks the single open sound file */
 static file_obj_t *open_device = NULL;
 
 /* Tracks the currently active sample buffer */
-static uint8_t *audio_buf = (uint8_t *)DMA_PAGE_START;
+static uint8_t *audio_buf = (uint8_t *)SB16_PAGE_START;
 static int32_t audio_buf_count = 0;
 
 /* Playback parameters (default = 11kHz, mono, 8bit) */

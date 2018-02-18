@@ -21,18 +21,11 @@ strcmp(const char *s1, const char *s2)
     assert(s1 != NULL);
     assert(s2 != NULL);
 
-    while (1) {
-        unsigned char c1 = (unsigned char)*s1++;
-        unsigned char c2 = (unsigned char)*s2++;
-        int32_t delta = c1 - c2;
-        if (delta != 0) {
-            return delta;
-        }
-        if (c1 == '\0') {
-            break;
-        }
+    while (*s1 && (*s1 == *s2)) {
+        s1++;
+        s2++;
     }
-    return 0;
+    return *(unsigned char *)s1 - *(unsigned char *)s2;
 }
 
 int32_t
@@ -42,18 +35,17 @@ strncmp(const char *s1, const char *s2, int32_t n)
     assert(s2 != NULL);
     assert(n >= 0);
 
-    while (n--) {
-        unsigned char c1 = (unsigned char)*s1++;
-        unsigned char c2 = (unsigned char)*s2++;
-        int32_t delta = c1 - c2;
-        if (delta != 0) {
-            return delta;
-        }
-        if (c1 == '\0') {
-            break;
-        }
+    while (n && *s1 && (*s1 == *s2)) {
+        s1++;
+        s2++;
+        n--;
     }
-    return 0;
+
+    if (n == 0) {
+        return 0;
+    } else {
+        return *(unsigned char *)s1 - *(unsigned char *)s2;
+    }
 }
 
 char *

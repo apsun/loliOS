@@ -18,8 +18,8 @@
 #define TERMINAL_PAGE_START 0x000BB000
 /* End point is determined by the number of terminals */
 
-#define DMA_PAGE_START      0x003C0000
-#define DMA_PAGE_END        0x003C2000
+#define SB16_PAGE_START     0x003C0000
+#define SB16_PAGE_END       0x003C2000
 
 #define KERNEL_PAGE_START   0x00400000
 #define KERNEL_PAGE_END     0x00800000
