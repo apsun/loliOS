@@ -1,7 +1,7 @@
 #define ASM 1
 
 /*
- * void longjmp(jmp_buf env, int32_t status)
+ * void longjmp(jmp_buf env, int status)
  *
  * Note that this relies on the GCC ABI - large structs
  * will be "exploded" onto the stack in x86.
@@ -19,7 +19,7 @@ longjmp:
     ret
 
 /*
- * int32_t __setjmp_ptr(jmp_buf *env)
+ * int __setjmp_ptr(jmp_buf *env)
  *
  * Implementation for setjmp, since setjmp does not take
  * a pointer. Instead we have a macro "thunk" take care of

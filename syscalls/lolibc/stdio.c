@@ -4,12 +4,11 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <string.h>
 #include <syscall.h>
 
 void
-putc(char c)
+putchar(char c)
 {
     write(1, &c, 1);
 }
@@ -19,25 +18,30 @@ puts(const char *s)
 {
     assert(s != NULL);
     write(1, s, strlen(s));
-    putc('\n');
+    putchar('\n');
 }
 
 char
-getc(void)
+getchar(void)
 {
     char c;
-    read(0, &c, 1);
-    return c;
+    if (read(0, &c, 1) < 0) {
+        return (char)-1;
+    } else {
+        return c;
+    }
 }
 
 char *
-gets(char *buf, int32_t n)
+gets(char *buf, int size)
 {
     assert(buf != NULL);
-    assert(n > 0);
+    assert(size > 0);
 
-    int32_t cnt = read(0, buf, n - 1);
-    if (cnt > 0 && buf[cnt - 1] == '\n') {
+    int cnt = read(0, buf, size - 1);
+    if (cnt < 0) {
+        return NULL;
+    } else if (cnt > 0 && buf[cnt - 1] == '\n') {
         cnt--;
     }
     buf[cnt] = '\0';
@@ -46,11 +50,8 @@ gets(char *buf, int32_t n)
 
 typedef struct {
     char *buf;
-    int32_t size;
-} printf_buf_t;
-
-typedef struct {
-    int32_t pad_width;
+    int size;
+    int pad_width;
     bool left_align;
     bool positive_sign;
     bool space_sign;
@@ -59,63 +60,63 @@ typedef struct {
 } printf_arg_t;
 
 static void
-printf_append_string(printf_buf_t *b, const char *s)
+printf_append_string(printf_arg_t *a, const char *s)
 {
-    if (b->buf != NULL) {
-        int32_t ret = strscpy(b->buf, s, b->size);
+    if (a->buf != NULL) {
+        int ret = strscpy(a->buf, s, a->size);
         if (ret >= 0) {
-            b->buf += ret;
-            b->size -= ret;
+            a->buf += ret;
+            a->size -= ret;
         } else {
-            b->buf = NULL;
+            a->buf = NULL;
         }
     }
 }
 
 static void
-printf_append_char(printf_buf_t *b, char c)
+printf_append_char(printf_arg_t *a, char c)
 {
-    if (b->buf != NULL) {
-        if (b->size > 1) {
-            b->buf[0] = c;
-            b->buf[1] = '\0';
-            b->buf++;
-            b->size--;
+    if (a->buf != NULL) {
+        if (a->size > 1) {
+            a->buf[0] = c;
+            a->buf[1] = '\0';
+            a->buf++;
+            a->size--;
         } else {
-            b->buf = NULL;
+            a->buf = NULL;
         }
     }
 }
 
 static void
-printf_pad(printf_buf_t *b, char pad, int32_t width)
+printf_pad(printf_arg_t *a, char pad, int width)
 {
     while (width-- > 0) {
-        printf_append_char(b, pad);
+        printf_append_char(a, pad);
     }
 }
 
 static void
-printf_do_string(printf_buf_t *b, printf_arg_t *a, const char *s)
+printf_do_string(printf_arg_t *a, const char *s)
 {
     if (a->left_align) {
-        printf_append_string(b, s);
-        printf_pad(b, ' ', a->pad_width - strlen(s));
+        printf_append_string(a, s);
+        printf_pad(a, ' ', a->pad_width - strlen(s));
     } else {
-        printf_pad(b, ' ', a->pad_width - strlen(s));
-        printf_append_string(b, s);
+        printf_pad(a, ' ', a->pad_width - strlen(s));
+        printf_append_string(a, s);
     }
 }
 
 static void
-printf_do_char(printf_buf_t *b, printf_arg_t *a, char c)
+printf_do_char(printf_arg_t *a, char c)
 {
     if (a->left_align) {
-        printf_append_char(b, c);
-        printf_pad(b, ' ', a->pad_width - 1);
+        printf_append_char(a, c);
+        printf_pad(a, ' ', a->pad_width - 1);
     } else {
-        printf_pad(b, ' ', a->pad_width - 1);
-        printf_append_char(b, c);
+        printf_pad(a, ' ', a->pad_width - 1);
+        printf_append_char(a, c);
     }
 }
 
@@ -129,7 +130,7 @@ printf_stoupper(char *buf)
 }
 
 static void
-printf_do_uint(printf_buf_t *b, printf_arg_t *a, uint32_t num, int32_t radix, bool upper)
+printf_do_uint(printf_arg_t *a, unsigned int num, int radix, bool upper)
 {
     char utoa_buf[64];
     utoa(num, utoa_buf, radix);
@@ -137,18 +138,18 @@ printf_do_uint(printf_buf_t *b, printf_arg_t *a, uint32_t num, int32_t radix, bo
         printf_stoupper(utoa_buf);
     }
 
-    int32_t pad_width = a->pad_width - strlen(utoa_buf);
+    int pad_width = a->pad_width - strlen(utoa_buf);
     if (a->left_align) {
-        printf_append_string(b, utoa_buf);
-        printf_pad(b, ' ', pad_width);
+        printf_append_string(a, utoa_buf);
+        printf_pad(a, ' ', pad_width);
     } else {
-        printf_pad(b, a->pad_zeros ? '0' : ' ', pad_width);
-        printf_append_string(b, utoa_buf);
+        printf_pad(a, a->pad_zeros ? '0' : ' ', pad_width);
+        printf_append_string(a, utoa_buf);
     }
 }
 
 static void
-printf_do_int(printf_buf_t *b, printf_arg_t *a, int32_t num, int32_t radix, bool upper)
+printf_do_int(printf_arg_t *a, int num, int radix, bool upper)
 {
     char utoa_buf[64];
     utoa((num < 0) ? -num : num, utoa_buf, radix);
@@ -167,17 +168,17 @@ printf_do_int(printf_buf_t *b, printf_arg_t *a, int32_t num, int32_t radix, bool
     }
 
     /* Save one additional character for sign */
-    int32_t pad_width = a->pad_width - strlen(utoa_buf);
+    int pad_width = a->pad_width - strlen(utoa_buf);
     if (sign_char != '\0') {
         pad_width--;
     }
 
     if (a->left_align) {
         if (sign_char != '\0') {
-            printf_append_char(b, sign_char);
+            printf_append_char(a, sign_char);
         }
-        printf_append_string(b, utoa_buf);
-        printf_pad(b, ' ', pad_width);
+        printf_append_string(a, utoa_buf);
+        printf_pad(a, ' ', pad_width);
     } else {
         /*
          * If padding with zeros, print sign then padding,
@@ -185,62 +186,48 @@ printf_do_int(printf_buf_t *b, printf_arg_t *a, int32_t num, int32_t radix, bool
          */
         if (a->pad_zeros) {
             if (sign_char != '\0') {
-                printf_append_char(b, sign_char);
+                printf_append_char(a, sign_char);
             }
-            printf_pad(b, '0', pad_width);
+            printf_pad(a, '0', pad_width);
         } else {
-            printf_pad(b, ' ', pad_width);
+            printf_pad(a, ' ', pad_width);
             if (sign_char != '\0') {
-                printf_append_char(b, sign_char);
+                printf_append_char(a, sign_char);
             }
         }
-        printf_append_string(b, utoa_buf);
+        printf_append_string(a, utoa_buf);
     }
 }
 
-int32_t
-vsnprintf(char *buf, int32_t size, const char *format, va_list args)
+int
+vsnprintf(char *buf, int size, const char *format, va_list args)
 {
     assert(buf != NULL);
     assert(size > 0);
     assert(format != NULL);
 
-    /* Put these together to make them more convenient to pass */
-    printf_buf_t b;
-    b.buf = buf;
-    b.size = size;
-
     /* Ensure string is NUL-terminated */
     *buf = '\0';
 
+    printf_arg_t a;
+    a.buf = buf;
+    a.size = size;
+
     for (; *format != '\0'; format++) {
         if (*format != '%') {
-            printf_append_char(&b, *format);
+            printf_append_char(&a, *format);
             continue;
         }
 
         /* Whether we're currently reading a width format */
         bool in_width_format = false;
 
-        /* Conversion spec arguments */
-        printf_arg_t a;
-
-        /* Width of numbers with padding */
+        /* Reset format flags */
         a.pad_width = 0;
-
-        /* Align numbers on the left instead of right? */
         a.left_align = false;
-
-        /* Print the sign even if positive? */
         a.positive_sign = false;
-
-        /* Insert space for sign if positive? */
         a.space_sign = false;
-
-        /* Use alternate conversion format? */
         a.alternate_format = false;
-
-        /* Pad numbers with zeros? */
         a.pad_zeros = false;
 
 consume_format:
@@ -295,43 +282,43 @@ consume_format:
 
         /* Print a literal '%' character */
         case '%':
-            printf_append_char(&b, '%');
+            printf_append_char(&a, '%');
             break;
 
         /* Print a number in lowercase hexadecimal form */
         case 'x':
-            printf_do_uint(&b, &a, va_arg(args, uint32_t), 16, false);
+            printf_do_uint(&a, va_arg(args, unsigned int), 16, false);
             break;
 
         /* Print a number in uppercase hexadecimal form */
         case 'X':
-            printf_do_uint(&b, &a, va_arg(args, uint32_t), 16, true);
+            printf_do_uint(&a, va_arg(args, unsigned int), 16, true);
             break;
 
         /* Print a number in unsigned decimal form */
         case 'u':
-            printf_do_uint(&b, &a, va_arg(args, uint32_t), 10, false);
+            printf_do_uint(&a, va_arg(args, unsigned int), 10, false);
             break;
 
         /* Print a number in signed decimal form */
         case 'd':
         case 'i':
-            printf_do_int(&b, &a, va_arg(args, int32_t), 10, false);
+            printf_do_int(&a, va_arg(args, int), 10, false);
             break;
 
         /* Print a number in octal form */
         case 'o':
-            printf_do_uint(&b, &a, va_arg(args, uint32_t), 8, false);
+            printf_do_uint(&a, va_arg(args, unsigned int), 8, false);
             break;
 
         /* Print a single character */
         case 'c':
-            printf_do_char(&b, &a, (char)va_arg(args, uint32_t));
+            printf_do_char(&a, (char)va_arg(args, int));
             break;
 
         /* Print a NULL-terminated string */
         case 's':
-            printf_do_string(&b, &a, va_arg(args, const char *));
+            printf_do_string(&a, va_arg(args, const char *));
             break;
 
         /* Fail fast on any other characters */
@@ -342,44 +329,44 @@ consume_format:
     }
 
     /* Return number of chars (excluding NUL) printed or -1 on error */
-    if (b.buf == NULL) {
+    if (a.buf == NULL) {
         return -1;
     } else {
-        return size - b.size;
+        return size - a.size;
     }
 }
 
-int32_t
-snprintf(char *buf, int32_t size, const char *format, ...)
+int
+snprintf(char *buf, int size, const char *format, ...)
 {
     va_list args;
     va_start(args, format);
-    int32_t ret = vsnprintf(buf, size, format, args);
+    int ret = vsnprintf(buf, size, format, args);
     va_end(args);
     return ret;
 }
 
-int32_t
+int
 vprintf(const char *format, va_list args)
 {
     /*
      * Too lazy to write this properly, just pray that
-     * nobody has strings longer than 4096 characters...
+     * nobody has strings longer than 4096 charactera...
      */
     char buf[4096];
-    int32_t len = vsnprintf(buf, sizeof(buf), format, args);
+    int len = vsnprintf(buf, sizeof(buf), format, args);
     if (len > 0) {
         write(1, buf, len);
     }
     return len;
 }
 
-int32_t
+int
 printf(const char *format, ...)
 {
     va_list args;
     va_start(args, format);
-    int32_t ret = vprintf(format, args);
+    int ret = vprintf(format, args);
     va_end(args);
     return ret;
 }

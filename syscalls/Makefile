@@ -1,4 +1,4 @@
-CFLAGS += -Ilolibc -Wall -Wextra -ffreestanding -fno-stack-protector -O3 -m32
+CFLAGS += -Ilolibc -Wall -Wextra -Werror -ffreestanding -fno-stack-protector -O3 -m32
 ASFLAGS += -Ilolibc -Wall -Wextra -m32
 LDFLAGS += -nostdlib -static -m32
 

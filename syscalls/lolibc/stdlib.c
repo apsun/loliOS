@@ -1,29 +1,30 @@
 #include <assert.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <syscall.h>
 
-static void (*atexit_fns[32])(void);
-static int32_t atexit_num = 0;
-static int32_t rand_state = 0;
+#define MAX_ATEXIT 32
+
+static void (*atexit_fns[MAX_ATEXIT])(void);
+static int atexit_count = 0;
+static unsigned int rand_state = 1;
 
 void
-exit(int32_t status)
+exit(int status)
 {
-    int32_t i = atexit_num;
+    int i = atexit_count;
     while (i--) {
         atexit_fns[i]();
     }
     halt(status);
 }
 
-int32_t
+int
 atexit(void (*fn)(void))
 {
     assert(fn != NULL);
 
-    if (atexit_num < 32) {
-        atexit_fns[atexit_num++] = fn;
+    if (atexit_count < MAX_ATEXIT) {
+        atexit_fns[atexit_count++] = fn;
         return 0;
     } else {
         return -1;
@@ -36,14 +37,18 @@ abort(void)
     halt(1);
 }
 
-int32_t
+int
 rand(void)
 {
-    return rand_state = ((rand_state * 1103515245) + 12345) & 0x7fffffff;
+    unsigned int tmp = rand_state;
+    tmp *= 1103515245;
+    tmp += 12345;
+    tmp &= 0x7fffffff;
+    return (int)(rand_state = tmp);
 }
 
 void
-srand(int32_t seed)
+srand(unsigned int seed)
 {
     rand_state = seed;
 }

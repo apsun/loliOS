@@ -1,21 +1,18 @@
 #include <string.h>
 #include <assert.h>
 #include <stddef.h>
-#include <stdint.h>
 
-int32_t
+int
 strlen(const char *s)
 {
     assert(s != NULL);
 
     const char *end = s;
-    while (*end != '\0') {
-        end++;
-    }
+    while (*end) end++;
     return end - s;
 }
 
-int32_t
+int
 strcmp(const char *s1, const char *s2)
 {
     assert(s1 != NULL);
@@ -28,8 +25,8 @@ strcmp(const char *s1, const char *s2)
     return *(unsigned char *)s1 - *(unsigned char *)s2;
 }
 
-int32_t
-strncmp(const char *s1, const char *s2, int32_t n)
+int
+strncmp(const char *s1, const char *s2, int n)
 {
     assert(s1 != NULL);
     assert(s2 != NULL);
@@ -60,31 +57,30 @@ strcpy(char *dest, const char *src)
 }
 
 char *
-strncpy(char *dest, const char *src, int32_t n)
+strncpy(char *dest, const char *src, int n)
 {
     assert(dest != NULL);
     assert(src != NULL);
-    assert(n >= 0);
 
     char *new_dest = dest;
     while (n-- && (*new_dest++ = *src++));
     return dest;
 }
 
-int32_t
-strscpy(char *dest, const char *src, int32_t n)
+int
+strscpy(char *dest, const char *src, int n)
 {
     assert(dest != NULL);
     assert(src != NULL);
     assert(n > 0);
 
-    int32_t i = 0;
-    while (i < n) {
-        if ((dest[i] = src[i]) == '\0') {
+    int i;
+    for (i = 0; i < n; ++i) {
+        if (!(dest[i] = src[i])) {
             return i;
         }
-        i++;
     }
+
     dest[i - 1] = '\0';
     return -1;
 }
@@ -96,24 +92,20 @@ strcat(char *dest, const char *src)
     assert(src != NULL);
 
     char *new_dest = dest;
-    while (*new_dest) {
-        new_dest++;
-    }
+    while (*new_dest) new_dest++;
     while ((*new_dest++ = *src++));
     return dest;
 }
 
 char *
-strncat(char *dest, const char *src, int32_t n)
+strncat(char *dest, const char *src, int n)
 {
     assert(dest != NULL);
     assert(src != NULL);
     assert(n > 0);
 
     char *new_dest = dest;
-    while (*new_dest) {
-        new_dest++;
-    }
+    while (*new_dest) new_dest++;
     while ((*new_dest++ = *src++)) {
         if (--n == 0) {
             *new_dest = '\0';
@@ -128,8 +120,8 @@ strrev(char *s)
 {
     assert(s != NULL);
 
-    int32_t end = strlen(s) - 1;
-    int32_t start = 0;
+    int end = strlen(s) - 1;
+    int start = 0;
     while (start < end) {
         char tmp = s[end];
         s[end] = s[start];
@@ -175,7 +167,7 @@ strstr(const char *haystack, const char *needle)
     assert(haystack != NULL);
     assert(needle != NULL);
 
-    int32_t len = strlen(needle);
+    int len = strlen(needle);
     while (*haystack) {
         if (memcmp(haystack, needle, len) == 0) {
             return (char *)haystack;
@@ -186,14 +178,14 @@ strstr(const char *haystack, const char *needle)
 }
 
 char *
-utoa(uint32_t value, char *buf, int32_t radix)
+utoa(unsigned int value, char *buf, int radix)
 {
     assert(buf != NULL);
     assert(radix >= 2 && radix <= 36);
 
     const char *lookup = "0123456789abcdefghijklmnopqrstuvwxyz";
     char *newbuf = buf;
-    uint32_t newval = value;
+    unsigned int newval = value;
 
     /* Special case for zero */
     if (value == 0) {
@@ -223,26 +215,29 @@ utoa(uint32_t value, char *buf, int32_t radix)
 }
 
 char *
-itoa(int32_t value, char *buf, int32_t radix)
+itoa(int value, char *buf, int radix)
 {
+    assert(buf != NULL);
+    assert(radix >= 2 && radix <= 36);
+
     /* If it's already positive, no problem */
     if (value >= 0) {
-        return utoa((uint32_t)value, buf, radix);
+        return utoa((unsigned int)value, buf, radix);
     }
 
     /* Okay, handle the sign separately */
     buf[0] = '-';
-    utoa((uint32_t)-value, &buf[1], radix);
+    utoa((unsigned int)-value, &buf[1], radix);
     return buf;
 }
 
-int32_t
+int
 atoi(const char *str)
 {
     assert(str != NULL);
 
-    int32_t res = 0;
-    int32_t sign = 1;
+    int res = 0;
+    int sign = 1;
 
     /* Negative sign check */
     if (*str == '-') {
@@ -260,31 +255,14 @@ atoi(const char *str)
     return res * sign;
 }
 
-void *
-memchr(const void *s, uint8_t c, int32_t n)
-{
-    assert(s != NULL);
-    assert(n >= 0);
-
-    const uint8_t *p = s;
-    while (n--) {
-        if (*p == c) {
-            return (void *)p;
-        }
-        p++;
-    }
-    return NULL;
-}
-
-int32_t
-memcmp(const void *s1, const void *s2, int32_t n)
+int
+memcmp(const void *s1, const void *s2, int n)
 {
     assert(s1 != NULL);
     assert(s2 != NULL);
-    assert(n >= 0);
 
-    const uint8_t *a = s1;
-    const uint8_t *b = s2;
+    const unsigned char *a = s1;
+    const unsigned char *b = s2;
     while (n && (*a == *b)) {
         a++;
         b++;
@@ -299,12 +277,28 @@ memcmp(const void *s1, const void *s2, int32_t n)
 }
 
 void *
-memset(void *s, uint8_t c, int32_t n)
+memchr(const void *s, unsigned char c, int n)
 {
     assert(s != NULL);
     assert(n >= 0);
 
-    uint8_t *p = s;
+    const unsigned char *p = s;
+    while (n--) {
+        if (*p == c) {
+            return (void *)p;
+        }
+        p++;
+    }
+    return NULL;
+}
+
+void *
+memset(void *s, unsigned char c, int n)
+{
+    assert(s != NULL);
+    assert(n >= 0);
+
+    unsigned char *p = s;
     while (n--) {
         *p++ = c;
     }
@@ -312,14 +306,14 @@ memset(void *s, uint8_t c, int32_t n)
 }
 
 void *
-memcpy(void *dest, const void *src, int32_t n)
+memcpy(void *dest, const void *src, int n)
 {
     assert(dest != NULL);
     assert(src != NULL);
     assert(n >= 0);
 
-    uint8_t *d = dest;
-    const uint8_t *s = src;
+    unsigned char *d = dest;
+    const unsigned char *s = src;
     while (n--) {
         *d++ = *s++;
     }
@@ -327,7 +321,7 @@ memcpy(void *dest, const void *src, int32_t n)
 }
 
 void *
-memmove(void *dest, const void *src, int32_t n)
+memmove(void *dest, const void *src, int n)
 {
     assert(dest != NULL);
     assert(src != NULL);
@@ -335,12 +329,12 @@ memmove(void *dest, const void *src, int32_t n)
 
     if (dest < src) {
         return memcpy(dest, src, n);
-    } else if (dest > src) {
-        uint8_t *d = dest;
-        const uint8_t *s = src;
-        while (n--) {
-            d[n] = s[n];
-        }
+    }
+
+    unsigned char *d = dest;
+    const unsigned char *s = src;
+    while (n--) {
+        d[n] = s[n];
     }
     return dest;
 }
