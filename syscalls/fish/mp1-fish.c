@@ -3,7 +3,6 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,22 +12,22 @@
 #define LEFT_X 40
 
 static void
-run_loop(int32_t rtc_fd, int32_t ticks)
+run_loop(int rtc_fd, int ticks)
 {
-    int32_t i;
+    int i;
     for (i = 0; i < ticks; ++i) {
-        int32_t garbage;
+        int garbage;
         read(rtc_fd, &garbage, sizeof(garbage));
         mp1_rtc_tasklet(0);
     }
 }
 
-static int32_t
+static int
 add_frames(const char *f0, const char *f1)
 {
     /* Open frame files */
-    int32_t fd0 = open(f0);
-    int32_t fd1 = open(f1);
+    int fd0 = open(f0);
+    int fd1 = open(f1);
     if (fd0 < 0 || fd1 < 0) {
         return -1;
     }
@@ -43,9 +42,9 @@ add_frames(const char *f0, const char *f1)
     bool eof1 = false;
     char c0 = '\0';
     char c1 = '\0';
-    int32_t row = 0;
+    int row = 0;
     while (!eof0 || !eof1) {
-        int32_t col = 0;
+        int col = 0;
         while (1) {
             if (c0 != '\n' && read(fd0, &c0, 1) == 0) {
                 c0 = '\n';
@@ -63,7 +62,7 @@ add_frames(const char *f0, const char *f1)
                 b.on_char = (c0 == '\n') ? ' ' : c0;
                 b.off_char = (c1 == '\n') ? ' ' : c1;
                 b.location = row * SCREEN_WIDTH + col + LEFT_X;
-                mp1_ioctl((uint32_t)&b, IOCTL_ADD);
+                mp1_ioctl((int)&b, IOCTL_ADD);
             }
 
             col++;
@@ -89,14 +88,14 @@ add_frames(const char *f0, const char *f1)
     return 0;
 }
 
-int32_t
+int
 main(void)
 {
     vga_init();
 
     /* Initialize RTC to 32 ticks/sec */
-    int32_t rtc_fd = open("rtc");
-    int32_t rtc_freq = 32;
+    int rtc_fd = open("rtc");
+    int rtc_freq = 32;
     write(rtc_fd, &rtc_freq, sizeof(rtc_freq));
 
     /* Load fish frames */
@@ -114,7 +113,7 @@ main(void)
     b.on_length = 7;
     b.off_length = 6;
     b.location = 6 * SCREEN_WIDTH + LEFT_X + 20;
-    mp1_ioctl((uint32_t)&b, IOCTL_ADD);
+    mp1_ioctl((int)&b, IOCTL_ADD);
     run_loop(rtc_fd, WAIT);
 
     /* Sync I/M char */

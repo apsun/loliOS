@@ -1,17 +1,16 @@
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <syscall.h>
 
 #define BUFSIZE 1024
 
-int32_t
+int
 do_one_file(const char *s, const char *fname)
 {
-    int32_t ret = 0;
-    int32_t fd = -1;
-    int32_t s_len = strlen(s);
+    int ret = 0;
+    int fd = -1;
+    int s_len = strlen(s);
     char data[BUFSIZE + 1];
 
     if ((fd = open(fname)) < 0) {
@@ -20,8 +19,8 @@ do_one_file(const char *s, const char *fname)
         goto exit;
     }
 
-    int32_t last = 0;
-    int32_t cnt;
+    int last = 0;
+    int cnt;
     do {
         if ((cnt = read(fd, &data[last], BUFSIZE - last)) < 0) {
             puts("file read filed");
@@ -30,9 +29,9 @@ do_one_file(const char *s, const char *fname)
         }
 
         last += cnt;
-        int32_t line_start = 0;
+        int line_start = 0;
         while (1) {
-            int32_t line_end = line_start;
+            int line_end = line_start;
             while (line_end < last && data[line_end] != '\n') {
                 line_end++;
             }
@@ -45,7 +44,7 @@ do_one_file(const char *s, const char *fname)
             }
 
             data[line_end] = '\0';
-            int32_t check;
+            int check;
             for (check = line_start; check < line_end; check++) {
                 if (strncmp(&data[check], s, s_len) == 0) {
                     printf("%s:%s\n", fname, &data[line_start]);
@@ -66,11 +65,11 @@ exit:
     return ret;
 }
 
-int32_t
+int
 main(void)
 {
-    int32_t ret = 0;
-    int32_t fd = -1;
+    int ret = 0;
+    int fd = -1;
 
     char args[BUFSIZE];
     if (getargs(args, sizeof(args)) < 0) {
@@ -86,7 +85,7 @@ main(void)
     }
 
     char fname[33];
-    int32_t cnt;
+    int cnt;
     while ((cnt = read(fd, fname, sizeof(fname) - 1)) != 0) {
         if (cnt < 0) {
             puts("directory entry read failed");

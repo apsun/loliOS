@@ -1,9 +1,8 @@
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <syscall.h>
 
-int32_t
+int
 main(void)
 {
     char args[1024];

@@ -68,8 +68,8 @@ typedef struct {
 
 /* Pre-processed mouse input */
 typedef struct {
-    int16_t dx;
-    int16_t dy;
+    int dx;
+    int dy;
     bool left : 1;
     bool right : 1;
     bool middle : 1;
@@ -88,15 +88,15 @@ parse_mouse_input(raw_mouse_input_t in, mouse_input_t *out)
     }
 
     /* Delta x movement */
-    int16_t dx = in.dx;
+    int dx = in.dx;
     if ((flags & MOUSE_X_SIGN) != 0) {
-        dx |= 0xff00;
+        dx |= 0xffffff00;
     }
 
     /* Delta y movement */
-    int16_t dy = in.dy;
+    int dy = in.dy;
     if ((flags & MOUSE_Y_SIGN) != 0) {
-        dy |= 0xff00;
+        dy |= 0xffffff00;
     }
 
     /* Buttons */
@@ -113,14 +113,14 @@ parse_mouse_input(raw_mouse_input_t in, mouse_input_t *out)
     return true;
 }
 
-int32_t
+int
 parse_mouse_inputs(
-    int32_t num_inputs,
+    int num_inputs,
     raw_mouse_input_t in[MOUSE_BUF_SIZE],
     mouse_input_t out[MOUSE_BUF_SIZE])
 {
-    int32_t num = 0;
-    int32_t i;
+    int num = 0;
+    int i;
     for (i = 0; i < num_inputs; ++i) {
         if (parse_mouse_input(in[i], &out[num])) {
             num++;
@@ -129,11 +129,11 @@ parse_mouse_inputs(
     return num;
 }
 
-int32_t
+int
 read_mouse_inputs(int fd, mouse_input_t out[MOUSE_BUF_SIZE])
 {
     raw_mouse_input_t raw[MOUSE_BUF_SIZE];
-    int32_t ret = read(fd, raw, sizeof(raw));
+    int ret = read(fd, raw, sizeof(raw));
     if (ret < 0) {
         return 0;
     }
@@ -142,14 +142,14 @@ read_mouse_inputs(int fd, mouse_input_t out[MOUSE_BUF_SIZE])
 }
 
 void
-draw_char(uint8_t *video_mem, int32_t x, int32_t y, char c)
+draw_char(uint8_t *video_mem, int x, int y, char c)
 {
     uint8_t *addr = &video_mem[(SCREEN_WIDTH * y + x) * 2];
     *addr = (uint8_t)c;
 }
 
 void
-draw_pixel(uint8_t *video_mem, int32_t x, int32_t y, uint8_t color)
+draw_pixel(uint8_t *video_mem, int x, int y, uint8_t color)
 {
     uint8_t *addr = &video_mem[(SCREEN_WIDTH * y + x) * 2 + 1];
     *addr &= 0x88;
@@ -158,7 +158,7 @@ draw_pixel(uint8_t *video_mem, int32_t x, int32_t y, uint8_t color)
 }
 
 void
-set_highlight(uint8_t *video_mem, int32_t x, int32_t y, bool highlight)
+set_highlight(uint8_t *video_mem, int x, int y, bool highlight)
 {
     uint8_t *addr = &video_mem[(SCREEN_WIDTH * y + x) * 2 + 1];
     if (highlight) {
@@ -171,12 +171,12 @@ set_highlight(uint8_t *video_mem, int32_t x, int32_t y, bool highlight)
 void
 draw_palette(uint8_t *video_mem)
 {
-    int32_t i, j, k;
+    int i, j, k;
     for (i = 0; i < NUM_COLORS; ++i) {
         for (j = 0; j < PALETTE_WIDTH; ++j) {
             for (k = 0; k < PALETTE_HEIGHT; ++k) {
-                int32_t x = PALETTE_WIDTH * i + j;
-                int32_t y = SCREEN_HEIGHT - PALETTE_HEIGHT + k;
+                int x = PALETTE_WIDTH * i + j;
+                int y = SCREEN_HEIGHT - PALETTE_HEIGHT + k;
                 draw_pixel(video_mem, x, y, i);
                 set_highlight(video_mem, x, y, HIGHLIGHT_BG);
             }
@@ -185,7 +185,7 @@ draw_palette(uint8_t *video_mem)
 }
 
 bool
-update_palette(int32_t sx, int32_t sy, uint8_t *selected_color)
+update_palette(int sx, int sy, uint8_t *selected_color)
 {
     if (sx < 0 || sx >= PALETTE_WIDTH * NUM_COLORS) {
         return false;
@@ -204,7 +204,7 @@ update_palette(int32_t sx, int32_t sy, uint8_t *selected_color)
 void
 clear_screen(uint8_t *video_mem, uint8_t color)
 {
-    int32_t i, j;
+    int i, j;
     for (i = 0; i < SCREEN_HEIGHT; ++i) {
         for (j = 0; j < SCREEN_WIDTH; ++j) {
             draw_char(video_mem, j, i, ' ');
@@ -217,7 +217,7 @@ clear_screen(uint8_t *video_mem, uint8_t color)
 void
 reset_screen(uint8_t *video_mem)
 {
-    int32_t i, j;
+    int i, j;
     for (i = 0; i < SCREEN_HEIGHT; ++i) {
         for (j = 0; j < SCREEN_WIDTH; ++j) {
             video_mem[(SCREEN_WIDTH * i + j) * 2 + 1] = TERM_ATTRIB;
@@ -226,7 +226,7 @@ reset_screen(uint8_t *video_mem)
 }
 
 void
-clamp_coords(int32_t *x, int32_t *y)
+clamp_coords(int *x, int *y)
 {
     if (*x < 0) {
         *x = 0;
@@ -242,7 +242,7 @@ clamp_coords(int32_t *x, int32_t *y)
 }
 
 void
-canvas_to_screen(int32_t cx, int32_t cy, int32_t *sx, int32_t *sy)
+canvas_to_screen(int cx, int cy, int *sx, int *sy)
 {
     *sx = cx / SCALE_FACTOR_X;
     *sy = SCREEN_HEIGHT - 1 - cy / SCALE_FACTOR_Y;
@@ -254,11 +254,11 @@ sig_interrupt_handler(void)
     haz_interrupt = true;
 }
 
-int32_t
+int
 main(void)
 {
-    int32_t ret = 0;
-    int32_t mouse_fd = -1;
+    int ret = 0;
+    int mouse_fd = -1;
 
     /* Set signal handler */
     if (sigaction(SIG_INTERRUPT, (void *)sig_interrupt_handler) < 0) {
@@ -287,8 +287,8 @@ main(void)
     draw_palette(video_mem);
 
     /* Some state variables... */
-    int32_t prev_cx = CANVAS_WIDTH / 2;
-    int32_t prev_cy = CANVAS_HEIGHT / 2;
+    int prev_cx = CANVAS_WIDTH / 2;
+    int prev_cy = CANVAS_HEIGHT / 2;
     uint8_t selected_color = COLOR_RED;
     mouse_input_t inputs[MOUSE_BUF_SIZE];
 
@@ -300,27 +300,27 @@ main(void)
         }
 
         /* Read some more mouse inputs */
-        int32_t num_inputs = read_mouse_inputs(mouse_fd, inputs);
+        int num_inputs = read_mouse_inputs(mouse_fd, inputs);
         if (num_inputs == 0) {
             continue;
         }
 
-        int32_t i;
+        int i;
         for (i = 0; i < num_inputs; ++i) {
             mouse_input_t input = inputs[i];
 
             /* Undraw cursor at old location */
-            int32_t prev_sx, prev_sy;
+            int prev_sx, prev_sy;
             canvas_to_screen(prev_cx, prev_cy, &prev_sx, &prev_sy);
             set_highlight(video_mem, prev_sx, prev_sy, HIGHLIGHT_BG);
 
             /* Compute new canvas location */
-            int32_t new_cx = prev_cx + input.dx * MOUSE_SPEED;
-            int32_t new_cy = prev_cy + input.dy * MOUSE_SPEED;
+            int new_cx = prev_cx + input.dx * MOUSE_SPEED;
+            int new_cy = prev_cy + input.dy * MOUSE_SPEED;
             clamp_coords(&new_cx, &new_cy);
 
             /* Draw cursor at new location */
-            int32_t new_sx, new_sy;
+            int new_sx, new_sy;
             canvas_to_screen(new_cx, new_cy, &new_sx, &new_sy);
             set_highlight(video_mem, new_sx, new_sy, HIGHLIGHT_FG);
 

@@ -1,6 +1,6 @@
 #include <stdbool.h>
-#include <stdint.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <assert.h>
 #include <stdio.h>

@@ -1,5 +1,4 @@
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <syscall.h>
@@ -13,14 +12,14 @@
 #define STARTCHAR 'A'
 #define ENDCHAR 'Z'
 
-int32_t
+int
 main(void)
 {
-    int32_t ret = 0;
-    int32_t rtc_fd = -1;
+    int ret = 0;
+    int rtc_fd = -1;
     char buf[BUFMAX];
 
-    int32_t i;
+    int i;
     for (i = 0; i < BUFMAX; i++) {
         buf[i] = ' ';
     }
@@ -36,7 +35,7 @@ main(void)
         goto exit;
     }
 
-    int32_t rtc_freq = 32;
+    int rtc_freq = 32;
     if (write(rtc_fd, &rtc_freq, sizeof(rtc_freq)) < 0) {
         puts("could not set rtc frequency");
         ret = 3;
@@ -45,7 +44,7 @@ main(void)
 
     char curchar = STARTCHAR;
     while (1) {
-        int32_t j;
+        int j;
         for (j = STARTLOOP; j < LOOPMAX; j++) {
             for (i = STARTLOOP; i < LOOPMAX; i++) {
                 buf[i] = ' ';
@@ -54,7 +53,7 @@ main(void)
             buf[j] = curchar;
             printf("%s", buf);
 
-            int32_t garbage;
+            int garbage;
             read(rtc_fd, &garbage, sizeof(garbage));
         }
 
@@ -66,7 +65,7 @@ main(void)
             buf[j] = curchar;
             printf("%s", buf);
 
-            int32_t garbage;
+            int garbage;
             read(rtc_fd, &garbage, sizeof(garbage));
         }
 

@@ -2,7 +2,6 @@
 #define _LOLIBC_STDIO_H
 
 #include <stdarg.h>
-#include <stddef.h>
 
 void putchar(char c);
 void puts(const char *s);

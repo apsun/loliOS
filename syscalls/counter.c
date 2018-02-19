@@ -1,10 +1,9 @@
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <syscall.h>
 
-int32_t
+int
 main(void)
 {
     puts("Enter the Test Number: (0): 100, (1): 10000, (2): 100000");
@@ -15,7 +14,7 @@ main(void)
         return 3;
     }
 
-    int32_t max;
+    int max;
     if (strcmp(buf, "0") == 0) {
         max = 100;
     } else if (strcmp(buf, "1") == 0) {
@@ -27,7 +26,7 @@ main(void)
         return 0;
     }
 
-    int32_t i;
+    int i;
     for (i = 0; i < max; ++i) {
         printf("%d\n", i);
     }

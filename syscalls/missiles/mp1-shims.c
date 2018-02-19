@@ -3,7 +3,6 @@
 #include <setjmp.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <syscall.h>
@@ -17,11 +16,11 @@ segv_handler(void)
     longjmp(memcpy_env, 1);
 }
 
-ASM_VISIBLE int32_t
-mp1_copy_to_user(void *dest, const void *src, int32_t n)
+ASM_VISIBLE int
+mp1_copy_to_user(void *dest, const void *src, int n)
 {
     sigaction(SIG_SEGFAULT, segv_handler);
-    int32_t ret;
+    int ret;
     if (setjmp(memcpy_env) == 0) {
         memcpy(dest, src, n);
         ret = 0;
@@ -32,14 +31,14 @@ mp1_copy_to_user(void *dest, const void *src, int32_t n)
     return ret;
 }
 
-ASM_VISIBLE int32_t
-mp1_copy_from_user(void *dest, const void *src, int32_t n)
+ASM_VISIBLE int
+mp1_copy_from_user(void *dest, const void *src, int n)
 {
     return mp1_copy_to_user(dest, src, n);
 }
 
 ASM_VISIBLE void *
-mp1_malloc(int32_t size)
+mp1_malloc(size_t size)
 {
     return malloc(size);
 }

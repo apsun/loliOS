@@ -1,13 +1,12 @@
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <syscall.h>
 
-int32_t
+int
 main(void)
 {
-    int32_t ret = 0;
-    int32_t fd = -1;
+    int ret = 0;
+    int fd = -1;
     char fname[33];
 
     /* Open the directory */
@@ -18,7 +17,7 @@ main(void)
     }
 
     /* Read dir entries, print to stdout */
-    int32_t cnt;
+    int cnt;
     while ((cnt = read(fd, fname, sizeof(fname))) != 0) {
         if (cnt < 0) {
             puts("directory entry read failed");

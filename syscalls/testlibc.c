@@ -3,7 +3,6 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -154,7 +153,7 @@ test_memcmp(void)
 void
 test_memset(void)
 {
-    uint8_t buf[16];
+    unsigned char buf[16];
     memset(buf, 0xaa, sizeof(buf));
     assert(buf[0] == 0xaa);
     assert(buf[15] == 0xaa);
@@ -166,7 +165,7 @@ test_memset(void)
 void
 test_memcpy(void)
 {
-    uint8_t buf[16];
+    unsigned char buf[16];
     memcpy(buf, "i like pie", 6);
     assert(memcmp(buf, "i like", 6) == 0);
 }
@@ -174,7 +173,7 @@ test_memcpy(void)
 void
 test_memmove(void)
 {
-    uint8_t buf[4] = {1, 2, 3, 4};
+    unsigned char buf[4] = {1, 2, 3, 4};
     memmove(&buf[0], &buf[1], 2);
     assert(buf[0] == 2);
     assert(buf[1] == 3);
@@ -198,7 +197,7 @@ void
 test_longjmp(void)
 {
     jmp_buf env;
-    int32_t ret;
+    int ret;
     if ((ret = setjmp(env)) == 0) {
         test_longjmp_helper(&env);
         assert(false);
@@ -252,12 +251,12 @@ test_varargs(char dummy, ...)
 {
     va_list args;
     va_start(args, dummy);
-    assert(va_arg(args, int32_t) == 1);
+    assert(va_arg(args, int) == 1);
     va_list args2;
     va_copy(args2, args);
     va_end(args);
-    assert(va_arg(args2, int32_t) == 2);
-    assert(va_arg(args2, int32_t) == 3);
+    assert(va_arg(args2, int) == 2);
+    assert(va_arg(args2, int) == 3);
     va_end(args2);
 }
 
@@ -267,7 +266,7 @@ test_atexit(void)
     puts("All tests passed!");
 }
 
-int32_t
+int
 main(void)
 {
     test_strlen();

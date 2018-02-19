@@ -5,7 +5,6 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,11 +15,11 @@
 #define EXPLOSION_CHAR '@'
 #define TICKS_PER_SEC 32
 
-static int32_t fired = 0;
-static int32_t score = 0;
-static int32_t bases_left = 3;
-static int32_t crosshairs_x = 40;
-static int32_t crosshairs_y = 12;
+static int fired = 0;
+static int score = 0;
+static int bases_left = 3;
+static int crosshairs_x = 40;
+static int crosshairs_y = 12;
 static enum {
     TDM_SCORE,
     TDM_FIRED,
@@ -32,7 +31,7 @@ static enum {
 static void
 draw_starting_screen(void)
 {
-    int32_t line = 5;
+    int line = 5;
     draw_centered_string(line++, "            MISSILE COMMAND | TAUX EDITION             ");
     draw_centered_string(line++, "          Mark Murphy, 2007 | Andrew Sun, 2017         ");
     draw_centered_string(line++, "                                                       ");
@@ -54,7 +53,7 @@ draw_starting_screen(void)
 static void
 draw_ending_screen(void)
 {
-    int32_t line = SCREEN_HEIGHT / 2 - 1;
+    int line = SCREEN_HEIGHT / 2 - 1;
     draw_centered_string(line++, "+--------------------------------+");
     draw_centered_string(line++, "| Game over. Press START to exit |");
     draw_centered_string(line++, "+--------------------------------+");
@@ -62,9 +61,9 @@ draw_ending_screen(void)
 
 static void
 spawn_missile(
-    int32_t src_sx, int32_t src_sy,
-    int32_t dest_sx, int32_t dest_sy,
-    char c, int32_t vel)
+    int src_sx, int src_sy,
+    int dest_sx, int dest_sy,
+    char c, int vel)
 {
     missile_t m;
 
@@ -77,9 +76,9 @@ spawn_missile(
     m.dest_y = dest_sy;
 
     /* Velocity */
-    int32_t vx = dest_sx - src_sx;
-    int32_t vy = dest_sy - src_sy;
-    int32_t mag = sqrt((vx * vx + vy * vy) << 16);
+    int vx = dest_sx - src_sx;
+    int vy = dest_sy - src_sy;
+    int mag = sqrt((vx * vx + vy * vy) << 16);
     m.vx = mag != 0 ? (vx << 16) * vel / mag : 0;
     m.vy = mag != 0 ? (vy << 16) * vel / mag : 0;
 
@@ -88,14 +87,14 @@ spawn_missile(
     m.exploded = 0;
 
     /* Add it to the missile list */
-    mp1_ioctl((uint32_t)&m, IOCTL_ADDMISSILE);
+    mp1_ioctl((int)&m, IOCTL_ADDMISSILE);
 }
 
 static void
-handle_taux_input(uint8_t buttons)
+handle_taux_input(int buttons)
 {
-    int32_t dx = 0;
-    int32_t dy = 0;
+    int dx = 0;
+    int dy = 0;
 
     if (buttons & TB_UP) dy--;
     if (buttons & TB_DOWN) dy++;
@@ -108,7 +107,7 @@ handle_taux_input(uint8_t buttons)
         crosshairs_y = clamp(crosshairs_y + dy, 0, SCREEN_HEIGHT - 1);
 
         /* Update crosshair position via ioctl */
-        uint32_t d = 0;
+        int d = 0;
         d |= (dx & 0xffff) << 0;
         d |= (dy & 0xffff) << 16;
         if (mp1_ioctl(d, IOCTL_MOVEXHAIRS) < 0) {
@@ -129,7 +128,7 @@ handle_taux_input(uint8_t buttons)
 static void
 draw_status_bar(void)
 {
-    int32_t accuracy = (fired > 0) ? (100 * score) / fired : 0;
+    int accuracy = (fired > 0) ? (100 * score) / fired : 0;
     char buf[80];
     snprintf(buf, sizeof(buf), "[score %3d] [fired %3d] [accuracy %3d%%]   ",
         score, fired, accuracy);
@@ -137,12 +136,12 @@ draw_status_bar(void)
 }
 
 static void
-spawn_enemies(int32_t ticks)
+spawn_enemies(int ticks)
 {
-    static int32_t total_enemies = 0;
-    static int32_t last_enemy_tick = -1;
-    static int32_t avg_enemy_delay = 4 * TICKS_PER_SEC;
-    static int32_t next_enemy_delay = 4 * TICKS_PER_SEC;
+    static int total_enemies = 0;
+    static int last_enemy_tick = -1;
+    static int avg_enemy_delay = 4 * TICKS_PER_SEC;
+    static int next_enemy_delay = 4 * TICKS_PER_SEC;
 
     /* Initialize on first call */
     if (last_enemy_tick < 0) {
@@ -167,10 +166,10 @@ spawn_enemies(int32_t ticks)
     }
 }
 
-static int32_t
-base_explode(int32_t sx, int32_t sy)
+static int
+base_explode(int sx, int sy)
 {
-    int32_t bases_killed = 0;
+    int bases_killed = 0;
     if (sy >= SCREEN_HEIGHT - 2) {
         if (abs(sx - 20) <= 3 && base_alive[0]) {
             base_alive[0] = 0;
@@ -190,18 +189,18 @@ base_explode(int32_t sx, int32_t sy)
     return bases_killed;
 }
 
-static int32_t
-enemy_explode(int32_t sx, int32_t sy)
+static int
+enemy_explode(int sx, int sy)
 {
-    int32_t exploded = 0;
+    int exploded = 0;
     missile_t *e;
     for (e = mp1_missile_list; e != NULL; e = e->next) {
         if (e->c != ENEMY_CHAR || e->exploded != 0) {
             continue;
         }
 
-        int32_t dsx = sx - (e->x >> 16);
-        int32_t dsy = sy - (e->y >> 16);
+        int dsx = sx - (e->x >> 16);
+        int dsy = sy - (e->y >> 16);
         if (abs(dsx) <= 2 && abs(dsy) <= 1) {
             mp1_score++;
             exploded++;
@@ -212,7 +211,7 @@ enemy_explode(int32_t sx, int32_t sy)
 }
 
 static void
-update_taux_leds(int32_t taux_fd, int32_t ticks)
+update_taux_leds(int taux_fd, int ticks)
 {
     switch (taux_display_mode) {
     case TDM_SCORE:
@@ -232,10 +231,10 @@ update_taux_leds(int32_t taux_fd, int32_t ticks)
     }
 }
 
-ASM_VISIBLE int32_t
+ASM_VISIBLE int
 missile_explode(struct missile *m)
 {
-    int32_t exploded = 0;
+    int exploded = 0;
 
     /* Start explosion timer */
     if (m->exploded == 0) {
@@ -258,8 +257,8 @@ missile_explode(struct missile *m)
 ASM_VISIBLE void
 mp1_notify_user(void)
 {
-    uint32_t status;
-    if (mp1_ioctl((uint32_t)&status, IOCTL_GETSTATUS) < 0) {
+    int status;
+    if (mp1_ioctl((int)&status, IOCTL_GETSTATUS) < 0) {
         assert(0);
     }
 
@@ -270,12 +269,12 @@ mp1_notify_user(void)
         ((status >> 18) & 1);
 }
 
-int32_t
+int
 main(void)
 {
-    int32_t taux_fd = open("taux");
-    int32_t rtc_fd = open("rtc");
-    int32_t rtc_freq = TICKS_PER_SEC;
+    int taux_fd = open("taux");
+    int rtc_fd = open("rtc");
+    int rtc_freq = TICKS_PER_SEC;
     write(rtc_fd, &rtc_freq, sizeof(rtc_freq));
 
     /* Initialization */
@@ -295,8 +294,8 @@ main(void)
     }
 
     /* Main game loop */
-    int32_t ticks = 0;
-    uint8_t buttons;
+    int ticks = 0;
+    unsigned char buttons;
     while (1) {
         /* Check if all bases are dead */
         if (bases_left == 0) {
@@ -312,7 +311,7 @@ main(void)
         }
 
         /* Delay to target tick rate */
-        int32_t garbage;
+        int garbage;
         read(rtc_fd, &garbage, sizeof(garbage));
         ticks++;
 

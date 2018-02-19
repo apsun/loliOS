@@ -1,10 +1,9 @@
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <syscall.h>
 
-int32_t
+int
 main(void)
 {
     puts("Starting 391 Shell");
@@ -30,7 +29,7 @@ main(void)
         }
 
         /* Execute command */
-        int32_t ret = execute(buf);
+        int ret = execute(buf);
         if (ret < 0) {
             puts("no such command");
         } else if (ret == 256) {

@@ -1,30 +1,29 @@
 #include "mp1-taux.h"
 #include <assert.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <syscall.h>
 
 void
-taux_display_str(int32_t taux_fd, const char *str)
+taux_display_str(int taux_fd, const char *str)
 {
-    if (ioctl(taux_fd, TUX_SET_LED_STR, (uint32_t)str) < 0) {
+    if (ioctl(taux_fd, TUX_SET_LED_STR, (int)str) < 0) {
         assert(0);
     }
 }
 
 void
-taux_display_time(int32_t taux_fd, int32_t num_seconds)
+taux_display_time(int taux_fd, int num_seconds)
 {
-    uint32_t packed = 0;
-    int32_t num_minutes = num_seconds / 60;
+    int packed = 0;
+    int num_minutes = num_seconds / 60;
     num_seconds = num_seconds % 60;
 
     /*
      * Seconds should occupy the lower 2 hex digits (1 byte)
      * Minutes should occupy the higher 2 hex digits
      */
-    packed |= (uint8_t)(num_seconds % 10 + num_seconds / 10 * 16);
-    packed |= (uint8_t)(num_minutes % 10 + num_minutes / 10 * 16) << 8;
+    packed |= ((num_seconds % 10 + num_seconds / 10 * 16) & 0xFF);
+    packed |= ((num_minutes % 10 + num_minutes / 10 * 16) & 0xFF) << 8;
 
     /*
      * Seconds are always shown, only show one minute digit
@@ -52,12 +51,12 @@ taux_display_time(int32_t taux_fd, int32_t num_seconds)
 }
 
 void
-taux_display_coords(int32_t taux_fd, int32_t x, int32_t y)
+taux_display_coords(int taux_fd, int x, int y)
 {
-    uint32_t packed = 0;
+    int packed = 0;
 
-    packed |= (uint8_t)(y % 10 + y / 10 * 16);
-    packed |= (uint8_t)(x % 10 + x / 10 * 16) << 8;
+    packed |= ((y % 10 + y / 10 * 16) & 0xFF);
+    packed |= ((x % 10 + x / 10 * 16) & 0xFF) << 8;
     packed |= 0xf << 16; /* All LEDs on */
     packed |= 0x4 << 24; /* Decimal point in middle */
 
@@ -67,11 +66,9 @@ taux_display_coords(int32_t taux_fd, int32_t x, int32_t y)
 }
 
 void
-taux_display_num(int32_t taux_fd, int32_t num)
+taux_display_num(int taux_fd, int num)
 {
-    uint32_t packed = 0;
-
-    packed |= (uint16_t)(
+    int packed = (
         num / 1 % 10 +
         num / 10 % 10 * 16 +
         num / 100 % 10 * 256 +
@@ -88,17 +85,17 @@ taux_display_num(int32_t taux_fd, int32_t num)
     }
 }
 
-uint8_t
-taux_get_input(int32_t taux_fd)
+int
+taux_get_input(int taux_fd)
 {
-    static uint8_t prev_raw_buttons = 0;
+    static int prev_raw_buttons = 0;
 
     /* Get raw button data from driver... */
-    uint8_t raw_buttons;
-    ioctl(taux_fd, TUX_BUTTONS, (uint32_t)&raw_buttons);
+    int raw_buttons;
+    ioctl(taux_fd, TUX_BUTTONS, (int)&raw_buttons);
 
     /* ... and convert to normalized form */
-    uint8_t buttons = 0;
+    int buttons = 0;
 
     /* Check if A/B/C/start button changed from up -> down */
     if ((raw_buttons & TB_A) && !(prev_raw_buttons & TB_A)) buttons |= TB_A;

@@ -1,11 +1,10 @@
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <syscall.h>
 
 #define BUFSIZE 1024
 
-int32_t
+int
 main(void)
 {
     printf("Hi, what's your name? ");

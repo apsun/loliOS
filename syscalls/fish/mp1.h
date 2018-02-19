@@ -1,8 +1,6 @@
 #ifndef _MP1_H
 #define _MP1_H
 
-#include <stdint.h>
-
 #define ASM_VISIBLE __attribute__((cdecl))
 
 enum {
@@ -13,17 +11,17 @@ enum {
 };
 
 typedef struct blink {
-    uint16_t location;
+    unsigned short location;
     char on_char;
     char off_char;
-    uint16_t on_length;
-    uint16_t off_length;
-    uint16_t countdown;
-    uint16_t status;
+    unsigned short on_length;
+    unsigned short off_length;
+    unsigned short countdown;
+    unsigned short status;
     struct blink *next;
-} __attribute__((packed)) blink_t;
+} blink_t;
 
-ASM_VISIBLE void mp1_rtc_tasklet(uint32_t garbage);
-ASM_VISIBLE int32_t mp1_ioctl(uint32_t arg, uint32_t cmd);
+ASM_VISIBLE void mp1_rtc_tasklet(int garbage);
+ASM_VISIBLE int mp1_ioctl(int arg, int cmd);
 
 #endif /* _MP1_H */

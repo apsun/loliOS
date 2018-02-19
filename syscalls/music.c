@@ -30,7 +30,7 @@ typedef struct {
     uint32_t data_size;
 } wave_header_t;
 
-int32_t
+int
 read_wave_header(int soundfd, wave_header_t *hdr)
 {
     if (read(soundfd, hdr, sizeof(*hdr)) < (int32_t)sizeof(*hdr)) {
@@ -63,12 +63,12 @@ read_wave_header(int soundfd, wave_header_t *hdr)
     return 0;
 }
 
-int32_t
+int
 main(void)
 {
-    int32_t ret = 0;
-    int32_t soundfd = -1;
-    int32_t devfd = -1;
+    int ret = 0;
+    int soundfd = -1;
+    int devfd = -1;
     bool loop = false;
 
     /* Read filename as an argument */
@@ -111,11 +111,11 @@ main(void)
     }
 
     /* Compute total audio length */
-    int32_t bytes_per_sample = wav_hdr.bits_per_sample / 8;
-    int32_t num_samples = wav_hdr.data_size / (wav_hdr.num_channels * bytes_per_sample);
-    int32_t total_seconds = num_samples / wav_hdr.sample_rate;
-    int32_t minutes = total_seconds / 60;
-    int32_t seconds = total_seconds % 60;
+    int bytes_per_sample = wav_hdr.bits_per_sample / 8;
+    int num_samples = wav_hdr.data_size / (wav_hdr.num_channels * bytes_per_sample);
+    int total_seconds = num_samples / wav_hdr.sample_rate;
+    int minutes = total_seconds / 60;
+    int seconds = total_seconds % 60;
 
     /* Print audio file info */
     printf("File name:          %s\n", filename);
@@ -135,28 +135,28 @@ main(void)
 
     /* And now we just pipe the audio data to the SB16 driver */
     while (1) {
-        int32_t buf_offset = 0;
-        int32_t data_offset = 0;
+        int buf_offset = 0;
+        int data_offset = 0;
         char buf[4096];
         while (1) {
             /* Pull bytes from the file into the buffer */
-            int32_t read_cnt = read(soundfd, &buf[buf_offset], sizeof(buf) - buf_offset);
+            int read_cnt = read(soundfd, &buf[buf_offset], sizeof(buf) - buf_offset);
             buf_offset += read_cnt;
 
             /* Don't write garbage beyond end of chunk */
-            int32_t to_write = buf_offset;
-            if (to_write > (int32_t)wav_hdr.data_size - data_offset) {
-                to_write = (int32_t)wav_hdr.data_size - data_offset;
+            int to_write = buf_offset;
+            if (to_write > (int)wav_hdr.data_size - data_offset) {
+                to_write = (int)wav_hdr.data_size - data_offset;
             }
 
             /* Push bytes from the buffer to the sound driver */
-            int32_t write_cnt = write(devfd, buf, to_write);
+            int write_cnt = write(devfd, buf, to_write);
             memmove(&buf[0], &buf[write_cnt], buf_offset - write_cnt);
             buf_offset -= write_cnt;
             data_offset += write_cnt;
 
             /* Once we've finished writing all the sound data, we're done */
-            if (data_offset == (int32_t)wav_hdr.data_size) {
+            if (data_offset == (int)wav_hdr.data_size) {
                 break;
             }
         }
