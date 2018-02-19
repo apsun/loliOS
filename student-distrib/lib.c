@@ -7,11 +7,9 @@
 int32_t
 strlen(const char *s)
 {
-    int32_t i = 0;
-    while (s[i]) {
-        i++;
-    }
-    return i;
+    const char *end = s;
+    while (*end) end++;
+    return end - s;
 }
 
 /*

