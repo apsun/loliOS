@@ -57,7 +57,7 @@ static process_data_t process_data[MAX_PROCESSES];
  * Gets the PCB of the specified process.
  */
 pcb_t *
-get_pcb_by_pid(int32_t pid)
+get_pcb_by_pid(int pid)
 {
     /* When getting the parent of a "root" process */
     if (pid < 0) {
@@ -101,9 +101,9 @@ get_executing_pcb(void)
  * in the specified terminal.
  */
 pcb_t *
-get_pcb_by_terminal(int32_t terminal)
+get_pcb_by_terminal(int terminal)
 {
-    int32_t i;
+    int i;
     for (i = 0; i < MAX_PROCESSES; ++i) {
         pcb_t *pcb = &process_info[i];
         if (pcb->pid >= 0 &&                /* Valid? */
@@ -124,9 +124,9 @@ static pcb_t *
 get_next_pcb(void)
 {
     pcb_t *curr_pcb = get_executing_pcb();
-    int32_t i;
+    int i;
     for (i = 1; i < MAX_PROCESSES; ++i) {
-        int32_t pid = (curr_pcb->pid + i) % MAX_PROCESSES;
+        int pid = (curr_pcb->pid + i) % MAX_PROCESSES;
         pcb_t *pcb = &process_info[pid];
         if (pcb->pid >= 0 && pcb->status != PROCESS_SLEEP) {
             return pcb;
@@ -146,7 +146,7 @@ static pcb_t *
 process_new_pcb(void)
 {
     /* Look for an empty process slot we can fill */
-    int32_t i;
+    int i;
     for (i = 0; i < MAX_PROCESSES; ++i) {
         if (process_info[i].pid < 0) {
             process_info[i].pid = i;
@@ -163,8 +163,8 @@ process_new_pcb(void)
  * On success, writes the inode index of the file to out_inode_idx,
  * the arguments to out_args, and returns 0. Otherwise, returns -1.
  */
-static int32_t
-process_parse_cmd(const char *command, uint32_t *out_inode_idx, char *out_args)
+static int
+process_parse_cmd(const char *command, int *out_inode_idx, char *out_args)
 {
     /*
      * Scan for the end of the exe filename
@@ -186,7 +186,7 @@ process_parse_cmd(const char *command, uint32_t *out_inode_idx, char *out_args)
      */
 
     /* Command index */
-    int32_t i = 0;
+    int i = 0;
 
     /* Strip leading whitespace */
     while (command[i] == ' ') {
@@ -195,7 +195,7 @@ process_parse_cmd(const char *command, uint32_t *out_inode_idx, char *out_args)
 
     /* Read the filename (up to 33 chars with NUL terminator) */
     char filename[MAX_FILENAME_LEN + 1];
-    int32_t fname_i;
+    int fname_i;
     for (fname_i = 0; fname_i < MAX_FILENAME_LEN + 1; ++fname_i, ++i) {
         char c = command[i];
         if (c == ' ' || c == '\0') {
@@ -219,7 +219,7 @@ process_parse_cmd(const char *command, uint32_t *out_inode_idx, char *out_args)
     }
 
     /* Now copy the arguments to the arg buffer */
-    int32_t args_i;
+    int args_i;
     for (args_i = 0; args_i < MAX_ARGS_LEN; ++args_i, ++i) {
         if ((out_args[args_i] = command[i]) == '\0') {
             break;
@@ -272,11 +272,11 @@ process_parse_cmd(const char *command, uint32_t *out_inode_idx, char *out_args)
  * page before calling this!
  */
 static uint32_t
-process_load_exe(uint32_t inode_idx)
+process_load_exe(int inode_idx)
 {
     /* Copy program into memory */
-    int32_t count;
-    uint32_t offset = 0;
+    int count;
+    int offset = 0;
     do {
         uint8_t *vaddr = (uint8_t *)PROCESS_VADDR + offset;
         count = read_data(inode_idx, offset, vaddr, MB(4));
@@ -342,10 +342,10 @@ process_set_context(pcb_t *to)
 /*
  * Jumps into userspace and executes the specified process.
  */
-__noinline static int32_t
+__noinline static int
 process_run(pcb_t *pcb)
 {
-    int32_t ret;
+    int ret;
 
     ASSERT(pcb != NULL);
     ASSERT(pcb->pid >= 0);
@@ -432,9 +432,9 @@ process_run(pcb_t *pcb)
  * context switching.
  */
 static pcb_t *
-process_create_child(const char *command, pcb_t *parent_pcb, int32_t terminal)
+process_create_child(const char *command, pcb_t *parent_pcb, int terminal)
 {
-    uint32_t inode;
+    int inode;
     char args[MAX_ARGS_LEN];
 
     /* First make sure we have a valid executable... */
@@ -490,8 +490,8 @@ process_create_child(const char *command, pcb_t *parent_pcb, int32_t terminal)
  * The terminal argument specifies which terminal to spawn
  * the process on if there is no parent.
  */
-static int32_t
-process_execute_impl(const char *command, pcb_t *parent_pcb, int32_t terminal)
+static int
+process_execute_impl(const char *command, pcb_t *parent_pcb, int terminal)
 {
     /* Create the child process */
     pcb_t *child_pcb = process_create_child(command, parent_pcb, terminal);
@@ -510,7 +510,7 @@ process_execute_impl(const char *command, pcb_t *parent_pcb, int32_t terminal)
 }
 
 /* execute() syscall handler */
-__cdecl int32_t
+__cdecl int
 process_execute(const char *command)
 {
     char tmp[MAX_EXEC_LEN];
@@ -532,8 +532,8 @@ process_execute(const char *command)
  *
  * Unlike process_halt(), the status is not truncated to 1 byte.
  */
-int32_t
-process_halt_impl(uint32_t status)
+int
+process_halt_impl(int status)
 {
     /* This is the PCB of the child (halting) process */
     pcb_t *child_pcb = get_executing_pcb();
@@ -542,7 +542,7 @@ process_halt_impl(uint32_t status)
     pcb_t *parent_pcb = get_pcb_by_pid(child_pcb->parent_pid);
 
     /* Close all open files */
-    int32_t i;
+    int i;
     for (i = 2; i < MAX_FILES; ++i) {
         if (child_pcb->files[i].valid) {
             file_close(i);
@@ -662,8 +662,8 @@ process_switch(void)
 }
 
 /* halt() syscall handler */
-__cdecl int32_t
-process_halt(uint32_t status)
+__cdecl int
+process_halt(int status)
 {
     /*
      * Only the lowest byte is used, rest are reserved
@@ -675,8 +675,8 @@ process_halt(uint32_t status)
 }
 
 /* getargs() syscall handler */
-__cdecl int32_t
-process_getargs(char *buf, int32_t nbytes)
+__cdecl int
+process_getargs(char *buf, int nbytes)
 {
     if (nbytes < 0) {
         return -1;
@@ -688,7 +688,7 @@ process_getargs(char *buf, int32_t nbytes)
      * Compute length of arguments. If they are empty, then we
      * should fail, as per the spec.
      */
-    int32_t length = strlen(pcb->args) + 1;
+    int length = strlen(pcb->args) + 1;
     if (length == 1) {
         return -1;
     }
@@ -712,7 +712,7 @@ process_getargs(char *buf, int32_t nbytes)
 }
 
 /* vidmap() syscall handler */
-__cdecl int32_t
+__cdecl int
 process_vidmap(uint8_t **screen_start)
 {
     pcb_t *pcb = get_executing_pcb();
@@ -733,8 +733,8 @@ process_vidmap(uint8_t **screen_start)
 }
 
 /* sbrk() syscall handler */
-__cdecl int32_t
-process_sbrk(int32_t delta)
+__cdecl int
+process_sbrk(int delta)
 {
     pcb_t *pcb = get_executing_pcb();
     return paging_heap_sbrk(&pcb->heap, delta);
@@ -746,7 +746,7 @@ process_init(void)
 {
     ASSERT(sizeof(process_data_t) == PROCESS_DATA_SIZE);
 
-    int32_t i;
+    int i;
     for (i = 0; i < MAX_PROCESSES; ++i) {
         process_info[i].pid = -1;
     }
@@ -756,7 +756,7 @@ process_init(void)
 void
 process_start_shell(void)
 {
-    int32_t i;
+    int i;
     for (i = 1; i < NUM_TERMINALS; ++i) {
         process_create_child("shell", NULL, i);
     }
@@ -768,13 +768,13 @@ process_start_shell(void)
  * to each process every 10 seconds since its creation.
  */
 void
-process_update_clock(uint32_t rtc_counter)
+process_update_clock(int rtc_counter)
 {
-    int32_t i;
+    int i;
     for (i = 0; i < MAX_PROCESSES; ++i) {
         pcb_t *pcb = &process_info[i];
         if (pcb->pid >= 0) {
-            uint32_t elapsed_time = rtc_counter - pcb->last_alarm;
+            int elapsed_time = rtc_counter - pcb->last_alarm;
             if (elapsed_time >= MAX_RTC_FREQ * SIG_ALARM_PERIOD) {
                 pcb->last_alarm = rtc_counter;
                 signal_raise(pcb->pid, SIG_ALARM);

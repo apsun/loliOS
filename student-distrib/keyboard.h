@@ -55,7 +55,7 @@ typedef struct {
     volatile char buf[KEYBOARD_BUF_SIZE];
 
     /* Number of characters in the buffer */
-    volatile int32_t count;
+    volatile int count;
 } kbd_input_buf_t;
 
 /* Handles keyboard interrupts */

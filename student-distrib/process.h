@@ -22,13 +22,13 @@ typedef struct {
      * a valid process, this will be negative. Non-negative PIDs
      * represent valid processes.
      */
-    int32_t pid;
+    int pid;
 
     /*
      * PID of the parent process that created this process. If
      * there is no parent, this will be negative.
      */
-    int32_t parent_pid;
+    int parent_pid;
 
     /*
      * Kernel ESP/EBP of the parent process. Used to return to the parent
@@ -55,12 +55,12 @@ typedef struct {
      * Which terminal the process is executing on. Inherited from
      * the parent.
      */
-    int32_t terminal;
+    int terminal;
 
     /*
      * Execution status of the process.
      */
-    int32_t status;
+    int status;
 
     /*
      * Whether the process has the virtual video memory page
@@ -72,7 +72,7 @@ typedef struct {
     /*
      * Holds the time of the last alarm, in terms of the RTC counter.
      */
-    uint32_t last_alarm;
+    int last_alarm;
 
     /*
      * Signal handler and status array.
@@ -97,20 +97,20 @@ typedef struct {
 } pcb_t;
 
 /* Gets a PCB by its process ID */
-pcb_t *get_pcb_by_pid(int32_t pid);
+pcb_t *get_pcb_by_pid(int pid);
 
 /* Gets the PCB of the currently executing process */
 pcb_t *get_executing_pcb(void);
 
 /* Gets the PCB of the process currently running in the specified terminal */
-pcb_t *get_pcb_by_terminal(int32_t terminal);
+pcb_t *get_pcb_by_terminal(int terminal);
 
 /* Process syscall handlers */
-__cdecl int32_t process_halt(uint32_t status);
-__cdecl int32_t process_execute(const char *command);
-__cdecl int32_t process_getargs(char *buf, int32_t nbytes);
-__cdecl int32_t process_vidmap(uint8_t **screen_start);
-__cdecl int32_t process_sbrk(int32_t delta);
+__cdecl int process_halt(int status);
+__cdecl int process_execute(const char *command);
+__cdecl int process_getargs(char *buf, int nbytes);
+__cdecl int process_vidmap(uint8_t **screen_start);
+__cdecl int process_sbrk(int delta);
 
 /* Initializes processes. */
 void process_init(void);
@@ -119,13 +119,13 @@ void process_init(void);
 void process_switch(void);
 
 /* Halts the executing process with the specified status code */
-int32_t process_halt_impl(uint32_t status);
+int process_halt_impl(int status);
 
 /* Starts the shell. This must only be called after kernel initialization. */
 void process_start_shell(void);
 
 /* Handles RTC updates and delivers SIG_ALARM when necessary */
-void process_update_clock(uint32_t rtc_counter);
+void process_update_clock(int rtc_counter);
 
 #endif /* ASM */
 

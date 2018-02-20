@@ -57,7 +57,7 @@ static const uint8_t alpha_to_segment_map[26] = {
 };
 
 /* Number of pending ACKs */
-static int32_t pending_acks = 0;
+static int pending_acks = 0;
 
 /* Holds the current pressed state of the buttons */
 static uint8_t button_status = 0;
@@ -74,7 +74,7 @@ static bool set_led_pending = false;
  * controller. The buffer must be at 4 bytes long.
  */
 static void
-taux_convert_set_led(uint32_t led_status, uint8_t buf[4])
+taux_convert_set_led(int led_status, uint8_t buf[4])
 {
     uint16_t num = (uint16_t)(led_status);
     uint8_t which = (uint8_t)(led_status >> 16);
@@ -106,12 +106,12 @@ taux_convert_set_led(uint32_t led_status, uint8_t buf[4])
  * are undisplayable: K, M, V, W, X, and all
  * non-alphanumeric characters.
  */
-static int32_t
+static int
 taux_convert_set_led_str(const char *str, uint8_t buf[4])
 {
     uint8_t tmp[4];
 
-    int32_t i, j;
+    int i, j;
     for (i = 0, j = 0; i < 4; ++i, ++j) {
         char c = str[j];
         uint8_t seg;
@@ -184,8 +184,8 @@ taux_send_cmd_set_led(uint8_t led_segments[4])
     /* Copy in the segment data */
     memcpy(&buf[2], led_segments, 4);
 
-    uint32_t i;
-    for (i = 0; i < sizeof(buf); ++i) {
+    int i;
+    for (i = 0; i < 6; ++i) {
         serial_write(TAUX_COM_PORT, buf[i]);
     }
     pending_acks++;
@@ -195,7 +195,7 @@ taux_send_cmd_set_led(uint8_t led_segments[4])
 /*
  * Handles the INIT ioctl() call.
  */
-static int32_t
+static int
 taux_ioctl_init(void)
 {
     /*
@@ -218,8 +218,8 @@ taux_ioctl_init(void)
 /*
  * Handles the SET_LED ioctl() call.
  */
-static int32_t
-taux_ioctl_set_led(uint32_t arg)
+static int
+taux_ioctl_set_led(int arg)
 {
     /* Convert and save the LED status */
     taux_convert_set_led(arg, led_segments);
@@ -237,8 +237,8 @@ taux_ioctl_set_led(uint32_t arg)
 /*
  * Handles the SET_LED_STR ioctl() call.
  */
-static int32_t
-taux_ioctl_set_led_str(uint32_t arg)
+static int
+taux_ioctl_set_led_str(int arg)
 {
     /* Copy string to kernel (max length = 8 chars + NUL) */
     char str[8 + 1];
@@ -265,8 +265,8 @@ taux_ioctl_set_led_str(uint32_t arg)
 /*
  * Handles the GET_BUTTONS ioctl() call.
  */
-static int32_t
-taux_ioctl_get_buttons(uint32_t arg)
+static int
+taux_ioctl_get_buttons(int arg)
 {
     uint8_t *ptr = (uint8_t *)arg;
     if (!copy_to_user(ptr, &button_status, sizeof(button_status))) {
@@ -345,7 +345,7 @@ taux_handle_poll_ok(uint8_t b, uint8_t c)
 /*
  * Taux controller open syscall handler. Always succeeds.
  */
-int32_t
+int
 taux_open(const char *filename, file_obj_t *file)
 {
     return 0;
@@ -355,8 +355,8 @@ taux_open(const char *filename, file_obj_t *file)
  * Taux controller read syscall handler. Does nothing,
  * but always returns success (avoids grep failing).
  */
-int32_t
-taux_read(file_obj_t *file, void *buf, int32_t nbytes)
+int
+taux_read(file_obj_t *file, void *buf, int nbytes)
 {
     return 0;
 }
@@ -364,8 +364,8 @@ taux_read(file_obj_t *file, void *buf, int32_t nbytes)
 /*
  * Taux controller write syscall handler. Always fails.
  */
-int32_t
-taux_write(file_obj_t *file, const void *buf, int32_t nbytes)
+int
+taux_write(file_obj_t *file, const void *buf, int nbytes)
 {
     return -1;
 }
@@ -373,7 +373,7 @@ taux_write(file_obj_t *file, const void *buf, int32_t nbytes)
 /*
  * Taux controller close syscall handler. Always succeeds.
  */
-int32_t
+int
 taux_close(file_obj_t *file)
 {
     return 0;
@@ -382,8 +382,8 @@ taux_close(file_obj_t *file)
 /*
  * Taux controller ioctl syscall handler.
  */
-int32_t
-taux_ioctl(file_obj_t *file, uint32_t req, uint32_t arg)
+int
+taux_ioctl(file_obj_t *file, int req, int arg)
 {
     switch (req) {
     case TUX_INIT:
@@ -440,16 +440,16 @@ static void
 taux_handle_irq(void)
 {
     static uint8_t buf[12];
-    static int32_t count = 0;
+    static int count = 0;
 
     /* Consume all available data */
-    int32_t read;
+    int read;
     while ((read = serial_read_all(TAUX_COM_PORT, &buf[count], sizeof(buf) - count)) > 0) {
         /* Update number of chars now in the buffer */
         count += read;
 
         /* Now scan for complete packets */
-        int32_t i;
+        int i;
         for (i = 0; i < count - 2; ++i) {
             /*
              * Align the "frame": first byte has high bit == 0,

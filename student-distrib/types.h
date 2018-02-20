@@ -6,9 +6,7 @@
 #ifndef _TYPES_H
 #define _TYPES_H
 
-#define NULL 0
-#define INT_MAX 2147483647
-#define INT_MIN (-INT_MAX - 1)
+#define NULL ((void *)0)
 
 #ifndef ASM
 

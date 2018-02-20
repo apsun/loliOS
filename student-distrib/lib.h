@@ -6,21 +6,21 @@
 #ifndef ASM
 
 /* String functions */
-int32_t strlen(const char *s);
-int32_t strcmp(const char *s1, const char *s2);
-int32_t strncmp(const char *s1, const char *s2, int32_t n);
+int strlen(const char *s);
+int strcmp(const char *s1, const char *s2);
+int strncmp(const char *s1, const char *s2, int n);
 char *strcpy(char *dest, const char *src);
-char *strncpy(char *dest, const char *src, int32_t n);
+char *strncpy(char *dest, const char *src, int n);
 char *strrev(char *s);
-char *itoa(uint32_t value, char *buf, int32_t radix);
-bool atoi(const char *value, int32_t *result);
+char *itoa(unsigned int value, char *buf, int radix);
+bool atoi(const char *value, int *result);
 
 /* Memory functions */
-void *memset(void *s, uint8_t c, int32_t n);
-void *memset_word(void *s, uint16_t c, int32_t n);
-void *memset_dword(void *s, uint32_t c, int32_t n);
-void *memcpy(void *dest, const void *src, int32_t n);
-void *memmove(void *dest, const void *src, int32_t n);
+void *memset(void *s, uint8_t c, int n);
+void *memset_word(void *s, uint16_t c, int n);
+void *memset_dword(void *s, uint32_t c, int n);
+void *memcpy(void *dest, const void *src, int n);
+void *memmove(void *dest, const void *src, int n);
 
 /* Terminal functions */
 void printf(const char *format, ...);

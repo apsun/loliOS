@@ -76,7 +76,7 @@ static const char keycode_map[4][NUM_KEYS] = {
 
 /* Sets a keyboard modifier bit */
 static void
-set_modifier_bit(uint8_t bit, kbd_modifiers_t mask)
+set_modifier_bit(int bit, kbd_modifiers_t mask)
 {
     if (bit) {
         modifiers |= mask;
@@ -126,14 +126,14 @@ keycode_to_modifier(uint8_t keycode)
  * 1, both bits will be set to 1 so you can just
  * test against KMOD_CTRL).
  */
-static int32_t
+static int
 get_modifiers(void)
 {
     kbd_modifiers_t mod = modifiers;
     if (mod & (KMOD_CTRL))  mod |= KMOD_CTRL;
     if (mod & (KMOD_SHIFT)) mod |= KMOD_SHIFT;
     if (mod & (KMOD_ALT))   mod |= KMOD_ALT;
-    return (int32_t)mod;
+    return (int)mod;
 }
 
 /*
@@ -243,7 +243,7 @@ process_packet(uint8_t packet)
      * Most significant bit is 1 if the key was released, 0 if pressed.
      * Remaining 7 bits represent the keycode of the character.
      */
-    uint8_t status = !(packet & 0x80);
+    int status = !(packet & 0x80);
     uint8_t keycode = packet & 0x7F;
 
     kbd_input_t input;

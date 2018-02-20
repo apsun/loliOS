@@ -316,7 +316,7 @@ consume_format:
             printf_do_char(&a, (char)va_arg(args, int));
             break;
 
-        /* Print a NULL-terminated string */
+        /* Print a NUL-terminated string */
         case 's':
             printf_do_string(&a, va_arg(args, const char *));
             break;
@@ -351,7 +351,7 @@ vprintf(const char *format, va_list args)
 {
     /*
      * Too lazy to write this properly, just pray that
-     * nobody has strings longer than 4096 charactera...
+     * nobody has strings longer than 4096 characters...
      */
     char buf[4096];
     int len = vsnprintf(buf, sizeof(buf), format, args);

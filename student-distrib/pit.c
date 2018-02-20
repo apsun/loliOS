@@ -30,7 +30,7 @@
  * Sets the interrupt frequency of the PIT.
  */
 static void
-pit_set_frequency(uint32_t freq)
+pit_set_frequency(int freq)
 {
     /* Set PIT operation mode */
     uint8_t cmd = 0;

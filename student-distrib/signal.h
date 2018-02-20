@@ -29,7 +29,7 @@ typedef struct {
     /*
      * The number of this signal.
      */
-    int32_t signum;
+    int signum;
 
     /*
      * Userspace address of the signal handler. Equal
@@ -49,14 +49,14 @@ typedef struct {
 } signal_info_t;
 
 /* Signal syscall handlers */
-__cdecl int32_t signal_sigaction(int32_t signum, void *handler_address);
-__cdecl int32_t signal_sigreturn(
-    int32_t signum,
+__cdecl int signal_sigaction(int signum, void *handler_address);
+__cdecl int signal_sigreturn(
+    int signum,
     int_regs_t *user_regs,
-    uint32_t unused,
+    int unused,
     int_regs_t *kernel_regs);
-__cdecl int32_t signal_sigraise(int32_t signum);
-__cdecl int32_t signal_sigmask(int32_t signum, int32_t action);
+__cdecl int signal_sigraise(int signum);
+__cdecl int signal_sigmask(int signum, int action);
 
 /* Initializes the signal info array */
 void signal_init(signal_info_t *signals);
@@ -68,7 +68,7 @@ void signal_handle_all(int_regs_t *regs);
 bool signal_has_pending(void);
 
 /* Raises a signal for the specified process */
-void signal_raise(int32_t pid, int32_t signum);
+void signal_raise(int pid, int signum);
 
 #endif /* ASM */
 

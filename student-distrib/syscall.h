@@ -24,8 +24,8 @@
 
 #ifndef ASM
 
-__cdecl int32_t
-syscall_handle(uint32_t a, uint32_t b, uint32_t c, int_regs_t *regs, uint32_t num);
+__cdecl int
+syscall_handle(uint32_t a, uint32_t b, uint32_t c, int_regs_t *regs, int num);
 
 #endif /* ASM */
 

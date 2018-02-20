@@ -19,9 +19,9 @@
 void
 dma_start(
     void *buf,
-    uint16_t nbytes,
-    uint8_t channel,
-    uint8_t mode);
+    int nbytes,
+    int channel,
+    int mode);
 
 #endif /* ASM */
 

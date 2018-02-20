@@ -125,7 +125,7 @@ get_executing_file_objs(void)
 
 /* Gets the file object corresponding to the given descriptor */
 static file_obj_t *
-get_executing_file_obj(int32_t fd)
+get_executing_file_obj(int fd)
 {
     file_obj_t *file;
 
@@ -158,14 +158,14 @@ file_init(file_obj_t *files)
     files[1].ops_table = &fops_stdout;
 
     /* Clear the remaining files */
-    int32_t i;
+    int i;
     for (i = 2; i < MAX_FILES; ++i) {
         files[i].valid = false;
     }
 }
 
 /* open() syscall handler */
-__cdecl int32_t
+__cdecl int
 file_open(const char *filename)
 {
     /* Copy filename into kernel memory */
@@ -177,7 +177,7 @@ file_open(const char *filename)
     file_obj_t *files = get_executing_file_objs();
 
     /* Skip fd = 0 (stdin) and fd = 1 (stdout) */
-    int32_t i;
+    int i;
     for (i = 2; i < MAX_FILES; ++i) {
         if (!files[i].valid) {
             /* Try to read filesystem entry */
@@ -207,8 +207,8 @@ file_open(const char *filename)
 }
 
 /* read() syscall handler */
-__cdecl int32_t
-file_read(int32_t fd, void *buf, int32_t nbytes)
+__cdecl int
+file_read(int fd, void *buf, int nbytes)
 {
     file_obj_t *file = get_executing_file_obj(fd);
     if (file == NULL) {
@@ -218,8 +218,8 @@ file_read(int32_t fd, void *buf, int32_t nbytes)
 }
 
 /* write() syscall handler */
-__cdecl int32_t
-file_write(int32_t fd, const void *buf, int32_t nbytes)
+__cdecl int
+file_write(int fd, const void *buf, int nbytes)
 {
     file_obj_t *file = get_executing_file_obj(fd);
     if (file == NULL) {
@@ -229,8 +229,8 @@ file_write(int32_t fd, const void *buf, int32_t nbytes)
 }
 
 /* close() syscall handler */
-__cdecl int32_t
-file_close(int32_t fd)
+__cdecl int
+file_close(int fd)
 {
     file_obj_t *file = get_executing_file_obj(fd);
     if (file == NULL) {
@@ -244,8 +244,8 @@ file_close(int32_t fd)
 }
 
 /* ioctl() syscall handler */
-__cdecl int32_t
-file_ioctl(int32_t fd, uint32_t req, uint32_t arg)
+__cdecl int
+file_ioctl(int fd, int req, int arg)
 {
     file_obj_t *file = get_executing_file_obj(fd);
     if (file == NULL) {

@@ -7,8 +7,8 @@
  * Converts a COM# to the corresponding IO port address.
  * Currently only COM1 and COM2 are supported.
  */
-static uint32_t
-serial_which_to_port_base(int32_t which)
+static uint16_t
+serial_which_to_port_base(int which)
 {
     switch (which) {
     case 1:
@@ -28,9 +28,9 @@ serial_which_to_port_base(int32_t which)
  * must be one of the SERIAL_PORT_* constants.
  */
 static uint8_t
-serial_in(int32_t which, uint32_t port_offset)
+serial_in(int which, int port_offset)
 {
-    uint32_t port_base = serial_which_to_port_base(which);
+    uint16_t port_base = serial_which_to_port_base(which);
     return inb(port_base + port_offset);
 }
 
@@ -39,9 +39,9 @@ serial_in(int32_t which, uint32_t port_offset)
  * arguments have the same meaning as serial_in.
  */
 static void
-serial_out(int32_t which, uint32_t port_offset, uint8_t data)
+serial_out(int which, int port_offset, uint8_t data)
 {
-    uint32_t port_base = serial_which_to_port_base(which);
+    uint16_t port_base = serial_which_to_port_base(which);
     outb(data, port_base + port_offset);
 }
 
@@ -51,7 +51,7 @@ serial_out(int32_t which, uint32_t port_offset, uint8_t data)
  * is empty, returns false.
  */
 bool
-serial_can_read(int32_t which)
+serial_can_read(int which)
 {
     serial_line_status_t status;
     status.raw = serial_in(which, SERIAL_PORT_LINE_STATUS);
@@ -64,7 +64,7 @@ serial_can_read(int32_t which)
  * false.
  */
 bool
-serial_can_write(int32_t which)
+serial_can_write(int which)
 {
     serial_line_status_t status;
     status.raw = serial_in(which, SERIAL_PORT_LINE_STATUS);
@@ -76,7 +76,7 @@ serial_can_write(int32_t which)
  * until a char has been read.
  */
 uint8_t
-serial_read(int32_t which)
+serial_read(int which)
 {
     while (!serial_can_read(which));
     return serial_in(which, SERIAL_PORT_DATA);
@@ -87,10 +87,10 @@ serial_read(int32_t which)
  * UART rx queue, up to len chars. Returns the actual
  * number of chars read.
  */
-int32_t
-serial_read_all(int32_t which, uint8_t *buf, int32_t len)
+int
+serial_read_all(int which, uint8_t *buf, int len)
 {
-    int32_t i = 0;
+    int i = 0;
     while (i < len && serial_can_read(which)) {
         buf[i++] = serial_in(which, SERIAL_PORT_DATA);
     }
@@ -102,7 +102,7 @@ serial_read_all(int32_t which, uint8_t *buf, int32_t len)
  * until the char has been written.
  */
 void
-serial_write(int32_t which, uint8_t data)
+serial_write(int which, uint8_t data)
 {
     while (!serial_can_write(which));
     serial_out(which, SERIAL_PORT_DATA, data);
@@ -113,10 +113,10 @@ serial_write(int32_t which, uint8_t data)
  * tx queue, up to len chars. Returns the actual number
  * of chars written.
  */
-int32_t
-serial_write_all(int32_t which, const uint8_t *buf, int32_t len)
+int
+serial_write_all(int which, const uint8_t *buf, int len)
 {
-    int32_t i = 0;
+    int i = 0;
     while (i < len && serial_can_write(which)) {
         serial_out(which, SERIAL_PORT_DATA, buf[i++]);
     }
@@ -130,12 +130,12 @@ serial_write_all(int32_t which, const uint8_t *buf, int32_t len)
  */
 void
 serial_init(
-    int32_t which,
-    uint32_t baud_rate,
-    uint32_t char_bits,
-    uint32_t stop_bits,
-    uint32_t parity,
-    uint32_t trigger_level,
+    int which,
+    int baud_rate,
+    int char_bits,
+    int stop_bits,
+    int parity,
+    int trigger_level,
     void (*irq_handler)(void))
 {
     /* Disable all interrupts */
@@ -157,7 +157,7 @@ serial_init(
     serial_out(which, SERIAL_PORT_LINE_CTRL, lc.raw);
 
     /* Write baud rate */
-    uint32_t baud_divisor = SERIAL_CLOCK_HZ / baud_rate;
+    int baud_divisor = SERIAL_CLOCK_HZ / baud_rate;
     ASSERT(baud_divisor * baud_rate == SERIAL_CLOCK_HZ);
     ASSERT((baud_divisor & ~0xffff) == 0);
     serial_out(which, SERIAL_PORT_BAUD_LO, (baud_divisor >> 0) & 0xff);

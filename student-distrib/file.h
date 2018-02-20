@@ -29,7 +29,7 @@ typedef struct {
      * inode index of this file, unused if the file
      * does not refer to a physical file on disk.
      */
-    uint32_t inode_idx;
+    int inode_idx;
 
     /*
      * Offset information for repeated read operations.
@@ -39,7 +39,7 @@ typedef struct {
      * For the RTC, this holds the virtual interrupt
      * frequency.
      */
-    uint32_t offset;
+    int offset;
 
     /*
      * Whether this file object is currently used.
@@ -49,22 +49,22 @@ typedef struct {
 
 /* File operations table */
 struct file_ops_t {
-    int32_t (*open)(const char *filename, file_obj_t *file);
-    int32_t (*read)(file_obj_t *file, void *buf, int32_t nbytes);
-    int32_t (*write)(file_obj_t *file, const void *buf, int32_t nbytes);
-    int32_t (*close)(file_obj_t *file);
-    int32_t (*ioctl)(file_obj_t *file, uint32_t req, uint32_t arg);
+    int (*open)(const char *filename, file_obj_t *file);
+    int (*read)(file_obj_t *file, void *buf, int nbytes);
+    int (*write)(file_obj_t *file, const void *buf, int nbytes);
+    int (*close)(file_obj_t *file);
+    int (*ioctl)(file_obj_t *file, int req, int arg);
 };
 
 /* Initializes the specified file object array */
 void file_init(file_obj_t *files);
 
 /* Direct syscall handlers */
-__cdecl int32_t file_open(const char *filename);
-__cdecl int32_t file_read(int32_t fd, void *buf, int32_t nbytes);
-__cdecl int32_t file_write(int32_t fd, const void *buf, int32_t nbytes);
-__cdecl int32_t file_close(int32_t fd);
-__cdecl int32_t file_ioctl(int32_t fd, uint32_t req, uint32_t arg);
+__cdecl int file_open(const char *filename);
+__cdecl int file_read(int fd, void *buf, int nbytes);
+__cdecl int file_write(int fd, const void *buf, int nbytes);
+__cdecl int file_close(int fd);
+__cdecl int file_ioctl(int fd, int req, int arg);
 
 #endif /* ASM */
 

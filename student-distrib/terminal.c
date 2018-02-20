@@ -13,13 +13,13 @@
 static terminal_state_t terminal_states[NUM_TERMINALS];
 
 /* Index of the currently displayed terminal */
-static int32_t display_terminal = -1;
+static int display_terminal = -1;
 
 /*
  * Returns the specified terminal.
  */
 static terminal_state_t *
-get_terminal(int32_t index)
+get_terminal(int index)
 {
     ASSERT(index >= 0 && index < NUM_TERMINALS);
     return &terminal_states[index];
@@ -62,7 +62,7 @@ vga_set_register(uint8_t index, uint8_t value)
 
 /* Clears out a region of VGA memory (overwrites it with spaces) */
 static void
-vga_clear_region(uint8_t *ptr, int32_t num_chars)
+vga_clear_region(uint8_t *ptr, int num_chars)
 {
     /*
      * Screen clear memset pattern, same as [0] = ' ', [1] = ATTRIB
@@ -123,8 +123,8 @@ terminal_swap_buffer(terminal_state_t *old, terminal_state_t *new)
 static void
 terminal_scroll_down(terminal_state_t *term)
 {
-    int32_t bytes_per_row = NUM_COLS << 1;
-    int32_t shift_count = VIDEO_MEM_SIZE - bytes_per_row;
+    int bytes_per_row = NUM_COLS << 1;
+    int shift_count = VIDEO_MEM_SIZE - bytes_per_row;
 
     /* Shift rows forward by one row */
     memmove(term->video_mem, term->video_mem + bytes_per_row, shift_count);
@@ -141,10 +141,10 @@ terminal_scroll_down(terminal_state_t *term)
 static void
 terminal_write_char(terminal_state_t *term, char c)
 {
-    int32_t x = term->cursor.screen_x;
-    int32_t y = term->cursor.screen_y;
-    int32_t offset = (y * NUM_COLS + x) << 1;
-    term->video_mem[offset + 0] = c;
+    int x = term->cursor.screen_x;
+    int y = term->cursor.screen_y;
+    int offset = (y * NUM_COLS + x) << 1;
+    term->video_mem[offset] = c;
     term->video_mem[offset + 1] = ATTRIB;
 }
 
@@ -232,10 +232,10 @@ terminal_clear_impl(terminal_state_t *term)
  * must be in the range [0, NUM_TERMINALS).
  */
 void
-set_display_terminal(int32_t index)
+set_display_terminal(int index)
 {
     ASSERT(index >= 0 && index < NUM_TERMINALS);
-    int32_t old_index = display_terminal;
+    int old_index = display_terminal;
     if (index == old_index) {
         return;
     }
@@ -286,7 +286,7 @@ terminal_clear(void)
 
 /* Clears the specified terminal's input buffers */
 void
-terminal_clear_input(int32_t terminal)
+terminal_clear_input(int terminal)
 {
     terminal_state_t *term = get_terminal(terminal);
     term->kbd_input.count = 0;
@@ -302,20 +302,20 @@ terminal_clear_input(int32_t terminal)
  *
  * Returns the number of characters that should be read.
  */
-static int32_t
-terminal_wait_kbd_input(kbd_input_buf_t *input_buf, int32_t nbytes)
+static int
+terminal_wait_kbd_input(kbd_input_buf_t *input_buf, int nbytes)
 {
     /*
      * If nbytes <= number of chars in the buffer, we just
      * return as much as will fit.
      */
-    int32_t count;
+    int count;
     while (nbytes > (count = input_buf->count)) {
         /*
          * Check if we have a newline character, if so, we should
          * only read up to and including that character
          */
-        int32_t i;
+        int i;
         for (i = 0; i < count; ++i) {
             if (input_buf->buf[i] == '\n') {
                 return i + 1;
@@ -344,7 +344,7 @@ terminal_wait_kbd_input(kbd_input_buf_t *input_buf, int32_t nbytes)
 /*
  * Open syscall for stdin/stdout. Always succeeds.
  */
-int32_t
+int
 terminal_kbd_open(const char *filename, file_obj_t *file)
 {
     return 0;
@@ -359,8 +359,8 @@ terminal_kbd_open(const char *filename, file_obj_t *file)
  * This call will block until the requested number of
  * characters are available or a newline is encountered.
  */
-int32_t
-terminal_stdin_read(file_obj_t *file, void *buf, int32_t nbytes)
+int
+terminal_stdin_read(file_obj_t *file, void *buf, int nbytes)
 {
     if (nbytes < 0) {
         return -1;
@@ -405,8 +405,8 @@ terminal_stdin_read(file_obj_t *file, void *buf, int32_t nbytes)
 /*
  * Write syscall for stdin. Always fails.
  */
-int32_t
-terminal_stdin_write(file_obj_t *file, const void *buf, int32_t nbytes)
+int
+terminal_stdin_write(file_obj_t *file, const void *buf, int nbytes)
 {
     return -1;
 }
@@ -414,8 +414,8 @@ terminal_stdin_write(file_obj_t *file, const void *buf, int32_t nbytes)
 /*
  * Read syscall for stdout. Always fails.
  */
-int32_t
-terminal_stdout_read(file_obj_t *file, void *buf, int32_t nbytes)
+int
+terminal_stdout_read(file_obj_t *file, void *buf, int nbytes)
 {
     return -1;
 }
@@ -424,8 +424,8 @@ terminal_stdout_read(file_obj_t *file, void *buf, int32_t nbytes)
  * Write syscall for the terminal (stdout). Echos the characters
  * in buf to the terminal. Returns the number of characters written.
  */
-int32_t
-terminal_stdout_write(file_obj_t *file, const void *buf, int32_t nbytes)
+int
+terminal_stdout_write(file_obj_t *file, const void *buf, int nbytes)
 {
     /* Early check, so we don't get partial writes to the terminal */
     if (!is_user_accessible(buf, nbytes, false)) {
@@ -436,7 +436,7 @@ terminal_stdout_write(file_obj_t *file, const void *buf, int32_t nbytes)
     terminal_state_t *term = get_executing_terminal();
 
     /* Print characters to the terminal (don't update cursor) */
-    int32_t i;
+    int i;
     for (i = 0; i < nbytes; ++i) {
         terminal_putc_impl(term, src[i]);
     }
@@ -451,7 +451,7 @@ terminal_stdout_write(file_obj_t *file, const void *buf, int32_t nbytes)
 /*
  * Close syscall for stdin/stdout. Always fails.
  */
-int32_t
+int
 terminal_kbd_close(file_obj_t *file)
 {
     return -1;
@@ -460,8 +460,8 @@ terminal_kbd_close(file_obj_t *file)
 /*
  * Ioctl syscall for stdin/stdout. Always fails.
  */
-int32_t
-terminal_kbd_ioctl(file_obj_t *file, uint32_t req, uint32_t arg)
+int
+terminal_kbd_ioctl(file_obj_t *file, int req, int arg)
 {
     return -1;
 }
@@ -469,7 +469,7 @@ terminal_kbd_ioctl(file_obj_t *file, uint32_t req, uint32_t arg)
 /*
  * Open syscall for the mouse. Always succeeds.
  */
-int32_t
+int
 terminal_mouse_open(const char *filename, file_obj_t *file)
 {
     return 0;
@@ -481,8 +481,8 @@ terminal_mouse_open(const char *filename, file_obj_t *file)
  * input events to buf. If no events are available, this
  * simply returns 0.
  */
-int32_t
-terminal_mouse_read(file_obj_t *file, void *buf, int32_t nbytes)
+int
+terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
 {
     if (nbytes < 0) {
         return -1;
@@ -497,13 +497,13 @@ terminal_mouse_read(file_obj_t *file, void *buf, int32_t nbytes)
      * or the number of inputs the user requested, whichever
      * one is smaller.
      */
-    int32_t num_copy = nbytes / sizeof(mouse_input_t);
+    int num_copy = nbytes / sizeof(mouse_input_t);
     if (num_copy > input_buf->count) {
         num_copy = input_buf->count;
     }
 
     /* Number of bytes we actually copy */
-    int32_t num_bytes_copy = num_copy * sizeof(mouse_input_t);
+    int num_bytes_copy = num_copy * sizeof(mouse_input_t);
 
     /* Copy input buffer to userspace */
     if (!copy_to_user(buf, (void *)input_buf->buf, num_bytes_copy)) {
@@ -511,7 +511,10 @@ terminal_mouse_read(file_obj_t *file, void *buf, int32_t nbytes)
     }
 
     /* Shift remaining inputs to the front */
-    memmove((void *)&input_buf->buf[0], (void *)&input_buf->buf[num_copy], num_bytes_copy);
+    memmove(
+        (void *)&input_buf->buf[0],
+        (void *)&input_buf->buf[num_copy],
+        num_bytes_copy);
     input_buf->count -= num_copy;
 
     /* Return the number of bytes copied into the buffer */
@@ -521,8 +524,8 @@ terminal_mouse_read(file_obj_t *file, void *buf, int32_t nbytes)
 /*
  * Write syscall for the mouse. Always fails.
  */
-int32_t
-terminal_mouse_write(file_obj_t *file, const void *buf, int32_t nbytes)
+int
+terminal_mouse_write(file_obj_t *file, const void *buf, int nbytes)
 {
     return -1;
 }
@@ -530,7 +533,7 @@ terminal_mouse_write(file_obj_t *file, const void *buf, int32_t nbytes)
 /*
  * Close syscall for the mouse. Always succeeds.
  */
-int32_t
+int
 terminal_mouse_close(file_obj_t *file)
 {
     return 0;
@@ -539,8 +542,8 @@ terminal_mouse_close(file_obj_t *file)
 /*
  * Ioctl syscall for the mouse. Always fails.
  */
-int32_t
-terminal_mouse_ioctl(file_obj_t *file, uint32_t req, uint32_t arg)
+int
+terminal_mouse_ioctl(file_obj_t *file, int req, int arg)
 {
     return -1;
 }
@@ -642,7 +645,7 @@ terminal_handle_mouse_input(mouse_input_t input)
  * is disabled.
  */
 void
-terminal_update_vidmap(int32_t term_index, bool present)
+terminal_update_vidmap(int term_index, bool present)
 {
     terminal_state_t *term = get_terminal(term_index);
     paging_update_vidmap_page(term->video_mem, present);
@@ -656,8 +659,7 @@ terminal_update_vidmap(int32_t term_index, bool present)
 void
 terminal_init(void)
 {
-    int32_t i;
-
+    int i;
     for (i = 0; i < NUM_TERMINALS; ++i) {
         /*
          * Backing memory is the per-terminal page

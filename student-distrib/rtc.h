@@ -15,17 +15,17 @@
 #ifndef ASM
 
 /* RTC syscall handlers */
-int32_t rtc_open(const char *filename, file_obj_t *file);
-int32_t rtc_read(file_obj_t *file, void *buf, int32_t nbytes);
-int32_t rtc_write(file_obj_t *file, const void *buf, int32_t nbytes);
-int32_t rtc_close(file_obj_t *file);
-int32_t rtc_ioctl(file_obj_t *file, uint32_t req, uint32_t arg);
+int rtc_open(const char *filename, file_obj_t *file);
+int rtc_read(file_obj_t *file, void *buf, int nbytes);
+int rtc_write(file_obj_t *file, const void *buf, int nbytes);
+int rtc_close(file_obj_t *file);
+int rtc_ioctl(file_obj_t *file, int req, int arg);
 
 /* time() syscall handler */
-__cdecl int32_t rtc_time(void);
+__cdecl int rtc_time(void);
 
 /* Returns the current value of the RTC counter. */
-uint32_t rtc_get_counter(void);
+int rtc_get_counter(void);
 
 /* Initializes real-time clock interrupts */
 void rtc_init(void);

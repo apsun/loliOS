@@ -1,13 +1,15 @@
 #ifndef _LOLIBC_SETJMP_H
 #define _LOLIBC_SETJMP_H
 
+#include <stdint.h>
+
 typedef struct {
-    int eip;
-    int esp;
-    int ebp;
-    int ebx;
-    int esi;
-    int edi;
+    uint32_t eip;
+    uint32_t esp;
+    uint32_t ebp;
+    uint32_t ebx;
+    uint32_t esi;
+    uint32_t edi;
 } jmp_buf;
 
 void longjmp(jmp_buf env, int status);

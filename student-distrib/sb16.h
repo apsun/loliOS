@@ -13,11 +13,11 @@
 #ifndef ASM
 
 /* Sound Blaster 16 syscall handlers */
-int32_t sb16_open(const char *filename, file_obj_t *file);
-int32_t sb16_read(file_obj_t *file, void *buf, int32_t nbytes);
-int32_t sb16_write(file_obj_t *file, const void *buf, int32_t nbytes);
-int32_t sb16_close(file_obj_t *file);
-int32_t sb16_ioctl(file_obj_t *file, uint32_t req, uint32_t arg);
+int sb16_open(const char *filename, file_obj_t *file);
+int sb16_read(file_obj_t *file, void *buf, int nbytes);
+int sb16_write(file_obj_t *file, const void *buf, int nbytes);
+int sb16_close(file_obj_t *file);
+int sb16_ioctl(file_obj_t *file, int req, int arg);
 
 /* Initializes the Sound Blaster 16 device */
 void sb16_init(void);

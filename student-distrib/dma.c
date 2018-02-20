@@ -71,13 +71,13 @@ dma_start_impl(
 void
 dma_start(
     void *buf,
-    uint16_t nbytes,
-    uint8_t channel,
-    uint8_t mode)
+    int nbytes,
+    int channel,
+    int mode)
 {
     /* Basic sanity checks */
     ASSERT(channel < 8);
-    ASSERT((mode & 3) == 0);
+    ASSERT((mode & (~0xff | 3)) == 0);
 
     /* Buffer must be in the first 16MB = 2^24 bytes of memory */
     uint32_t addr = (uint32_t)buf;

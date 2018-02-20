@@ -54,10 +54,10 @@
 /*
  * Number of RTC interrupts that have occurred.
  * Note: We use a 32-bit value since reads will be atomic,
- * so no locking is required. 48 days of uptime is
+ * so no locking is required. 24 days of uptime is
  * required to overflow the value, which is Good Enough (TM).
  */
-static volatile uint32_t rtc_counter;
+static volatile int rtc_counter;
 
 /*
  * Reads the value of a RTC register. The reg
@@ -89,7 +89,7 @@ rtc_handle_irq(void)
     rtc_read_reg(RTC_REG_C);
 
     /* Increment the global RTC interrupt counter */
-    uint32_t new_counter = ++rtc_counter;
+    int new_counter = ++rtc_counter;
 
     /* Broadcast counter update for alarm signals */
     process_update_clock(new_counter);
@@ -101,7 +101,7 @@ rtc_handle_irq(void)
  * frequency is not a power of 2 between 2 and 1024.
  */
 static uint8_t
-rtc_freq_to_rs(int32_t freq)
+rtc_freq_to_rs(int freq)
 {
     switch (freq) {
     case 8192:
@@ -140,8 +140,8 @@ rtc_freq_to_rs(int32_t freq)
  *
  * Returns -1 on error, 0 on success.
  */
-static int32_t
-rtc_set_frequency(int32_t freq)
+static int
+rtc_set_frequency(int freq)
 {
     /* Convert the integer to an enum value */
     uint8_t rs = rtc_freq_to_rs(freq);
@@ -165,7 +165,7 @@ rtc_set_frequency(int32_t freq)
 /*
  * Open syscall for RTC. Frequency is set to 2Hz by default.
  */
-int32_t
+int
 rtc_open(const char *filename, file_obj_t *file)
 {
     /*
@@ -183,14 +183,14 @@ rtc_open(const char *filename, file_obj_t *file)
  * If a signal is delivered during the read, the read
  * will be prematurely aborted and -1 will be returned.
  */
-int32_t
-rtc_read(file_obj_t *file, void *buf, int32_t nbytes)
+int
+rtc_read(file_obj_t *file, void *buf, int nbytes)
 {
     /* Max number of ticks we need to wait */
-    uint32_t max_ticks = MAX_RTC_FREQ / file->offset;
+    int max_ticks = MAX_RTC_FREQ / file->offset;
 
     /* Wait until we reach the next multiple of max ticks */
-    uint32_t target_counter = (rtc_counter + max_ticks) & -max_ticks;
+    int target_counter = (rtc_counter + max_ticks) & -max_ticks;
 
     /*
      * We should break out of the wait loop early if we receive
@@ -230,21 +230,21 @@ rtc_read(file_obj_t *file, void *buf, int32_t nbytes)
  * frequency for this RTC file. Changes will only be visible when
  * calling read() on this file.
  *
- * buf must point to a int32_t containing the desired frequency,
- * nbytes must equal sizeof(int32_t). The frequency must be a
+ * buf must point to a int containing the desired frequency,
+ * nbytes must equal sizeof(int). The frequency must be a
  * power of 2 between 2 and 1024. file is ignored.
  */
-int32_t
-rtc_write(file_obj_t *file, const void *buf, int32_t nbytes)
+int
+rtc_write(file_obj_t *file, const void *buf, int nbytes)
 {
     /* Check if we're reading the appropriate size */
-    if (nbytes != sizeof(int32_t)) {
+    if (nbytes != sizeof(int)) {
         return -1;
     }
 
     /* Read the frequency */
-    int32_t freq;
-    if (!copy_from_user(&freq, buf, sizeof(int32_t))) {
+    int freq;
+    if (!copy_from_user(&freq, buf, sizeof(int))) {
         return -1;
     }
 
@@ -262,7 +262,7 @@ rtc_write(file_obj_t *file, const void *buf, int32_t nbytes)
 /*
  * Close syscall for RTC. Does nothing.
  */
-int32_t
+int
 rtc_close(file_obj_t *file)
 {
     return 0;
@@ -271,8 +271,8 @@ rtc_close(file_obj_t *file)
 /*
  * Ioctl syscall for RTC. Always fails.
  */
-int32_t
-rtc_ioctl(file_obj_t *file, uint32_t req, uint32_t arg)
+int
+rtc_ioctl(file_obj_t *file, int req, int arg)
 {
     return -1;
 }
@@ -281,10 +281,10 @@ rtc_ioctl(file_obj_t *file, uint32_t req, uint32_t arg)
  * Converts a separate-component time to a Unix timestamp.
  * Hopefully nobody is using our OS in 2038 ;-)
  */
-static int32_t
+static int
 rtc_mktime(
-    int32_t year, int32_t month, int32_t day,
-    int32_t hour, int32_t min, int32_t sec)
+    int year, int month, int day,
+    int hour, int min, int sec)
 {
     /* Below algorithm shamelessly stolen from Linux mktime() */
     month -= 2;
@@ -293,11 +293,11 @@ rtc_mktime(
         year -= 1;
     }
 
-    int32_t leap_days = year / 4 - year / 100 + year / 400;
-    int32_t days = leap_days + 367 * month / 12 + day + year * 365 - 719499;
-    int32_t hours = days * 24 + hour;
-    int32_t mins = hours * 60 + min;
-    int32_t secs = mins * 60 + sec;
+    int leap_days = year / 4 - year / 100 + year / 400;
+    int days = leap_days + 367 * month / 12 + day + year * 365 - 719499;
+    int hours = days * 24 + hour;
+    int mins = hours * 60 + min;
+    int secs = mins * 60 + sec;
     return secs;
 }
 
@@ -306,20 +306,20 @@ rtc_mktime(
  * (1970-01-01 00:00:00 UTC). This value will overflow
  * in 2038.
  */
-__cdecl int32_t
+__cdecl int
 rtc_time(void)
 {
     /* Wait until update finishes */
     while (rtc_read_reg(RTC_REG_A) & RTC_A_UIP);
 
     /* Read all time components */
-    int32_t sec = rtc_read_reg(RTC_SECOND);
-    int32_t min = rtc_read_reg(RTC_MINUTE);
-    int32_t hour = rtc_read_reg(RTC_HOUR);
-    int32_t day = rtc_read_reg(RTC_DAY);
-    int32_t month = rtc_read_reg(RTC_MONTH);
-    int32_t year = rtc_read_reg(RTC_YEAR);
-    int32_t century = rtc_read_reg(RTC_CENTURY);
+    int sec = rtc_read_reg(RTC_SECOND);
+    int min = rtc_read_reg(RTC_MINUTE);
+    int hour = rtc_read_reg(RTC_HOUR);
+    int day = rtc_read_reg(RTC_DAY);
+    int month = rtc_read_reg(RTC_MONTH);
+    int year = rtc_read_reg(RTC_YEAR);
+    int century = rtc_read_reg(RTC_CENTURY);
     year += 100 * century;
 
     /* Convert to Unix timestamp */
@@ -329,7 +329,7 @@ rtc_time(void)
 /*
  * Returns the current value of the RTC counter.
  */
-uint32_t
+int
 rtc_get_counter(void)
 {
     return rtc_counter;

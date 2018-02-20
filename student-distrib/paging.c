@@ -124,7 +124,7 @@ paging_init_video(void)
     global_table->base_addr = TO_4KB_BASE(VIDEO_PAGE_START);
 
     /* Virtual video memory pages, one per terminal */
-    int32_t i;
+    int i;
     for (i = 0; i < NUM_TERMINALS; ++i) {
         uint32_t term_addr = TERMINAL_PAGE_START + i * KB(4);
         pte_t *term_table = TABLE(term_addr);
@@ -175,7 +175,7 @@ paging_init_sb16(void)
 static void
 paging_init_heap(void)
 {
-    int32_t i;
+    int i;
     for (i = 0; i < MAX_HEAP_PAGES; ++i) {
         pde_4mb_t *dir = DIR_4MB(HEAP_PAGE_START + i * MB(4));
         dir->present = 0;
@@ -250,10 +250,10 @@ paging_enable(void)
  * Allocates a new 4MB heap page on behalf of the
  * calling process. This will modify the page directory.
  */
-static int32_t
-paging_heap_alloc(int32_t vi)
+static int
+paging_heap_alloc(int vi)
 {
-    int32_t pi;
+    int pi;
     for (pi = 0; pi < MAX_HEAP_PAGES; ++pi) {
         if (!heap_map[pi]) {
             uint32_t vaddr = HEAP_PAGE_START + vi * MB(4);
@@ -282,7 +282,7 @@ paging_heap_alloc(int32_t vi)
  * paging_heap_alloc. This will modify the page directory.
  */
 static void
-paging_heap_free(int32_t vi, int32_t pi)
+paging_heap_free(int vi, int pi)
 {
     ASSERT(heap_map[pi]);
     pde_4mb_t *entry = DIR_4MB(HEAP_PAGE_START + vi * MB(4));
@@ -307,12 +307,12 @@ paging_heap_init(paging_heap_t *heap)
  * more than available, or not enough physical memory).
  * On success, returns the previous brk.
  */
-int32_t
-paging_heap_sbrk(paging_heap_t *heap, int32_t delta)
+int
+paging_heap_sbrk(paging_heap_t *heap, int delta)
 {
-    int32_t orig_size = heap->size;
-    int32_t orig_num_pages = heap->num_pages;
-    int32_t orig_brk = HEAP_PAGE_START + orig_size;
+    int orig_size = heap->size;
+    int orig_num_pages = heap->num_pages;
+    int orig_brk = HEAP_PAGE_START + orig_size;
 
     /* Upper bound limit (if delta is huge, rhs is negative -> true) */
     if (delta > 0 && orig_size > MAX_HEAP_SIZE - delta) {
@@ -326,20 +326,20 @@ paging_heap_sbrk(paging_heap_t *heap, int32_t delta)
         return -1;
     }
 
-    int32_t new_size = orig_size + delta;
-    int32_t new_num_pages = (new_size + MB(4) - 1) / MB(4);
+    int new_size = orig_size + delta;
+    int new_num_pages = (new_size + MB(4) - 1) / MB(4);
 
     /* Allocate new pages as necessary */
     while (heap->num_pages < new_num_pages) {
-        int32_t page = paging_heap_alloc(heap->num_pages);
+        int page = paging_heap_alloc(heap->num_pages);
 
         /* If we don't have enough pages, undo allocation */
         if (page < 0) {
             debugf("Physical memory exhausted\n");
 
             while (heap->num_pages > orig_num_pages) {
-                int32_t vi = --heap->num_pages;
-                int32_t pi = heap->pages[vi];
+                int vi = --heap->num_pages;
+                int pi = heap->pages[vi];
                 paging_heap_free(vi, pi);
             }
 
@@ -351,8 +351,8 @@ paging_heap_sbrk(paging_heap_t *heap, int32_t delta)
 
     /* Free deallocated pages as necessary */
     while (heap->num_pages > new_num_pages) {
-        int32_t vi = --heap->num_pages;
-        int32_t pi = heap->pages[vi];
+        int vi = --heap->num_pages;
+        int pi = heap->pages[vi];
         paging_heap_free(vi, pi);
     }
 
@@ -366,9 +366,9 @@ paging_heap_sbrk(paging_heap_t *heap, int32_t delta)
 void
 paging_heap_destroy(paging_heap_t *heap)
 {
-    int32_t vi;
+    int vi;
     for (vi = 0; vi < heap->num_pages; ++vi) {
-        int32_t pi = heap->pages[vi];
+        int pi = heap->pages[vi];
         paging_heap_free(vi, pi);
     }
     heap->size = 0;
@@ -382,7 +382,7 @@ paging_heap_destroy(paging_heap_t *heap)
  * This should be called during context switching.
  */
 void
-paging_set_context(int32_t pid, paging_heap_t *heap)
+paging_set_context(int pid, paging_heap_t *heap)
 {
     ASSERT(pid >= 0);
 
@@ -390,7 +390,7 @@ paging_set_context(int32_t pid, paging_heap_t *heap)
     DIR_4MB(USER_PAGE_START)->base_addr = TO_4MB_BASE(MB(pid * 4 + 8));
 
     /* Replace heap page directory entries */
-    int32_t i;
+    int i;
     for (i = 0; i < MAX_HEAP_PAGES; ++i) {
         pde_4mb_t *entry = DIR_4MB(HEAP_PAGE_START + i * MB(4));
         if (i < heap->num_pages) {
@@ -463,7 +463,7 @@ is_page_user_accessible(uint32_t *addr, bool write)
  * the same address in ring 3 would not cause a page fault.
  */
 bool
-is_user_accessible(const void *start, int32_t nbytes, bool write)
+is_user_accessible(const void *start, int nbytes, bool write)
 {
     /* Negative accesses are obviously impossible */
     if (nbytes < 0) {
@@ -494,9 +494,9 @@ is_user_accessible(const void *start, int32_t nbytes, bool write)
  * This does NOT pad excess chars in dest with zeros!
  */
 bool
-strscpy_from_user(char *dest, const char *src, int32_t n)
+strscpy_from_user(char *dest, const char *src, int n)
 {
-    int32_t i;
+    int i;
     for (i = 0; i < n; ++i) {
         if (!is_user_accessible(&src[i], 1, false)) {
             return false;
@@ -517,7 +517,7 @@ strscpy_from_user(char *dest, const char *src, int32_t n)
  * true if the entire buffer could be copied, and false otherwise.
  */
 bool
-copy_from_user(void *dest, const void *src, int32_t n)
+copy_from_user(void *dest, const void *src, int n)
 {
     if (!is_user_accessible(src, n, false)) {
         return false;
@@ -533,7 +533,7 @@ copy_from_user(void *dest, const void *src, int32_t n)
  * true if the entire buffer could be copied, and false otherwise.
  */
 bool
-copy_to_user(void *dest, const void *src, int32_t n)
+copy_to_user(void *dest, const void *src, int n)
 {
     if (!is_user_accessible(dest, n, true)) {
         return false;

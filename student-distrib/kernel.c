@@ -73,7 +73,7 @@ entry(unsigned long magic, unsigned long addr)
             printf("Module %d loaded at address: 0x%#x\n", mod_count, (unsigned int)mod->mod_start);
             printf("Module %d ends at address: 0x%#x\n", mod_count, (unsigned int)mod->mod_end);
             printf("First few bytes of module:\n");
-            int32_t i;
+            int i;
             for (i = 0; i < 16; i++) {
                 printf("0x%x ", *((uint8_t *)(mod->mod_start + i)));
             }

@@ -4,7 +4,7 @@
 /*
  * Returns the length of the specified string.
  */
-int32_t
+int
 strlen(const char *s)
 {
     const char *end = s;
@@ -16,7 +16,7 @@ strlen(const char *s)
  * Compares two strings. Returns 0 if the two
  * strings are equal, and non-zero otherwise.
  */
-int32_t
+int
 strcmp(const char *s1, const char *s2)
 {
     while (*s1 && (*s1 == *s2)) {
@@ -32,8 +32,8 @@ strcmp(const char *s1, const char *s2)
  * strings are equal up to the specified number,
  * and non-zero otherwise.
  */
-int32_t
-strncmp(const char *s1, const char *s2, int32_t n)
+int
+strncmp(const char *s1, const char *s2, int n)
 {
     while (n && *s1 && (*s1 == *s2)) {
         s1++;
@@ -66,7 +66,7 @@ strcpy(char* dest, const char *src)
  * dest.
  */
 char *
-strncpy(char *dest, const char *src, int32_t n)
+strncpy(char *dest, const char *src, int n)
 {
     char *dest_orig = dest;
     while (n-- && (*dest++ = *src++));
@@ -79,8 +79,8 @@ strncpy(char *dest, const char *src, int32_t n)
 char *
 strrev(char *s)
 {
-    int32_t end = strlen(s) - 1;
-    int32_t start = 0;
+    int end = strlen(s) - 1;
+    int start = 0;
     while (start < end) {
         char tmp = s[end];
         s[end] = s[start];
@@ -97,11 +97,11 @@ strrev(char *s)
  * to hold the entire string. Returns buf.
  */
 char *
-itoa(uint32_t value, char *buf, int32_t radix)
+itoa(unsigned int value, char *buf, int radix)
 {
     const char *lookup = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     char *newbuf = buf;
-    uint32_t newval = value;
+    unsigned int newval = value;
 
     /* Special case for zero */
     if (value == 0) {
@@ -137,10 +137,10 @@ itoa(uint32_t value, char *buf, int32_t radix)
  * and true is returned.
  */
 bool
-atoi(const char *str, int32_t *result)
+atoi(const char *str, int *result)
 {
-    int32_t res = 0;
-    int32_t sign = 1;
+    int res = 0;
+    int sign = 1;
 
     /* Check empty string (not a number) */
     if (*str == '\0') {
@@ -173,7 +173,7 @@ atoi(const char *str, int32_t *result)
  * the value of c. Returns s.
  */
 void *
-memset(void *s, uint8_t c, int32_t n)
+memset(void *s, uint8_t c, int n)
 {
     asm volatile("              \n\
         1:                      \n\
@@ -214,7 +214,7 @@ memset(void *s, uint8_t c, int32_t n)
  * Returns s.
  */
 void *
-memset_word(void *s, uint16_t c, int32_t n)
+memset_word(void *s, uint16_t c, int n)
 {
     asm volatile("              \n\
         movw    %%ds, %%dx      \n\
@@ -234,7 +234,7 @@ memset_word(void *s, uint16_t c, int32_t n)
  * Returns s.
  */
 void *
-memset_dword(void *s, uint32_t c, int32_t n)
+memset_dword(void *s, uint32_t c, int n)
 {
     asm volatile("              \n\
         movw    %%ds, %%dx      \n\
@@ -253,7 +253,7 @@ memset_dword(void *s, uint32_t c, int32_t n)
  * Returns dest.
  */
 void *
-memcpy(void *dest, const void *src, int32_t n)
+memcpy(void *dest, const void *src, int n)
 {
     asm volatile("              \n\
         1:                      \n\
@@ -297,7 +297,7 @@ memcpy(void *dest, const void *src, int32_t n)
  * src to dest. Returns dest.
  */
 void *
-memmove(void *dest, const void *src, int32_t n)
+memmove(void *dest, const void *src, int n)
 {
     asm volatile("                         \n\
         movw    %%ds, %%dx                 \n\
@@ -411,8 +411,8 @@ format_char_switch:
                 puts(conv_buf);
             } else {
                 itoa(*esp, &conv_buf[8], 16);
-                int32_t starting_index;
-                int32_t i;
+                int starting_index;
+                int i;
                 i = starting_index = strlen(&conv_buf[8]);
                 while (i < 8) {
                     conv_buf[i] = '0';
@@ -432,11 +432,11 @@ format_char_switch:
 
         /* Print a number in signed int form */
         case 'd':
-            if (*(int32_t *)esp < 0) {
+            if (*(int *)esp < 0) {
                 conv_buf[0] = '-';
-                itoa(-*(int32_t *)esp, &conv_buf[1], 10);
+                itoa(-*(int *)esp, &conv_buf[1], 10);
             } else {
-                itoa(*(int32_t *)esp, conv_buf, 10);
+                itoa(*(int *)esp, conv_buf, 10);
             }
             puts(conv_buf);
             esp++;
@@ -448,7 +448,7 @@ format_char_switch:
             esp++;
             break;
 
-        /* Print a NULL-terminated string */
+        /* Print a NUL-terminated string */
         case 's':
             puts(*(char **)esp);
             esp++;

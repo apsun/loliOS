@@ -29,7 +29,7 @@
 
 #ifndef ASM
 
-int halt(unsigned char status);
+int halt(int status);
 int execute(const char *command);
 int read(int fd, void *buf, int nbytes);
 int write(int fd, const void *buf, int nbytes);

@@ -71,7 +71,7 @@ dump_registers(int_regs_t *regs)
  * be executed. Otherwise, kills the process.
  */
 static void
-handle_user_exception(int32_t int_num)
+handle_user_exception(int int_num)
 {
     debugf("Userspace exception: %s\n", exception_names[int_num]);
     pcb_t *pcb = get_executing_pcb();
@@ -104,7 +104,7 @@ handle_exception(int_regs_t *regs)
 static void
 handle_irq(int_regs_t *regs)
 {
-    uint32_t irq_num = regs->int_num - INT_IRQ0;
+    int irq_num = regs->int_num - INT_IRQ0;
     irq_handle_interrupt(irq_num);
 }
 
@@ -160,7 +160,7 @@ idt_init(void)
     desc.seg_selector = KERNEL_CS;
 
     /* Default initialization for most gates */
-    int32_t i;
+    int i;
     for (i = 0; i < NUM_VEC; ++i) {
         idt[i] = desc;
         WRITE_IDT_ENTRY(i, idt_handle_int_unknown);

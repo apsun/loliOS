@@ -28,15 +28,15 @@ typedef struct {
      * to determine whether we can backspace across screen lines.
      * This is reset to 0 whenever encountering a '\n' character.
      */
-    int32_t logical_x;
+    int logical_x;
 
     /* The cursor x-position in the current screen line.
      * This value must be less than NUM_COLS.
      */
-    int32_t screen_x;
+    int screen_x;
 
     /* The cursor y-position in the current screen line. */
-    int32_t screen_y;
+    int screen_y;
 } cursor_pos_t;
 
 /* Combined terminal state information */
@@ -69,23 +69,23 @@ typedef struct {
 } terminal_state_t;
 
 /* Terminal syscall functions */
-int32_t terminal_kbd_open(const char *filename, file_obj_t *file);
-int32_t terminal_stdin_read(file_obj_t *file, void *buf, int32_t nbytes);
-int32_t terminal_stdin_write(file_obj_t *file, const void *buf, int32_t nbytes);
-int32_t terminal_stdout_read(file_obj_t *file, void *buf, int32_t nbytes);
-int32_t terminal_stdout_write(file_obj_t *file, const void *buf, int32_t nbytes);
-int32_t terminal_kbd_close(file_obj_t *file);
-int32_t terminal_kbd_ioctl(file_obj_t *file, uint32_t req, uint32_t arg);
+int terminal_kbd_open(const char *filename, file_obj_t *file);
+int terminal_stdin_read(file_obj_t *file, void *buf, int nbytes);
+int terminal_stdin_write(file_obj_t *file, const void *buf, int nbytes);
+int terminal_stdout_read(file_obj_t *file, void *buf, int nbytes);
+int terminal_stdout_write(file_obj_t *file, const void *buf, int nbytes);
+int terminal_kbd_close(file_obj_t *file);
+int terminal_kbd_ioctl(file_obj_t *file, int req, int arg);
 
 /* Mouse syscall handlers */
-int32_t terminal_mouse_open(const char *filename, file_obj_t *file);
-int32_t terminal_mouse_read(file_obj_t *file, void *buf, int32_t nbytes);
-int32_t terminal_mouse_write(file_obj_t *file, const void *buf, int32_t nbytes);
-int32_t terminal_mouse_close(file_obj_t *file);
-int32_t terminal_mouse_ioctl(file_obj_t *file, uint32_t req, uint32_t arg);
+int terminal_mouse_open(const char *filename, file_obj_t *file);
+int terminal_mouse_read(file_obj_t *file, void *buf, int nbytes);
+int terminal_mouse_write(file_obj_t *file, const void *buf, int nbytes);
+int terminal_mouse_close(file_obj_t *file);
+int terminal_mouse_ioctl(file_obj_t *file, int req, int arg);
 
 /* Sets the currently displayed terminal */
-void set_display_terminal(int32_t index);
+void set_display_terminal(int index);
 
 /* Prints a character to the curently executing terminal */
 void terminal_putc(char c);
@@ -94,7 +94,7 @@ void terminal_putc(char c);
 void terminal_clear(void);
 
 /* Clears the specified terminal's input buffers */
-void terminal_clear_input(int32_t terminal);
+void terminal_clear_input(int terminal);
 
 /* Handles keyboard input */
 void terminal_handle_kbd_input(kbd_input_t input);
@@ -103,7 +103,7 @@ void terminal_handle_kbd_input(kbd_input_t input);
 void terminal_handle_mouse_input(mouse_input_t input);
 
 /* Updates the vidmap status for the specified terminal */
-void terminal_update_vidmap(int32_t term_index, bool present);
+void terminal_update_vidmap(int term_index, bool present);
 
 /* Initializes the terminal */
 void terminal_init(void);

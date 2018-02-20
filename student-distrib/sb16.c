@@ -35,12 +35,12 @@ static file_obj_t *open_device = NULL;
 
 /* Tracks the currently active sample buffer */
 static uint8_t *audio_buf = (uint8_t *)SB16_PAGE_START;
-static int32_t audio_buf_count = 0;
+static int audio_buf_count = 0;
 
 /* Playback parameters (default = 11kHz, mono, 8bit) */
-static int32_t sample_rate = 11025;
-static int32_t num_channels = 1;
-static int32_t bits_per_sample = 8;
+static int sample_rate = 11025;
+static int num_channels = 1;
+static int bits_per_sample = 8;
 
 /* Whether there is currently audio being played */
 static bool is_playing = false;
@@ -142,7 +142,7 @@ sb16_swap_buffers(void)
 }
 
 /* SB16 open() syscall handler */
-int32_t
+int
 sb16_open(const char *filename, file_obj_t *file)
 {
     if (!device_exists) {
@@ -161,8 +161,8 @@ sb16_open(const char *filename, file_obj_t *file)
 }
 
 /* SB16 read() syscall handler, does nothing */
-int32_t
-sb16_read(file_obj_t *file, void *buf, int32_t nbytes)
+int
+sb16_read(file_obj_t *file, void *buf, int nbytes)
 {
     return 0;
 }
@@ -172,8 +172,8 @@ sb16_read(file_obj_t *file, void *buf, int32_t nbytes)
  * playing, this will begin playback. To set playback
  * parameters, use ioctl().
  */
-int32_t
-sb16_write(file_obj_t *file, const void *buf, int32_t nbytes)
+int
+sb16_write(file_obj_t *file, const void *buf, int nbytes)
 {
     /* Limit writable bytes to one region */
     if (nbytes > SB16_HALF_BUFFER_SIZE - audio_buf_count) {
@@ -196,7 +196,7 @@ sb16_write(file_obj_t *file, const void *buf, int32_t nbytes)
 }
 
 /* SB16 close() syscall handler */
-int32_t
+int
 sb16_close(file_obj_t *file)
 {
     ASSERT(file == open_device);
@@ -205,8 +205,8 @@ sb16_close(file_obj_t *file)
 }
 
 /* Sets the bits per sample playback parameter */
-static int32_t
-sb16_ioctl_set_bits_per_sample(uint32_t arg)
+static int
+sb16_ioctl_set_bits_per_sample(int arg)
 {
     if (arg == 8 || arg == 16) {
         bits_per_sample = arg;
@@ -218,8 +218,8 @@ sb16_ioctl_set_bits_per_sample(uint32_t arg)
 }
 
 /* Sets the mono/stereo playback parameter */
-static int32_t
-sb16_ioctl_set_num_channels(uint32_t arg)
+static int
+sb16_ioctl_set_num_channels(int arg)
 {
     if (arg == 1 || arg == 2) {
         num_channels = arg;
@@ -231,8 +231,8 @@ sb16_ioctl_set_num_channels(uint32_t arg)
 }
 
 /* Sets the sample rate playback parameter */
-static int32_t
-sb16_ioctl_set_sample_rate(uint32_t arg)
+static int
+sb16_ioctl_set_sample_rate(int arg)
 {
     switch (arg) {
     case 8000:
@@ -245,7 +245,7 @@ sb16_ioctl_set_sample_rate(uint32_t arg)
         sb16_write_sample_rate();
         return 0;
     default:
-        debugf("Sample rate not supported: %u\n", arg);
+        debugf("Sample rate not supported: %d\n", arg);
         return -1;
     }
 }
@@ -258,8 +258,8 @@ sb16_ioctl_set_sample_rate(uint32_t arg)
  * SOUND_SET_NUM_CHANNELS: arg = 1 (mono) or 2 (stereo)
  * SOUND_SET_SAMPLE_RATE: arg = 8000, 11025, etc., 44100
  */
-int32_t
-sb16_ioctl(file_obj_t *file, uint32_t req, uint32_t arg)
+int
+sb16_ioctl(file_obj_t *file, int req, int arg)
 {
     if (is_playing) {
         debugf("Cannot change parameters during playback\n");

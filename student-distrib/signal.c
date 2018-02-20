@@ -46,7 +46,7 @@ signal_deliver(signal_info_t *sig, int_regs_t *regs)
     uint8_t buf[
         sizeof(shellcode) +  /* shellcode */
         sizeof(int_regs_t) + /* regs */
-        sizeof(int32_t) +    /* signum */
+        sizeof(int) +    /* signum */
         sizeof(uint32_t)];   /* return address */
     uint8_t *bufp = buf + sizeof(buf);
     uint8_t *esp = (uint8_t *)regs->esp;
@@ -70,9 +70,9 @@ signal_deliver(signal_info_t *sig, int_regs_t *regs)
     uint8_t *intregs_addr = esp;
 
     /* Push signal number onto user stack */
-    bufp -= sizeof(int32_t);
-    esp -= sizeof(int32_t);
-    memcpy(bufp, &sig->signum, sizeof(int32_t));
+    bufp -= sizeof(int);
+    esp -= sizeof(int);
+    memcpy(bufp, &sig->signum, sizeof(int));
     uint8_t *signum_addr = esp;
 
     /* Push return address (which is sigreturn linkage) onto user stack */
@@ -81,7 +81,7 @@ signal_deliver(signal_info_t *sig, int_regs_t *regs)
     memcpy(bufp, &shellcode_addr, sizeof(uint32_t));
 
     /* Fill in shellcode values */
-    int32_t syscall_num = SYS_SIGRETURN;
+    int syscall_num = SYS_SIGRETURN;
     memcpy(shellcode_bufp + 1, &syscall_num, 4);
     memcpy(shellcode_bufp + 6, signum_addr, 4);
     memcpy(shellcode_bufp + 11, &intregs_addr, 4);
@@ -116,8 +116,8 @@ signal_deliver(signal_info_t *sig, int_regs_t *regs)
 }
 
 /* sigaction() syscall handler */
-__cdecl int32_t
-signal_sigaction(int32_t signum, void *handler_address)
+__cdecl int
+signal_sigaction(int signum, void *handler_address)
 {
     /* Check signal number range */
     if (signum < 0 || signum >= NUM_SIGNALS) {
@@ -130,11 +130,11 @@ signal_sigaction(int32_t signum, void *handler_address)
 }
 
 /* sigreturn() syscall handler */
-__cdecl int32_t
+__cdecl int
 signal_sigreturn(
-    int32_t signum,
+    int signum,
     int_regs_t *user_regs,
-    uint32_t unused,
+    int unused,
     int_regs_t *kernel_regs)
 {
     /* Check signal number range */
@@ -179,8 +179,8 @@ signal_sigreturn(
 }
 
 /* sigraise() syscall handler */
-__cdecl int32_t
-signal_sigraise(int32_t signum)
+__cdecl int
+signal_sigraise(int signum)
 {
     /* Check signal number range */
     if (signum < 0 || signum >= NUM_SIGNALS) {
@@ -193,12 +193,12 @@ signal_sigraise(int32_t signum)
 }
 
 /* sigmask() syscall handler */
-__cdecl int32_t
-signal_sigmask(int32_t signum, int32_t action)
+__cdecl int
+signal_sigmask(int signum, int action)
 {
     pcb_t *pcb = get_executing_pcb();
     signal_info_t *sig = &pcb->signals[signum];
-    int32_t orig_masked = sig->masked ? SIGMASK_BLOCK : SIGMASK_UNBLOCK;
+    int orig_masked = sig->masked ? SIGMASK_BLOCK : SIGMASK_UNBLOCK;
     switch (action) {
     case SIGMASK_NONE:
         break;
@@ -258,7 +258,7 @@ signal_handle(signal_info_t *sig, int_regs_t *regs)
 void
 signal_init(signal_info_t *signals)
 {
-    int32_t i;
+    int i;
     for (i = 0; i < NUM_SIGNALS; ++i) {
         signals[i].signum = i;
         signals[i].handler_addr = NULL;
@@ -276,7 +276,7 @@ void
 signal_handle_all(int_regs_t *regs)
 {
     pcb_t *pcb = get_executing_pcb();
-    int32_t i;
+    int i;
     for (i = 0; i < NUM_SIGNALS; ++i) {
         signal_info_t *sig = &pcb->signals[i];
         if (sig->pending && signal_handle(sig, regs)) {
@@ -294,7 +294,7 @@ bool
 signal_has_pending(void)
 {
     pcb_t *pcb = get_executing_pcb();
-    int32_t i;
+    int i;
     for (i = 0; i < NUM_SIGNALS; ++i) {
         signal_info_t *sig = &pcb->signals[i];
         if (sig->pending) {
@@ -327,7 +327,7 @@ signal_has_pending(void)
  * Raises (marks as pending) a signal for the specified process.
  */
 void
-signal_raise(int32_t pid, int32_t signum)
+signal_raise(int pid, int signum)
 {
     pcb_t *pcb = get_pcb_by_pid(pid);
     pcb->signals[signum].pending = true;

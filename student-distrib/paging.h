@@ -38,16 +38,16 @@
 /* Container for a process's heap info */
 typedef struct {
     /* Size of the heap in bytes, might not be a multiple of 4MB */
-    int32_t size;
+    int size;
 
     /* Number of valid entries in the array below */
-    int32_t num_pages;
+    int num_pages;
 
     /*
      * Holds a list of allocated heap pages, represented as
      * an index offset from HEAP_PAGE_START.
      */
-    int32_t pages[MAX_HEAP_PAGES];
+    int pages[MAX_HEAP_PAGES];
 } paging_heap_t;
 
 /* Enables paging */
@@ -57,22 +57,22 @@ void paging_enable(void);
 void paging_heap_init(paging_heap_t *heap);
 
 /* Expands or shrinks the data break */
-int32_t paging_heap_sbrk(paging_heap_t *heap, int32_t delta);
+int paging_heap_sbrk(paging_heap_t *heap, int delta);
 
 /* Frees a process heap */
 void paging_heap_destroy(paging_heap_t *heap);
 
 /* Updates the process pages */
-void paging_set_context(int32_t pid, paging_heap_t *heap);
+void paging_set_context(int pid, paging_heap_t *heap);
 
 /* Updates the vidmap page to point to the specified address */
 void paging_update_vidmap_page(uint8_t *video_mem, bool present);
 
 /* User-kernel copy functions */
-bool is_user_accessible(const void *addr, int32_t nbytes, bool write);
-bool strscpy_from_user(char *dest, const char *src, int32_t n);
-bool copy_from_user(void *dest, const void *src, int32_t n);
-bool copy_to_user(void *dest, const void *src, int32_t n);
+bool is_user_accessible(const void *addr, int nbytes, bool write);
+bool strscpy_from_user(char *dest, const char *src, int n);
+bool copy_from_user(void *dest, const void *src, int n);
+bool copy_to_user(void *dest, const void *src, int n);
 
 #endif /* ASM */
 

@@ -107,22 +107,22 @@ typedef union {
 } serial_modem_ctrl_t;
 
 /* Checks whether there is data available to read */
-bool serial_can_read(int32_t which);
+bool serial_can_read(int which);
 
 /* Checks whether there is space available to write */
-bool serial_can_write(int32_t which);
+bool serial_can_write(int which);
 
 /* Reads a single char from the UART rx queue (blocking) */
-uint8_t serial_read(int32_t which);
+uint8_t serial_read(int which);
 
 /* Reads multiple chars from the UART rx queue (non-blocking) */
-int32_t serial_read_all(int32_t which, uint8_t *buf, int32_t len);
+int serial_read_all(int which, uint8_t *buf, int len);
 
 /* Writes a single char to the UART tx queue (blocking) */
-void serial_write(int32_t which, uint8_t data);
+void serial_write(int which, uint8_t data);
 
 /* Writes multiple chars to the UART tx queue (non-blocking) */
-int32_t serial_write_all(int32_t which, const uint8_t *buf, int32_t len);
+int serial_write_all(int which, const uint8_t *buf, int len);
 
 /*
  * Initializes the serial driver for the specified COM
@@ -131,12 +131,12 @@ int32_t serial_write_all(int32_t which, const uint8_t *buf, int32_t len);
  */
 void
 serial_init(
-    int32_t which,
-    uint32_t baud_rate,
-    uint32_t char_bits,
-    uint32_t stop_bits,
-    uint32_t parity,
-    uint32_t trigger_level,
+    int which,
+    int baud_rate,
+    int char_bits,
+    int stop_bits,
+    int parity,
+    int trigger_level,
     void (*irq_handler)(void));
 
 #endif /* ASM */

@@ -21,13 +21,13 @@ typedef struct irq_handler_t {
 } irq_handler_t;
 
 /* IRQ interrupt handler */
-void irq_handle_interrupt(uint32_t irq_num);
+void irq_handle_interrupt(int irq_num);
 
 /* Registers an IRQ handler */
-void irq_register_handler(uint32_t irq_num, void (*callback)(void));
+void irq_register_handler(int irq_num, void (*callback)(void));
 
 /* Unregisters an IRQ handler */
-void irq_unregister_handler(uint32_t irq_num);
+void irq_unregister_handler(int irq_num);
 
 #endif /* ASM */
 

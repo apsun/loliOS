@@ -50,7 +50,7 @@ typedef struct {
     volatile mouse_input_t buf[MOUSE_BUF_SIZE];
 
     /* Number of valid inputs in the buffer */
-    volatile int32_t count;
+    volatile int count;
 } mouse_input_buf_t;
 
 /* Handles mouse interrupts */
