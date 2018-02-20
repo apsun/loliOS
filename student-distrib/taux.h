@@ -6,16 +6,6 @@
 #include "serial.h"
 
 /*
- * Taux controller serial configuration.
- */
-#define TAUX_COM_PORT      1
-#define TAUX_BAUD_RATE     9600
-#define TAUX_CHAR_BITS     SERIAL_LC_CHAR_BITS_8 /* 8-bit data */
-#define TAUX_PARITY        SERIAL_LC_PARITY_NONE /* no parity bit */
-#define TAUX_STOP_BITS     SERIAL_LC_STOP_BITS_1 /* 1 stop bit */
-#define TAUX_TRIGGER_LEVEL SERIAL_FC_TRIGGER_LEVEL_14 /* prevents freezing */
-
-/*
  * Accepted ioctl() request values.
  */
 #define TUX_SET_LED     0x10

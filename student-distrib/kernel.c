@@ -30,7 +30,7 @@ entry(unsigned long magic, unsigned long addr)
     /* Initialize terminals */
     terminal_init();
 
-    /* Clear the screen. */
+    /* Clear the screen */
     clear();
 
     /* Am I booted by a Multiboot-compliant boot loader? */
@@ -84,15 +84,13 @@ entry(unsigned long magic, unsigned long addr)
     }
 
     /* Bits 4 and 5 are mutually exclusive! */
-    if (CHECK_FLAG (mbi->flags, 4) && CHECK_FLAG (mbi->flags, 5))
-    {
+    if (CHECK_FLAG (mbi->flags, 4) && CHECK_FLAG (mbi->flags, 5)) {
         printf ("Both bits 4 and 5 are set.\n");
         return;
     }
 
     /* Is the section header table of ELF valid? */
-    if (CHECK_FLAG (mbi->flags, 5))
-    {
+    if (CHECK_FLAG (mbi->flags, 5)) {
         elf_section_header_table_t *elf_sec = &(mbi->elf_sec);
 
         printf ("elf_sec: num = %u, size = 0x%#x,"
@@ -102,8 +100,7 @@ entry(unsigned long magic, unsigned long addr)
     }
 
     /* Are mmap_* valid? */
-    if (CHECK_FLAG (mbi->flags, 6))
-    {
+    if (CHECK_FLAG (mbi->flags, 6)) {
         memory_map_t *mmap;
 
         printf ("mmap_addr = 0x%#x, mmap_length = 0x%x\n",

@@ -46,7 +46,7 @@ signal_deliver(signal_info_t *sig, int_regs_t *regs)
     uint8_t buf[
         sizeof(shellcode) +  /* shellcode */
         sizeof(int_regs_t) + /* regs */
-        sizeof(int) +    /* signum */
+        sizeof(int) +        /* signum */
         sizeof(uint32_t)];   /* return address */
     uint8_t *bufp = buf + sizeof(buf);
     uint8_t *esp = (uint8_t *)regs->esp;
