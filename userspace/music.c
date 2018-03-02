@@ -33,7 +33,7 @@ typedef struct {
 int
 read_wave_header(int soundfd, wave_header_t *hdr)
 {
-    if (read(soundfd, hdr, sizeof(*hdr)) < (int32_t)sizeof(*hdr)) {
+    if (read(soundfd, hdr, sizeof(*hdr)) < (int)sizeof(*hdr)) {
         puts("Could not read WAVE header");
         return -1;
     }
