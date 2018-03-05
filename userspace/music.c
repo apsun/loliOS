@@ -84,7 +84,6 @@ main(void)
     if (strncmp("--loop ", filename, strlen("--loop ")) == 0) {
         filename += strlen("--loop ");
         loop = true;
-        puts("Loop mode enabled");
     }
 
     /* Open the audio file */
@@ -123,6 +122,7 @@ main(void)
     printf("Bits per sample:    %d\n", wav_hdr.bits_per_sample);
     printf("Number of channels: %d\n", wav_hdr.num_channels);
     printf("Sample rate:        %dHz\n", wav_hdr.sample_rate);
+    printf("Loop mode:          %s\n", loop ? "true" : "false");
 
     /* Set sound parameters using header */
     if (ioctl(devfd, SOUND_SET_BITS_PER_SAMPLE, wav_hdr.bits_per_sample) < 0 ||

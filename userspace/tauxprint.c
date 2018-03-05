@@ -20,5 +20,6 @@ main(void)
             puts("Cannot display that string!");
         }
     }
+    close(fd);
     return 0;
 }
