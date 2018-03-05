@@ -141,7 +141,7 @@ sb16_swap_buffers(void)
     audio_buf_count = 0;
 }
 
-/* SB16 open() syscall handler */
+/* Acquires exclusive access to the Sound Blaster 16 device */
 int
 sb16_open(const char *filename, file_obj_t *file)
 {
@@ -195,7 +195,7 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
     return nbytes;
 }
 
-/* SB16 close() syscall handler */
+/* Releases exclusive access to the Sound Blaster 16 device */
 int
 sb16_close(file_obj_t *file)
 {

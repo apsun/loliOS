@@ -8,6 +8,14 @@ import struct
 import random
 import time
 
+DEVICE_FILES = {
+    'rtc': 0,
+    'mouse': 3,
+    'taux': 4,
+    'sound': 5,
+    'net': 6
+}
+
 
 class FileInfo:
 
@@ -18,20 +26,15 @@ class FileInfo:
         if len(self.file_name_32B) < 32:
             self.file_name_32B += ('\x00' * (32 - len(self.file_name_32B)))
 
-        if file_name == 'rtc':
-            self.file_type = 0
-        elif file_name == 'mouse':
-            self.file_type = 3
-        elif file_name == 'taux':
-            self.file_type = 4
-        elif file_name == 'sound':
-            self.file_type = 5
+        file_type = DEVICE_FILES.get(file_name)
+        if file_type is not None:
+            self.file_type = file_type
         elif file_name == '.':
             self.file_type = 1
         else:
             self.file_type = 2
 
-        if file_name in ('.', 'rtc', 'mouse', 'taux', 'sound'):
+        if file_name in ['.'] + DEVICE_FILES.keys():
             self.file_size = 0
         else:
             self.file_size = os.path.getsize(os.path.join(dir_name, file_name))
@@ -99,17 +102,9 @@ def _main():
     if os.path.isfile(arg_output):
         os.remove(arg_output)
 
-    if not os.path.isfile(os.path.join(arg_input, 'rtc')):
-        open(os.path.join(arg_input, 'rtc'), 'w').close()
-
-    if not os.path.isfile(os.path.join(arg_input, 'mouse')):
-        open(os.path.join(arg_input, 'mouse'), 'w').close()
-
-    if not os.path.isfile(os.path.join(arg_input, 'taux')):
-        open(os.path.join(arg_input, 'taux'), 'w').close()
-
-    if not os.path.isfile(os.path.join(arg_input, 'sound')):
-        open(os.path.join(arg_input, 'sound'), 'w').close()
+    for f in DEVICE_FILES:
+        if not os.path.isfile(os.path.join(arg_input, f)):
+            open(os.path.join(arg_input, f), 'w').close()
 
     f = open(os.path.join(arg_input, 'created.txt'), 'w')
     f.write('%s\n' % (time.strftime('%Y-%m-%d, %H:%M:%S', time.localtime())))
@@ -124,7 +119,7 @@ def _main():
 
     fs_dentry_num = len(fs_file_names)
     if fs_dentry_num > 63:
-        print 'error: too many files, max is 63 (including ".", "rtc", "mouse", "taux", and "sound")\n'
+        print 'error: too many files, max is 63\n'
         sys.exit(1)
 
     # create some unused inodes, since the max inode in use will be the
@@ -151,7 +146,7 @@ def _main():
     for file_name in fs_file_names:
 
         # directory and device files don't have an inode
-        if file_name in ('.', 'rtc', 'mouse', 'taux', 'sound'):
+        if file_name in ['.'] + DEVICE_FILES.keys():
             inode = 0
         else:
             inode = random.choice(fs_inode_list)
@@ -287,14 +282,11 @@ def _main():
     out_file.write(data_blocks)
     out_file.close()
 
-    try:
-        os.remove(os.path.join(arg_input, 'rtc'))
-        os.remove(os.path.join(arg_input, 'mouse'))
-        os.remove(os.path.join(arg_input, 'taux'))
-        os.remove(os.path.join(arg_input, 'sound'))
-        os.remove(os.path.join(arg_input, 'created.txt'))
-    except:
-        pass
+    for f in ['created.txt'] + DEVICE_FILES.keys():
+        try:
+            os.remove(os.path.join(arg_input, f))
+        except IOError:
+            pass
     sys.exit(0)
 
 
