@@ -1,29 +1,26 @@
-
 # Makefile for OS project
 # To build, first `make dep`, them `make`. Everything should be automatic.
 # Will compile all *.c and *.S files in the current directory.
 
-
 # Flags to use when compiling, preprocessing, assembling, and linking
-CFLAGS+=-Wall -Wextra -Werror -Wno-unused-parameter -fno-builtin -fno-stack-protector -nostdlib -O3 -m32
-ASFLAGS+=-m32
-LDFLAGS+=-nostdlib -static -m32
-CC=gcc
+CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter -fno-builtin -fno-stack-protector -ffreestanding -O2 -m32
+ASFLAGS += -Wall -Wextra -m32
+LDFLAGS += -nostdlib -static -melf_i386
 
-#If you have any .h files in another directory, add -I<dir> to this line
-CPPFLAGS+=-nostdinc -g
+# If you have any .h files in another directory, add -I<dir> to this line
+CPPFLAGS += -nostdinc -g
 
 # This generates the list of source files
-SRC=$(wildcard *.S) $(wildcard *.c) $(wildcard */*.S) $(wildcard */*.c)
+SRC = $(wildcard *.S) $(wildcard *.c) $(wildcard */*.S) $(wildcard */*.c)
 
 # This generates the list of .o files. The order matters, boot.o must be first
-OBJS=boot.o
-OBJS+=$(filter-out boot.o,$(patsubst %.S,%.o,$(filter %.S,$(SRC))))
-OBJS+=$(patsubst %.c,%.o,$(filter %.c,$(SRC)))
+OBJS = boot.o
+OBJS += $(filter-out boot.o,$(patsubst %.S,%.o,$(filter %.S,$(SRC))))
+OBJS += $(patsubst %.c,%.o,$(filter %.c,$(SRC)))
 
 bootimg: Makefile $(OBJS)
 	rm -f bootimg
-	$(CC) $(LDFLAGS) $(OBJS) -Ttext=0x400000 -o bootimg
+	$(LD) $(LDFLAGS) $(OBJS) -Ttext=0x400000 -o bootimg
 	sudo ./debug.sh
 
 dep: Makefile.dep

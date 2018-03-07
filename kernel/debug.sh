@@ -17,6 +17,8 @@ cp -f ./bootimg /mnt/tmpmp3/
 cp -f ./filesys_img /mnt/tmpmp3/
 umount /mnt/tmpmp3
 cp -f /tmp/mp3/mp3.img ./
+chown --reference=orig.img mp3.img 2>/dev/null
 
 rm -rf /tmp/mp3
 rm -rf /mnt/tmpmp3
+

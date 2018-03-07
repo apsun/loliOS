@@ -1,6 +1,6 @@
-CFLAGS += -Ilolibc -Wall -Wextra -Werror -ffreestanding -fno-stack-protector -O3 -m32
+CFLAGS += -Ilolibc -Wall -Wextra -Werror -ffreestanding -fno-stack-protector -O2 -m32
 ASFLAGS += -Ilolibc -Wall -Wextra -m32
-LDFLAGS += -nostdlib -static -m32
+LDFLAGS += -nostdlib -static -melf_i386
 
 objs = $(patsubst %.c,%.o,$(patsubst %.S,%.o,$(wildcard $(1)/*.c $(1)/*.S)))
 LOLIBC_OBJ = $(call objs,lolibc)
@@ -16,14 +16,14 @@ all: $(OUT_BIN)
 
 .INTERMEDIATE: build/missiles.elf
 build/missiles.elf: $(MISSILES_OBJ) $(LOLIBC_OBJ)
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(LD) $(LDFLAGS) -o $@ $^
 
 .INTERMEDIATE: build/fish.elf
 build/fish.elf: $(FISH_OBJ) $(LOLIBC_OBJ)
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(LD) $(LDFLAGS) -o $@ $^
 
 build/%.elf: %.o $(LOLIBC_OBJ)
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(LD) $(LDFLAGS) -o $@ $^
 
 build/%: build/%.elf
 	../elfconvert $<

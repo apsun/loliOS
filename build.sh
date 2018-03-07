@@ -15,6 +15,12 @@ if [ "$1" == "clean" ]; then
     exit 0
 fi
 
+# Add extra flags if running outside the VM
+if [ $(uname -r) != "2.6.22.5" ]; then
+    export CFLAGS="-Wno-implicit-fallthrough"
+    export LDFLAGS="--build-id=none"
+fi
+
 # Make binaries executable
 chmod +x "${mp3_dir}/elfconvert"
 
@@ -25,7 +31,7 @@ cp "${mp3_dir}/userspace/build/"* "${mp3_dir}/filesystem"
 
 # Generate new filesystem image
 rm -f "${mp3_dir}/kernel/filesys_img"
-python "${mp3_dir}/createfs.py" -i "${mp3_dir}/filesystem" -o "${mp3_dir}/kernel/filesys_img"
+"${mp3_dir}/createfs.py" -i "${mp3_dir}/filesystem" -o "${mp3_dir}/kernel/filesys_img"
 
 # Build OS image
 make -C "${mp3_dir}/kernel"
