@@ -15,6 +15,7 @@
 #include "file.h"
 #include "taux.h"
 #include "sb16.h"
+#include "ne2k.h"
 
 /* Check if the bit BIT in FLAGS is set. */
 #define CHECK_FLAG(flags, bit) ((flags) & (1 << (bit)))
@@ -189,6 +190,9 @@ entry(unsigned long magic, unsigned long addr)
 
     printf("Initializing Sound Blaster 16 driver..\n");
     sb16_init();
+
+    printf("Initializing NE2000 driver...\n");
+    ne2k_init();
 
     /* We made it! */
     printf("Boot successful!\n");

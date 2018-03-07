@@ -10,6 +10,7 @@
 #define IRQ_COM1     4
 #define IRQ_SB16     5
 #define IRQ_RTC      8
+#define IRQ_NE2K     9
 #define IRQ_MOUSE    12
 
 #ifndef ASM
