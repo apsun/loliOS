@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-mp3_dir=`dirname $0`
+mp3_dir=$(realpath "$(dirname $0)")
 
 # Guard against sudo-happy users
 if [ "$EUID" -eq 0 ]; then
@@ -35,6 +35,11 @@ rm -f "${mp3_dir}/kernel/filesys_img"
 
 # Build OS image
 make -C "${mp3_dir}/kernel"
-cd "${mp3_dir}/kernel"
-sudo "./debug.sh"
-cd "${mp3_dir}"
+(cd "${mp3_dir}/kernel" && sudo "./debug.sh")
+
+# If first arg is "run", boot the VM
+if [ "$1" == "run" ]; then
+    qemu-system-i386 -hda "${mp3_dir}/kernel/mp3.img" -m 256 -name loliOS \
+        -soundhw sb16 \
+        -device ne2k_isa
+fi
