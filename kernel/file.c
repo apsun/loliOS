@@ -7,7 +7,6 @@
 #include "process.h"
 #include "taux.h"
 #include "sb16.h"
-#include "ne2k.h"
 
 /* Terminal stdin file ops */
 static const file_ops_t fops_stdin = {
@@ -81,14 +80,6 @@ static const file_ops_t fops_sb16 = {
     .ioctl = sb16_ioctl,
 };
 
-static const file_ops_t fops_ne2k = {
-    .open = ne2k_open,
-    .read = ne2k_read,
-    .write = ne2k_write,
-    .close = ne2k_close,
-    .ioctl = ne2k_ioctl,
-};
-
 /* Initializes the file object from the given dentry */
 static bool
 init_file_obj(file_obj_t *file, dentry_t *dentry)
@@ -111,9 +102,6 @@ init_file_obj(file_obj_t *file, dentry_t *dentry)
         break;
     case FTYPE_SOUND:
         file->ops_table = &fops_sb16;
-        break;
-    case FTYPE_NET:
-        file->ops_table = &fops_ne2k;
         break;
     default:
         debugf("Unknown file type: %d\n", dentry->type);

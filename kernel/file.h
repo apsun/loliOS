@@ -14,7 +14,6 @@
 #define FTYPE_MOUSE 3
 #define FTYPE_TAUX 4
 #define FTYPE_SOUND 5
-#define FTYPE_NET 6
 
 #ifndef ASM
 

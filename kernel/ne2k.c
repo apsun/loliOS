@@ -84,16 +84,12 @@
 #define NE2K_RXCR_MONITOR   0x20
 #define NE2K_TXCR_LOOPBACK  0x02
 
-static file_obj_t *open_device = NULL;
-
-/* Reads some bytes from the NE2K PROM */
+/* Reads the contents of the NE2K PROM */
 static void
-ne2k_read_mem(int offset, int nbytes, uint8_t *buf)
+ne2k_read_prom(int offset, int nbytes, uint8_t *buf)
 {
-    /* Monitor mode (don't write packets to memory) */
+    /* Monitor (don't write packets to memory) + loopback mode */
     outb(NE2K_RXCR_MONITOR, NE2K_RXCR);
-
-    /* Loopback mode */
     outb(NE2K_TXCR_LOOPBACK, NE2K_TXCR);
 
     /* Set number of bytes to read (pretend we're reading words) */
@@ -143,7 +139,7 @@ ne2k_reset(void)
 
     /* Read PROM bytes */
     uint8_t buf[16];
-    ne2k_read_mem(0, 16, buf);
+    ne2k_read_prom(0, 16, buf);
     printf("PROM: ");
     int i;
     for (i = 0; i < 16; ++i) {
@@ -160,100 +156,6 @@ ne2k_reset(void)
     outb(NE2K_ISR_ALL, NE2K_IMR);
 
     return true;
-}
-
-/* Copies the MAC address of the NE2K device to buf */
-static void
-ne2k_get_macaddr(uint8_t buf[6])
-{
-    int i;
-    for (i = 0; i < 6; ++i) {
-        /* TODO */
-    }
-}
-
-/*
- * Acquires exclusive access to the NE2000 device.
- */
-int
-ne2k_open(const char *filename, file_obj_t *file)
-{
-    if (open_device != NULL) {
-        debugf("Device busy, cannot open\n");
-        return -1;
-    }
-
-    open_device = file;
-    return 0;
-}
-
-/*
- * Reads a packet from the NE2K device inbox.
- * If there are no packets available, this will
- * immediately return zero. If there is a packet
- * available but it is larger than nbytes, this
- * will return -1. (but not consume the packet).
- * Otherwise, copies the packet to buf and returns
- * the length of the packet.
- */
-int
-ne2k_read(file_obj_t *file, void *buf, int nbytes)
-{
-    /* TODO */
-    return 0;
-}
-
-/*
- * Writes a packet to the NE2K device outbox.
- * If there is no space in the outbox, this returns
- * 0. If the packet is invalid, this returns -1.
- * Otherwise, copies the packet to the outbox and
- * returns the length of the packet (nbytes).
- */
-int
-ne2k_write(file_obj_t *file, const void *buf, int nbytes)
-{
-    /* TODO */
-    return 0;
-}
-
-/*
- * Releases exclusive access to the NE2K device.
- */
-int
-ne2k_close(file_obj_t *file)
-{
-    ASSERT(file == open_device);
-    open_device = NULL;
-    return 0;
-}
-
-/* ioctl() version of ne2k_get_macaddr() */
-static int
-ne2k_ioctl_get_macaddr(int arg)
-{
-    /* Copy MAC address to buf */
-    uint8_t buf[6];
-    ne2k_get_macaddr(buf);
-
-    /* Copy buf to userspace */
-    void *ptr = (void *)arg;
-    if (!copy_to_user(ptr, buf, sizeof(buf))) {
-        return -1;
-    }
-    return 0;
-}
-
-/* NE2K ioctl() handler */
-int
-ne2k_ioctl(file_obj_t *file, int req, int arg)
-{
-    switch (req) {
-    case NET_GET_MAC_ADDRESS:
-        return ne2k_ioctl_get_macaddr(arg);
-    default:
-        return -1;
-    }
 }
 
 /* NE2K interrupt handler */

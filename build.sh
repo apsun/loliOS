@@ -41,5 +41,6 @@ make -C "${mp3_dir}/kernel"
 if [ "$1" == "run" ]; then
     qemu-system-i386 -hda "${mp3_dir}/kernel/mp3.img" -m 256 -name loliOS \
         -soundhw sb16 \
-        -device ne2k_isa
+        -net nic,model=ne2k_isa \
+        -net user
 fi
