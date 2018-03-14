@@ -18,12 +18,40 @@
  * Unlike the Sound Blaster 16, we also need to support input.
  * When we get a RX interrupt, we poll the packets from the NIC,
  * just like the keyboard handler.
+ *
+ * The NE2k has some memory (not shared with our normal RAM), divided
+ * into 256B pages. We can allocate a portion of it to be used for
+ * transmitting packets, and the remaining portion as a ring buffer
+ * for receiving packets.
+ *
+ * TX slot 0
+ *     |  TX slot 1
+ *     |      |
+ *     v      v
+ * [  TX  |  TX  |  RX  |  RX  |  RX  |  ..  |  RX  ]
+ * |_____________|__________________________________|
+ *    12 pages       Ring buffer (remaining pages)
+ *
+ * With 12 pages for TX, we can just barely hold two maximum-sized
+ * Ethernet frames (12 * 256 = 3072B = 2 * 1536B).
+ *
+ * Note that the NE2k also has three "register pages", which are
+ * completely unrelated to the "pages" above. These hold memory-mapped
+ * (again, in NE2k memory, not main RAM) configuration registers.
+ * Writing to page 0 or page 2 will modify the config registers;
+ * writing to page 1 will modify the physical and multicast address
+ * registers. In all pages, 0x00 is still used to send a command,
+ * 0x10 is used to send data, and 0x1f is used to reset the device.
  */
 #define NE2K_IOBASE 0x300
 #define NE2K_PORT(x) (NE2K_IOBASE + (x))
 
-/* Below definitions from QEMU and Linux kernel */
+/* Common register numbers */
 #define NE2K_CMD        NE2K_PORT(0x00)
+#define NE2K_DATA       NE2K_PORT(0x10)
+#define NE2K_RESET      NE2K_PORT(0x1f)
+
+/* Registers in page 0 */
 #define NE2K_CLDALO     NE2K_PORT(0x01) /* Low byte of current local dma addr RD */
 #define NE2K_STARTPG    NE2K_PORT(0x01) /* Starting page of ring bfr WR */
 #define NE2K_CLDAHI     NE2K_PORT(0x02) /* High byte of current local dma addr RD */
@@ -52,8 +80,10 @@
 #define NE2K_COUNTER1   NE2K_PORT(0x0e) /* Rcv CRC error counter RD */
 #define NE2K_IMR        NE2K_PORT(0x0f) /* Interrupt mask reg WR */
 #define NE2K_COUNTER2   NE2K_PORT(0x0f) /* Rcv missed frame error counter RD */
-#define NE2K_DATA       NE2K_PORT(0x10)
-#define NE2K_RESET      NE2K_PORT(0x1f)
+
+/* Registers in page 1 */
+#define NE2K_PHYS(i)    NE2K_PORT((i) + 1)
+#define NE2K_MULT(i)    NE2K_PORT((i) + 8)
 
 /* Bits in command register */
 #define NE2K_CMD_STOP   0x01 /* Stop and reset the chip */
@@ -75,7 +105,6 @@
 #define NE2K_ISR_COUNTERS 0x20 /* Counters need emptying */
 #define NE2K_ISR_RDC      0x40 /* remote dma complete */
 #define NE2K_ISR_RESET    0x80 /* Reset completed */
-#define NE2K_ISR_ALL      0x3f /* Interrupts we will enable */
 
 /* Other used configuration bits */
 #define NE2K_DCFG_WORD      0x01
@@ -84,15 +113,41 @@
 #define NE2K_RXCR_MONITOR   0x20
 #define NE2K_TXCR_LOOPBACK  0x02
 
-/* Reads the contents of the NE2K PROM */
-static void
-ne2k_read_prom(int offset, int nbytes, uint8_t *buf)
-{
-    /* Monitor (don't write packets to memory) + loopback mode */
-    outb(NE2K_RXCR_MONITOR, NE2K_RXCR);
-    outb(NE2K_TXCR_LOOPBACK, NE2K_TXCR);
+/* Common mode bits */
+#define NE2K_ISR_ALL  0x3f
+#define NE2K_RXCR_OFF NE2K_RXCR_MONITOR
+#define NE2K_TXCR_OFF NE2K_TXCR_LOOPBACK
+#define NE2K_RXCR_ON  NE2K_RXCR_BROADCAST
+#define NE2K_TXCR_ON  0x00
 
-    /* Set number of bytes to read (pretend we're reading words) */
+/* Offsets in NE2k memory */
+#define NE2K_START_PAGE 0x40
+#define NE2K_STOP_PAGE  0x80
+#define NE2K_TX_PAGES   12
+
+/* Saved MAC address */
+static uint8_t mac_addr[6];
+
+/* Next buffer to be transmitted (0 or 1) */
+static int next_tx_buffer = 0;
+
+/* Contexts of next packet to be transmitted */
+#if 0 /* TODO */
+static bool next_packet_ready = false;
+static uint8_t next_packet[1536];
+#endif
+
+/* Reads the contents of the NE2k PROM */
+static void
+ne2k_read_prom(int page, int offset, int nbytes, uint8_t *buf)
+{
+    /*
+     * Set number of bytes to read. For some reason, the values
+     * in the NE2k PROM are duplicated, most likely due to existing
+     * drivers being set in word access mode and buggy hardware
+     * ignoring the mode when reading PROM. Hence, we also need to
+     * read in words, then discard the high byte.
+     */
     int count = nbytes << 1;
     outb((count >> 0) & 0xff, NE2K_RCNTLO);
     outb((count >> 8) & 0xff, NE2K_RCNTHI);
@@ -110,62 +165,96 @@ ne2k_read_prom(int offset, int nbytes, uint8_t *buf)
         buf[i] = inb(NE2K_DATA);
     }
 
-    /* Disable monitor and loopback, restore default mode */
-    outb(NE2K_RXCR_BROADCAST, NE2K_RXCR);
-    outb(0x00, NE2K_TXCR);
+    /* Stop transfer */
+    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
 }
 
-/* Resets the NE2K device. Returns whether the device exists. */
+/* Resets the NE2k device. Returns whether the device exists. */
 static bool
 ne2k_reset(void)
 {
     /* Send reset signal */
     outb(NE2K_RESET, inb(NE2K_RESET));
 
-    /* Check for reset ACK (this won't work on real hardware) */
+    /* Check for reset ACK (this should be a loop on real hardware) */
     if ((inb(NE2K_ISR) & NE2K_ISR_RESET) == 0) {
         return false;
     }
 
-    /* Page 0, disable DMA mode */
+    /* Write to page 0 */
     outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
 
     /* Word access and loopback mode */
     outb(NE2K_DCFG_WORD | NE2K_DCFG_LOOPBACK, NE2K_DCFG);
 
-    /* Reset interrupt status register, mask all interrupts */
+    /* Disable tx and rx */
+    outb(NE2K_RXCR_OFF, NE2K_RXCR);
+    outb(NE2K_TXCR_OFF, NE2K_TXCR);
+
+    /* Mask interrupts */
     outb(0x00, NE2K_IMR);
     outb(0xff, NE2K_ISR);
 
     /* Read PROM bytes */
-    uint8_t buf[16];
-    ne2k_read_prom(0, 16, buf);
+    uint8_t prom[16];
+    ne2k_read_prom(0, 0, 16, prom);
     printf("PROM: ");
     int i;
     for (i = 0; i < 16; ++i) {
-        printf("%x, ", buf[i]);
+        printf("%x, ", prom[i]);
     }
     printf("\n");
 
-    /* Check for NE2000 magic bytes */
-    if (buf[14] != 0x57 || buf[15] != 0x57) {
+    /* Check for NE2k magic bytes */
+    if (prom[14] != 0x57 || prom[15] != 0x57) {
         return false;
     }
 
-    /* Enable interrupts except for remote DMA complete and reset */
+    /* Save MAC address */
+    memcpy(mac_addr, prom, 6);
+
+    /* Reset byte counter */
+    outb(0x00, NE2K_RCNTLO);
+    outb(0x00, NE2K_RCNTHI);
+
+    /* Set up memory regions for tx and rx */
+    outb(NE2K_START_PAGE, NE2K_TPSR);
+    outb(NE2K_START_PAGE + NE2K_TX_PAGES, NE2K_STARTPG);
+    outb(NE2K_STOP_PAGE, NE2K_STOPPG);
+    outb(NE2K_STOP_PAGE - 1, NE2K_BOUNDARY);
+
+    /* Reset the next tx buffer */
+    next_tx_buffer = 0;
+
+    /* Copy MAC address to physical address registers (page 1) */
+    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE1 | NE2K_CMD_STOP, NE2K_CMD);
+    for (i = 0; i < 6; ++i) {
+        outb(mac_addr[i], NE2K_PHYS(i));
+    }
+    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
+
+    /* Unmask interrupts */
+    outb(0xff, NE2K_ISR);
     outb(NE2K_ISR_ALL, NE2K_IMR);
+
+    /* Enable packet reception */
+    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_START, NE2K_CMD);
+
+    /* Re-enable tx and rx */
+    outb(NE2K_RXCR_ON, NE2K_RXCR);
+    outb(NE2K_TXCR_ON, NE2K_TXCR);
 
     return true;
 }
 
-/* NE2K interrupt handler */
+/* NE2k interrupt handler */
 static void
 ne2k_handle_irq(void)
 {
     printf("NE2K interrupt received!\n");
 }
 
-/* Initializes the NE2000 device */
+/* Initializes the NE2k device */
 void
 ne2k_init(void)
 {
