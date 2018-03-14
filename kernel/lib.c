@@ -382,6 +382,7 @@ printf(const char *format, ...)
 
         /* Use alternate %x format? */
         bool alternate = false;
+        bool altbin = false;
 
         /* Consume the % character */
         format++;
@@ -404,11 +405,26 @@ format_char_switch:
              * IMHO. */
             goto format_char_switch;
 
+        case '*':
+            altbin = true;
+            format++;
+            goto format_char_switch;
+
         /* Print a number in hexadecimal form */
         case 'x':
-            if (!alternate) {
+            if (!alternate && !altbin) {
                 itoa(*esp, conv_buf, 16);
                 puts(conv_buf);
+            } else if (altbin) {
+                itoa(*esp, &conv_buf[2], 16);
+                int starting_index;
+                int i;
+                i = starting_index = strlen(&conv_buf[2]);
+                while (i < 2) {
+                    conv_buf[i] = '0';
+                    i++;
+                }
+                puts(&conv_buf[starting_index]);
             } else {
                 itoa(*esp, &conv_buf[8], 16);
                 int starting_index;

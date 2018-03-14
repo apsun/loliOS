@@ -22,18 +22,24 @@
  * The NE2k has some memory (not shared with our normal RAM), divided
  * into 256B pages. We can allocate a portion of it to be used for
  * transmitting packets, and the remaining portion as a ring buffer
- * for receiving packets.
+ * for receiving packets. Each packet is always page-aligned, so
+ * there may be excess space at the end that is unused.
  *
- * TX slot 0
- *     |  TX slot 1
- *     |      |
- *     v      v
- * [  TX  |  TX  |  RX  |  RX  |  RX  |  ..  |  RX  ]
- * |_____________|__________________________________|
- *    12 pages       Ring buffer (remaining pages)
+ * TX slot
+ *     |  TX slot 1            curr page      boundary
+ *     |      |                    |             |
+ *     v      v     [1]    [2]     v             v     [0]
+ * [  TX  |  TX  |  RX  |  RX  | FREE | FREE | FREE |  RX  ]
+ * |_____________|_________________________________________|
+ *    12 pages          Ring buffer (remaining pages)
  *
  * With 12 pages for TX, we can just barely hold two maximum-sized
- * Ethernet frames (12 * 256 = 3072B = 2 * 1536B).
+ * Ethernet frames (12 * 256B = 3072B = 2 * 1536B).
+ *
+ * The boundary represents the last page in the ring buffer that
+ * is free. The current page represents the first page that is free.
+ * In circular queue terms, the boundary is the head (minus 1),
+ * and the current page is the tail.
  *
  * Note that the NE2k also has three "register pages", which are
  * completely unrelated to the "pages" above. These hold memory-mapped
@@ -83,6 +89,7 @@
 
 /* Registers in page 1 */
 #define NE2K_PHYS(i)    NE2K_PORT((i) + 1)
+#define NE2K_CURPAG     NE2K_PORT(0x07)
 #define NE2K_MULT(i)    NE2K_PORT((i) + 8)
 
 /* Bits in command register */
@@ -121,9 +128,10 @@
 #define NE2K_TXCR_ON  0x00
 
 /* Offsets in NE2k memory */
-#define NE2K_START_PAGE 0x40
-#define NE2K_STOP_PAGE  0x80
-#define NE2K_TX_PAGES   12
+#define NE2K_TX_START_PAGE 0x40
+#define NE2K_RX_STOP_PAGE  0x80
+#define NE2K_TX_PAGES      12
+#define NE2K_RX_START_PAGE (NE2K_TX_START_PAGE + NE2K_TX_PAGES)
 
 /* Saved MAC address */
 static uint8_t mac_addr[6];
@@ -137,20 +145,12 @@ static bool next_packet_ready = false;
 static uint8_t next_packet[1536];
 #endif
 
-/* Reads the contents of the NE2k PROM */
+/* Reads the contents of the NE2k memory */
 static void
-ne2k_read_prom(int page, int offset, int nbytes, uint8_t *buf)
+ne2k_read_mem(void *buf, int offset, int nbytes)
 {
-    /*
-     * Set number of bytes to read. For some reason, the values
-     * in the NE2k PROM are duplicated, most likely due to existing
-     * drivers being set in word access mode and buggy hardware
-     * ignoring the mode when reading PROM. Hence, we also need to
-     * read in words, then discard the high byte.
-     */
-    int count = nbytes << 1;
-    outb((count >> 0) & 0xff, NE2K_RCNTLO);
-    outb((count >> 8) & 0xff, NE2K_RCNTHI);
+    outb((nbytes >> 0) & 0xff, NE2K_RCNTLO);
+    outb((nbytes >> 8) & 0xff, NE2K_RCNTHI);
 
     /* Set starting offset */
     outb((offset >> 0) & 0xff, NE2K_RSARLO);
@@ -159,10 +159,11 @@ ne2k_read_prom(int page, int offset, int nbytes, uint8_t *buf)
     /* Begin transfer */
     outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_RREAD | NE2K_CMD_START, NE2K_CMD);
 
-    /* Read the data (discard the high byte) */
+    /* Read the data */
+    uint16_t *bufp = buf;
     int i;
-    for (i = 0; i < nbytes; ++i) {
-        buf[i] = inb(NE2K_DATA);
+    for (i = 0; i < nbytes / 2; ++i) {
+        bufp[i] = inw(NE2K_DATA);
     }
 
     /* Stop transfer */
@@ -195,42 +196,45 @@ ne2k_reset(void)
     outb(0x00, NE2K_IMR);
     outb(0xff, NE2K_ISR);
 
-    /* Read PROM bytes */
-    uint8_t prom[16];
-    ne2k_read_prom(0, 0, 16, prom);
-    printf("PROM: ");
-    int i;
-    for (i = 0; i < 16; ++i) {
-        printf("%x, ", prom[i]);
-    }
-    printf("\n");
+    /*
+     * Read PROM bytes. For some reason, the bytes are duplicated,
+     * most likely due to existing drivers being set in word access
+     * mode and buggy hardware ignoring the mode when reading PROM.
+     * Hence, we also need to read in words, then discard the high byte.
+     */
+    uint16_t prom[16];
+    ne2k_read_mem(prom, 0, sizeof(prom));
 
     /* Check for NE2k magic bytes */
-    if (prom[14] != 0x57 || prom[15] != 0x57) {
+    if ((prom[14] & 0xff) != 0x57 || (prom[15] & 0xff) != 0x57) {
         return false;
     }
 
     /* Save MAC address */
-    memcpy(mac_addr, prom, 6);
+    int i;
+    for (i = 0; i < 6; ++i) {
+        mac_addr[i] = (uint8_t)prom[i];
+    }
 
     /* Reset byte counter */
     outb(0x00, NE2K_RCNTLO);
     outb(0x00, NE2K_RCNTHI);
 
     /* Set up memory regions for tx and rx */
-    outb(NE2K_START_PAGE, NE2K_TPSR);
-    outb(NE2K_START_PAGE + NE2K_TX_PAGES, NE2K_STARTPG);
-    outb(NE2K_STOP_PAGE, NE2K_STOPPG);
-    outb(NE2K_STOP_PAGE - 1, NE2K_BOUNDARY);
+    outb(NE2K_TX_START_PAGE, NE2K_TPSR);
+    outb(NE2K_RX_START_PAGE, NE2K_STARTPG);
+    outb(NE2K_RX_STOP_PAGE, NE2K_STOPPG);
+    outb(NE2K_RX_STOP_PAGE - 1, NE2K_BOUNDARY);
 
     /* Reset the next tx buffer */
     next_tx_buffer = 0;
 
-    /* Copy MAC address to physical address registers (page 1) */
+    /* Copy MAC address to physical address registers, set curr page */
     outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE1 | NE2K_CMD_STOP, NE2K_CMD);
     for (i = 0; i < 6; ++i) {
         outb(mac_addr[i], NE2K_PHYS(i));
     }
+    outb(NE2K_RX_START_PAGE, NE2K_CURPAG);
     outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
 
     /* Unmask interrupts */
@@ -247,11 +251,92 @@ ne2k_reset(void)
     return true;
 }
 
+/* Packet receive handler */
+static void
+ne2k_handle_rx(void)
+{
+    while (1) {
+        /* Read the current page (aka the tail of the ring buffer) */
+        outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE1 | NE2K_CMD_STOP, NE2K_CMD);
+        uint8_t tail_pg = inb(NE2K_CURPAG);
+        outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
+
+        /* Dequeue the first page from the ring buffer */
+        uint8_t head_pg = inb(NE2K_BOUNDARY) + 1;
+        if (head_pg >= NE2K_RX_STOP_PAGE) {
+            head_pg = NE2K_RX_START_PAGE;
+        }
+
+        /* Stop if there are no more packets to read */
+        if (head_pg == tail_pg) {
+            break;
+        }
+
+        /* Dump packet header */
+        uint8_t buf[4];
+        ne2k_read_mem(buf, head_pg << 8, 4);
+        uint16_t len = buf[2] | (buf[3] << 8);
+        printf("status=%x next=%d count=%d\n", buf[0], buf[1], len);
+
+        /* Dump packet body */
+        uint8_t pkt[1514];
+        ne2k_read_mem(pkt, (head_pg << 8) + 4, len);
+        int i, j;
+        for (i = 0; i < len; i += 16) {
+            for (j = 0; j < 16; ++j) {
+                printf("%*x ", pkt[j + 16 * i]);
+            }
+            printf("\n");
+        }
+
+        break;
+    }
+}
+
+/* Packet transmit handler */
+static void
+ne2k_handle_tx(void)
+{
+    printf("TX!\n");
+}
+
 /* NE2k interrupt handler */
 static void
 ne2k_handle_irq(void)
 {
-    printf("NE2K interrupt received!\n");
+    /* Select page 0 to read ISR and temporarily disable device */
+    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
+
+    /* Handle interrupts */
+    uint8_t isr;
+    while ((isr = inb(NE2K_ISR)) != 0) {
+        /* Received a good packet */
+        if (isr & NE2K_ISR_RX) {
+            ne2k_handle_rx();
+        }
+
+        /* Transmitted a packet */
+        if (isr & NE2K_ISR_TX) {
+            ne2k_handle_tx();
+        }
+
+        /*
+         * Since we are running an emulated card, it is impossible
+         * to get corrupted packets or have our transmission fail
+         * (if it does, it will be on the actual card, not in QEMU).
+         * Hence, we can ignore all error conditions. Here, we just
+         * acknowledge ALL the interrupts!
+         *
+         * Okay fine, this is an incredibly lazy approach. If you
+         * mail me a legacy computer that's actually running a NE2k
+         * card, maybe I'll actually implement error handling. Until
+         * then...
+         */
+        outb(isr, NE2K_ISR);
+    }
+
+    /* Re-enable device */
+    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_START, NE2K_CMD);
 }
 
 /* Initializes the NE2k device */
