@@ -3,6 +3,8 @@
 #include "lib.h"
 #include "irq.h"
 #include "paging.h"
+#include "skb.h"
+#include "ethernet.h"
 
 /*
  * Interestingly, the NE2000 works a lot like the Sound Blaster 16.
@@ -25,7 +27,7 @@
  * for receiving packets. Each packet is always page-aligned, so
  * there may be excess space at the end that is unused.
  *
- * TX slot
+ * TX slot 0
  *     |  TX slot 1            curr page      boundary
  *     |      |                    |             |
  *     v      v     [1]    [2]     v             v     [0]
@@ -128,33 +130,49 @@
 #define NE2K_TXCR_ON  0x00
 
 /* Offsets in NE2k memory */
-#define NE2K_TX_START_PAGE 0x40
-#define NE2K_RX_STOP_PAGE  0x80
-#define NE2K_TX_PAGES      12
-#define NE2K_RX_START_PAGE (NE2K_TX_START_PAGE + NE2K_TX_PAGES)
+#define NE2K_TX_START_PAGE  0x40
+#define NE2K_RX_STOP_PAGE   0x80
+#define NE2K_PAGES_PER_PKT  6
+#define NE2K_BYTES_PER_PAGE 256
+#define NE2K_TX_PAGES       (2 * NE2K_PAGES_PER_PKT)
+#define NE2K_RX_START_PAGE  (NE2K_TX_START_PAGE + NE2K_TX_PAGES)
+
+/* NE2000 frame header */
+typedef struct {
+    uint8_t status;
+    uint8_t next;
+    uint16_t size;
+} ne2k_hdr_t;
 
 /* Saved MAC address */
 static uint8_t mac_addr[6];
 
-/* Next buffer to be transmitted (0 or 1) */
-static int next_tx_buffer = 0;
+/* Whether we're currently transmitting a packet */
+static bool tx_busy = false;
 
-/* Contexts of next packet to be transmitted */
-#if 0 /* TODO */
-static bool next_packet_ready = false;
-static uint8_t next_packet[1536];
-#endif
+/* Buffer number currently being transmitted */
+static int tx_buf = 0;
 
-/* Reads the contents of the NE2k memory */
+/* Whether our data is locked 'n loaded in each tx buffer */
+static int tx_buf_len[2];
+
 static void
-ne2k_read_mem(void *buf, int offset, int nbytes)
+ne2k_config_rw(int offset, int nbytes)
 {
+    /* Set number of bytes to read */
     outb((nbytes >> 0) & 0xff, NE2K_RCNTLO);
     outb((nbytes >> 8) & 0xff, NE2K_RCNTHI);
 
     /* Set starting offset */
     outb((offset >> 0) & 0xff, NE2K_RSARLO);
     outb((offset >> 8) & 0xff, NE2K_RSARHI);
+}
+
+/* Reads the contents of the NE2k memory */
+static void
+ne2k_read_mem(void *buf, int offset, int nbytes)
+{
+    ne2k_config_rw(offset, nbytes);
 
     /* Begin transfer */
     outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_RREAD | NE2K_CMD_START, NE2K_CMD);
@@ -168,6 +186,22 @@ ne2k_read_mem(void *buf, int offset, int nbytes)
 
     /* Stop transfer */
     outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
+}
+
+/* Writes the contents of the NE2k memory */
+static void
+ne2k_write_mem(int offset, void *buf, int nbytes)
+{
+    ASSERT((nbytes & 1) == 0);
+
+    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_RWRITE | NE2K_CMD_START, NE2K_CMD);
+    ne2k_config_rw(offset, nbytes);
+
+    uint16_t *bufp = buf;
+    int i;
+    for (i = 0; i < nbytes / 2; ++i) {
+        outw(bufp[i], NE2K_DATA);
+    }
 }
 
 /* Resets the NE2k device. Returns whether the device exists. */
@@ -226,9 +260,6 @@ ne2k_reset(void)
     outb(NE2K_RX_STOP_PAGE, NE2K_STOPPG);
     outb(NE2K_RX_STOP_PAGE - 1, NE2K_BOUNDARY);
 
-    /* Reset the next tx buffer */
-    next_tx_buffer = 0;
-
     /* Copy MAC address to physical address registers, set curr page */
     outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE1 | NE2K_CMD_STOP, NE2K_CMD);
     for (i = 0; i < 6; ++i) {
@@ -236,6 +267,11 @@ ne2k_reset(void)
     }
     outb(NE2K_RX_START_PAGE, NE2K_CURPAG);
     outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
+
+    /* Reset tx status */
+    tx_busy = false;
+    tx_buf_len[0] = 0;
+    tx_buf_len[1] = 0;
 
     /* Unmask interrupts */
     outb(0xff, NE2K_ISR);
@@ -272,6 +308,31 @@ ne2k_handle_rx(void)
             break;
         }
 
+        /* Read NE2k header */
+        int offset = head_pg * NE2K_BYTES_PER_PAGE;
+        ne2k_hdr_t hdr;
+        ne2k_read_mem(&hdr, offset, sizeof(ne2k_hdr_t));
+        int eth_size = hdr.size - sizeof(ne2k_hdr_t);
+
+        /* Allocate packet */
+        skb_t *skb = skb_alloc();
+        if (skb == NULL) {
+            break;
+        }
+        void *body = skb_put(skb, eth_size);
+        ne2k_read_mem(body, offset + sizeof(ne2k_hdr_t), eth_size);
+
+        /* Deliver packet to Ethernet layer */
+        ethernet_handle_rx(skb);
+
+        /* Move to next packet */
+        uint8_t new_boundary = hdr.next - 1;
+        if (new_boundary < NE2K_RX_START_PAGE) {
+            new_boundary = NE2K_RX_STOP_PAGE - 1;
+        }
+        outb(new_boundary, NE2K_BOUNDARY);
+
+#if 0
         /* Dump packet header */
         uint8_t buf[4];
         ne2k_read_mem(buf, head_pg << 8, 4);
@@ -289,15 +350,46 @@ ne2k_handle_rx(void)
             printf("\n");
         }
 
+        /* Hack: send ARP request (for testing) */
+        skb_t *skb2 = skb_alloc();
+        skb_put(skb2, 42);
+        memcpy(skb2->data, "\x52\x55\x0a\x00\x02\x02\x52\x54\x00\x12\x34\x56\x08\x06\x00\x01\x08\x00\x06\x04\x00\x01\x52\x54\x00\x12\x34\x56\x0a\x00\x02\x0f\x52\x55\x0a\x00\x02\x02\x0a\x00\x02\x02", 42);
+        ne2k_send(skb2);
+#endif
         break;
     }
+}
+
+/* Begins transmission of a packet in the NE2k memory */
+static void
+ne2k_begin_tx(void)
+{
+    int len = tx_buf_len[tx_buf];
+    ASSERT(len > 0);
+
+    /* Mark our device as busy so we don't try to transmit twice */
+    tx_busy = true;
+
+    /* Set tx length and offset */
+    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
+    outb((len >> 0) & 0xff, NE2K_TCNTLO);
+    outb((len >> 8) & 0xff, NE2K_TCNTHI);
+    outb(NE2K_TX_START_PAGE + tx_buf * NE2K_PAGES_PER_PKT, NE2K_TPSR);
+
+    /* Go! */
+    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_TRANS | NE2K_CMD_START, NE2K_CMD);
 }
 
 /* Packet transmit handler */
 static void
 ne2k_handle_tx(void)
 {
-    printf("TX!\n");
+    tx_busy = false;
+    tx_buf_len[tx_buf] = 0;
+    tx_buf = !tx_buf;
+    if (tx_buf_len[tx_buf] > 0) {
+        ne2k_begin_tx();
+    }
 }
 
 /* NE2k interrupt handler */
@@ -337,6 +429,37 @@ ne2k_handle_irq(void)
 
     /* Re-enable device */
     outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_START, NE2K_CMD);
+}
+
+/* Sends a Ethernet frame */
+int
+ne2k_send(skb_t *skb)
+{
+    /* Find a free NE2k tx buffer to store our packet in */
+    int buf;
+    if (!tx_busy) {
+        buf = tx_buf;
+    } else if (tx_buf_len[!tx_buf] == 0) {
+        buf = !tx_buf;
+    } else {
+        debugf("Both TX buffers full, cannot send packet\n");
+        return -1;
+    }
+
+    /* Copy packet to NE2k memory */
+    int page = NE2K_TX_START_PAGE + buf * NE2K_PAGES_PER_PKT;
+    ne2k_write_mem(page << 8, skb->data, skb->len);
+    tx_buf_len[buf] = skb->len;
+
+    /* Begin transmission if device is not busy */
+    if (!tx_busy) {
+        debugf("Starting transmission immediately\n");
+        ne2k_begin_tx();
+    } else {
+        debugf("Waiting for device to finish transmission\n");
+    }
+
+    return 0;
 }
 
 /* Initializes the NE2k device */
