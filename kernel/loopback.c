@@ -1,4 +1,6 @@
 #include "loopback.h"
+#include "lib.h"
+#include "debug.h"
 #include "net.h"
 #include "ip.h"
 
@@ -10,6 +12,7 @@ static int
 loopback_send(net_iface_t *iface, skb_t *skb, ip_addr_t ip)
 {
     // TODO: Should we clone the SKB?
+    debugf("Received loopback packet\n");
     return ip_handle_rx(iface, skb);
 }
 

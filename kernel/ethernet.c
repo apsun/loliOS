@@ -56,15 +56,19 @@ ethernet_send_ip(net_iface_t *iface, skb_t *skb, ip_addr_t ip)
     mac_addr_t mac;
     switch (arp_get_state(dev, ip, &mac)) {
     case ARP_INVALID:
+        debugf("ARP cache entry invalid, sending request\n");
         if (arp_send_request(iface, ip) < 0) {
             return -1;
         }
         /* Fallthrough */
     case ARP_WAITING:
+        debugf("Waiting for ARP reply, enqueuing packet\n");
         return arp_queue_insert(dev, skb, ip);
     case ARP_UNREACHABLE:
+        debugf("Destination unreachable, dropping packet\n");
         return -1;
     case ARP_REACHABLE:
+        debugf("Destination reachable, sending packet\n");
         return ethernet_send_mac(dev, skb, mac, ETHERTYPE_IPV4);
     default:
         PANIC("Unknown ARP state");

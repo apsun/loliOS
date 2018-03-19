@@ -73,8 +73,8 @@ typedef union {
 /* Finds the interface for the given device */
 net_iface_t *net_get_interface(net_dev_t *dev);
 
-/* Gets all registered interfaces */
-int net_get_interfaces(net_iface_t ***out);
+/* Finds the interface that routes to the given IP */
+net_iface_t *net_route(ip_addr_t *ip);
 
 /* Registers a new interface */
 void net_register_interface(net_iface_t *iface);

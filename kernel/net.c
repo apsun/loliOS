@@ -6,6 +6,9 @@
 static net_iface_t *interfaces[16];
 static int num_interfaces = 0;
 
+/* Statically configured default gateway */
+static ip_addr_t default_gateway = IP(10, 0, 2, 2);
+
 /*
  * Returns the interface corresponding to the specified
  * device. Since we don't support VLANs, there should be
@@ -22,6 +25,36 @@ net_get_interface(net_dev_t *dev)
         }
     }
     return NULL;
+}
+
+/*
+ * Finds an appropriate interface and IP address to send
+ * the specified packet to. If the IP address does not
+ * match any interface's subnet, then it will be replaced
+ * with the default gateway's IP address. Returns the
+ * interface to route the packet on.
+ */
+net_iface_t *
+net_route(ip_addr_t *ip)
+{
+    /* Find an interface with subnet matching specified IP address */
+    int i;
+    for (i = 0; i < num_interfaces; ++i) {
+        net_iface_t *iface = interfaces[i];
+
+        /* Check if (a & subnet_mask) == (b & subnet_mask) */
+        uint32_t subnet_mask = iptoh(iface->subnet_mask);
+        uint32_t dest_netaddr = iptoh(*ip) & subnet_mask;
+        uint32_t iface_netaddr = iptoh(iface->ip_addr) & subnet_mask;
+        if (dest_netaddr == iface_netaddr) {
+            return iface;
+        }
+    }
+
+    /* Didn't match any interfaces, route through default gateway */
+    ASSERT(iptoh(*ip) != iptoh(default_gateway));
+    *ip = default_gateway;
+    return net_route(ip);
 }
 
 /*

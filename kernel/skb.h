@@ -34,6 +34,9 @@ void skb_release(skb_t *skb);
 /* Returns a pointer to the beginning of the data section */
 void *skb_data(skb_t *skb);
 
+/* Returns the data length */
+int skb_len(skb_t *skb);
+
 /* Pushes data at the start of the data section */
 void *skb_push(skb_t *skb, int len);
 
@@ -45,6 +48,9 @@ void *skb_pull(skb_t *skb, int len);
 
 /* Appends data to the end of the data section */
 void *skb_put(skb_t *skb, int len);
+
+/* Removes data from the end of the data section */
+void skb_trim(skb_t *skb, int len);
 
 /* Reserves space for the head section */
 void skb_reserve(skb_t *skb, int len);

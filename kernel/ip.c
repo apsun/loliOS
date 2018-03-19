@@ -2,39 +2,33 @@
 #include "lib.h"
 #include "debug.h"
 
-/* Statically configured default gateway */
-static ip_addr_t default_gateway = IP(10, 0, 2, 2);
+/*
+ * Computes the IPv4 header checksum for the given
+ * packet. The checksum field must be set to 0.
+ */
+static uint16_t
+ip_compute_checksum(ip_hdr_t *hdr)
+{
+    ASSERT((sizeof(*hdr) & 1) == 0);
+    uint32_t sum = 0;
+    uint16_t *start = (uint16_t *)hdr;
+    uint16_t *end = (uint16_t *)(hdr + 1);
+    uint16_t *curr;
+    for (curr = start; curr < end; ++curr) {
+        sum += ntohs(*curr);
+        sum = (sum & 0xffff) + (sum >> 16);
+    }
+    return ~sum;
+}
 
 /*
- * Finds an appropriate interface and IP address to send
- * the specified packet to. If the IP address does not
- * match any interface's subnet, then it will be replaced
- * with the default gateway's IP address. Returns the
- * interface to route the packet on.
+ * Checks whether the IPv4 header checksum for the
+ * given packet is valid.
  */
-static net_iface_t *
-ip_route(ip_addr_t *ip)
+static bool
+ip_verify_checksum(ip_hdr_t *hdr)
 {
-    /* Find an interface with subnet matching specified IP address */
-    net_iface_t **ifaces;
-    int num_ifaces = net_get_interfaces(&ifaces);
-    int i;
-    for (i = 0; i < num_ifaces; ++i) {
-        net_iface_t *iface = ifaces[i];
-
-        /* Check if (a & subnet_mask) == (b & subnet_mask) */
-        uint32_t subnet_mask = iptoh(iface->subnet_mask);
-        uint32_t dest_netaddr = iptoh(*ip) & subnet_mask;
-        uint32_t iface_netaddr = iptoh(iface->ip_addr) & subnet_mask;
-        if (dest_netaddr == iface_netaddr) {
-            return iface;
-        }
-    }
-
-    /* Didn't match any interfaces, route through default gateway */
-    ASSERT(iptoh(*ip) != iptoh(default_gateway));
-    *ip = default_gateway;
-    return ip_route(ip);
+    return ip_compute_checksum(hdr) == 0;
 }
 
 /*
@@ -43,27 +37,86 @@ ip_route(ip_addr_t *ip)
 int
 ip_handle_rx(net_iface_t *iface, skb_t *skb)
 {
-    // TODO
-    return -1;
+    /* Check packet size */
+    if (!skb_may_pull(skb, sizeof(ip_hdr_t))) {
+        debugf("IP packet too small\n");
+        return -1;
+    }
+
+    /* Pop IP header, trim off Ethernet padding */
+    ip_hdr_t *hdr = skb_reset_mac_header(skb);
+    if (ntohs(hdr->total_length) < sizeof(ip_hdr_t)) {
+        debugf("Invalid packet length\n");
+        return -1;
+    }
+    skb_trim(skb, ntohs(hdr->total_length));
+    skb_pull(skb, sizeof(ip_hdr_t));
+
+    /* Drop packets with unhandled fields */
+    if (hdr->ecn_dscp != 0) {
+        debugf("ECN/DSCP not supported\n");
+        return -1;
+    } else if (ntohs(hdr->flags) & 0xffbf) {
+        debugf("Fragmented packets not supported\n");
+        return -1;
+    }
+
+    /* Verify checksum */
+    if (!ip_verify_checksum(hdr)) {
+        debugf("Invalid IP header checksum\n");
+        return -1;
+    }
+
+    switch (hdr->protocol) {
+    case IPPROTO_ICMP:
+        printf("ICMP packet\n");
+        break;
+    case IPPROTO_TCP:
+        printf("TCP packet\n");
+        break;
+    case IPPROTO_UDP:
+        printf("UDP packet\n");
+        break;
+    default:
+        debugf("Unhandled IP protocol\n");
+        return -1;
+    }
+
+    // TODO: debugging code, forward the packets
+    ip_addr_t *ip = &hdr->src_ip;
+    printf("Packet from %d.%d.%d.%d\n", ip->bytes[0], ip->bytes[1], ip->bytes[2], ip->bytes[3]);
+    ip_send(skb, IP(52, 53, 183, 194), IPPROTO_TCP);
+    return 0;
 }
 
 /*
  * Sends an IP packet to the specified IP address.
  */
 int
-ip_send(skb_t *skb, ip_addr_t ip)
+ip_send(skb_t *skb, ip_addr_t ip, int protocol)
 {
     /* Determine interface and IP address for sending packet */
     ip_addr_t neigh_ip = ip;
-    net_iface_t *iface = ip_route(&neigh_ip);
+    net_iface_t *iface = net_route(&neigh_ip);
     if (!iface) {
         debugf("No interface to handle IP packet\n");
         return -1;
     }
 
     /* Prepend IP header */
-    // ip_hdr_t *hdr = skb_push(skb, sizeof(ip_hdr_t));
-    // TODO
+    ip_hdr_t *hdr = skb_push(skb, sizeof(ip_hdr_t));
+    hdr->ihl = sizeof(ip_hdr_t) / 4;
+    hdr->version = 4;
+    hdr->ecn_dscp = 0;
+    hdr->total_length = htons(skb_len(skb));
+    hdr->identification = htons(0);
+    hdr->flags = htons(0);
+    hdr->ttl = 64;
+    hdr->protocol = protocol;
+    hdr->checksum = 0;
+    hdr->src_ip = iface->ip_addr;
+    hdr->dest_ip = ip;
+    hdr->checksum = htons(ip_compute_checksum(hdr));
 
     /* Forward to interface's IP packet handler */
     return iface->send_ip_skb(iface, skb, neigh_ip);

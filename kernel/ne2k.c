@@ -198,9 +198,10 @@ ne2k_read_mem(void *buf, int offset, int nbytes)
 {
     ASSERT((nbytes & 1) == 0);
 
-    /* Begin transfer */
-    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_RREAD | NE2K_CMD_START, NE2K_CMD);
+    /* Set up transfer */
     ne2k_config_dma(offset, nbytes);
+    outb(NE2K_ISR_RDC, NE2K_ISR);
+    outb(NE2K_CMD_NODMA | NE2K_CMD_RREAD, NE2K_CMD);
 
     /* Read the data */
     uint16_t *bufp = buf;
@@ -209,8 +210,9 @@ ne2k_read_mem(void *buf, int offset, int nbytes)
         bufp[i] = inw(NE2K_DATA);
     }
 
-    /* Stop transfer */
-    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
+    /* Wait for RDC confirmation */
+    while ((inb(NE2K_ISR) & NE2K_ISR_RDC) == 0);
+    outb(NE2K_ISR_RDC, NE2K_ISR);
 }
 
 /* Writes the contents of the NE2k memory */
@@ -219,9 +221,10 @@ ne2k_write_mem(int offset, void *buf, int nbytes)
 {
     ASSERT((nbytes & 1) == 0);
 
-    /* Begin transfer */
-    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_RWRITE | NE2K_CMD_START, NE2K_CMD);
+    /* Set up transfer */
     ne2k_config_dma(offset, nbytes);
+    outb(NE2K_ISR_RDC, NE2K_ISR);
+    outb(NE2K_CMD_NODMA | NE2K_CMD_RWRITE, NE2K_CMD);
 
     /* Write the data */
     uint16_t *bufp = buf;
@@ -230,8 +233,9 @@ ne2k_write_mem(int offset, void *buf, int nbytes)
         outw(bufp[i], NE2K_DATA);
     }
 
-    /* Stop transfer */
-    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
+    /* Wait for RDC confirmation */
+    while ((inb(NE2K_ISR) & NE2K_ISR_RDC) == 0);
+    outb(NE2K_ISR_RDC, NE2K_ISR);
 }
 
 /* Resets the NE2k device. Returns whether the device exists. */
@@ -246,8 +250,8 @@ ne2k_reset(void)
         return false;
     }
 
-    /* Write to page 0 */
-    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
+    /* Write to page 0, stop device */
+    outb(NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
 
     /* Word access and loopback mode */
     outb(NE2K_DCFG_WORD | NE2K_DCFG_LOOPBACK, NE2K_DCFG);
@@ -285,14 +289,14 @@ ne2k_reset(void)
     outb(NE2K_RX_STOP_PAGE - 1, NE2K_BOUNDARY);
 
     /* Copy MAC address to physical address registers, set curr page */
-    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE1 | NE2K_CMD_STOP, NE2K_CMD);
+    outb(NE2K_CMD_PAGE1 | NE2K_CMD_STOP, NE2K_CMD);
     int i;
     for (i = 0; i < 6; ++i) {
         ne2k_dev.mac_addr.bytes[i] = (uint8_t)prom[i];
         outb(ne2k_dev.mac_addr.bytes[i], NE2K_PHYS(i));
     }
     outb(NE2K_RX_START_PAGE, NE2K_CURPAG);
-    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
+    outb(NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
 
     /* Reset tx status */
     tx_busy = false;
@@ -303,12 +307,12 @@ ne2k_reset(void)
     outb(0xff, NE2K_ISR);
     outb(NE2K_ISR_ALL, NE2K_IMR);
 
-    /* Enable packet reception */
-    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_START, NE2K_CMD);
-
     /* Re-enable tx and rx */
     outb(NE2K_RXCR_ON, NE2K_RXCR);
     outb(NE2K_TXCR_ON, NE2K_TXCR);
+
+    /* Enable packet reception */
+    outb(NE2K_CMD_START, NE2K_CMD);
 
     return true;
 }
@@ -322,9 +326,9 @@ ne2k_handle_rx(void)
 {
     while (1) {
         /* Read the current page (aka the tail of the ring buffer) */
-        outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE1 | NE2K_CMD_STOP, NE2K_CMD);
+        outb(NE2K_CMD_PAGE1, NE2K_CMD);
         uint8_t tail_pg = inb(NE2K_CURPAG);
-        outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
+        outb(NE2K_CMD_PAGE0, NE2K_CMD);
 
         /* Dequeue the first page from the ring buffer */
         uint8_t head_pg = inb(NE2K_BOUNDARY) + 1;
@@ -358,17 +362,6 @@ ne2k_handle_rx(void)
             /* Deliver packet to Ethernet layer */
             ethernet_handle_rx(&ne2k_dev, skb);
             skb_release(skb);
-
-#if 0
-            /* Dump packet body */
-            int i, j;
-            for (i = 0; i < eth_size; i += 16) {
-                for (j = 0; j < 16; ++j) {
-                    printf("%*x ", ((uint8_t *)body)[j + 16 * i]);
-                }
-                printf("\n");
-            }
-#endif
         } else {
             debugf("Received invalid packet, dropping\n");
         }
@@ -379,14 +372,6 @@ ne2k_handle_rx(void)
             new_boundary = NE2K_RX_STOP_PAGE - 1;
         }
         outb(new_boundary, NE2K_BOUNDARY);
-
-#if 0
-        /* Hack: send ARP request (for testing) */
-        skb_t *skb2 = skb_alloc();
-        skb_put(skb2, 42);
-        memcpy(skb2->data, "\x52\x55\x0a\x00\x02\x02\x52\x54\x00\x12\x34\x56\x08\x06\x00\x01\x08\x00\x06\x04\x00\x01\x52\x54\x00\x12\x34\x56\x0a\x00\x02\x0f\x52\x55\x0a\x00\x02\x02\x0a\x00\x02\x02", 42);
-        ne2k_send(skb2);
-#endif
     }
 }
 
@@ -399,18 +384,18 @@ ne2k_begin_tx(void)
 {
     int len = tx_buf_len[tx_buf];
     ASSERT(len > 0);
+    ASSERT(!tx_busy);
 
-    /* Mark our device as busy so we don't try to transmit twice */
+    /* Mask interrupts, busy = ON */
     tx_busy = true;
 
     /* Set tx length and offset */
-    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
     outb((len >> 0) & 0xff, NE2K_TCNTLO);
     outb((len >> 8) & 0xff, NE2K_TCNTHI);
     outb(NE2K_TX_START_PAGE + tx_buf * NE2K_PAGES_PER_PKT, NE2K_TPSR);
 
     /* Go! */
-    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_TRANS | NE2K_CMD_START, NE2K_CMD);
+    outb(NE2K_CMD_TRANS, NE2K_CMD);
 }
 
 /*
@@ -434,34 +419,33 @@ ne2k_handle_tx(void)
 static void
 ne2k_handle_irq(void)
 {
-    /* Select page 0 to read ISR and temporarily disable device */
-    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
-
     /* Handle interrupts */
     uint8_t isr;
-    while ((isr = inb(NE2K_ISR)) != 0) {
+    while ((isr = inb(NE2K_ISR)) & (NE2K_ISR_RX | NE2K_ISR_RX_ERR | NE2K_ISR_TX)) {
+        /*
+         * The order of the acknowledgements and ne2k_handle_*
+         * calls is important! The interrupt handler may trigger
+         * the sending of another packet, so we must first ack
+         * the interrupt, THEN call the handler.
+         *
+         * Since we are running an emulated card, it is impossible
+         * to get corrupted packets or have our transmission fail
+         * (if it does, it will be on the actual card, not in QEMU).
+         * Hence, we can ignore all error conditions.
+         */
+
         /* Received a packet */
         if (isr & (NE2K_ISR_RX | NE2K_ISR_RX_ERR)) {
+            outb(NE2K_ISR_RX | NE2K_ISR_RX_ERR, NE2K_ISR);
             ne2k_handle_rx();
         }
 
         /* Transmitted a packet */
         if (isr & NE2K_ISR_TX) {
+            outb(NE2K_ISR_TX, NE2K_ISR);
             ne2k_handle_tx();
         }
-
-        /*
-         * Since we are running an emulated card, it is impossible
-         * to get corrupted packets or have our transmission fail
-         * (if it does, it will be on the actual card, not in QEMU).
-         * Hence, we can ignore all error conditions. Here, we just
-         * acknowledge ALL the interrupts!
-         */
-        outb(isr, NE2K_ISR);
     }
-
-    /* Re-enable device */
-    outb(NE2K_CMD_NODMA | NE2K_CMD_PAGE0 | NE2K_CMD_START, NE2K_CMD);
 }
 
 /*

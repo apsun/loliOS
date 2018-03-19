@@ -70,6 +70,15 @@ skb_data(skb_t *skb)
 }
 
 /*
+ * Returns the length of the data in the buffer.
+ */
+int
+skb_len(skb_t *skb)
+{
+    return skb->len;
+}
+
+/*
  * Pushes data into the SKB at the beginning of the data
  * section. Aborts if there is not enough space in the
  * head section to cover the allocation. Returns a pointer
@@ -127,6 +136,21 @@ skb_put(skb_t *skb, int len)
     skb->tail += len;
     skb->len += len;
     return orig_tail;
+}
+
+/*
+ * Removes data from the end of the data section by setting
+ * the length of the buffer. If the current length is greater
+ * than the specified length, then this is a no-op.
+ */
+void
+skb_trim(skb_t *skb, int len)
+{
+    ASSERT(skb->refcnt > 0);
+    if (len < skb->len) {
+        skb->len = len;
+        skb->tail = skb->data + len;
+    }
 }
 
 /*

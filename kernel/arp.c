@@ -107,7 +107,10 @@ arp_queue_send(ip_addr_t ip, mac_addr_t mac)
     for (i = 0; i < array_len(packet_queue); ++i) {
         queue_pkt_t *pkt = &packet_queue[i];
         if (pkt->skb != NULL && ip_equals(pkt->ip, ip)) {
-            ethernet_send_mac(pkt->dev, pkt->skb, mac, ETHERTYPE_IPV4);
+            debugf("Sending queued packet\n");
+            if (ethernet_send_mac(pkt->dev, pkt->skb, mac, ETHERTYPE_IPV4) < 0) {
+                debugf("Queued packet send failed, dropping\n");
+            }
             skb_release(pkt->skb);
             pkt->skb = NULL;
         }
@@ -197,6 +200,7 @@ arp_cache_insert(ip_addr_t ip, const mac_addr_t *mac)
 
     /* No free space and mapping doesn't already exist */
     if (entry == NULL) {
+        debugf("ARP cache full, cannot insert entry\n");
         return -1;
     }
 
@@ -245,7 +249,7 @@ arp_get_state(net_dev_t *dev, ip_addr_t ip, mac_addr_t *mac)
 /*
  * Sends an ARP packet.
  */
-int
+static int
 arp_send(net_iface_t *iface, ip_addr_t ip, mac_addr_t mac, int op)
 {
     skb_t *skb = skb_alloc();
@@ -292,14 +296,17 @@ arp_send_reply(net_iface_t *iface, ip_addr_t ip, mac_addr_t mac)
 
 /*
  * Handles an ARP reply packet. Inserts the reply into the
- * ARP cache for the device that received the packet.
+ * ARP cache for the device that received the packet, then
+ * sends all enqueued packets for the corresponding IP.
  */
 static int
 arp_handle_reply(net_dev_t *dev, skb_t *skb)
 {
-    printf("ARP REPLY!\n");
+    debugf("Received ARP reply\n");
     arp_body_t *body = skb_data(skb);
-    return arp_cache_insert(body->src_proto_addr, &body->src_hw_addr);
+    int ret = arp_cache_insert(body->src_proto_addr, &body->src_hw_addr);
+    arp_queue_send(body->src_proto_addr, body->src_hw_addr);
+    return ret;
 }
 
 /*
@@ -349,9 +356,9 @@ arp_handle_rx(net_dev_t *dev, skb_t *skb)
         return -1;
     if (ntohs(hdr->be_proto_type) != ARP_PROTOTYPE_IPV4)
         return -1;
-    if (hdr->hw_len != 6)
+    if (hdr->hw_len != sizeof(mac_addr_t))
         return -1;
-    if (hdr->proto_len != 4)
+    if (hdr->proto_len != sizeof(ip_addr_t))
         return -1;
 
     /* Handle op accordingly */
