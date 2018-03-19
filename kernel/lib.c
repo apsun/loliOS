@@ -168,6 +168,24 @@ atoi(const char *str, int *result)
     return true;
 }
 
+int
+memcmp(const void *s1, const void *s2, int n)
+{
+    const unsigned char *a = s1;
+    const unsigned char *b = s2;
+    while (n && (*a == *b)) {
+        a++;
+        b++;
+        n--;
+    }
+
+    if (n == 0) {
+        return 0;
+    } else {
+        return *a - *b;
+    }
+}
+
 /*
  * Sets all bytes in the specified memory region to
  * the value of c. Returns s.

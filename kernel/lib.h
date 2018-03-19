@@ -16,6 +16,7 @@ char *itoa(unsigned int value, char *buf, int radix);
 bool atoi(const char *value, int *result);
 
 /* Memory functions */
+int memcmp(const void *s1, const void *s2, int n);
 void *memset(void *s, uint8_t c, int n);
 void *memset_word(void *s, uint16_t c, int n);
 void *memset_dword(void *s, uint32_t c, int n);
@@ -198,6 +199,13 @@ inl(uint16_t port)
         "movl %%" name ", %0;"         \
         : "=m"(dest));                 \
 } while (0)
+
+/*
+ * Returns the length of an array. Only works on actual
+ * arrays, not pointers to arrays. Never use on function
+ * arguments.
+ */
+#define array_len(arr) ((int)(sizeof(arr) / sizeof((arr)[0])))
 
 #endif /* ASM */
 

@@ -2,6 +2,7 @@
 #define _SKB_H
 
 #include "types.h"
+#include "lib.h"
 
 #ifndef ASM
 
@@ -9,8 +10,8 @@
  * Socket kernel buffer structure, just like the one in Linux.
  */
 typedef struct {
-    uint16_t used; /* Must be first 2B, to ensure IP header alignment */
-    uint8_t buf[1518]; /* Maximum size of Ethernet frame */
+    uint16_t refcnt; /* Must be first 2B, to ensure IP header alignment */
+    uint8_t buf[1514]; /* Maximum size of Ethernet frame */
     uint8_t *head;
     uint8_t *data;
     uint8_t *tail;
@@ -19,29 +20,25 @@ typedef struct {
     void *mac_header;
     void *network_header;
     void *transport_header;
-#if 0
-    union {
-        void *hdr2;
-        eth_hdr_t *eth_hdr;
-    };
-    union {
-        void *hdr3;
-        ip_hdr_t *ip_hdr;
-        arp_hdr_t *arp_hdr;
-    };
-    union {
-        void *hdr4;
-        udp_hdr_t *udp_hdr;
-        tcp_hdr_t *tcp_hdr;
-    };
-#endif
 } skb_t;
 
 /* Allocates a new SKB */
 skb_t *skb_alloc(void);
 
-/* Pushes data at the start the data section */
+/* Increments the SKB reference count */
+skb_t *skb_retain(skb_t *skb);
+
+/* Decrements the SKB reference count and frees it if zero */
+void skb_release(skb_t *skb);
+
+/* Returns a pointer to the beginning of the data section */
+void *skb_data(skb_t *skb);
+
+/* Pushes data at the start of the data section */
 void *skb_push(skb_t *skb, int len);
+
+/* Returns whether the specified number of bytes can be pulled */
+bool skb_may_pull(skb_t *skb, int len);
 
 /* Pops data at the start of the data section */
 void *skb_pull(skb_t *skb, int len);
@@ -52,8 +49,10 @@ void *skb_put(skb_t *skb, int len);
 /* Reserves space for the head section */
 void skb_reserve(skb_t *skb, int len);
 
-/* Releases an allocated SKB */
-void skb_free(skb_t *skb);
+/* Set the location of the headers to the start of the data section */
+void *skb_reset_mac_header(skb_t *skb);
+void *skb_reset_network_header(skb_t *skb);
+void *skb_reset_transport_header(skb_t *skb);
 
 #endif /* ASM */
 
