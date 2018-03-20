@@ -171,7 +171,7 @@ fs_dir_read(file_obj_t *file, void *buf, int nbytes)
 
     /* Read next file dentry, return 0 if no more entries */
     dentry_t dentry;
-    if (read_dentry_by_index(file->offset, &dentry) != 0) {
+    if (read_dentry_by_index(file->private, &dentry) != 0) {
         return 0;
     }
 
@@ -187,7 +187,7 @@ fs_dir_read(file_obj_t *file, void *buf, int nbytes)
     }
 
     /* Increment offset for next read */
-    file->offset++;
+    file->private++;
 
     /* Return number of chars read, excluding NUL terminator */
     return nbytes;
@@ -207,13 +207,13 @@ fs_file_read(file_obj_t *file, void *buf, int nbytes)
     }
 
     /* Read directly into userspace buffer */
-    int count = read_data(file->inode_idx, file->offset, buf, nbytes);
+    int count = read_data(file->inode_idx, file->private, buf, nbytes);
     if (count <= 0) {
         return count;
     }
 
     /* Increment byte offset for next read */
-    file->offset += count;
+    file->private += count;
 
     /* Return how many bytes we read */
     return count;

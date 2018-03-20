@@ -6,11 +6,17 @@
 .globl name;                   \
 name:                          \
     pushl   %ebx;              \
+    pushl   %esi;              \
+    pushl   %edi;              \
     movl    $number, %eax;     \
-    movl    8(%esp), %ebx;     \
-    movl    12(%esp), %ecx;    \
-    movl    16(%esp), %edx;    \
+    movl    16(%esp), %ebx;    \
+    movl    20(%esp), %ecx;    \
+    movl    24(%esp), %edx;    \
+    movl    28(%esp), %esi;    \
+    movl    32(%esp), %edi;    \
     int     $0x80;             \
+    popl    %edi;              \
+    popl    %esi;              \
     popl    %ebx;              \
     ret;
 
@@ -29,10 +35,17 @@ MAKE_SYS(sigmask, SYS_SIGMASK)
 MAKE_SYS(ioctl, SYS_IOCTL)
 MAKE_SYS(time, SYS_TIME)
 MAKE_SYS(sbrk, SYS_SBRK)
+MAKE_SYS(socket, SYS_SOCKET)
+MAKE_SYS(bind, SYS_BIND)
+MAKE_SYS(conntect, SYS_CONNECT)
+MAKE_SYS(listen, SYS_LISTEN)
+MAKE_SYS(accept, SYS_ACCEPT)
+MAKE_SYS(recvfrom, SYS_RECVFROM)
+MAKE_SYS(sendto, SYS_SENDTO)
 
 .globl _start
 _start:
-    subl    $16, %esp /* Prevents page faults from syscalls since ESP is at end of user page */
+    subl    $24, %esp /* Prevent page faults from syscall wrapper */
     call    main
     pushl   %eax
     call    exit

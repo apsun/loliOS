@@ -22,8 +22,16 @@ typedef struct file_ops_t file_ops_t;
 
 /* File object structure */
 typedef struct {
-    /* O/R/W/C file operation table for this file */
+    /*
+     * File operations table for this file.
+     */
     const file_ops_t *ops_table;
+
+    /*
+     * Index (aka file descriptor) of this file object.
+     * Set to -1 if the file is unused.
+     */
+    int fd;
 
     /*
      * inode index of this file, unused if the file
@@ -32,19 +40,9 @@ typedef struct {
     int inode_idx;
 
     /*
-     * Offset information for repeated read operations.
-     * For directories, this is the *index* of the next
-     * file when enumerating. For files, this is the
-     * *offset in bytes* of the current file position.
-     * For the RTC, this holds the virtual interrupt
-     * frequency.
+     * File-private data, use is determined by driver.
      */
-    int offset;
-
-    /*
-     * Whether this file object is currently used.
-     */
-    bool valid;
+    int private;
 } file_obj_t;
 
 /* File operations table */
@@ -55,6 +53,15 @@ struct file_ops_t {
     int (*close)(file_obj_t *file);
     int (*ioctl)(file_obj_t *file, int req, int arg);
 };
+
+/* Returns all file objects for the executing process */
+file_obj_t *get_executing_files(void);
+
+/* Returns a file object for the executing process */
+file_obj_t *get_executing_file(int fd);
+
+/* Allocates a new file obj (returns NULL if too many open files) */
+file_obj_t *file_obj_alloc(void);
 
 /* Initializes the specified file object array */
 void file_init(file_obj_t *files);

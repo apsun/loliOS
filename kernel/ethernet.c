@@ -4,6 +4,9 @@
 #include "arp.h"
 #include "ip.h"
 
+/*
+ * Handles an incoming Ethernet frame.
+ */
 int
 ethernet_handle_rx(net_dev_t *dev, skb_t *skb)
 {

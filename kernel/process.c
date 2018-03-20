@@ -544,7 +544,7 @@ process_halt_impl(int status)
     /* Close all open files */
     int i;
     for (i = 2; i < MAX_FILES; ++i) {
-        if (child_pcb->files[i].valid) {
+        if (child_pcb->files[i].fd >= 0) {
             file_close(i);
         }
     }

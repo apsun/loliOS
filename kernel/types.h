@@ -6,7 +6,7 @@
 #ifndef _TYPES_H
 #define _TYPES_H
 
-#define NULL ((void *)0)
+#define NULL 0
 
 #ifndef ASM
 

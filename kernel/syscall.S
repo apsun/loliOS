@@ -27,11 +27,20 @@ syscall_jump_table:
     .long file_ioctl
     .long rtc_time
     .long process_sbrk
+    .long socket_socket
+    .long socket_bind
+    .long socket_connect
+    .long socket_listen
+    .long socket_accept
+    .long socket_recvfrom
+    .long socket_sendto
 
 .text
 
 /*
- * int syscall_handle(uint32_t a, uint32_t b, uint32_t c, int_regs_t *regs, int num)
+ * int syscall_handle(
+ *     uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e,
+ *     int_regs_t *regs, int num)
  *
  * DO NOT CHANGE THE PARAMETER ORDER, this function (ab)uses cdecl to
  * skip a call instruction, which relies on a, b, c, regs being at the top
@@ -40,12 +49,14 @@ syscall_jump_table:
  * a == ebx
  * b == ecx
  * c == edx
+ * d == esi
+ * e == edi
  * regs == all registers
  * num == eax
  */
 .globl syscall_handle
 syscall_handle:
-    movl 20(%esp), %eax
+    movl 28(%esp), %eax
     decl %eax
     cmpl $NUM_SYSCALL, %eax
     jae syscall_handle_invalid

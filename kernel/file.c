@@ -80,9 +80,63 @@ static const file_ops_t fops_sb16 = {
     .ioctl = sb16_ioctl,
 };
 
-/* Initializes the file object from the given dentry */
-static bool
-init_file_obj(file_obj_t *file, dentry_t *dentry)
+/*
+ * Gets the file object array for the executing process.
+ */
+file_obj_t *
+get_executing_files(void)
+{
+    pcb_t *pcb = get_executing_pcb();
+    ASSERT(pcb != NULL);
+    return pcb->files;
+}
+
+/*
+ * Gets the file object corresponding to the given file
+ * descriptor for the executing process.
+ */
+file_obj_t *
+get_executing_file(int fd)
+{
+    /* Ensure descriptor is in bounds */
+    if (fd < 0 || fd >= MAX_FILES) {
+        return NULL;
+    }
+
+    /* Get file object, check that it's open */
+    file_obj_t *file = &get_executing_files()[fd];
+    if (file->fd < 0) {
+        return NULL;
+    }
+
+    return file;
+}
+
+/*
+ * Allocates a new file object for the executing process.
+ * Returns NULL if the executing process has reached the
+ * open file limit.
+ */
+file_obj_t *
+file_obj_alloc(void)
+{
+    file_obj_t *files = get_executing_files();
+    int i;
+    for (i = 0; i < MAX_FILES; ++i) {
+        file_obj_t *file = &files[i];
+        if (file->fd < 0) {
+            file->fd = i;
+            return file;
+        }
+    }
+    return NULL;
+}
+
+/*
+ * Initializes the file object from the given dentry.
+ */
+static int
+file_obj_init(file_obj_t *file, dentry_t *dentry)
 {
     switch (dentry->type) {
     case FTYPE_RTC:
@@ -105,42 +159,12 @@ init_file_obj(file_obj_t *file, dentry_t *dentry)
         break;
     default:
         debugf("Unknown file type: %d\n", dentry->type);
-        return false;
+        return -1;
     }
 
-    file->offset = 0;
+    file->private = 0;
     file->inode_idx = dentry->inode_idx;
-    file->valid = true;
-    return true;
-}
-
-/* Gets the file object array for the executing process */
-static file_obj_t *
-get_executing_file_objs(void)
-{
-    pcb_t *pcb = get_executing_pcb();
-    ASSERT(pcb != NULL);
-    return pcb->files;
-}
-
-/* Gets the file object corresponding to the given descriptor */
-static file_obj_t *
-get_executing_file_obj(int fd)
-{
-    file_obj_t *file;
-
-    /* Ensure descriptor is in bounds */
-    if (fd < 0 || fd >= MAX_FILES) {
-        return NULL;
-    }
-
-    /* Get file object, check that it's open */
-    file = &get_executing_file_objs()[fd];
-    if (!file->valid) {
-        return NULL;
-    }
-
-    return file;
+    return 0;
 }
 
 /*
@@ -150,17 +174,17 @@ void
 file_init(file_obj_t *files)
 {
     /* Initialize stdin as fd = 0 */
-    files[0].valid = true;
+    files[0].fd = 0;
     files[0].ops_table = &fops_stdin;
 
     /* Initialize stdout as fd = 1 */
-    files[1].valid = true;
+    files[1].fd = 1;
     files[1].ops_table = &fops_stdout;
 
     /* Clear the remaining files */
     int i;
     for (i = 2; i < MAX_FILES; ++i) {
-        files[i].valid = false;
+        files[i].fd = -1;
     }
 }
 
@@ -174,43 +198,39 @@ file_open(const char *filename)
         return -1;
     }
 
-    file_obj_t *files = get_executing_file_objs();
-
-    /* Skip fd = 0 (stdin) and fd = 1 (stdout) */
-    int i;
-    for (i = 2; i < MAX_FILES; ++i) {
-        if (!files[i].valid) {
-            /* Try to read filesystem entry */
-            dentry_t dentry;
-            if (read_dentry_by_name(tmp, &dentry) != 0) {
-                return -1;
-            }
-
-            /* Initialize file object */
-            if (!init_file_obj(&files[i], &dentry)) {
-                return -1;
-            }
-
-            /* Perform post-initialization setup */
-            if (files[i].ops_table->open(tmp, &files[i]) != 0) {
-                files[i].valid = false;
-                return -1;
-            }
-
-            /* Index becomes our file descriptor */
-            return i;
-        }
+    /* Try to read filesystem entry */
+    dentry_t dentry;
+    if (read_dentry_by_name(tmp, &dentry) != 0) {
+        return -1;
     }
 
-    /* Too many files open */
-    return -1;
+    /* Allocate a file object to use */
+    file_obj_t *file = file_obj_alloc();
+    if (file == NULL) {
+        return -1;
+    }
+
+    /* Initialize file object */
+    if (file_obj_init(file, &dentry) < 0) {
+        file->fd = -1;
+        return -1;
+    }
+
+    /* Perform post-initialization setup */
+    if (file->ops_table->open(tmp, file) < 0) {
+        file->fd = -1;
+        return -1;
+    }
+
+    /* Index becomes our file descriptor */
+    return file->fd;
 }
 
 /* read() syscall handler */
 __cdecl int
 file_read(int fd, void *buf, int nbytes)
 {
-    file_obj_t *file = get_executing_file_obj(fd);
+    file_obj_t *file = get_executing_file(fd);
     if (file == NULL) {
         return -1;
     }
@@ -221,7 +241,7 @@ file_read(int fd, void *buf, int nbytes)
 __cdecl int
 file_write(int fd, const void *buf, int nbytes)
 {
-    file_obj_t *file = get_executing_file_obj(fd);
+    file_obj_t *file = get_executing_file(fd);
     if (file == NULL) {
         return -1;
     }
@@ -232,14 +252,14 @@ file_write(int fd, const void *buf, int nbytes)
 __cdecl int
 file_close(int fd)
 {
-    file_obj_t *file = get_executing_file_obj(fd);
+    file_obj_t *file = get_executing_file(fd);
     if (file == NULL) {
         return -1;
     }
-    if (file->ops_table->close(file) != 0) {
+    if (file->ops_table->close(file) < 0) {
         return -1;
     }
-    file->valid = false;
+    file->fd = -1;
     return 0;
 }
 
@@ -247,7 +267,7 @@ file_close(int fd)
 __cdecl int
 file_ioctl(int fd, int req, int arg)
 {
-    file_obj_t *file = get_executing_file_obj(fd);
+    file_obj_t *file = get_executing_file(fd);
     if (file == NULL) {
         return -1;
     }

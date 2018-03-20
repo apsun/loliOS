@@ -196,18 +196,20 @@ ne2k_config_dma(int offset, int nbytes)
 static void
 ne2k_read_mem(void *buf, int offset, int nbytes)
 {
-    ASSERT((nbytes & 1) == 0);
-
     /* Set up transfer */
     ne2k_config_dma(offset, nbytes);
     outb(NE2K_ISR_RDC, NE2K_ISR);
     outb(NE2K_CMD_NODMA | NE2K_CMD_RREAD, NE2K_CMD);
 
     /* Read the data */
-    uint16_t *bufp = buf;
+    uint16_t *bufw = buf;
     int i;
     for (i = 0; i < nbytes / 2; ++i) {
-        bufp[i] = inw(NE2K_DATA);
+        bufw[i] = inw(NE2K_DATA);
+    }
+    if (nbytes & 1) {
+        uint8_t *bufb = buf;
+        bufb[nbytes - 1] = inb(NE2K_DATA);
     }
 
     /* Wait for RDC confirmation */
@@ -219,18 +221,20 @@ ne2k_read_mem(void *buf, int offset, int nbytes)
 static void
 ne2k_write_mem(int offset, void *buf, int nbytes)
 {
-    ASSERT((nbytes & 1) == 0);
-
     /* Set up transfer */
     ne2k_config_dma(offset, nbytes);
     outb(NE2K_ISR_RDC, NE2K_ISR);
     outb(NE2K_CMD_NODMA | NE2K_CMD_RWRITE, NE2K_CMD);
 
     /* Write the data */
-    uint16_t *bufp = buf;
+    uint16_t *bufw = buf;
     int i;
     for (i = 0; i < nbytes / 2; ++i) {
-        outw(bufp[i], NE2K_DATA);
+        outw(bufw[i], NE2K_DATA);
+    }
+    if (nbytes & 1) {
+        uint8_t *bufb = buf;
+        outb(bufb[nbytes - 1], NE2K_DATA);
     }
 
     /* Wait for RDC confirmation */
@@ -450,8 +454,8 @@ ne2k_handle_irq(void)
 
 /*
  * Sends a Ethernet frame. Intended to be called from elsewhere
- * in the kernel. Returns 0 if the card is too full, > 0 on success,
- * and < 0 on error.
+ * in the kernel. Returns -1 if the packet could not be sent, or
+ * 0 if it was sent or was successfully enqueued.
  */
 static int
 ne2k_send(net_dev_t *dev, skb_t *skb)
@@ -464,7 +468,7 @@ ne2k_send(net_dev_t *dev, skb_t *skb)
         buf = !tx_buf;
     } else {
         debugf("Both TX buffers full, cannot send packet\n");
-        return 0;
+        return -1;
     }
 
     /* Copy packet to NE2k memory */
@@ -477,7 +481,7 @@ ne2k_send(net_dev_t *dev, skb_t *skb)
         ne2k_begin_tx();
     }
 
-    return 1;
+    return 0;
 }
 
 /* Initializes the NE2k device */

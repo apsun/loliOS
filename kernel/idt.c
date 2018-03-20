@@ -112,7 +112,9 @@ handle_irq(int_regs_t *regs)
 static void
 handle_syscall(int_regs_t *regs)
 {
-    regs->eax = syscall_handle(regs->ebx, regs->ecx, regs->edx, regs, regs->eax);
+    regs->eax = syscall_handle(
+        regs->ebx, regs->ecx, regs->edx, regs->esi, regs->edi,
+        regs, regs->eax);
 }
 
 /*

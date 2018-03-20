@@ -56,7 +56,7 @@ typedef struct {
 } queue_pkt_t;
 
 /* Enqueued packet array */
-static queue_pkt_t packet_queue[64];
+static queue_pkt_t packet_queue[16];
 
 /*
  * We only have one Ethernet device, so a global ARP
@@ -282,7 +282,7 @@ arp_send(net_iface_t *iface, ip_addr_t ip, mac_addr_t mac, int op)
 int
 arp_send_request(net_iface_t *iface, ip_addr_t ip)
 {
-    return arp_send(iface, ip, MAC_BROADCAST, ARP_OP_REQUEST);
+    return arp_send(iface, ip, BROADCAST_MAC, ARP_OP_REQUEST);
 }
 
 /*

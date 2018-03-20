@@ -7,7 +7,7 @@
  * in the kernel page. If this limit becomes a problem,
  * we can allocate a dedicated 4MB page to hold the SKBs.
  */
-static skb_t skb_cache[128];
+static skb_t skb_cache[16];
 
 /*
  * Allocates and initializes a new SKB. Returns NULL if
