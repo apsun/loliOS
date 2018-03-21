@@ -4,32 +4,47 @@
 #include "udp.h"
 
 /*
- * Computes the IPv4 header checksum for the given
- * packet. The checksum field must be set to 0.
+ * Computes a IPv4, TCP, or UDP checksum. The sum should
+ * be computed from calling ip_partial_checksum().
  */
-static uint16_t
-ip_compute_checksum(ip_hdr_t *hdr)
+uint16_t
+ip_checksum(uint32_t sum)
 {
-    ASSERT((sizeof(*hdr) & 1) == 0);
-    uint32_t sum = 0;
-    uint16_t *start = (uint16_t *)hdr;
-    uint16_t *end = (uint16_t *)(hdr + 1);
-    uint16_t *curr;
-    for (curr = start; curr < end; ++curr) {
-        sum += ntohs(*curr);
+    while (sum & ~0xffff) {
         sum = (sum & 0xffff) + (sum >> 16);
     }
-    return ~sum;
+    return ~sum & 0xffff;
 }
 
 /*
- * Checks whether the IPv4 header checksum for the
- * given packet is valid.
+ * Performs a partial checksum. Pass the sum of the
+ * partial results to ip_checksum() to get the final
+ * result.
  */
-static bool
-ip_verify_checksum(ip_hdr_t *hdr)
+uint32_t
+ip_partial_checksum(const void *buf, int len)
 {
-    return ip_compute_checksum(hdr) == 0;
+    uint32_t sum = 0;
+    const uint16_t *bufw = buf;
+    int i;
+    for (i = 0; i < len / 2; ++i) {
+        sum += ntohs(bufw[i]);
+    }
+    if (len & 1) {
+        const uint8_t *bufb = buf;
+        sum += ntohs(bufb[len - 1]);
+    }
+    return sum;
+}
+
+/*
+ * Checks whether the IP/TCP/UDP checksum for the
+ * given header is valid.
+ */
+bool
+ip_verify_checksum(const void *buf, int len)
+{
+    return ip_checksum(ip_partial_checksum(buf, len)) == 0;
 }
 
 /*
@@ -63,11 +78,12 @@ ip_handle_rx(net_iface_t *iface, skb_t *skb)
     }
 
     /* Verify checksum */
-    if (!ip_verify_checksum(hdr)) {
+    if (!ip_verify_checksum(hdr, sizeof(ip_hdr_t))) {
         debugf("Invalid IP header checksum\n");
         return -1;
     }
 
+    /* Forward to upper layers */
     switch (hdr->protocol) {
     case IPPROTO_UDP:
         debugf("Received UDP packet\n");
@@ -80,23 +96,14 @@ ip_handle_rx(net_iface_t *iface, skb_t *skb)
 
 /*
  * Sends an IP packet to the specified IP address.
- * The interface may be null; if provided, then the
- * destination IP must be in the same subnet as the
- * interface.
+ * iface is the interface to send the packet on,
+ * neigh_ip is the next-hop address (equal to
+ * dest_ip if the destination is in the same subnet,
+ * or the gateway otherwise).
  */
 int
-ip_send(net_iface_t *iface, skb_t *skb, ip_addr_t ip, int protocol)
+ip_send(net_iface_t *iface, ip_addr_t neigh_ip, skb_t *skb, ip_addr_t dest_ip, int protocol)
 {
-    /* Determine interface and IP address for sending packet */
-    ip_addr_t neigh_ip = ip;
-    if (iface == NULL) {
-        iface = net_route(&neigh_ip);
-        if (iface == NULL) {
-            debugf("No interface to handle IP packet\n");
-            return -1;
-        }
-    }
-
     /* Prepend IP header */
     ip_hdr_t *hdr = skb_push(skb, sizeof(ip_hdr_t));
     hdr->ihl = sizeof(ip_hdr_t) / 4;
@@ -109,8 +116,8 @@ ip_send(net_iface_t *iface, skb_t *skb, ip_addr_t ip, int protocol)
     hdr->protocol = protocol;
     hdr->be_checksum = htons(0);
     hdr->src_ip = iface->ip_addr;
-    hdr->dest_ip = ip;
-    hdr->be_checksum = htons(ip_compute_checksum(hdr));
+    hdr->dest_ip = dest_ip;
+    hdr->be_checksum = htons(ip_checksum(ip_partial_checksum(hdr, sizeof(ip_hdr_t))));
 
     /* Forward to interface's IP packet handler */
     return iface->send_ip_skb(iface, skb, neigh_ip);

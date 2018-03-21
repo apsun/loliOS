@@ -11,7 +11,6 @@
 static int
 loopback_send(net_iface_t *iface, skb_t *skb, ip_addr_t ip)
 {
-    // TODO: Should we clone the SKB?
     debugf("Received loopback packet\n");
     return ip_handle_rx(iface, skb);
 }
@@ -21,6 +20,7 @@ static net_iface_t lo = {
     .name = "lo",
     .subnet_mask = IP(255, 0, 0, 0),
     .ip_addr = IP(127, 0, 0, 1),
+    .gateway_addr = INVALID_IP,
     .dev = NULL,
     .send_ip_skb = loopback_send,
 };

@@ -193,11 +193,11 @@ entry(unsigned long magic, unsigned long addr)
     printf("Initializing Sound Blaster 16 driver..\n");
     sb16_init();
 
-    printf("Initializing NE2000 driver...\n");
-    ne2k_init();
-
     printf("Initializing loopback driver...\n");
     loopback_init();
+
+    printf("Initializing NE2000 driver...\n");
+    ne2k_init();
 
     printf("Initializing sockets...\n");
     socket_init();

@@ -18,7 +18,7 @@ main(void)
 
     sock_addr_t server_addr = {
         //.ip = IP(172,31,23,63),
-        //.ip = IP(10,0,2,2),
+        //.ip = IP(10,0,2,2), 
         .ip = IP(127,0,0,1),
         .port = 4321,
     };

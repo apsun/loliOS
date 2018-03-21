@@ -26,11 +26,26 @@ typedef struct {
     ip_addr_t dest_ip;
 } ip_hdr_t;
 
+/* IP pseudoheader used for checksum calculation */
+typedef struct {
+    ip_addr_t src_ip;
+    ip_addr_t dest_ip;
+    uint8_t zero;
+    uint8_t protocol;
+    uint16_t be_length;
+} ip_pseudo_hdr_t;
+
+/* Computes a IPv4, TCP, or UDP checksum */
+uint16_t ip_checksum(uint32_t sum);
+
+/* Computes a partial IPv4, TCP, or UDP checksum */
+uint32_t ip_partial_checksum(const void *buf, int len);
+
 /* Handles an incoming IP packet */
 int ip_handle_rx(net_iface_t *iface, skb_t *skb);
 
 /* Sends an IP packet */
-int ip_send(net_iface_t *iface, skb_t *skb, ip_addr_t ip, int protocol);
+int ip_send(net_iface_t *iface, ip_addr_t neigh_ip, skb_t *skb, ip_addr_t dest_ip, int protocol);
 
 #endif /* ASM */
 

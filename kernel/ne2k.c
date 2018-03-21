@@ -159,6 +159,7 @@ static net_iface_t eth0 = {
     .name = "eth0",
     .subnet_mask = IP(255, 255, 255, 0),
     .ip_addr = IP(10, 0, 2, 15),
+    .gateway_addr = IP(10, 0, 2, 2),
     .dev = &ne2k_dev,
     .send_ip_skb = ethernet_send_ip,
 };

@@ -6,9 +6,6 @@
 static net_iface_t *interfaces[16];
 static int num_interfaces = 0;
 
-/* Statically configured default gateway */
-static ip_addr_t default_gateway = IP(10, 0, 2, 2);
-
 /*
  * Returns the interface corresponding to the specified
  * device. Since we don't support VLANs, there should be
@@ -28,33 +25,63 @@ net_get_interface(net_dev_t *dev)
 }
 
 /*
+ * Returns whether the specified IP address is in the same
+ * subnet as an interface.
+ */
+static bool
+net_in_subnet(net_iface_t *iface, ip_addr_t ip)
+{
+    /* Check if (a & subnet_mask) == (b & subnet_mask) */
+    uint32_t subnet_mask = iptoh(iface->subnet_mask);
+    uint32_t iface_netaddr = iptoh(iface->ip_addr) & subnet_mask;
+    uint32_t dest_netaddr = iptoh(ip) & subnet_mask;
+    return dest_netaddr == iface_netaddr;
+}
+
+/*
  * Finds an appropriate interface and IP address to send
- * the specified packet to. If the IP address does not
- * match any interface's subnet, then it will be replaced
- * with the default gateway's IP address. Returns the
- * interface to route the packet on.
+ * an IP packet to. If iface is not NULL, the packet will
+ * be forced to route through it. Otherwise, an interface
+ * will be chosen (currently at random). neigh_ip will be
+ * set to the IP of the next-hop, and the interface that
+ * the packet will be routed on is returned. If the packet
+ * cannot be routed, NULL is returned.
  */
 net_iface_t *
-net_route(ip_addr_t *ip)
+net_route(net_iface_t *iface, ip_addr_t ip, ip_addr_t *neigh_ip)
 {
+    /* If interface specified, must route through it */
+    net_iface_t **iface_list;
+    int iface_count;
+    if (iface != NULL) {
+        iface_list = &iface;
+        iface_count = 1;
+    } else {
+        iface_list = interfaces;
+        iface_count = num_interfaces;
+    }
+
     /* Find an interface with subnet matching specified IP address */
     int i;
-    for (i = 0; i < num_interfaces; ++i) {
-        net_iface_t *iface = interfaces[i];
-
-        /* Check if (a & subnet_mask) == (b & subnet_mask) */
-        uint32_t subnet_mask = iptoh(iface->subnet_mask);
-        uint32_t iface_netaddr = iptoh(iface->ip_addr) & subnet_mask;
-        uint32_t dest_netaddr = iptoh(*ip) & subnet_mask;
-        if (dest_netaddr == iface_netaddr) {
+    for (i = 0; i < iface_count; ++i) {
+        net_iface_t *iface = iface_list[i];
+        if (net_in_subnet(iface, ip)) {
+            *neigh_ip = ip;
             return iface;
         }
     }
 
-    /* Didn't match any interfaces, route through default gateway */
-    ASSERT(iptoh(*ip) != iptoh(default_gateway));
-    *ip = default_gateway;
-    return net_route(ip);
+    /* No matching subnets? Okay, then route it through a gateway */
+    for (i = 0; i < iface_count; ++i) {
+        net_iface_t *iface = iface_list[i];
+        if (!ip_equals(iface->gateway_addr, INVALID_IP)) {
+            *neigh_ip = iface->gateway_addr;
+            return iface;
+        }
+    }
+
+    /* No gateways available */
+    return NULL;
 }
 
 /*
@@ -72,17 +99,6 @@ net_find(ip_addr_t ip)
         }
     }
     return NULL;
-}
-
-/*
- * Gets a list of registered interfaces.
- * Returns the number of interfaces in the list.
- */
-int
-net_get_interfaces(net_iface_t ***out)
-{
-    *out = interfaces;
-    return num_interfaces;
 }
 
 /*

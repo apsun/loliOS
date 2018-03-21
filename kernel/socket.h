@@ -66,10 +66,10 @@ __cdecl int socket_recvfrom(int fd, void *buf, int nbytes, sock_addr_t *addr);
 __cdecl int socket_sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr);
 
 /* Finds a socket given a local (IP, port) combination */
-net_sock_t *get_sock_by_addr(ip_addr_t ip, int port);
+net_sock_t *get_sock_by_addr(int type, ip_addr_t ip, uint16_t port);
 
 /* Binds a socket to the specified local (IP, port) combination */
-int socket_bind_addr(net_sock_t *sock, ip_addr_t ip, int port);
+int socket_bind_addr(net_sock_t *sock, ip_addr_t ip, uint16_t port);
 
 /* Initializes sockets */
 void socket_init(void);

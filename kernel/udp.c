@@ -6,17 +6,7 @@
 #include "ip.h"
 #include "ethernet.h"
 
-/* Used for checksum calculation */
 typedef struct {
-    ip_addr_t src_ip;
-    ip_addr_t dest_ip;
-    uint8_t zero;
-    uint8_t protocol;
-    uint16_t be_udp_length;
-    uint16_t be_src_port;
-    uint16_t be_dest_port;
-    uint16_t be_length;
-    uint16_t be_checksum;
 } udp_pseudohdr_t;
 
 /* UDP socket private data */
@@ -28,6 +18,30 @@ typedef struct {
 
 /* One private data per socket */
 static udp_sock_t udp_socks[36];
+
+/*
+ * Computes the UDP checksum. The SKB should contain the
+ * UDP header already, with the checksum set to zero. The
+ * source IP is the address of the interface that will be
+ * used to send the datagram.
+ */
+static uint16_t
+udp_checksum(skb_t *skb, ip_addr_t src_ip, ip_addr_t dest_ip)
+{
+    ip_pseudo_hdr_t phdr;
+    phdr.src_ip = src_ip;
+    phdr.dest_ip = dest_ip;
+    phdr.zero = 0;
+    phdr.protocol = IPPROTO_UDP;
+    phdr.be_length = htons(skb_len(skb));
+    uint16_t sum = ip_checksum(
+        ip_partial_checksum(&phdr, sizeof(phdr)) +
+        ip_partial_checksum(skb_data(skb), skb_len(skb)));
+    if (sum == 0) {
+        sum = 0xffff;
+    }
+    return sum;
+}
 
 /* Handles reception of a UDP datagram */
 int
@@ -41,12 +55,16 @@ udp_handle_rx(net_iface_t *iface, skb_t *skb)
 
     /* Pop UDP header */
     udp_hdr_t *hdr = skb_reset_transport_header(skb);
+    if (htons(hdr->be_length) != skb_len(skb)) {
+        debugf("UDP datagram size mismatch\n");
+        return -1;
+    }
     skb_pull(skb, sizeof(udp_hdr_t));
 
     /* Find the corresponding socket */
-    int dest_port = ntohs(hdr->be_dest_port);
     ip_addr_t dest_ip = iface->ip_addr;
-    net_sock_t *sock = get_sock_by_addr(dest_ip, dest_port);
+    uint16_t dest_port = ntohs(hdr->be_dest_port);
+    net_sock_t *sock = get_sock_by_addr(SOCK_UDP, dest_ip, dest_port);
     if (sock == NULL || sock->type != SOCK_UDP) {
         debugf("No UDP socket for (IP, port), dropping datagram\n");
         return -1;
@@ -66,17 +84,28 @@ udp_handle_rx(net_iface_t *iface, skb_t *skb)
 int
 udp_send(net_sock_t *sock, skb_t *skb, ip_addr_t ip, int port)
 {
+    /* Auto-bind sender address if not already done */
     if (!sock->bound && socket_bind_addr(sock, ANY_IP, 0) < 0) {
-        debugf("Could not auto-bind address\n");
+        debugf("Could not auto-bind socket\n");
         return -1;
     }
 
+    /* Find out which interface we're going to send this packet on */
+    ip_addr_t neigh_ip;
+    net_iface_t *iface = net_route(sock->iface, ip, &neigh_ip);
+    if (iface == NULL) {
+        debugf("Cannot send packet via bound interface\n");
+        return -1;
+    }
+
+    /* Prepend UDP header */
     udp_hdr_t *hdr = skb_push(skb, sizeof(udp_hdr_t));
     hdr->be_src_port = htons(sock->port);
     hdr->be_dest_port = htons(port);
     hdr->be_length = htons(skb_len(skb));
     hdr->be_checksum = htons(0);
-    return ip_send(sock->iface, skb, ip, IPPROTO_UDP);
+    hdr->be_checksum = htons(udp_checksum(skb, iface->ip_addr, ip));
+    return ip_send(iface, neigh_ip, skb, ip, IPPROTO_UDP);
 }
 
 /* Allocates a UDP socket private data object */
@@ -162,7 +191,7 @@ udp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
     }
 
     /* Shift remaining packets up, free SKB */
-    memmove(&udp->inbox[0], &udp->inbox[1], udp->inbox_num - 1);
+    memmove(&udp->inbox[0], &udp->inbox[1], (udp->inbox_num - 1) * sizeof(skb_t *));
     udp->inbox_num--;
     skb_release(skb);
 

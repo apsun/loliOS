@@ -33,6 +33,7 @@ main(void)
         if ((cnt = recvfrom(sockfd, buf, sizeof(buf) - 1, &client_addr)) > 0) {
             buf[cnt] = '\0';
             printf("Client says: %s\n", buf);
+            sendto(sockfd, buf, cnt, &client_addr);
         }
     }
 

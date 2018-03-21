@@ -60,6 +60,7 @@ typedef struct net_iface_t {
     char name[32];
     ip_addr_t subnet_mask;
     ip_addr_t ip_addr;
+    ip_addr_t gateway_addr;
     net_dev_t *dev;
     int (*send_ip_skb)(struct net_iface_t *iface, skb_t *skb, ip_addr_t addr);
 } net_iface_t;
@@ -71,7 +72,7 @@ net_iface_t *net_get_interface(net_dev_t *dev);
 net_iface_t *net_find(ip_addr_t ip);
 
 /* Finds the interface that routes to the given IP */
-net_iface_t *net_route(ip_addr_t *ip);
+net_iface_t *net_route(net_iface_t *iface, ip_addr_t ip, ip_addr_t *neigh_ip);
 
 /* Registers a new interface */
 void net_register_interface(net_iface_t *iface);

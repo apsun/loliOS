@@ -257,21 +257,40 @@ socket_sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr)
 }
 
 /*
+ * Checks whether a socket's bound address matches the
+ * specified (IP, port) combination.
+ */
+static bool
+socket_addr_matches(net_sock_t *sock, int type, ip_addr_t ip, int port)
+{
+    if (sock->sd < 0)
+        return false;
+    if (!sock->bound)
+        return false;
+    if (sock->type != type)
+        return false;
+    if (sock->port != port)
+        return false;
+    if (sock->iface == NULL)
+        return true;
+    if (ip_equals(ip, ANY_IP))
+        return true;
+    return ip_equals(sock->iface->ip_addr, ip);
+}
+
+/*
  * Returns a socket given the bound IP address and port.
  * If there is no socket for the (IP, port) combination,
  * returns null.
  */
 net_sock_t *
-get_sock_by_addr(ip_addr_t ip, int port)
+get_sock_by_addr(int type, ip_addr_t ip, uint16_t port)
 {
     int i;
     for (i = 0; i < array_len(socks); ++i) {
         net_sock_t *sock = &socks[i];
-        if (sock->sd >= 0 && sock->bound && sock->port == port) {
-            net_iface_t *iface = sock->iface;
-            if (iface == NULL || ip_equals(iface->ip_addr, ip)) {
-                return sock;
-            }
+        if (socket_addr_matches(sock, type, ip, port)) {
+            return sock;
         }
     }
     return NULL;
@@ -284,21 +303,17 @@ get_sock_by_addr(ip_addr_t ip, int port)
  * this algorithm is sufficient.
  */
 static int
-socket_find_free_port(net_iface_t *iface)
+socket_find_free_port(net_iface_t *iface, int type)
 {
+    ip_addr_t ip = ANY_IP;
+    if (iface != NULL) {
+        ip = iface->ip_addr;
+    }
+
     int i;
     for (i = 0; i <= array_len(socks); ++i) {
         int port = EPHEMERAL_PORT_START + i;
-        int j;
-        bool ok = true;
-        for (j = 0; j < array_len(socks); ++j) {
-            net_sock_t *sock = &socks[j];
-            if (sock->sd >= 0 && sock->port == port) {
-                ok = false;
-                break;
-            }
-        }
-        if (ok) {
+        if (get_sock_by_addr(type, ip, port) == NULL) {
             return port;
         }
     }
@@ -317,7 +332,7 @@ socket_find_free_port(net_iface_t *iface)
  * prevent re-binding, don't call this function.
  */
 int
-socket_bind_addr(net_sock_t *sock, ip_addr_t ip, int port)
+socket_bind_addr(net_sock_t *sock, ip_addr_t ip, uint16_t port)
 {
     /* Validate IP address */
     net_iface_t *iface = NULL;
@@ -329,32 +344,18 @@ socket_bind_addr(net_sock_t *sock, ip_addr_t ip, int port)
         }
     }
 
-    /* Validate port */
-    if (port < 0 || port >= 65536) {
-        debugf("Invalid port number\n");
-        return -1;
-    } else if (port == 0) {
-        port = socket_find_free_port(iface);
+    /* If port is 0, pick one at random */
+    if (port == 0) {
+        port = socket_find_free_port(iface, sock->type);
     }
 
     /* Check for collisions */
     int i;
     for (i = 0; i < array_len(socks); ++i) {
         net_sock_t *tmp = &socks[i];
-        if (tmp->sd < 0 || !tmp->bound) {
-            continue;
-        }
-
-        /*
-         * If the sockets are bound to the same port, and
-         * at least one is bound to all interfaces or they
-         * are bound to the same interface, we have a collision.
-         */
-        if (tmp->port == port) {
-            if (tmp->iface == NULL || iface == NULL || tmp->iface == iface) {
-                debugf("Address already bound\n");
-                return -1;
-            }
+        if (socket_addr_matches(tmp, sock->type, ip, port)) {
+            debugf("Address already bound\n");
+            return -1;
         }
     }
 
