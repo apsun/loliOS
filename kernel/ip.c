@@ -61,7 +61,7 @@ ip_handle_rx(net_iface_t *iface, skb_t *skb)
 
     /* Pop IP header, trim off Ethernet padding */
     ip_hdr_t *hdr = skb_reset_network_header(skb);
-    if (ntohs(hdr->be_total_length) < sizeof(ip_hdr_t)) {
+    if (ntohs(hdr->be_total_length) < (uint16_t)sizeof(ip_hdr_t)) {
         debugf("Invalid packet length\n");
         return -1;
     }
