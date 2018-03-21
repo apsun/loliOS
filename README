@@ -24,7 +24,8 @@ userspace/
 build.sh
     This script builds the entire project, including the kernel and all
     userspace programs. Run it with the optional "clean" argument to
-    delete all object files.
+    delete all object files. Run it with "run" to boot QEMU after a
+    successful build.
 
 createfs.py
     This program takes a flat source directory (i.e. no subdirectories

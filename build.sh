@@ -2,14 +2,18 @@
 set -e
 mp3_dir=$(readlink -e "$(dirname $0)")
 
+# Don't close on error (useful if running as a shortcut)
+# trap "read -p 'Press ENTER to continue...'" ERR
+
 # Guard against sudo-happy users
 if [ "$EUID" -eq 0 ]; then
     echo "Do not run this script as root!"
     exit 1
 fi
 
-# If first arg is "clean", run make clean
+# If first arg is "clean", run make clean and git clean
 if [ "$1" == "clean" ]; then
+    command -v git >/dev/null && git clean -fx "${mp3_dir}/filesystem"
     make -C "${mp3_dir}/userspace" clean
     make -C "${mp3_dir}/kernel" clean
     exit 0
