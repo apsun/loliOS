@@ -30,7 +30,7 @@ parse_ip(const char *str, ip_addr_t *ip)
             return false;
         }
     }
-    if (index != 3) {
+    if (!seen_digit || index != 3) {
         return false;
     }
     do {

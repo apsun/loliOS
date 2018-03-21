@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-mp3_dir=$(realpath "$(dirname $0)")
+mp3_dir=$(readlink -e "$(dirname $0)")
 
 # Guard against sudo-happy users
 if [ "$EUID" -eq 0 ]; then
