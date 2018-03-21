@@ -37,6 +37,12 @@ void *skb_data(skb_t *skb);
 /* Returns the data length */
 int skb_len(skb_t *skb);
 
+/* Returns the amount of space at the start of the SKB */
+int skb_headroom(skb_t *skb);
+
+/* Returns the amount of space at the end of the SKB */
+int skb_tailroom(skb_t *skb);
+
 /* Pushes data at the start of the data section */
 void *skb_push(skb_t *skb, int len);
 
@@ -59,6 +65,11 @@ void skb_reserve(skb_t *skb, int len);
 void *skb_reset_mac_header(skb_t *skb);
 void *skb_reset_network_header(skb_t *skb);
 void *skb_reset_transport_header(skb_t *skb);
+
+/* Returns the headers set by the skb_reset_*_header() functions */
+void *skb_mac_header(skb_t *skb);
+void *skb_network_header(skb_t *skb);
+void *skb_transport_header(skb_t *skb);
 
 #endif /* ASM */
 

@@ -26,15 +26,26 @@
 typedef struct { uint8_t bytes[4]; } ip_addr_t;
 typedef struct { uint8_t bytes[6]; } mac_addr_t;
 
+/* Convenience macros for creating addresses */
 #define IP(a, b, c, d) ((ip_addr_t){.bytes = {(a), (b), (c), (d)}})
 #define MAC(a, b, c, d, e, f) ((mac_addr_t){.bytes = {(a), (b), (c), (d), (e), (f)}})
 
-#define INVALID_IP IP(0, 0, 0, 0)
+/* Commonly used addresses */
+#define INVALID_IP    IP(0, 0, 0, 0)
+#define ANY_IP        IP(0, 0, 0, 0)
+#define BROADCAST_IP  IP(255, 255, 255, 255)
 #define BROADCAST_MAC MAC(0xff, 0xff, 0xff, 0xff, 0xff, 0xff)
 
+/* "==" for address types */
 #define ip_equals(a, b) (memcmp((a).bytes, (b).bytes, 4) == 0)
 #define mac_equals(a, b) (memcmp((a).bytes, (b).bytes, 6) == 0)
-#define iptoh(ip) (*(uint32_t *)&(ip).bytes)
+
+/* ip_addr_t to uint32_t (type punning breaks when optimizations are enabled) */
+#define iptoh(ip) (\
+    ((ip).bytes[0] << 0)  |\
+    ((ip).bytes[1] << 8)  |\
+    ((ip).bytes[2] << 16) |\
+    ((ip).bytes[3] << 24))
 #define ipton(ip) (htonl(iptoh(ip)))
 
 /* Layer-2 Ethernet device */
@@ -55,6 +66,9 @@ typedef struct net_iface_t {
 
 /* Finds the interface for the given device */
 net_iface_t *net_get_interface(net_dev_t *dev);
+
+/* Finds the interface with the given local IP */
+net_iface_t *net_find(ip_addr_t ip);
 
 /* Finds the interface that routes to the given IP */
 net_iface_t *net_route(ip_addr_t *ip);

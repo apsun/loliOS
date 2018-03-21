@@ -122,10 +122,11 @@ file_obj_alloc(void)
 {
     file_obj_t *files = get_executing_files();
     int i;
-    for (i = 0; i < MAX_FILES; ++i) {
+    for (i = 2; i < MAX_FILES; ++i) {
         file_obj_t *file = &files[i];
         if (file->fd < 0) {
             file->fd = i;
+            file->private = 0;
             return file;
         }
     }
@@ -162,7 +163,6 @@ file_obj_init(file_obj_t *file, dentry_t *dentry)
         return -1;
     }
 
-    file->private = 0;
     file->inode_idx = dentry->inode_idx;
     return 0;
 }

@@ -44,8 +44,8 @@ net_route(ip_addr_t *ip)
 
         /* Check if (a & subnet_mask) == (b & subnet_mask) */
         uint32_t subnet_mask = iptoh(iface->subnet_mask);
-        uint32_t dest_netaddr = iptoh(*ip) & subnet_mask;
         uint32_t iface_netaddr = iptoh(iface->ip_addr) & subnet_mask;
+        uint32_t dest_netaddr = iptoh(*ip) & subnet_mask;
         if (dest_netaddr == iface_netaddr) {
             return iface;
         }
@@ -55,6 +55,23 @@ net_route(ip_addr_t *ip)
     ASSERT(iptoh(*ip) != iptoh(default_gateway));
     *ip = default_gateway;
     return net_route(ip);
+}
+
+/*
+ * Returns the interface with the specified IP address,
+ * or null if no interfaces have that address.
+ */
+net_iface_t *
+net_find(ip_addr_t ip)
+{
+    int i;
+    for (i = 0; i < num_interfaces; ++i) {
+        net_iface_t *iface = interfaces[i];
+        if (ip_equals(iface->ip_addr, ip)) {
+            return iface;
+        }
+    }
+    return NULL;
 }
 
 /*

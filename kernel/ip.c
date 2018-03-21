@@ -45,7 +45,7 @@ ip_handle_rx(net_iface_t *iface, skb_t *skb)
     }
 
     /* Pop IP header, trim off Ethernet padding */
-    ip_hdr_t *hdr = skb_reset_mac_header(skb);
+    ip_hdr_t *hdr = skb_reset_network_header(skb);
     if (ntohs(hdr->be_total_length) < sizeof(ip_hdr_t)) {
         debugf("Invalid packet length\n");
         return -1;
@@ -54,8 +54,8 @@ ip_handle_rx(net_iface_t *iface, skb_t *skb)
     skb_pull(skb, sizeof(ip_hdr_t));
 
     /* Drop packets with unhandled fields */
-    if (hdr->ecn_dscp != 0) {
-        debugf("ECN/DSCP not supported\n");
+    if (hdr->tos != 0) {
+        debugf("ToS not supported\n");
         return -1;
     } else if (ntohs(hdr->be_flags) & 0xffbf) {
         debugf("Fragmented packets not supported\n");
@@ -68,15 +68,9 @@ ip_handle_rx(net_iface_t *iface, skb_t *skb)
         return -1;
     }
 
-    /* Route packet to socket layer */
     switch (hdr->protocol) {
-    case IPPROTO_ICMP:
-        debugf("Received ICMP packet\n");
-        return -1;
-    case IPPROTO_TCP:
-        debugf("Received TCP packet\n");
-        return -1;
     case IPPROTO_UDP:
+        debugf("Received UDP packet\n");
         return udp_handle_rx(iface, skb);
     default:
         debugf("Unhandled IP protocol\n");
@@ -107,7 +101,7 @@ ip_send(net_iface_t *iface, skb_t *skb, ip_addr_t ip, int protocol)
     ip_hdr_t *hdr = skb_push(skb, sizeof(ip_hdr_t));
     hdr->ihl = sizeof(ip_hdr_t) / 4;
     hdr->version = 4;
-    hdr->ecn_dscp = 0;
+    hdr->tos = 0;
     hdr->be_total_length = htons(skb_len(skb));
     hdr->be_identification = htons(0);
     hdr->be_flags = htons(0);

@@ -15,11 +15,26 @@ typedef struct sock_ops_t sock_ops_t;
 
 /* Layer-4 UDP/TCP socket */
 typedef struct net_sock_t {
+    /* Socket operations table */
     const sock_ops_t *ops_table;
-    net_iface_t *iface;
+
+    /* Socket descriptor, -1 if the socket is unallocated */
     int sd;
+
+    /* Whether the interface has been bound */
+    bool bound;
+
+    /* Local interface, or NULL if bound to all interfaces */
+    net_iface_t *iface;
+
+    /* Local bound port, or 0 if no bound port */
     int port;
+
+    /* Socket type (one of the SOCK_* constants) */
     int type;
+
+    /* Per-type private data */
+    void *private;
 } net_sock_t;
 
 /* Socket address */
@@ -49,6 +64,15 @@ __cdecl int socket_listen(int fd, int backlog);
 __cdecl int socket_accept(int fd, sock_addr_t *addr);
 __cdecl int socket_recvfrom(int fd, void *buf, int nbytes, sock_addr_t *addr);
 __cdecl int socket_sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr);
+
+/* Finds a socket given a local (IP, port) combination */
+net_sock_t *get_sock_by_addr(ip_addr_t ip, int port);
+
+/* Binds a socket to the specified local (IP, port) combination */
+int socket_bind_addr(net_sock_t *sock, ip_addr_t ip, int port);
+
+/* Initializes sockets */
+void socket_init(void);
 
 #endif /* ASM */
 

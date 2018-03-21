@@ -15,7 +15,7 @@
 typedef struct {
     uint8_t ihl : 4;
     uint8_t version : 4;
-    uint8_t ecn_dscp;
+    uint8_t tos;
     uint16_t be_total_length;
     uint16_t be_identification;
     uint16_t be_flags;

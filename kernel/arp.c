@@ -149,9 +149,8 @@ arp_queue_insert(net_dev_t *dev, skb_t *skb, ip_addr_t ip)
     for (i = 0; i < array_len(packet_queue); ++i) {
         queue_pkt_t *pkt = &packet_queue[i];
         if (pkt->skb == NULL) {
-            skb_retain(skb);
             pkt->dev = dev;
-            pkt->skb = skb;
+            pkt->skb = skb_retain(skb);
             pkt->ip = ip;
             return 0;
         }

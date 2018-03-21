@@ -514,7 +514,7 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
     memmove(
         (void *)&input_buf->buf[0],
         (void *)&input_buf->buf[num_copy],
-        num_bytes_copy);
+        (input_buf->count - num_copy) * sizeof(mouse_input_t));
     input_buf->count -= num_copy;
 
     /* Return the number of bytes copied into the buffer */

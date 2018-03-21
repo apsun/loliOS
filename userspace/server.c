@@ -17,8 +17,8 @@ main(void)
     }
 
     sock_addr_t server_addr = {
-        .ip = IP(0, 0, 0, 0),
-        .port = 1234,
+        .ip = IP(0,0,0,0),
+        .port = 4321,
     };
 
     if (bind(sockfd, &server_addr) < 0) {

@@ -7,7 +7,7 @@
  * in the kernel page. If this limit becomes a problem,
  * we can allocate a dedicated 4MB page to hold the SKBs.
  */
-static skb_t skb_cache[16];
+static skb_t skb_cache[128];
 
 /*
  * Allocates and initializes a new SKB. Returns NULL if
@@ -76,6 +76,26 @@ int
 skb_len(skb_t *skb)
 {
     return skb->len;
+}
+
+/*
+ * Returns the length in bytes that the buffer's data section
+ * may still be expanded by at the start.
+ */
+int
+skb_headroom(skb_t *skb)
+{
+    return skb->data - skb->head;
+}
+
+/*
+ * Returns the length in bytes that the buffer's data section
+ * may still be expanded by at the end.
+ */
+int
+skb_tailroom(skb_t *skb)
+{
+    return skb->end - skb->tail;
 }
 
 /*
@@ -200,4 +220,34 @@ skb_reset_transport_header(skb_t *skb)
 {
     ASSERT(skb->refcnt > 0);
     return skb->transport_header = skb->data;
+}
+
+/*
+ * Returns the MAC header, if set by skb_reset_mac_header().
+ */
+void *
+skb_mac_header(skb_t *skb)
+{
+    ASSERT(skb->refcnt > 0);
+    return skb->mac_header;
+}
+
+/*
+ * Returns the IP header, if set by skb_reset_network_header().
+ */
+void *
+skb_network_header(skb_t *skb)
+{
+    ASSERT(skb->refcnt > 0);
+    return skb->network_header;
+}
+
+/*
+ * Returns the transport header, if set by skb_reset_transport_header().
+ */
+void *
+skb_transport_header(skb_t *skb)
+{
+    ASSERT(skb->refcnt > 0);
+    return skb->transport_header;
 }
