@@ -6,10 +6,14 @@
 #include "lib.h"
 
 /* Whether to enable assertions */
+#ifndef DEBUG_ASSERT
 #define DEBUG_ASSERT 1
+#endif
 
 /* Whether to enable debugf printing */
+#ifndef DEBUG_PRINT
 #define DEBUG_PRINT 0
+#endif
 
 /* Always-enabled panic macro */
 #define PANIC(msg) do {                                    \

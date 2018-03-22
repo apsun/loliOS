@@ -251,7 +251,12 @@ arp_get_state(net_dev_t *dev, ip_addr_t ip, mac_addr_t *mac)
 static int
 arp_send(net_iface_t *iface, ip_addr_t ip, mac_addr_t mac, int op)
 {
+    /* Allocate new SKB */
     skb_t *skb = skb_alloc();
+    if (skb == NULL) {
+        debugf("Failed to allocate new SKB\n");
+        return -1;
+    }
     skb_reserve(skb, sizeof(ethernet_hdr_t) + sizeof(arp_hdr_t));
 
     /* Fill out ARP body */

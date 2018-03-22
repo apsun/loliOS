@@ -214,8 +214,14 @@ udp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
         return -1;
     }
 
-    /* Allocate SKB with enough space for headers */
+    /* Allocate a new SKB */
     skb_t *skb = skb_alloc();
+    if (skb == NULL) {
+        debugf("Failed to allocate new SKB\n");
+        return -1;
+    }
+
+    /* Reserve space for headers */
     skb_reserve(skb, sizeof(udp_hdr_t) + sizeof(ip_hdr_t) + sizeof(ethernet_hdr_t));
     if (nbytes > skb_tailroom(skb)) {
         debugf("Datagram body too long\n");
@@ -231,7 +237,9 @@ udp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
     }
 
     /* udp_send() will prepend the UDP header for us */
-    return udp_send(sock, skb, dest_addr.ip, dest_addr.port);
+    int ret = udp_send(sock, skb, dest_addr.ip, dest_addr.port);
+    skb_release(skb);
+    return ret;
 }
 
 /* close() socketcall handler */

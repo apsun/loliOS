@@ -326,7 +326,7 @@ socket_find_free_port(net_iface_t *iface, int type)
  * Binds a socket to the specified (IP, port) combination.
  * Returns 0 on success, and -1 if the address/port is invalid
  * or is already bound to another socket. The IP may be set
- * to IP_ANY (0.0.0.0) to bind to all interfaces, and the port
+ * to ANY_IP (0.0.0.0) to bind to all interfaces, and the port
  * may be set to 0 to automatically choose a free port. This
  * does NOT check whether the socket is already bound; to
  * prevent re-binding, don't call this function.
@@ -353,7 +353,7 @@ socket_bind_addr(net_sock_t *sock, ip_addr_t ip, uint16_t port)
     int i;
     for (i = 0; i < array_len(socks); ++i) {
         net_sock_t *tmp = &socks[i];
-        if (socket_addr_matches(tmp, sock->type, ip, port)) {
+        if (tmp != sock && socket_addr_matches(tmp, sock->type, ip, port)) {
             debugf("Address already bound\n");
             return -1;
         }
