@@ -474,8 +474,8 @@ ne2k_send(net_dev_t *dev, skb_t *skb)
 
     /* Copy packet to NE2k memory */
     int page = NE2K_TX_START_PAGE + buf * NE2K_PAGES_PER_PKT;
-    ne2k_write_mem(page * NE2K_BYTES_PER_PAGE, skb->data, skb->len);
-    tx_buf_len[buf] = skb->len;
+    ne2k_write_mem(page * NE2K_BYTES_PER_PAGE, skb_data(skb), skb_len(skb));
+    tx_buf_len[buf] = skb_len(skb);
 
     /* Begin transmission if device is not busy */
     if (!tx_busy) {

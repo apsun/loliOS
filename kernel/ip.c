@@ -77,6 +77,12 @@ ip_handle_rx(net_iface_t *iface, skb_t *skb)
         return -1;
     }
 
+    /* Check if we accidentally got someone else's packet */
+    if (!ip_equals(hdr->dest_ip, iface->ip_addr)) {
+        debugf("Destination IP mismatch\n");
+        return -1;
+    }
+
     /* Verify checksum */
     if (!ip_verify_checksum(hdr, sizeof(ip_hdr_t))) {
         debugf("Invalid IP header checksum\n");
