@@ -41,7 +41,6 @@ static const char *exception_names[NUM_EXC] = {
 static void
 dump_registers(int_regs_t *regs)
 {
-    printf("int_num:    0x%#x\n", regs->int_num);
     printf("error_code: 0x%#x\n", regs->error_code);
     printf("eax:        0x%#x\n", regs->eax);
     printf("ebx:        0x%#x\n", regs->ebx);

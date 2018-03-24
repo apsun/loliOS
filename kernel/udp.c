@@ -12,7 +12,7 @@ typedef struct {
 /* UDP socket private data */
 typedef struct {
     bool used;
-    skb_t *inbox[16];
+    skb_t *inbox[32];
     int inbox_num;
 } udp_sock_t;
 
@@ -65,7 +65,7 @@ udp_handle_rx(net_iface_t *iface, skb_t *skb)
     ip_addr_t dest_ip = iface->ip_addr;
     uint16_t dest_port = ntohs(hdr->be_dest_port);
     net_sock_t *sock = get_sock_by_addr(SOCK_UDP, dest_ip, dest_port);
-    if (sock == NULL || sock->type != SOCK_UDP) {
+    if (sock == NULL) {
         debugf("No UDP socket for (IP, port), dropping datagram\n");
         return -1;
     }

@@ -9,7 +9,7 @@ main(void)
     puts("Starting 391 Shell");
 
     while (1) {
-        printf("loliOS> ");
+        printf("391OS> ");
 
         /* Read command */
         char buf[1024];

@@ -43,9 +43,10 @@ make -C "${mp3_dir}/kernel"
 
 # If first arg is "run", boot the VM
 if [ "$1" == "run" ]; then
-    qemu-system-i386 -hda "${mp3_dir}/kernel/mp3.img" -m 256 -name loliOS \
+    qemu-system-i386 -hda "${mp3_dir}/kernel/mp3.img" -m 256 \
+        -gdb tcp:127.0.0.1:1234 \
         -soundhw sb16 \
         -net nic,model=ne2k_isa \
         -net user,hostfwd=tcp::4321-:4321 \
-        -net dump,file="${mp3_dir}/net.pcap"
+        -net user,hostfwd=udp::4321-:4321
 fi

@@ -41,7 +41,7 @@ ip_partial_checksum(const void *buf, int len)
  * Checks whether the IP/TCP/UDP checksum for the
  * given header is valid.
  */
-bool
+static bool
 ip_verify_checksum(const void *buf, int len)
 {
     return ip_checksum(ip_partial_checksum(buf, len)) == 0;
@@ -53,6 +53,12 @@ ip_verify_checksum(const void *buf, int len)
 int
 ip_handle_rx(net_iface_t *iface, skb_t *skb)
 {
+    /* Possible that net_get_interface() returns null */
+    if (iface == NULL) {
+        debugf("No interface for packet\n");
+        return -1;
+    }
+
     /* Check packet size */
     if (!skb_may_pull(skb, sizeof(ip_hdr_t))) {
         debugf("IP packet too small\n");

@@ -176,8 +176,8 @@ skb_trim(skb_t *skb, int len)
 /*
  * Reserves additional space in the head section. This
  * may only be called if the SKB is empty. It is not
- * necessary to reserve 2 bytes for the SKB in loliOS
- * to align the IP headers.
+ * necessary to reserve 2 bytes for IP header alignment,
+ * since the buffer is pre-padded.
  */
 void
 skb_reserve(skb_t *skb, int len)
