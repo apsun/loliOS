@@ -180,7 +180,7 @@ arp_cache_insert(ip_addr_t ip, const mac_addr_t *mac)
         arp_entry_t *tmp = &arp_cache[i];
 
         /* While we're here, clean up expired entries */
-        if (tmp->exists && arp_entry_is_expired(entry)) {
+        if (tmp->exists && arp_entry_is_expired(tmp)) {
             arp_queue_drop(tmp->ip_addr);
             tmp->exists = false;
         }
