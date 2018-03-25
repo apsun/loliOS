@@ -337,7 +337,7 @@ terminal_wait_kbd_input(kbd_input_buf_t *input_buf, int nbytes, bool nonblocking
          * have a newline character yet
          */
         if (nonblocking) {
-            return count;
+            return 0;
         }
 
         /* Exit early if we have a pending signal */
