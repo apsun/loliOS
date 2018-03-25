@@ -6,6 +6,8 @@
 #include <string.h>
 #include <syscall.h>
 
+#define STDIN_NONBLOCK 1
+
 static bool
 parse_ip(const char *str, ip_addr_t *ip)
 {
@@ -40,7 +42,7 @@ parse_ip(const char *str, ip_addr_t *ip)
 }
 
 static int
-nc_listen(ip_addr_t ip, uint16_t port)
+nc_loop(ip_addr_t ip, uint16_t port, bool listen)
 {
     int ret = 1;
     int sockfd = -1;
@@ -50,62 +52,70 @@ nc_listen(ip_addr_t ip, uint16_t port)
         goto cleanup;
     }
 
-    sock_addr_t server_addr;
-    server_addr.ip = ip;
-    server_addr.port = port;
-    if (bind(sockfd, &server_addr) < 0) {
-        puts("Failed to bind socket");
-        goto cleanup;
-    }
+    sock_addr_t peer_addr;
+    bool know_peer;
 
-    while (1) {
-        char buf[128];
-        sock_addr_t client_addr;
-        int cnt;
-        if ((cnt = recvfrom(sockfd, buf, sizeof(buf), &client_addr)) < 0) {
-            puts("Read from socket failed");
+    if (listen) {
+        sock_addr_t local_addr;
+        local_addr.ip = ip;
+        local_addr.port = port;
+        if (bind(sockfd, &local_addr) < 0) {
+            puts("Failed to bind socket");
             goto cleanup;
         }
-        
-        if (cnt > 0 && write(1, buf, cnt) < cnt) {
-            puts("Terminal write failed");
-            goto cleanup;
-        }
+        know_peer = false;
+    } else {
+        peer_addr.ip = ip;
+        peer_addr.port = port;
+        know_peer = true;
     }
 
-    ret = 0;
-
-cleanup:
-    if (sockfd >= 0) close(sockfd);
-    return ret;
-}
-
-static int
-nc_connect(ip_addr_t ip, uint16_t port)
-{
-    int ret = 1;
-    int sockfd = -1;
-
-    if ((sockfd = socket(SOCK_UDP)) < 0) {
-        puts("Failed to allocate socket");
-        goto cleanup;
-    }
-
-    sock_addr_t server_addr;
-    server_addr.ip = ip;
-    server_addr.port = port;
-
+    char recv_buf[256];
+    char send_buf[256];
+    int send_buf_count = 0;
     while (1) {
-        char buf[128];
         int cnt;
-        if ((cnt = read(0, buf, sizeof(buf))) < 0) {
+
+        /* Read data from stdin */
+        if ((cnt = read(0, &send_buf[send_buf_count], sizeof(send_buf) - send_buf_count)) < 0) {
             puts("Terminal read failed");
             goto cleanup;
         }
+        send_buf_count += cnt;
 
-        if (cnt > 0 && sendto(sockfd, buf, cnt, &server_addr) < 0) {
-            puts("Socket write failed");
+        /* Scan for a newline in the buffer */
+        int line_len = -1;
+        int i;
+        for (i = 0; i < send_buf_count; ++i) {
+            if (send_buf[i] == '\n') {
+                line_len = i + 1;
+                break;
+            }
+        }
+
+        /* If we found an entire line, send it */
+        if (know_peer && line_len > 0) {
+            if (sendto(sockfd, send_buf, line_len, &peer_addr) < 0) {
+                puts("Socket write failed");
+                goto cleanup;
+            }
+            memmove(&send_buf[0], &send_buf[line_len], send_buf_count - line_len);
+            send_buf_count -= line_len;
+        }
+
+        /* Read data from socket */
+        if ((cnt = recvfrom(sockfd, recv_buf, sizeof(recv_buf), &peer_addr)) < 0) {
+            puts("Read from socket failed");
             goto cleanup;
+        }
+
+        /* Echo data to terminal */
+        if (cnt > 0) {
+            if (write(1, recv_buf, cnt) < cnt) {
+                puts("Terminal write failed");
+                goto cleanup;
+            }
+            know_peer = true;
         }
     }
 
@@ -151,9 +161,10 @@ main(void)
         return 1;
     }
 
-    if (listen) {
-        return nc_listen(ip, port);
-    } else {
-        return nc_connect(ip, port);
+    if (ioctl(0, STDIN_NONBLOCK, 1) < 0) {
+        puts("Failed to make stdin non-blocking");
+        return 1;
     }
+
+    return nc_loop(ip, port, listen);
 }

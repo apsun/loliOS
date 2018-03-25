@@ -6,8 +6,18 @@
 #include "paging.h"
 #include "signal.h"
 
-/* Address of the global video memory page */
-#define VGA_MEMORY ((uint8_t *)VIDEO_PAGE_START)
+/* Terminal config */
+#define NUM_COLS  80
+#define NUM_ROWS  25
+#define ATTRIB    0x7
+#define VIDEO_MEM ((uint8_t *)VIDEO_PAGE_START)
+#define VIDEO_MEM_SIZE (NUM_ROWS * NUM_COLS * 2)
+
+/* VGA registers */
+#define VGA_REG_CURSOR_HI 0x0E
+#define VGA_REG_CURSOR_LO 0x0F
+#define VGA_PORT_INDEX    0x3D4
+#define VGA_PORT_DATA     0x3D5
 
 /* Holds information about each terminal */
 static terminal_state_t terminal_states[NUM_TERMINALS];
@@ -97,14 +107,14 @@ static void
 terminal_swap_buffer(terminal_state_t *old, terminal_state_t *new)
 {
     /* Old terminal must have been the display terminal */
-    ASSERT(old->video_mem == VGA_MEMORY);
+    ASSERT(old->video_mem == VIDEO_MEM);
 
     /*
      * Copy the global VGA memory to the previously displayed
      * terminal's backing buffer, then point its active video
      * memory to the backing buffer
      */
-    memcpy(old->backing_mem, VGA_MEMORY, VIDEO_MEM_SIZE);
+    memcpy(old->backing_mem, VIDEO_MEM, VIDEO_MEM_SIZE);
     old->video_mem = old->backing_mem;
 
     /*
@@ -112,8 +122,8 @@ terminal_swap_buffer(terminal_state_t *old, terminal_state_t *new)
      * into global VGA memory, then point its active video
      * memory to the global VGA memory
      */
-    memcpy(VGA_MEMORY, new->backing_mem, VIDEO_MEM_SIZE);
-    new->video_mem = VGA_MEMORY;
+    memcpy(VIDEO_MEM, new->backing_mem, VIDEO_MEM_SIZE);
+    new->video_mem = VIDEO_MEM;
 }
 
 /*
@@ -303,7 +313,7 @@ terminal_clear_input(int terminal)
  * Returns the number of characters that should be read.
  */
 static int
-terminal_wait_kbd_input(kbd_input_buf_t *input_buf, int nbytes)
+terminal_wait_kbd_input(kbd_input_buf_t *input_buf, int nbytes, bool nonblocking)
 {
     /*
      * If nbytes <= number of chars in the buffer, we just
@@ -320,6 +330,14 @@ terminal_wait_kbd_input(kbd_input_buf_t *input_buf, int nbytes)
             if (input_buf->buf[i] == '\n') {
                 return i + 1;
             }
+        }
+
+        /*
+         * If the file is non-blocking, return even if we don't
+         * have a newline character yet
+         */
+        if (nonblocking) {
+            return count;
         }
 
         /* Exit early if we have a pending signal */
@@ -373,17 +391,17 @@ terminal_stdin_read(file_obj_t *file, void *buf, int nbytes)
     if (nbytes > KEYBOARD_BUF_SIZE) {
         nbytes = KEYBOARD_BUF_SIZE;
     }
-
+    
     /*
      * Wait until we can read everything in one go
      * Interrupts must be disabled upon entry, and
      * will be disabled upon return.
      */
-    nbytes = terminal_wait_kbd_input(input_buf, nbytes);
+    nbytes = terminal_wait_kbd_input(input_buf, nbytes, file->private);
 
-    /* Abort if we have pending signals */
-    if (nbytes < 0) {
-        return -1;
+    /* Abort if we have pending signals or nothing to read */
+    if (nbytes <= 0) {
+        return nbytes;
     }
 
     /* Copy input buffer to userspace */
@@ -458,10 +476,25 @@ terminal_kbd_close(file_obj_t *file)
 }
 
 /*
- * Ioctl syscall for stdin/stdout. Always fails.
+ * Ioctl syscall for stdin. Used to set the nonblocking flag.
  */
 int
-terminal_kbd_ioctl(file_obj_t *file, int req, int arg)
+terminal_stdin_ioctl(file_obj_t *file, int req, int arg)
+{
+    switch (req) {
+    case STDIN_NONBLOCK:
+        file->private = !!arg;
+        return 0;
+    default:
+        return -1;
+    }
+}
+
+/*
+ * Ioctl syscall for stdout. Always fails.
+ */
+int
+terminal_stdout_ioctl(file_obj_t *file, int req, int arg)
 {
     return -1;
 }
@@ -676,7 +709,7 @@ terminal_init(void)
     }
 
     /* First terminal's active video memory points to global VGA memory */
-    terminal_states[0].video_mem = VGA_MEMORY;
+    terminal_states[0].video_mem = VIDEO_MEM;
 
     /* Set initially displayed terminal */
     display_terminal = 0;

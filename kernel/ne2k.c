@@ -353,6 +353,7 @@ ne2k_handle_rx(void)
 
         /* Check OK flag, drop packet if invalid */
         if ((hdr.status & NE2K_ENRSR_RXOK) != 0) {
+            printf("got pkt\n");
             skb_t *skb = skb_alloc();
             if (skb == NULL) {
                 debugf("Failed to allocate SKB for incoming packet\n");

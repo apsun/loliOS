@@ -14,7 +14,7 @@ static const file_ops_t fops_stdin = {
     .read = terminal_stdin_read,
     .write = terminal_stdin_write,
     .close = terminal_kbd_close,
-    .ioctl = terminal_kbd_ioctl,
+    .ioctl = terminal_stdin_ioctl,
 };
 
 /* Terminal stdout file ops */
@@ -23,7 +23,7 @@ static const file_ops_t fops_stdout = {
     .read = terminal_stdout_read,
     .write = terminal_stdout_write,
     .close = terminal_kbd_close,
-    .ioctl = terminal_kbd_ioctl,
+    .ioctl = terminal_stdout_ioctl,
 };
 
 /* File (the real kind) file ops */

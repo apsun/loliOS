@@ -47,6 +47,5 @@ if [ "$1" == "run" ]; then
         -gdb tcp:127.0.0.1:1234 \
         -soundhw sb16 \
         -net nic,model=ne2k_isa \
-        -net user,hostfwd=tcp::4321-:4321 \
         -net user,hostfwd=udp::4321-:4321
 fi

@@ -6,18 +6,11 @@
 #include "keyboard.h"
 #include "mouse.h"
 
+/* Number of supported terminals */
 #define NUM_TERMINALS 3
 
-#define NUM_COLS  80
-#define NUM_ROWS  25
-#define ATTRIB    0x7
-#define VIDEO_MEM_SIZE (NUM_ROWS * NUM_COLS * 2)
-
-/* VGA registers */
-#define VGA_REG_CURSOR_HI 0x0E
-#define VGA_REG_CURSOR_LO 0x0F
-#define VGA_PORT_INDEX    0x3D4
-#define VGA_PORT_DATA     0x3D5
+/* ioctl() commands */
+#define STDIN_NONBLOCK 1
 
 #ifndef ASM
 
@@ -75,7 +68,8 @@ int terminal_stdin_write(file_obj_t *file, const void *buf, int nbytes);
 int terminal_stdout_read(file_obj_t *file, void *buf, int nbytes);
 int terminal_stdout_write(file_obj_t *file, const void *buf, int nbytes);
 int terminal_kbd_close(file_obj_t *file);
-int terminal_kbd_ioctl(file_obj_t *file, int req, int arg);
+int terminal_stdin_ioctl(file_obj_t *file, int req, int arg);
+int terminal_stdout_ioctl(file_obj_t *file, int req, int arg);
 
 /* Mouse syscall handlers */
 int terminal_mouse_open(const char *filename, file_obj_t *file);
