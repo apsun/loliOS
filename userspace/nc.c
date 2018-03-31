@@ -8,8 +8,263 @@
 
 #define STDIN_NONBLOCK 1
 
+#define bswap16(x) (\
+    ((uint16_t)(x) & 0x00ff) << 8 |\
+    ((uint16_t)(x) & 0xff00) >> 8)
+
+#define bswap32(x) (\
+    ((uint32_t)(x) & 0x000000ff) << 24 |\
+    ((uint32_t)(x) & 0x0000ff00) << 8  |\
+    ((uint32_t)(x) & 0x00ff0000) >> 8  |\
+    ((uint32_t)(x) & 0xff000000) >> 24)
+
+#define ntohs(x) bswap16(x)
+#define htons(x) bswap16(x)
+#define ntohl(x) bswap32(x)
+#define htonl(x) bswap32(x)
+
+#define IP(a, b, c, d) ((ip_addr_t){.bytes = {(a), (b), (c), (d)}})
+
+#define DNS_SERVER IP(10, 0, 2, 3)
+#define DNS_PORT 53
+#define DNS_TIMEOUT 1 /* Sadly seconds is the best resolution we have */
+
+typedef struct {
+    uint16_t be_id;
+    uint16_t be_flags;
+    uint16_t be_qdcount;
+    uint16_t be_ancount;
+    uint16_t be_nscount;
+    uint16_t be_arcount;
+} __attribute__((packed)) dns_hdr_t;
+
+typedef struct {
+    uint16_t be_qtype;
+    uint16_t be_qclass;
+} __attribute__((packed)) dns_q_ftr_t;
+
+typedef struct {
+    uint16_t be_type;
+    uint16_t be_class;
+    uint32_t be_ttl;
+    uint16_t be_rdlength;
+} __attribute__((packed)) dns_a_hdr_t;
+
+static uint8_t *
+dns_skip_hostname(uint8_t *bufp)
+{
+    while (1) {
+        /* Find length of next segment */
+        uint8_t len = *bufp++;
+        if (len == 0) {
+            break;
+        }
+
+        /* Remainder of hostname is a compressed segment */
+        if ((len & 0xc) == 0xc) {
+            bufp++;
+            break;
+        }
+
+        /* Skip over segment */
+        bufp += len;
+    }
+
+    return bufp;
+}
+
 static bool
-parse_ip(const char *str, ip_addr_t *ip)
+dns_parse_reply(uint8_t *buf, int cnt, ip_addr_t *ip)
+{
+    uint8_t *bufp = buf;
+
+    /* Validate header */
+    if (cnt < (int)sizeof(dns_hdr_t)) {
+        return false;
+    }
+
+    dns_hdr_t *hdr = (dns_hdr_t *)bufp;
+
+    /* Check that it's a recursive DNS reply (we're too lazy to do it ourselves) */
+    if ((ntohs(hdr->be_flags) & 0x8080) != 0x8080) {
+        return false;
+    }
+
+    /* Check that it's a reply for our single question */
+    if (ntohs(hdr->be_qdcount) != 1 || ntohs(hdr->be_ancount) == 0) {
+        return false;
+    }
+
+    /* Check that we didn't get any excess information */
+    if (ntohs(hdr->be_nscount) != 0 || ntohs(hdr->be_arcount) != 0) {
+        return false;
+    }
+
+    bufp += sizeof(dns_hdr_t);
+
+    /* Skip query */
+    bufp = dns_skip_hostname(bufp);
+    bufp += sizeof(dns_q_ftr_t);
+
+    /* Find first A record in result */
+    int i;
+    for (i = 0; i < ntohs(hdr->be_ancount); ++i) {
+        bool valid = true;
+
+        /* Only look for compressed records referring to query hostname */
+        uint8_t len = *bufp;
+        if ((len & 0xc0) != 0xc0) {
+            bufp = dns_skip_hostname(bufp);
+            valid = false;
+        } else {
+            uint16_t off = ntohs(*(uint16_t *)bufp) & ~0xc000;
+            bufp += sizeof(uint16_t);
+            if (off != sizeof(dns_hdr_t)) {
+                valid = false;
+            }
+        }
+
+        /* Check answer header fields */
+        dns_a_hdr_t *ahdr = (dns_a_hdr_t *)bufp;
+        if (ntohs(ahdr->be_type) != 0x0001 ||
+            ntohs(ahdr->be_class) != 0x0001 ||
+            ntohs(ahdr->be_rdlength) != 4) {
+            valid = false;
+        }
+
+        /* Move to data field */
+        bufp += sizeof(dns_a_hdr_t);
+
+        /* Valid? Great! Get the first entry. */
+        if (valid) {
+            memcpy(&ip->bytes, bufp, 4);
+            return true;
+        }
+
+        /* Move to next answer */
+        bufp += ntohs(ahdr->be_rdlength);
+    }
+
+    return false;
+}
+
+static int
+dns_fill_query(uint8_t *buf, const char *hostname)
+{
+    /*
+     * Query is in format [3]www[6]google[3]com[0],
+     * where [N] represents (char)N.
+     */
+    uint8_t *bufp = buf;
+    const char *p = hostname;
+    int i;
+    while (1) {
+        /* Copy until . or end-of-string */
+        i = 0;
+        while (*p && *p != '.') {
+            /* Hyphen only allowed if not first/last character in segment */
+            char c = *p++;
+            if (isalnum(c) || (c == '-' && i > 0 && (*p && *p != '.'))) {
+                bufp[++i] = c;
+            } else {
+                return -1;
+            }
+
+            /* Each segment must be < 64B, overall < 256B */
+            if (i == 64 || (bufp - buf + i) == 256) {
+                return -1;
+            }
+        }
+
+        /* Empty segments are invalid */
+        if (i == 0) {
+            return -1;
+        }
+
+        /* Prepend length */
+        bufp[0] = i;
+        bufp += i + 1;
+
+        /* If . then move to next segment, otherwise stop */
+        if (*p == '.') {
+            p++;
+        } else {
+            *bufp++ = '\0';
+            break;
+        }
+    }
+
+    /* Fill in footer */
+    dns_q_ftr_t *ftr = (dns_q_ftr_t *)bufp;
+    ftr->be_qtype = htons(0x0001); /* A records */
+    ftr->be_qclass = htons(0x0001); /* Internet addr */
+    bufp += sizeof(*ftr);
+
+    return bufp - buf;
+}
+
+static void
+dns_fill_header(uint8_t *buf)
+{
+    /* Fill out header */
+    dns_hdr_t *hdr = (dns_hdr_t *)buf;
+    hdr->be_id = htons(rand() & 0xffff);
+    hdr->be_flags = htons(0x0100); /* Recursive query: YES */
+    hdr->be_qdcount = htons(1); /* 1 question */
+    hdr->be_ancount = htons(0);
+    hdr->be_nscount = htons(0);
+    hdr->be_arcount = htons(0);
+}
+
+static bool
+dns_resolve(const char *hostname, ip_addr_t *ip)
+{
+    bool ret = false;
+    int sockfd = -1;
+
+    /* FQDN is at most 255 characters + NUL, 512B is definitely enough */
+    uint8_t qbuf[512];
+    dns_fill_header(qbuf);
+    uint8_t *qquery = &qbuf[sizeof(dns_hdr_t)];
+    int qlen = dns_fill_query(qquery, hostname);
+    if (qlen < 0) {
+        goto cleanup;
+    }
+
+    /* DNS over UDP */
+    sockfd = socket(SOCK_UDP);
+    if (sockfd < 0) {
+        goto cleanup;
+    }
+
+    /* Send request */
+    sock_addr_t addr = {.ip = DNS_SERVER, .port = DNS_PORT};
+    if (sendto(sockfd, qbuf, sizeof(dns_hdr_t) + qlen, &addr) < 0) {
+        goto cleanup;
+    }
+
+    /* Wait for reply (<= in case clock ticks over riiiight after we start) */
+    int start = time();
+    uint8_t rbuf[0x600];
+    while (time() <= start + DNS_TIMEOUT) {
+        int rcnt;
+        if ((rcnt = recvfrom(sockfd, rbuf, sizeof(rbuf), NULL)) != 0) {
+            if (rcnt < 0) {
+                goto cleanup;
+            } else {
+                ret = dns_parse_reply(rbuf, rcnt, ip);
+                break;
+            }
+        }
+    }
+
+cleanup:
+    if (sockfd >= 0) close(sockfd);
+    return ret;
+}
+
+static bool
+ip_parse(const char *str, ip_addr_t *ip)
 {
     int octets[4] = {0};
     int index = 0;
@@ -70,7 +325,7 @@ nc_loop(ip_addr_t ip, uint16_t port, bool listen)
         know_peer = true;
     }
 
-    char recv_buf[256];
+    char recv_buf[0x600];
     char send_buf[256];
     int send_buf_count = 0;
     while (1) {
@@ -150,9 +405,16 @@ main(void)
     *space = '\0';
 
     ip_addr_t ip;
-    if (!parse_ip(args, &ip)) {
-        puts("Invalid IP address");
-        return 1;
+    if (!ip_parse(args, &ip)) {
+        if (!listen) {
+            if (!dns_resolve(args, &ip)) {
+                puts("Could not resolve address");
+                return 1;
+            }
+        } else {
+            puts("Invalid interface IP address");
+            return 1;
+        }
     }
 
     int port = atoi(space + 1);

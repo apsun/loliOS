@@ -6,22 +6,6 @@
 
 #ifndef ASM
 
-/* Endianness swapping macros */
-#define bswap16(x) (\
-    ((uint16_t)(x) & 0x00ff) << 8 |\
-    ((uint16_t)(x) & 0xff00) >> 8)
-
-#define bswap32(x) (\
-    ((uint32_t)(x) & 0x000000ff) << 24 |\
-    ((uint32_t)(x) & 0x0000ff00) << 8  |\
-    ((uint32_t)(x) & 0x00ff0000) >> 8  |\
-    ((uint32_t)(x) & 0xff000000) >> 24)
-
-#define ntohs(x) bswap16(x)
-#define htons(x) bswap16(x)
-#define ntohl(x) bswap32(x)
-#define htonl(x) bswap32(x)
-
 /* Addresses and address accessories */
 typedef struct { uint8_t bytes[4]; } ip_addr_t;
 typedef struct { uint8_t bytes[6]; } mac_addr_t;

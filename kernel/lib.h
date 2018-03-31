@@ -77,6 +77,36 @@ inl(uint16_t port)
 }
 
 /*
+ * Swaps the endianness of a 16-bit value.
+ */
+static inline uint16_t
+bswap16(uint16_t x)
+{
+    return (
+        (x & 0x00ff) << 8 |
+        (x & 0xff00) >> 8);
+}
+
+/*
+ * Swaps the endianness of a 32-bit value.
+ */
+static inline uint32_t
+bswap32(uint32_t x)
+{
+    return (
+        (x & 0x000000ff) << 24 |
+        (x & 0x0000ff00) << 8  |
+        (x & 0x00ff0000) >> 8  |
+        (x & 0xff000000) >> 24);
+}
+
+/* Network endianness swapping macros */
+#define ntohs(x) bswap16(x)
+#define htons(x) bswap16(x)
+#define ntohl(x) bswap32(x)
+#define htonl(x) bswap32(x)
+
+/*
  * Writes a byte to the specified I/O port.
  */
 #define outb(data, port) do {  \
