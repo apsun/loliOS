@@ -66,6 +66,7 @@ skb_release(skb_t *skb)
 void *
 skb_data(skb_t *skb)
 {
+    ASSERT(skb->refcnt > 0);
     return skb->data;
 }
 
@@ -75,6 +76,7 @@ skb_data(skb_t *skb)
 int
 skb_len(skb_t *skb)
 {
+    ASSERT(skb->refcnt > 0);
     return skb->len;
 }
 
@@ -85,6 +87,7 @@ skb_len(skb_t *skb)
 int
 skb_headroom(skb_t *skb)
 {
+    ASSERT(skb->refcnt > 0);
     return skb->data - skb->head;
 }
 
@@ -95,6 +98,7 @@ skb_headroom(skb_t *skb)
 int
 skb_tailroom(skb_t *skb)
 {
+    ASSERT(skb->refcnt > 0);
     return skb->end - skb->tail;
 }
 
@@ -121,6 +125,7 @@ skb_push(skb_t *skb, int len)
 bool
 skb_may_pull(skb_t *skb, int len)
 {
+    ASSERT(skb->refcnt > 0);
     return len < skb->len;
 }
 

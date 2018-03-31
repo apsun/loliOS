@@ -8,21 +8,6 @@
 
 #define STDIN_NONBLOCK 1
 
-#define bswap16(x) (\
-    ((uint16_t)(x) & 0x00ff) << 8 |\
-    ((uint16_t)(x) & 0xff00) >> 8)
-
-#define bswap32(x) (\
-    ((uint32_t)(x) & 0x000000ff) << 24 |\
-    ((uint32_t)(x) & 0x0000ff00) << 8  |\
-    ((uint32_t)(x) & 0x00ff0000) >> 8  |\
-    ((uint32_t)(x) & 0xff000000) >> 24)
-
-#define ntohs(x) bswap16(x)
-#define htons(x) bswap16(x)
-#define ntohl(x) bswap32(x)
-#define htonl(x) bswap32(x)
-
 #define IP(a, b, c, d) ((ip_addr_t){.bytes = {(a), (b), (c), (d)}})
 
 #define DNS_SERVER IP(10, 0, 2, 3)
@@ -49,6 +34,29 @@ typedef struct {
     uint32_t be_ttl;
     uint16_t be_rdlength;
 } __attribute__((packed)) dns_a_hdr_t;
+
+static inline uint16_t
+bswap16(uint16_t x)
+{
+    return (
+        (x & 0x00ff) << 8 |
+        (x & 0xff00) >> 8);
+}
+
+static inline uint32_t
+bswap32(uint32_t x)
+{
+    return (
+        (x & 0x000000ff) << 24 |
+        (x & 0x0000ff00) << 8  |
+        (x & 0x00ff0000) >> 8  |
+        (x & 0xff000000) >> 24);
+}
+
+#define ntohs(x) bswap16(x)
+#define htons(x) bswap16(x)
+#define ntohl(x) bswap32(x)
+#define htonl(x) bswap32(x)
 
 static uint8_t *
 dns_skip_hostname(uint8_t *bufp)
