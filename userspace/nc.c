@@ -69,7 +69,7 @@ dns_skip_hostname(uint8_t *bufp)
         }
 
         /* Remainder of hostname is a compressed segment */
-        if ((len & 0xc) == 0xc) {
+        if ((len & 0xc0) == 0xc0) {
             bufp++;
             break;
         }
