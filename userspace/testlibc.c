@@ -247,20 +247,6 @@ test_snprintf(void)
 }
 
 void
-test_varargs(char dummy, ...)
-{
-    va_list args;
-    va_start(args, dummy);
-    assert(va_arg(args, int) == 1);
-    va_list args2;
-    va_copy(args2, args);
-    va_end(args);
-    assert(va_arg(args2, int) == 2);
-    assert(va_arg(args2, int) == 3);
-    va_end(args2);
-}
-
-void
 test_atexit(void)
 {
     puts("All tests passed!");
@@ -289,7 +275,6 @@ main(void)
     test_memmove();
     test_snprintf();
     test_longjmp();
-    test_varargs('c', 1, 2, 3);
     atexit(test_atexit);
     return 0;
 }

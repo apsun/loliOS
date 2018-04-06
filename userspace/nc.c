@@ -43,20 +43,8 @@ bswap16(uint16_t x)
         (x & 0xff00) >> 8);
 }
 
-static inline uint32_t
-bswap32(uint32_t x)
-{
-    return (
-        (x & 0x000000ff) << 24 |
-        (x & 0x0000ff00) << 8  |
-        (x & 0x00ff0000) >> 8  |
-        (x & 0xff000000) >> 24);
-}
-
 #define ntohs(x) bswap16(x)
 #define htons(x) bswap16(x)
-#define ntohl(x) bswap32(x)
-#define htonl(x) bswap32(x)
 
 static uint8_t *
 dns_skip_hostname(uint8_t *bufp)

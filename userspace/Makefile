@@ -1,4 +1,5 @@
-CFLAGS += -Ilolibc -Wall -Wextra -Werror -ffreestanding -fno-stack-protector -O2 -m32
+CFLAGS += -Ilolibc -Wall -Wextra -Werror -ffreestanding \
+	-fno-stack-protector -O2 -m32 -mno-sse
 ASFLAGS += -Ilolibc -Wall -Wextra -m32
 LDFLAGS += -nostdlib -static -melf_i386
 
