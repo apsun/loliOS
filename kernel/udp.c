@@ -6,9 +6,6 @@
 #include "ip.h"
 #include "ethernet.h"
 
-typedef struct {
-} udp_pseudohdr_t;
-
 /* UDP socket private data */
 typedef struct {
     bool used;
