@@ -91,11 +91,6 @@ dns_parse_reply(uint8_t *buf, int cnt, ip_addr_t *ip)
         return false;
     }
 
-    /* Check that we didn't get any excess information */
-    if (ntohs(hdr->be_nscount) != 0 || ntohs(hdr->be_arcount) != 0) {
-        return false;
-    }
-
     bufp += sizeof(dns_hdr_t);
 
     /* Skip query */
