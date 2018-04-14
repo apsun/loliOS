@@ -16,23 +16,23 @@
 #endif
 
 /* Always-enabled panic macro */
-#define PANIC(msg) do {                                    \
+#define panic(msg) do {                                    \
     cli();                                                 \
-    printf("%s:%d: PANIC: %s\n", __FILE__, __LINE__, msg); \
+    printf("%s:%d: Panic: %s\n", __FILE__, __LINE__, msg); \
     loop();                                                \
 } while (0)
 
 #if DEBUG_ASSERT
 
-#define ASSERT(x) do {                  \
+#define assert(x) do {                  \
     if (!(x)) {                         \
-        PANIC("Assertion failed: " #x); \
+        panic("Assertion failed: " #x); \
     }                                   \
 } while(0)
 
 #else /* DEBUG_ASSERT */
 
-#define ASSERT(x) ((void)0)
+#define assert(x) ((void)0)
 
 #endif /* DEBUG_ASSERT */
 

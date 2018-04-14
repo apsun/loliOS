@@ -178,7 +178,7 @@ keycode_to_char(uint8_t keycode)
 {
     /* Check if the keycode was out of range */
     if (keycode >= NUM_KEYS) {
-        debugf("Unknown keycode: 0x%#x\n", keycode);
+        debugf("Unknown keycode: 0x%02x\n", keycode);
         return '\0';
     }
 

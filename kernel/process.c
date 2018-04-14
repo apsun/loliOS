@@ -64,8 +64,8 @@ get_pcb_by_pid(int pid)
         return NULL;
     }
 
-    ASSERT(pid < MAX_PROCESSES);
-    ASSERT(process_info[pid].pid >= 0);
+    assert(pid < MAX_PROCESSES);
+    assert(process_info[pid].pid >= 0);
     return &process_info[pid];
 }
 
@@ -254,7 +254,7 @@ process_parse_cmd(const char *command, int *out_inode_idx, char *out_args)
 
     /* Ensure it's an executable file */
     if (magic != EXE_MAGIC) {
-        debugf("Magic mismatch - not an executable (got 0x%#x)\n", magic);
+        debugf("Magic mismatch - not an executable (got 0x%08x)\n", magic);
         return -1;
     }
 
@@ -347,8 +347,8 @@ process_run(pcb_t *pcb)
 {
     int ret;
 
-    ASSERT(pcb != NULL);
-    ASSERT(pcb->pid >= 0);
+    assert(pcb != NULL);
+    assert(pcb->pid >= 0);
 
     /* Mark process as initialized */
     pcb->status = PROCESS_RUN;
@@ -453,7 +453,7 @@ process_create_child(const char *command, pcb_t *parent_pcb, int terminal)
     /* Initialize child PCB */
     if (parent_pcb == NULL) {
         /* This is the first process! */
-        ASSERT(terminal >= 0);
+        assert(terminal >= 0);
         child_pcb->parent_pid = -1;
         child_pcb->terminal = terminal;
     } else {
@@ -563,7 +563,7 @@ process_halt_impl(int status)
         process_execute_impl("shell", NULL, child_pcb->terminal);
 
         /* Should never get back to this point */
-        PANIC("Should not have returned from shell");
+        panic("Should not have returned from shell");
     }
 
     /* Mark parent as runnable again */
@@ -591,7 +591,7 @@ process_halt_impl(int status)
         : "eax");
 
     /* Should never get here! */
-    PANIC("Should not have returned from halt");
+    panic("Should not have returned from halt");
     return -1;
 }
 
@@ -744,7 +744,7 @@ process_sbrk(int delta)
 void
 process_init(void)
 {
-    ASSERT(sizeof(process_data_t) == PROCESS_DATA_SIZE);
+    assert(sizeof(process_data_t) == PROCESS_DATA_SIZE);
 
     int i;
     for (i = 0; i < MAX_PROCESSES; ++i) {

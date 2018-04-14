@@ -300,7 +300,7 @@ taux_handle_ack(void)
      * that we don't get any ACKs for commands sent before
      * a RESET is probably wrong.
      */
-    ASSERT(pending_acks >= 0);
+    assert(pending_acks >= 0);
 
     /*
      * If we have no more pending ACKs and someone tried to set the LEDs

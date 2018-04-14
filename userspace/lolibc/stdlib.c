@@ -8,6 +8,10 @@ static void (*atexit_fns[MAX_ATEXIT])(void);
 static int atexit_count = 0;
 static unsigned int rand_state = 1;
 
+/*
+ * Exits the program with the specified status code.
+ * This will run any functions registered with atexit().
+ */
 void
 exit(int status)
 {
@@ -18,6 +22,11 @@ exit(int status)
     halt(status);
 }
 
+/*
+ * Registers a function to be called when the
+ * program exits. Returns 0 on success, -1 on
+ * failure.
+ */
 int
 atexit(void (*fn)(void))
 {
@@ -31,12 +40,19 @@ atexit(void (*fn)(void))
     }
 }
 
+/*
+ * Aborts the program. This does not run any functions
+ * registered with atexit().
+ */
 void
 abort(void)
 {
     halt(1);
 }
 
+/*
+ * Generates a random number.
+ */
 int
 rand(void)
 {
@@ -47,6 +63,9 @@ rand(void)
     return (int)(rand_state = tmp);
 }
 
+/*
+ * Seeds the random number generator.
+ */
 void
 srand(unsigned int seed)
 {

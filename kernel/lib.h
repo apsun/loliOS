@@ -5,29 +5,60 @@
 
 #ifndef ASM
 
-/* String functions */
+/* va_arg macros - stdarg.h */
+typedef char *va_list;
+#define va_start(list, last) ((list) = (char *)(((uint32_t)(&(last) + 1) + 3) & ~3))
+#define va_arg(list, T) ((list) += sizeof(T), *(T *)((list) - sizeof(T)))
+#define va_copy(dest, src) ((dest) = (src))
+#define va_end(list) ((void)0)
+
+/* Character functions - ctype.h */
+bool islower(char c);
+bool isupper(char c);
+bool isalpha(char c);
+bool isdigit(char c);
+bool isalnum(char c);
+bool iscntrl(char c);
+bool isblank(char c);
+bool isspace(char c);
+bool isprint(char c);
+bool isgraph(char c);
+bool ispunct(char c);
+bool isxdigit(char c);
+char tolower(char c);
+char toupper(char c);
+
+/* String functions - string.h */
 int strlen(const char *s);
 int strcmp(const char *s1, const char *s2);
 int strncmp(const char *s1, const char *s2, int n);
 char *strcpy(char *dest, const char *src);
 char *strncpy(char *dest, const char *src, int n);
+int strscpy(char *dest, const char *src, int n);
+char *strcat(char *dest, const char *src);
+char *strncat(char *dest, const char *src, int n);
 char *strrev(char *s);
-char *itoa(unsigned int value, char *buf, int radix);
-bool atoi(const char *value, int *result);
+char *strchr(const char *s, char c);
+char *strrchr(const char *s, char c);
+char *strstr(const char *haystack, const char *needle);
+char *utoa(unsigned int value, char *buf, int radix);
+char *itoa(int value, char *buf, int radix);
+int atoi(const char *str);
 
-/* Memory functions */
+/* Memory functions - string.h */
 int memcmp(const void *s1, const void *s2, int n);
+void *memchr(const void *s, unsigned char c, int n);
 void *memset(void *s, uint8_t c, int n);
 void *memset_word(void *s, uint16_t c, int n);
 void *memset_dword(void *s, uint32_t c, int n);
 void *memcpy(void *dest, const void *src, int n);
 void *memmove(void *dest, const void *src, int n);
 
-/* Terminal functions */
-void printf(const char *format, ...);
-void putc(char c);
-void puts(const char *s);
-void clear(void);
+/* Terminal functions - stdio.h */
+int vsnprintf(char *buf, int size, const char *format, va_list args);
+int snprintf(char *buf, int size, const char *format, ...);
+int vprintf(const char *format, va_list args);
+int printf(const char *format, ...);
 
 /*
  * Reads a byte from the specified I/O port.
@@ -99,12 +130,6 @@ bswap32(uint32_t x)
         (x & 0x00ff0000) >> 8  |
         (x & 0xff000000) >> 24);
 }
-
-/* Network endianness swapping macros */
-#define ntohs(x) bswap16(x)
-#define htons(x) bswap16(x)
-#define ntohl(x) bswap32(x)
-#define htonl(x) bswap32(x)
 
 /*
  * Writes a byte to the specified I/O port.

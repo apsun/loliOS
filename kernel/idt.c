@@ -6,6 +6,7 @@
 #include "syscall.h"
 #include "process.h"
 #include "signal.h"
+#include "terminal.h"
 
 /* Convenience wrapper around SET_IDT_ENTRY */
 #define WRITE_IDT_ENTRY(i, name) do {       \
@@ -41,27 +42,27 @@ static const char *exception_names[NUM_EXC] = {
 static void
 dump_registers(int_regs_t *regs)
 {
-    printf("error_code: 0x%#x\n", regs->error_code);
-    printf("eax:        0x%#x\n", regs->eax);
-    printf("ebx:        0x%#x\n", regs->ebx);
-    printf("ecx:        0x%#x\n", regs->ecx);
-    printf("edx:        0x%#x\n", regs->edx);
-    printf("esi:        0x%#x\n", regs->esi);
-    printf("edi:        0x%#x\n", regs->edi);
-    printf("ebp:        0x%#x\n", regs->ebp);
-    printf("esp:        0x%#x\n", regs->esp);
-    printf("eip:        0x%#x\n", regs->eip);
-    printf("eflags:     0x%#x\n", regs->eflags);
-    printf("cs:         0x%#x\n", regs->cs);
-    printf("ds:         0x%#x\n", regs->ds);
-    printf("es:         0x%#x\n", regs->es);
-    printf("fs:         0x%#x\n", regs->fs);
-    printf("gs:         0x%#x\n", regs->gs);
-    printf("ss:         0x%#x\n", regs->ss);
-    printf("cr0:        0x%#x\n", regs->cr0);
-    printf("cr2:        0x%#x\n", regs->cr2);
-    printf("cr3:        0x%#x\n", regs->cr3);
-    printf("cr4:        0x%#x\n", regs->cr4);
+    printf("error_code: 0x%08x\n", regs->error_code);
+    printf("eax:        0x%08x\n", regs->eax);
+    printf("ebx:        0x%08x\n", regs->ebx);
+    printf("ecx:        0x%08x\n", regs->ecx);
+    printf("edx:        0x%08x\n", regs->edx);
+    printf("esi:        0x%08x\n", regs->esi);
+    printf("edi:        0x%08x\n", regs->edi);
+    printf("ebp:        0x%08x\n", regs->ebp);
+    printf("esp:        0x%08x\n", regs->esp);
+    printf("eip:        0x%08x\n", regs->eip);
+    printf("eflags:     0x%08x\n", regs->eflags);
+    printf("cs:         0x%08x\n", regs->cs);
+    printf("ds:         0x%08x\n", regs->ds);
+    printf("es:         0x%08x\n", regs->es);
+    printf("fs:         0x%08x\n", regs->fs);
+    printf("gs:         0x%08x\n", regs->gs);
+    printf("ss:         0x%08x\n", regs->ss);
+    printf("cr0:        0x%08x\n", regs->cr0);
+    printf("cr2:        0x%08x\n", regs->cr2);
+    printf("cr3:        0x%08x\n", regs->cr3);
+    printf("cr4:        0x%08x\n", regs->cr4);
 }
 
 /*
@@ -91,7 +92,7 @@ handle_exception(int_regs_t *regs)
         return;
     }
 
-    clear();
+    terminal_clear();
     printf("****************************************\n");
     printf("Exception: %s\n", exception_names[regs->int_num]);
     printf("****************************************\n");

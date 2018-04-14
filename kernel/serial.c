@@ -16,7 +16,7 @@ serial_which_to_port_base(int which)
     case 2:
         return SERIAL_PORT_COM2;
     default:
-        PANIC("Unknown serial COM#");
+        panic("Unknown serial COM#");
         return 0;
     }
 }
@@ -158,8 +158,8 @@ serial_init(
 
     /* Write baud rate */
     int baud_divisor = SERIAL_CLOCK_HZ / baud_rate;
-    ASSERT(baud_divisor * baud_rate == SERIAL_CLOCK_HZ);
-    ASSERT((baud_divisor & ~0xffff) == 0);
+    assert(baud_divisor * baud_rate == SERIAL_CLOCK_HZ);
+    assert((baud_divisor & ~0xffff) == 0);
     serial_out(which, SERIAL_PORT_BAUD_LO, (baud_divisor >> 0) & 0xff);
     serial_out(which, SERIAL_PORT_BAUD_HI, (baud_divisor >> 8) & 0xff);
 
@@ -197,6 +197,6 @@ serial_init(
     } else if (which == 2) {
         irq_register_handler(IRQ_COM2, irq_handler);
     } else {
-        PANIC("Unknown serial COM#");
+        panic("Unknown serial COM#");
     }
 }

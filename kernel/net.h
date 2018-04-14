@@ -6,6 +6,12 @@
 
 #ifndef ASM
 
+/* Network endianness swapping macros */
+#define ntohs(x) bswap16(x)
+#define htons(x) bswap16(x)
+#define ntohl(x) bswap32(x)
+#define htonl(x) bswap32(x)
+
 /* Addresses and address accessories */
 typedef struct { uint8_t bytes[4]; } ip_addr_t;
 typedef struct { uint8_t bytes[6]; } mac_addr_t;

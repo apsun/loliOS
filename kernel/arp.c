@@ -69,7 +69,7 @@ static queue_pkt_t packet_queue[16];
  * The rest will go through the default gateway.
  * Maintain some excess space for bogus entries.
  */
-static arp_entry_t arp_cache[32];
+static arp_entry_t arp_cache[16];
 
 /*
  * Checks whether an ARP entry is expired; that is,

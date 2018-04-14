@@ -25,43 +25,41 @@
 void
 entry(unsigned long magic, unsigned long addr)
 {
-    multiboot_info_t *mbi;
-
-    /* Starting address of the filesystem module */
-    uint32_t fs_start = 0;
-
     /* Initialize terminals */
     terminal_init();
 
     /* Clear the screen */
-    clear();
+    terminal_clear();
 
     /* Am I booted by a Multiboot-compliant boot loader? */
     if (magic != MULTIBOOT_BOOTLOADER_MAGIC) {
-        printf ("Invalid magic number: 0x%#x\n", (unsigned) magic);
+        printf("Invalid magic number: 0x%08x\n", magic);
         return;
     }
 
     /* Set MBI to the address of the Multiboot information structure. */
-    mbi = (multiboot_info_t *) addr;
+    multiboot_info_t *mbi = (multiboot_info_t *)addr;
 
     /* Print out the flags. */
-    printf ("flags = 0x%#x\n", (unsigned) mbi->flags);
+    printf("flags = 0x%08x\n", mbi->flags);
 
     /* Are mem_* valid? */
-    if (CHECK_FLAG (mbi->flags, 0))
-        printf ("mem_lower = %uKB, mem_upper = %uKB\n",
-                (unsigned) mbi->mem_lower, (unsigned) mbi->mem_upper);
+    if (CHECK_FLAG(mbi->flags, 0))
+        printf("mem_lower = %uKB, mem_upper = %uKB\n", mbi->mem_lower, mbi->mem_upper);
 
     /* Is boot_device valid? */
-    if (CHECK_FLAG (mbi->flags, 1))
-        printf ("boot_device = 0x%#x\n", (unsigned) mbi->boot_device);
+    if (CHECK_FLAG(mbi->flags, 1))
+        printf("boot_device = 0x%08x\n", mbi->boot_device);
 
     /* Is the command line passed? */
-    if (CHECK_FLAG (mbi->flags, 2))
-        printf ("cmdline = %s\n", (char *) mbi->cmdline);
+    if (CHECK_FLAG(mbi->flags, 2))
+        printf("cmdline = %s\n", (char *)mbi->cmdline);
 
-    if (CHECK_FLAG (mbi->flags, 3)) {
+    /* Save starting address of the filesystem module */
+    uint32_t fs_start = 0;
+
+    /* Check loaded modules. */
+    if (CHECK_FLAG(mbi->flags, 3)) {
         uint32_t mod_count = 0;
         module_t *mod = (module_t *)mbi->mods_addr;
 
@@ -69,16 +67,16 @@ entry(unsigned long magic, unsigned long addr)
          * For now we can assume that we only have a single
          * filesystem module loaded
          */
-        ASSERT(mbi->mods_count == 1);
+        assert(mbi->mods_count == 1);
         fs_start = mod->mod_start;
 
         while (mod_count < mbi->mods_count) {
-            printf("Module %d loaded at address: 0x%#x\n", mod_count, (unsigned int)mod->mod_start);
-            printf("Module %d ends at address: 0x%#x\n", mod_count, (unsigned int)mod->mod_end);
+            printf("Module %d loaded at address: 0x%08x\n", mod_count, mod->mod_start);
+            printf("Module %d ends at address: 0x%08x\n", mod_count, mod->mod_end);
             printf("First few bytes of module:\n");
             int i;
             for (i = 0; i < 16; i++) {
-                printf("0x%x ", *((uint8_t *)(mod->mod_start + i)));
+                printf("0x%02x ", *((uint8_t *)(mod->mod_start + i)));
             }
             printf("\n");
             mod_count++;
@@ -87,39 +85,35 @@ entry(unsigned long magic, unsigned long addr)
     }
 
     /* Bits 4 and 5 are mutually exclusive! */
-    if (CHECK_FLAG (mbi->flags, 4) && CHECK_FLAG (mbi->flags, 5)) {
-        printf ("Both bits 4 and 5 are set.\n");
+    if (CHECK_FLAG(mbi->flags, 4) && CHECK_FLAG(mbi->flags, 5)) {
+        printf("Both bits 4 and 5 are set.\n");
         return;
     }
 
     /* Is the section header table of ELF valid? */
-    if (CHECK_FLAG (mbi->flags, 5)) {
-        elf_section_header_table_t *elf_sec = &(mbi->elf_sec);
-
-        printf ("elf_sec: num = %u, size = 0x%#x,"
-                " addr = 0x%#x, shndx = 0x%#x\n",
-                (unsigned) elf_sec->num, (unsigned) elf_sec->size,
-                (unsigned) elf_sec->addr, (unsigned) elf_sec->shndx);
+    if (CHECK_FLAG(mbi->flags, 5)) {
+        elf_section_header_table_t *elf_sec = &mbi->elf_sec;
+        printf(
+            "elf_sec: num = %u, size = %u, addr = 0x%08x, shndx = 0x%08x\n",
+            elf_sec->num, elf_sec->size, elf_sec->addr, elf_sec->shndx);
     }
 
     /* Are mmap_* valid? */
-    if (CHECK_FLAG (mbi->flags, 6)) {
-        memory_map_t *mmap;
-
-        printf ("mmap_addr = 0x%#x, mmap_length = 0x%x\n",
-                (unsigned) mbi->mmap_addr, (unsigned) mbi->mmap_length);
-        for (mmap = (memory_map_t *) mbi->mmap_addr;
-                (unsigned long) mmap < mbi->mmap_addr + mbi->mmap_length;
-                mmap = (memory_map_t *) ((unsigned long) mmap
-                    + mmap->size + sizeof (mmap->size)))
-            printf (" size = 0x%x,     base_addr = 0x%#x%#x\n"
-                    "     type = 0x%x,  length    = 0x%#x%#x\n",
-                    (unsigned) mmap->size,
-                    (unsigned) mmap->base_addr_high,
-                    (unsigned) mmap->base_addr_low,
-                    (unsigned) mmap->type,
-                    (unsigned) mmap->length_high,
-                    (unsigned) mmap->length_low);
+    if (CHECK_FLAG(mbi->flags, 6)) {
+        printf("mmap_addr = 0x%08x, mmap_length = %u\n", mbi->mmap_addr, mbi->mmap_length);
+        memory_map_t *mmap = (memory_map_t *)mbi->mmap_addr;
+        while ((uint32_t)mmap < mbi->mmap_addr + mbi->mmap_length) {
+            printf(
+                " size = 0x%x, base_addr = 0x%08x%08x\n"
+                " type = 0x%x, length = 0x%08x%08x\n",
+                mmap->size,
+                mmap->base_addr_high,
+                mmap->base_addr_low,
+                mmap->type,
+                mmap->length_high,
+                mmap->length_low);
+            mmap = (memory_map_t *)((uint32_t)mmap + mmap->size + sizeof(mmap->size));
+        }
     }
 
     /* Construct an LDT entry in the GDT */
@@ -206,12 +200,12 @@ entry(unsigned long magic, unsigned long addr)
     printf("Boot successful!\n");
 
 #if !(DEBUG_PRINT)
-    clear();
+    terminal_clear();
 #endif
 
     /* Execute the first program (`shell') ... */
     process_start_shell();
 
     /* Shouldn't get here... */
-    PANIC("Should not have returned from shell");
+    panic("Should not have returned from shell");
 }

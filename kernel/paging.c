@@ -230,8 +230,8 @@ void
 paging_enable(void)
 {
     /* Ensure page table arrays are 4096-byte aligned */
-    ASSERT(((uint32_t)page_dir   & 0xfff) == 0);
-    ASSERT(((uint32_t)page_table & 0xfff) == 0);
+    assert(((uint32_t)page_dir   & 0xfff) == 0);
+    assert(((uint32_t)page_table & 0xfff) == 0);
 
     /* Initialize page table entries */
     paging_init_common();
@@ -261,7 +261,7 @@ paging_heap_alloc(int vi)
 
             /* Update PDE */
             pde_4mb_t *entry = DIR_4MB(vaddr);
-            ASSERT(!entry->present);
+            assert(!entry->present);
             entry->present = 1;
             entry->base_addr = TO_4MB_BASE(paddr);
 
@@ -284,7 +284,7 @@ paging_heap_alloc(int vi)
 static void
 paging_heap_free(int vi, int pi)
 {
-    ASSERT(heap_map[pi]);
+    assert(heap_map[pi]);
     pde_4mb_t *entry = DIR_4MB(HEAP_PAGE_START + vi * MB(4));
     entry->present = 0;
     heap_map[pi] = false;
@@ -384,7 +384,7 @@ paging_heap_destroy(paging_heap_t *heap)
 void
 paging_set_context(int pid, paging_heap_t *heap)
 {
-    ASSERT(pid >= 0);
+    assert(pid >= 0);
 
     /* Point the user page to the corresponding physical address */
     DIR_4MB(USER_PAGE_START)->base_addr = TO_4MB_BASE(MB(pid * 4 + 8));

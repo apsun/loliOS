@@ -9,7 +9,7 @@ static irq_handler_t irq_handlers[16];
 void
 irq_handle_interrupt(int irq_num)
 {
-    ASSERT(irq_num >= 0 && irq_num < 16);
+    assert(irq_num >= 0 && irq_num < 16);
     irq_handler_t handler = irq_handlers[irq_num];
 
     /* Clear interrupt flag on PIC */
@@ -32,8 +32,8 @@ irq_handle_interrupt(int irq_num)
 void
 irq_register_handler(int irq_num, void (*callback)(void))
 {
-    ASSERT(irq_num >= 0 && irq_num < 16);
-    ASSERT(callback != NULL);
+    assert(irq_num >= 0 && irq_num < 16);
+    assert(callback != NULL);
     irq_handlers[irq_num].callback = callback;
     i8259_enable_irq(irq_num);
 }
@@ -47,7 +47,7 @@ irq_register_handler(int irq_num, void (*callback)(void))
 void
 irq_unregister_handler(int irq_num)
 {
-    ASSERT(irq_num >= 0 && irq_num < 16);
+    assert(irq_num >= 0 && irq_num < 16);
     i8259_disable_irq(irq_num);
     irq_handlers[irq_num].callback = NULL;
 }

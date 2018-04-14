@@ -7,12 +7,18 @@
 #include <string.h>
 #include <syscall.h>
 
+/*
+ * Prints a single character to the screen.
+ */
 void
 putchar(char c)
 {
     write(1, &c, 1);
 }
 
+/*
+ * Prints a string followed by a newline to the screen.
+ */
 void
 puts(const char *s)
 {
@@ -21,17 +27,25 @@ puts(const char *s)
     putchar('\n');
 }
 
+/*
+ * Reads a single character from stdin.
+ */
 char
 getchar(void)
 {
     char c;
-    if (read(0, &c, 1) < 0) {
+    if (read(0, &c, 1) <= 0) {
         return (char)-1;
     } else {
         return c;
     }
 }
 
+/*
+ * Reads a line from stdin. Returns an empty string if
+ * stdin is non-blocking. The returned string does not
+ * contain the newline character.
+ */
 char *
 gets(char *buf, int size)
 {
@@ -48,9 +62,20 @@ gets(char *buf, int size)
     return buf;
 }
 
+/*
+ * State for printf (and friends). Holds information about
+ * the destination buffer and the current modifier flags.
+ * write is a callback that is run when the buffer is
+ * full, allowing for arbitrarily large strings. true_len
+ * is the "actual" length that the string would be (even
+ * if it didn't fit in the buffer).
+ */
 typedef struct {
     char *buf;
-    int size;
+    int capacity;
+    int count;
+    int true_len;
+    bool (*write)(const char *s, int len);
     int pad_width;
     bool left_align;
     bool positive_sign;
@@ -59,35 +84,98 @@ typedef struct {
     bool pad_zeros;
 } printf_arg_t;
 
-static void
+/*
+ * Userspace printf flush function: calls the write syscall.
+ */
+static bool
+printf_write(const char *s, int len)
+{
+    write(1, s, len);
+    return true;
+}
+
+/*
+ * Flushes the printf buffer. Returns true if all chars
+ * were successfully flushed.
+ */
+static bool
+printf_flush(printf_arg_t *a)
+{
+    if (a->buf == NULL) {
+        return false;
+    }
+
+    bool ok = a->write(a->buf, a->count);
+    if (!ok) {
+        return false;
+    }
+
+    a->count = 0;
+    return true;
+}
+
+/*
+ * Appends a string to the printf buffer. May also
+ * flush the buffer, if it is full and a flush callback
+ * is available.
+ */
+static bool
 printf_append_string(printf_arg_t *a, const char *s)
 {
-    if (a->buf != NULL) {
-        int ret = strscpy(a->buf, s, a->size);
-        if (ret >= 0) {
-            a->buf += ret;
-            a->size -= ret;
-        } else {
-            a->buf = NULL;
-        }
+    /* If we've already hit an error condition, fail fast */
+    if (a->buf == NULL) {
+        a->true_len += strlen(s);
+        return false;
     }
+
+    /* Try copying it into the buffer */
+    int ret = strscpy(&a->buf[a->count], s, a->capacity - a->count);
+    if (ret >= 0) {
+        a->count += ret;
+        a->true_len += ret;
+        return true;
+    }
+
+    /* Try flushing buffer and restart */
+    if (a->count > 0 && a->write != NULL) {
+        if (!printf_flush(a)) {
+            a->buf = NULL;
+            return false;
+        }
+        return printf_append_string(a, s);
+    }
+
+    /* String too long for buffer, bypass it if possible */
+    if (a->count == 0 && a->write != NULL) {
+        int len = strlen(s);
+        if (!a->write(s, len)) {
+            a->buf = NULL;
+            return false;
+        }
+        a->true_len += len;
+        return true;
+    }
+
+    /* String too long and we have nowhere to flush it to */
+    a->true_len += strlen(s);
+    a->buf = NULL;
+    return false;
 }
 
-static void
+/*
+ * Appends a single character to the printf buffer.
+ */
+static bool
 printf_append_char(printf_arg_t *a, char c)
 {
-    if (a->buf != NULL) {
-        if (a->size > 1) {
-            a->buf[0] = c;
-            a->buf[1] = '\0';
-            a->buf++;
-            a->size--;
-        } else {
-            a->buf = NULL;
-        }
-    }
+    char buf[2] = {c, '\0'};
+    return printf_append_string(a, buf);
 }
 
+/*
+ * Appends the specified number of characters (repeated)
+ * to the printf buffer.
+ */
 static void
 printf_pad(printf_arg_t *a, char pad, int width)
 {
@@ -96,6 +184,9 @@ printf_pad(printf_arg_t *a, char pad, int width)
     }
 }
 
+/*
+ * Handles the %s printf case.
+ */
 static void
 printf_do_string(printf_arg_t *a, const char *s)
 {
@@ -108,6 +199,9 @@ printf_do_string(printf_arg_t *a, const char *s)
     }
 }
 
+/*
+ * Handles the %c printf case.
+ */
 static void
 printf_do_char(printf_arg_t *a, char c)
 {
@@ -120,6 +214,9 @@ printf_do_char(printf_arg_t *a, char c)
     }
 }
 
+/*
+ * Converts a string to uppercase.
+ */
 static void
 printf_stoupper(char *buf)
 {
@@ -129,6 +226,9 @@ printf_stoupper(char *buf)
     }
 }
 
+/*
+ * Handles the %u, %x, and %o printf cases.
+ */
 static void
 printf_do_uint(printf_arg_t *a, unsigned int num, int radix, bool upper)
 {
@@ -148,6 +248,9 @@ printf_do_uint(printf_arg_t *a, unsigned int num, int radix, bool upper)
     }
 }
 
+/*
+ * Handles the %d and %i printf cases.
+ */
 static void
 printf_do_int(printf_arg_t *a, int num, int radix, bool upper)
 {
@@ -199,8 +302,19 @@ printf_do_int(printf_arg_t *a, int num, int radix, bool upper)
     }
 }
 
-int
-vsnprintf(char *buf, int size, const char *format, va_list args)
+/*
+ * printf common implementation. If write is not null,
+ * the characters in the buffer are guaranteed to be
+ * flushed before returning. Returns the "true length"
+ * of the string, ignoring buffer overflow.
+ */
+static int
+printf_impl(
+    char *buf,
+    int size,
+    bool (*write)(const char *s, int len),
+    const char *format,
+    va_list args)
 {
     assert(buf != NULL);
     assert(size > 0);
@@ -211,7 +325,10 @@ vsnprintf(char *buf, int size, const char *format, va_list args)
 
     printf_arg_t a;
     a.buf = buf;
-    a.size = size;
+    a.capacity = size;
+    a.count = 0;
+    a.true_len = 0;
+    a.write = write;
 
     for (; *format != '\0'; format++) {
         if (*format != '%') {
@@ -321,21 +438,33 @@ consume_format:
             printf_do_string(&a, va_arg(args, const char *));
             break;
 
-        /* Fail fast on any other characters */
+        /* Ignore other characters */
         default:
             abort();
             break;
         }
     }
 
-    /* Return number of chars (excluding NUL) printed or -1 on error */
-    if (a.buf == NULL) {
-        return -1;
-    } else {
-        return size - a.size;
+    /* Flush any remaining characters */
+    if (a.write != NULL) {
+        printf_flush(&a);
     }
+
+    return a.true_len;
 }
 
+/*
+ * Prints a string to a fixed-size buffer, va_list version.
+ */
+int
+vsnprintf(char *buf, int size, const char *format, va_list args)
+{
+    return printf_impl(buf, size, NULL, format, args);
+}
+
+/*
+ * Prints a string to a fixed-size buffer.
+ */
 int
 snprintf(char *buf, int size, const char *format, ...)
 {
@@ -346,21 +475,19 @@ snprintf(char *buf, int size, const char *format, ...)
     return ret;
 }
 
+/*
+ * Prints a string to stdout, va_list version.
+ */
 int
 vprintf(const char *format, va_list args)
 {
-    /*
-     * Too lazy to write this properly, just pray that
-     * nobody has strings longer than 4096 characters...
-     */
-    char buf[4096];
-    int len = vsnprintf(buf, sizeof(buf), format, args);
-    if (len > 0) {
-        write(1, buf, len);
-    }
-    return len;
+    char buf[256];
+    return printf_impl(buf, sizeof(buf), printf_write, format, args);
 }
 
+/*
+ * Prints a string to stdout.
+ */
 int
 printf(const char *format, ...)
 {

@@ -87,7 +87,7 @@ file_obj_t *
 get_executing_files(void)
 {
     pcb_t *pcb = get_executing_pcb();
-    ASSERT(pcb != NULL);
+    assert(pcb != NULL);
     return pcb->files;
 }
 

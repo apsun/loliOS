@@ -251,10 +251,10 @@ void
 fs_init(uint32_t fs_start)
 {
     /* Some basic sanity checks */
-    ASSERT(sizeof(dentry_t) == 64);
-    ASSERT(sizeof(stat_entry_t) == 64);
-    ASSERT(sizeof(boot_block_t) == 4096);
-    ASSERT(sizeof(inode_t) == 4096);
+    assert(sizeof(dentry_t) == 64);
+    assert(sizeof(stat_entry_t) == 64);
+    assert(sizeof(boot_block_t) == 4096);
+    assert(sizeof(inode_t) == 4096);
 
     /* Save address of boot block for future use */
     fs_boot_block = (boot_block_t *)fs_start;

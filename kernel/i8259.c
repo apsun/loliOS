@@ -67,7 +67,7 @@ i8259_init(void)
 void
 i8259_enable_irq(int irq_num)
 {
-    ASSERT(irq_num >= 0 && irq_num < 16);
+    assert(irq_num >= 0 && irq_num < 16);
     debugf("Enabling IRQ#%d\n", irq_num);
     if (irq_num < 8) {
         master_mask &= ~(1 << irq_num);
@@ -83,7 +83,7 @@ i8259_enable_irq(int irq_num)
 void
 i8259_disable_irq(int irq_num)
 {
-    ASSERT(irq_num >= 0 && irq_num < 16);
+    assert(irq_num >= 0 && irq_num < 16);
     debugf("Disabling IRQ#%d\n", irq_num);
     if (irq_num < 8) {
         master_mask |= (1 << irq_num);
@@ -99,7 +99,7 @@ i8259_disable_irq(int irq_num)
 void
 i8259_send_eoi(int irq_num)
 {
-    ASSERT(irq_num >= 0 && irq_num < 16);
+    assert(irq_num >= 0 && irq_num < 16);
     if (irq_num < 8) {
         outb(irq_num | EOI, MASTER_8259_PORT_CMD);
     } else {

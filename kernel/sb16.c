@@ -199,7 +199,7 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
 int
 sb16_close(file_obj_t *file)
 {
-    ASSERT(file == open_device);
+    assert(file == open_device);
     open_device = NULL;
     return 0;
 }

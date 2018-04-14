@@ -76,13 +76,13 @@ dma_start(
     int mode)
 {
     /* Basic sanity checks */
-    ASSERT(channel < 8);
-    ASSERT((mode & (~0xff | 3)) == 0);
+    assert(channel < 8);
+    assert((mode & (~0xff | 3)) == 0);
 
     /* Buffer must be in the first 16MB = 2^24 bytes of memory */
     uint32_t addr = (uint32_t)buf;
-    ASSERT((addr & ~0xffffff) == 0);
-    ASSERT(((addr + nbytes - 1) & ~0xffffff) == 0);
+    assert((addr & ~0xffffff) == 0);
+    assert(((addr + nbytes - 1) & ~0xffffff) == 0);
 
     debugf("dma(buf=0x%x, nbytes=0x%x, channel=%d, mode=0x%x)\n",
         buf, nbytes, channel, mode);
@@ -98,8 +98,8 @@ dma_start(
             (nbytes >> 0) - 1);
     } else {
         /* 16-bit DMA */
-        ASSERT((addr & 1) == 0);
-        ASSERT((nbytes & 1) == 0);
+        assert((addr & 1) == 0);
+        assert((nbytes & 1) == 0);
         dma_start_impl(
             &dma2,
             channel - 4,

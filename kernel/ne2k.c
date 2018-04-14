@@ -388,8 +388,8 @@ static void
 ne2k_begin_tx(void)
 {
     int len = tx_buf_len[tx_buf];
-    ASSERT(len > 0);
-    ASSERT(!tx_busy);
+    assert(len > 0);
+    assert(!tx_busy);
 
     /* Mask interrupts, busy = ON */
     tx_busy = true;

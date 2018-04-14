@@ -31,7 +31,7 @@ static int display_terminal = -1;
 static terminal_state_t *
 get_terminal(int index)
 {
-    ASSERT(index >= 0 && index < NUM_TERMINALS);
+    assert(index >= 0 && index < NUM_TERMINALS);
     return &terminal_states[index];
 }
 
@@ -44,7 +44,7 @@ static terminal_state_t *
 get_executing_terminal(void)
 {
     pcb_t *pcb = get_executing_pcb();
-    ASSERT(pcb != NULL);
+    assert(pcb != NULL);
     return get_terminal(pcb->terminal);
 }
 
@@ -107,7 +107,7 @@ static void
 terminal_swap_buffer(terminal_state_t *old, terminal_state_t *new)
 {
     /* Old terminal must have been the display terminal */
-    ASSERT(old->video_mem == VIDEO_MEM);
+    assert(old->video_mem == VIDEO_MEM);
 
     /*
      * Copy the global VGA memory to the previously displayed
@@ -244,7 +244,7 @@ terminal_clear_impl(terminal_state_t *term)
 void
 set_display_terminal(int index)
 {
-    ASSERT(index >= 0 && index < NUM_TERMINALS);
+    assert(index >= 0 && index < NUM_TERMINALS);
     int old_index = display_terminal;
     if (index == old_index) {
         return;
@@ -278,6 +278,17 @@ terminal_putc(char c)
 {
     terminal_state_t *term = get_display_terminal();
     terminal_putc_impl(term, c);
+    terminal_update_cursor(term);
+}
+
+/* Prints a string to the currently displayed terminal */
+void
+terminal_puts(const char *s)
+{
+    terminal_state_t *term = get_display_terminal();
+    while (*s) {
+        terminal_putc_impl(term, *s++);
+    }
     terminal_update_cursor(term);
 }
 
@@ -614,7 +625,7 @@ handle_ctrl_input(kbd_input_ctrl_t ctrl)
         set_display_terminal(ctrl - KCTL_TERM1);
         break;
     default:
-        PANIC("Unknown control code");
+        panic("Unknown control code");
         break;
     }
 }
@@ -654,7 +665,7 @@ terminal_handle_kbd_input(kbd_input_t input)
     case KTYP_NONE:
         break;
     default:
-        PANIC("Unknown keyboard input type");
+        panic("Unknown keyboard input type");
         break;
     }
 }

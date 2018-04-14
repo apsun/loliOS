@@ -84,6 +84,9 @@ void set_display_terminal(int index);
 /* Prints a character to the curently executing terminal */
 void terminal_putc(char c);
 
+/* Prints a string to the currently displayed terminal */
+void terminal_puts(const char *s);
+
 /* Clears the curently executing terminal */
 void terminal_clear(void);
 

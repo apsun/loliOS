@@ -3,7 +3,7 @@
 #include "debug.h"
 
 /* List of registered network interfaces */
-static net_iface_t *interfaces[16];
+static net_iface_t *interfaces[2];
 static int num_interfaces = 0;
 
 /*
@@ -107,6 +107,6 @@ net_find(ip_addr_t ip)
 void
 net_register_interface(net_iface_t *iface)
 {
-    ASSERT(num_interfaces < array_len(interfaces));
+    assert(num_interfaces < array_len(interfaces));
     interfaces[num_interfaces++] = iface;
 }

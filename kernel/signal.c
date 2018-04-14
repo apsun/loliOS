@@ -40,7 +40,7 @@ signal_deliver(signal_info_t *sig, int_regs_t *regs)
     };
 
     /* Make sure shellcode is 4-byte aligned for stack */
-    ASSERT((sizeof(shellcode) & 0x3) == 0);
+    assert((sizeof(shellcode) & 0x3) == 0);
 
     /* Two-step copy: first copy to buffer, then copy buffer to userspace */
     uint8_t buf[
@@ -87,7 +87,7 @@ signal_deliver(signal_info_t *sig, int_regs_t *regs)
     memcpy(shellcode_bufp + 11, &intregs_addr, 4);
 
     /* Copy everything into userspace */
-    ASSERT(bufp == buf);
+    assert(bufp == buf);
     if (!copy_to_user(esp, bufp, sizeof(buf))) {
         return false;
     }

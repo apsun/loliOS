@@ -2,6 +2,9 @@
 #include <assert.h>
 #include <stddef.h>
 
+/*
+ * Returns the length of the specified string.
+ */
 int
 strlen(const char *s)
 {
@@ -12,6 +15,10 @@ strlen(const char *s)
     return end - s;
 }
 
+/*
+ * Compares two strings. Returns 0 if the two
+ * strings are equal, and non-zero otherwise.
+ */
 int
 strcmp(const char *s1, const char *s2)
 {
@@ -25,6 +32,12 @@ strcmp(const char *s1, const char *s2)
     return *(unsigned char *)s1 - *(unsigned char *)s2;
 }
 
+/*
+ * Compares two strings, up to the specified
+ * number of characters. Returns 0 if the two
+ * strings are equal up to the specified number,
+ * and non-zero otherwise.
+ */
 int
 strncmp(const char *s1, const char *s2, int n)
 {
@@ -45,6 +58,9 @@ strncmp(const char *s1, const char *s2, int n)
     }
 }
 
+/*
+ * Copies a string from src to dest. Returns dest.
+ */
 char *
 strcpy(char *dest, const char *src)
 {
@@ -56,17 +72,31 @@ strcpy(char *dest, const char *src)
     return dest;
 }
 
+/*
+ * Copies a string, up to n characters, from
+ * src to dest. If n is reached before the NUL
+ * terminator, dest is NOT NUL-terminated! Returns
+ * dest.
+ */
 char *
 strncpy(char *dest, const char *src, int n)
 {
     assert(dest != NULL);
     assert(src != NULL);
+    assert(n >= 0);
 
     char *new_dest = dest;
     while (n-- && (*new_dest++ = *src++));
     return dest;
 }
 
+/*
+ * Copies a string, up to n characters, from
+ * src to dest. If n is reached before the NUL
+ * terminator, dest is NUL-terminated and -1
+ * is returned. Otherwise, the length of the
+ * string is returned.
+ */
 int
 strscpy(char *dest, const char *src, int n)
 {
@@ -85,6 +115,9 @@ strscpy(char *dest, const char *src, int n)
     return -1;
 }
 
+/*
+ * Appends src to dest. Returns dest.
+ */
 char *
 strcat(char *dest, const char *src)
 {
@@ -97,6 +130,10 @@ strcat(char *dest, const char *src)
     return dest;
 }
 
+/*
+ * Appends up to n characters from src to dest.
+ * The destination string is always NUL-terminated.
+ */
 char *
 strncat(char *dest, const char *src, int n)
 {
@@ -115,6 +152,9 @@ strncat(char *dest, const char *src, int n)
     return dest;
 }
 
+/*
+ * Reverses a string in-place. Returns the string.
+ */
 char *
 strrev(char *s)
 {
@@ -132,6 +172,11 @@ strrev(char *s)
     return s;
 }
 
+/*
+ * Finds the first occurrence of the specified
+ * character in the string. Returns null if the
+ * character was not found.
+ */
 char *
 strchr(const char *s, char c)
 {
@@ -147,6 +192,11 @@ strchr(const char *s, char c)
     return (char *)ret;
 }
 
+/*
+ * Finds the last occurrence of the specified
+ * character in the string. Returns null if the
+ * character was not found.
+ */
 char *
 strrchr(const char *s, char c)
 {
@@ -161,6 +211,11 @@ strrchr(const char *s, char c)
     return (char *)ret;
 }
 
+/*
+ * Finds the first occurrence of the specified
+ * substring (needle) in the string (haystack).
+ * Returns null if the substring was not found.
+ */
 char *
 strstr(const char *haystack, const char *needle)
 {
@@ -177,6 +232,11 @@ strstr(const char *haystack, const char *needle)
     return NULL;
 }
 
+/*
+ * Converts an unsigned integer to a string. The buffer
+ * must be large enough to hold all the characters. The
+ * radix can be any value between 2 and 36.
+ */
 char *
 utoa(unsigned int value, char *buf, int radix)
 {
@@ -214,6 +274,11 @@ utoa(unsigned int value, char *buf, int radix)
     return strrev(buf);
 }
 
+/*
+ * Converts a signed integer to a string. The buffer
+ * must be large enough to hold all the characters. The
+ * radix can be any value between 2 and 36.
+ */
 char *
 itoa(int value, char *buf, int radix)
 {
@@ -231,6 +296,11 @@ itoa(int value, char *buf, int radix)
     return buf;
 }
 
+/*
+ * Converts a string to an integer. If the string
+ * is not a valid integer, returns 0. Only decimal
+ * integers are recognized.
+ */
 int
 atoi(const char *str)
 {
@@ -255,6 +325,10 @@ atoi(const char *str)
     return res * sign;
 }
 
+/*
+ * Compares two regions of memory. Returns 0 if
+ * they are equal, and non-0 otherwise.
+ */
 int
 memcmp(const void *s1, const void *s2, int n)
 {

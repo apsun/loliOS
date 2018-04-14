@@ -7,7 +7,7 @@
  * in the kernel page. If this limit becomes a problem,
  * we can allocate a dedicated 4MB page to hold the SKBs.
  */
-static skb_t skb_cache[128];
+static skb_t skb_cache[16];
 
 /*
  * Allocates and initializes a new SKB. Returns NULL if
@@ -44,7 +44,7 @@ skb_alloc(void)
 skb_t *
 skb_retain(skb_t *skb)
 {
-    ASSERT(skb->refcnt > 0);
+    assert(skb->refcnt > 0);
     skb->refcnt++;
     return skb;
 }
@@ -56,7 +56,7 @@ skb_retain(skb_t *skb)
 void
 skb_release(skb_t *skb)
 {
-    ASSERT(skb->refcnt > 0);
+    assert(skb->refcnt > 0);
     skb->refcnt--;
 }
 
@@ -66,7 +66,7 @@ skb_release(skb_t *skb)
 void *
 skb_data(skb_t *skb)
 {
-    ASSERT(skb->refcnt > 0);
+    assert(skb->refcnt > 0);
     return skb->data;
 }
 
@@ -76,7 +76,7 @@ skb_data(skb_t *skb)
 int
 skb_len(skb_t *skb)
 {
-    ASSERT(skb->refcnt > 0);
+    assert(skb->refcnt > 0);
     return skb->len;
 }
 
@@ -87,7 +87,7 @@ skb_len(skb_t *skb)
 int
 skb_headroom(skb_t *skb)
 {
-    ASSERT(skb->refcnt > 0);
+    assert(skb->refcnt > 0);
     return skb->data - skb->head;
 }
 
@@ -98,7 +98,7 @@ skb_headroom(skb_t *skb)
 int
 skb_tailroom(skb_t *skb)
 {
-    ASSERT(skb->refcnt > 0);
+    assert(skb->refcnt > 0);
     return skb->end - skb->tail;
 }
 
@@ -111,8 +111,8 @@ skb_tailroom(skb_t *skb)
 void *
 skb_push(skb_t *skb, int len)
 {
-    ASSERT(skb->refcnt > 0);
-    ASSERT(skb->data - len >= skb->head);
+    assert(skb->refcnt > 0);
+    assert(skb->data - len >= skb->head);
     skb->data -= len;
     skb->len += len;
     return skb->data;
@@ -125,7 +125,7 @@ skb_push(skb_t *skb, int len)
 bool
 skb_may_pull(skb_t *skb, int len)
 {
-    ASSERT(skb->refcnt > 0);
+    assert(skb->refcnt > 0);
     return len < skb->len;
 }
 
@@ -139,8 +139,8 @@ skb_may_pull(skb_t *skb, int len)
 void *
 skb_pull(skb_t *skb, int len)
 {
-    ASSERT(skb->refcnt > 0);
-    ASSERT(len < skb->len);
+    assert(skb->refcnt > 0);
+    assert(len < skb->len);
     skb->data += len;
     skb->len -= len;
     return skb->data;
@@ -155,8 +155,8 @@ skb_pull(skb_t *skb, int len)
 void *
 skb_put(skb_t *skb, int len)
 {
-    ASSERT(skb->refcnt > 0);
-    ASSERT(skb->tail + len <= skb->end);
+    assert(skb->refcnt > 0);
+    assert(skb->tail + len <= skb->end);
     void *orig_tail = skb->tail;
     skb->tail += len;
     skb->len += len;
@@ -171,7 +171,7 @@ skb_put(skb_t *skb, int len)
 void
 skb_trim(skb_t *skb, int len)
 {
-    ASSERT(skb->refcnt > 0);
+    assert(skb->refcnt > 0);
     if (len < skb->len) {
         skb->len = len;
         skb->tail = skb->data + len;
@@ -187,9 +187,9 @@ skb_trim(skb_t *skb, int len)
 void
 skb_reserve(skb_t *skb, int len)
 {
-    ASSERT(skb->refcnt > 0);
-    ASSERT(skb->len == 0);
-    ASSERT(skb->tail + len <= skb->end);
+    assert(skb->refcnt > 0);
+    assert(skb->len == 0);
+    assert(skb->tail + len <= skb->end);
     skb->data += len;
     skb->tail += len;
 }
@@ -201,7 +201,7 @@ skb_reserve(skb_t *skb, int len)
 void *
 skb_reset_mac_header(skb_t *skb)
 {
-    ASSERT(skb->refcnt > 0);
+    assert(skb->refcnt > 0);
     return skb->mac_header = skb->data;
 }
 
@@ -212,7 +212,7 @@ skb_reset_mac_header(skb_t *skb)
 void *
 skb_reset_network_header(skb_t *skb)
 {
-    ASSERT(skb->refcnt > 0);
+    assert(skb->refcnt > 0);
     return skb->network_header = skb->data;
 }
 
@@ -223,7 +223,7 @@ skb_reset_network_header(skb_t *skb)
 void *
 skb_reset_transport_header(skb_t *skb)
 {
-    ASSERT(skb->refcnt > 0);
+    assert(skb->refcnt > 0);
     return skb->transport_header = skb->data;
 }
 
@@ -233,7 +233,7 @@ skb_reset_transport_header(skb_t *skb)
 void *
 skb_mac_header(skb_t *skb)
 {
-    ASSERT(skb->refcnt > 0);
+    assert(skb->refcnt > 0);
     return skb->mac_header;
 }
 
@@ -243,7 +243,7 @@ skb_mac_header(skb_t *skb)
 void *
 skb_network_header(skb_t *skb)
 {
-    ASSERT(skb->refcnt > 0);
+    assert(skb->refcnt > 0);
     return skb->network_header;
 }
 
@@ -253,6 +253,6 @@ skb_network_header(skb_t *skb)
 void *
 skb_transport_header(skb_t *skb)
 {
-    ASSERT(skb->refcnt > 0);
+    assert(skb->refcnt > 0);
     return skb->transport_header;
 }

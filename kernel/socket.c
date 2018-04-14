@@ -110,7 +110,7 @@ socket_obj_alloc(void)
 static int
 socket_open(const char *filename, file_obj_t *file)
 {
-    PANIC("Socket object open() called");
+    panic("Socket object open() called");
     return -1;
 }
 
@@ -133,7 +133,7 @@ static int
 socket_close(file_obj_t *file)
 {
     net_sock_t *sock = get_sock(file);
-    ASSERT(sock != NULL);
+    assert(sock != NULL);
     if (sock->ops_table->close != NULL &&
         sock->ops_table->close(sock) < 0) {
         return -1;
@@ -147,7 +147,7 @@ static int
 socket_ioctl(file_obj_t *file, int req, int arg)
 {
     net_sock_t *sock = get_sock(file);
-    ASSERT(sock != NULL);
+    assert(sock != NULL);
     if (sock->ops_table->ioctl == NULL) {
         return -1;
     }
@@ -318,7 +318,7 @@ socket_find_free_port(net_iface_t *iface, int type)
         }
     }
 
-    PANIC("Failed to find a free port for binding");
+    panic("Failed to find a free port for binding");
     return -1;
 }
 
