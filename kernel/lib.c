@@ -745,11 +745,11 @@ printf_append_string(printf_arg_t *a, const char *s)
     /* String too long for buffer, bypass it if possible */
     if (a->count == 0 && a->write != NULL) {
         int len = strlen(s);
+        a->true_len += len;
         if (!a->write(s, len)) {
             a->buf = NULL;
             return false;
         }
-        a->true_len += len;
         return true;
     }
 
