@@ -1073,7 +1073,7 @@ snprintf(char *buf, int size, const char *format, ...)
 }
 
 /*
- * Prints a string to stdout, va_list version.
+ * Prints a string to the terminal, va_list version.
  */
 int
 vprintf(const char *format, va_list args)
@@ -1083,7 +1083,7 @@ vprintf(const char *format, va_list args)
 }
 
 /*
- * Prints a string to stdout.
+ * Prints a string to the terminal.
  */
 int
 printf(const char *format, ...)

@@ -350,6 +350,11 @@ memcmp(const void *s1, const void *s2, int n)
     }
 }
 
+/*
+ * Finds the first occurrence of the specified byte
+ * within the given memory region. Returns null if
+ * the byte was not found.
+ */
 void *
 memchr(const void *s, unsigned char c, int n)
 {
@@ -366,6 +371,10 @@ memchr(const void *s, unsigned char c, int n)
     return NULL;
 }
 
+/*
+ * Sets all bytes in the specified memory region to
+ * the value of c. Returns s.
+ */
 void *
 memset(void *s, unsigned char c, int n)
 {
@@ -379,6 +388,10 @@ memset(void *s, unsigned char c, int n)
     return s;
 }
 
+/*
+ * Copies a non-overlapping memory region from src to dest.
+ * Returns dest.
+ */
 void *
 memcpy(void *dest, const void *src, int n)
 {
@@ -394,6 +407,10 @@ memcpy(void *dest, const void *src, int n)
     return dest;
 }
 
+/*
+ * Copies a potentially overlapping memory region from
+ * src to dest. Returns dest.
+ */
 void *
 memmove(void *dest, const void *src, int n)
 {

@@ -8,7 +8,7 @@
 
 #define assert(x) do {                                                   \
     if (!(x)) {                                                          \
-        printf("%s() at %s:%d: Assertion failed: %s\n", __func__, __FILE__, __LINE__, #x); \
+        printf("%s:%d: Assertion failed: %s\n", __FILE__, __LINE__, #x); \
         abort();                                                         \
     }                                                                    \
 } while (0)
