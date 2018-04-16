@@ -154,6 +154,7 @@ read_data(int inode, int offset, uint8_t *buf, int length)
 int
 fs_open(const char *filename, file_obj_t *file)
 {
+    file->private = 0;
     return 0;
 }
 
