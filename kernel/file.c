@@ -126,7 +126,6 @@ file_obj_alloc(void)
         file_obj_t *file = &files[i];
         if (file->fd < 0) {
             file->fd = i;
-            file->private = 0;
             return file;
         }
     }
@@ -174,12 +173,16 @@ void
 file_init(file_obj_t *files)
 {
     /* Initialize stdin as fd = 0 */
-    files[0].fd = 0;
-    files[0].ops_table = &fops_stdin;
+    file_obj_t *in = &files[0];
+    in->fd = 0;
+    in->ops_table = &fops_stdin;
+    in->ops_table->open(NULL, in);
 
     /* Initialize stdout as fd = 1 */
-    files[1].fd = 1;
-    files[1].ops_table = &fops_stdout;
+    file_obj_t *out = &files[1];
+    out->fd = 1;
+    out->ops_table = &fops_stdout;
+    out->ops_table->open(NULL, out);
 
     /* Clear the remaining files */
     int i;

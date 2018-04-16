@@ -376,6 +376,8 @@ terminal_wait_kbd_input(kbd_input_buf_t *input_buf, int nbytes, bool nonblocking
 int
 terminal_kbd_open(const char *filename, file_obj_t *file)
 {
+    /* Set to blocking mode by default */
+    file->private = 0;
     return 0;
 }
 
