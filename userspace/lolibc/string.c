@@ -334,6 +334,7 @@ memcmp(const void *s1, const void *s2, int n)
 {
     assert(s1 != NULL);
     assert(s2 != NULL);
+    assert(n >= 0);
 
     const unsigned char *a = s1;
     const unsigned char *b = s2;
