@@ -438,7 +438,7 @@ consume_format:
             printf_do_string(&a, va_arg(args, const char *));
             break;
 
-        /* Ignore other characters */
+        /* Fail on other characters */
         default:
             abort();
             break;

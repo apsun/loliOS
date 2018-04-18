@@ -34,7 +34,7 @@ static void
 kernel_clear(uint8_t attrib)
 {
     char *screen = (char *)0xB8000;
-   int count = 2048; /* Yes, just like that game. */
+    int count = 2048; /* Yes, just like that game. */
     while (count-- > 0) {
         *screen++ = ' ';
         *screen++ = attrib;

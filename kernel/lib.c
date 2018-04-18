@@ -1035,9 +1035,9 @@ consume_format:
             printf_do_string(&a, va_arg(args, const char *));
             break;
 
-        /* Ignore other characters */
+        /* Fail on other characters */
         default:
-            panic("Invalid printf format");
+            panic("Invalid printf() format specifier");
             break;
         }
     }
