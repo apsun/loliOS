@@ -203,14 +203,13 @@ arp_cache_insert(ip_addr_t ip, const mac_addr_t *mac)
         return -1;
     }
 
-    /* Update entry in the cache, send any queued packets */
+    /* Update entry in the cache */
     entry->exists = true;
     entry->timestamp = rtc_get_counter();
     entry->ip_addr = ip;
     if (mac != NULL) {
         entry->mac_addr = *mac;
         entry->resolved = true;
-        arp_queue_send(ip, *mac);
     } else {
         entry->resolved = false;
     }
