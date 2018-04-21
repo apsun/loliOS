@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define __cdecl __attribute__((cdecl))
+
 typedef struct {
     uint32_t eip;
     uint32_t esp;
@@ -12,8 +14,8 @@ typedef struct {
     uint32_t edi;
 } jmp_buf;
 
-void longjmp(jmp_buf env, int status);
-int __setjmp_ptr(jmp_buf *env);
+__cdecl void longjmp(jmp_buf env, int status);
+__cdecl int __setjmp_ptr(jmp_buf *env);
 #define setjmp(env) __setjmp_ptr(&(env))
 
 #endif /* _LOLIBC_SETJMP_H */

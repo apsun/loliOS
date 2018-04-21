@@ -41,8 +41,8 @@ if [ "$1" = "clean" ]; then
 fi
 
 if [ "$compat" = "true" ]; then
-    # Copy filesys_img from original version
-    cp "${mp3_dir}/kernel/filesys_img.orig" "${mp3_dir}/kernel/filesys_img"
+    # Copy filesys_img.new from original version
+    cp "${mp3_dir}/kernel/filesys_img" "${mp3_dir}/kernel/filesys_img.new"
 else
     # Make binaries executable
     chmod +x "${mp3_dir}/elfconvert"
@@ -53,8 +53,8 @@ else
     cp "${mp3_dir}/userspace/build/"* "${mp3_dir}/filesystem"
 
     # Generate new filesystem image
-    rm -f "${mp3_dir}/kernel/filesys_img"
-    "${mp3_dir}/createfs.py" -i "${mp3_dir}/filesystem" -o "${mp3_dir}/kernel/filesys_img"
+    rm -f "${mp3_dir}/kernel/filesys_img.new"
+    "${mp3_dir}/createfs.py" -i "${mp3_dir}/filesystem" -o "${mp3_dir}/kernel/filesys_img.new"
 fi
 
 # Build OS image

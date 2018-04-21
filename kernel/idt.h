@@ -86,7 +86,7 @@ typedef struct {
 void idt_init(void);
 
 /* Interrupt handler routine */
-void idt_handle_interrupt(int_regs_t *regs);
+__cdecl void idt_handle_interrupt(int_regs_t *regs);
 
 #endif /* ASM */
 

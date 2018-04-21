@@ -42,6 +42,8 @@
 
 #include <stdint.h>
 
+#define __cdecl __attribute__((cdecl))
+
 typedef struct {
     uint8_t bytes[4];
 } ip_addr_t;
@@ -51,28 +53,28 @@ typedef struct {
     uint16_t port;
 } sock_addr_t;
 
-int halt(int status);
-int execute(const char *command);
-int read(int fd, void *buf, int nbytes);
-int write(int fd, const void *buf, int nbytes);
-int open(const char *filename);
-int close(int fd);
-int getargs(char *buf, int nbytes);
-int vidmap(uint8_t **screen_start);
-int sigaction(int signum, void *handler);
-int sigreturn(void);
-int sigraise(int signum);
-int sigmask(int signum, int action);
-int ioctl(int fd, int req, int arg);
-int time(void);
-int sbrk(int delta);
-int socket(int type);
-int bind(int fd, const sock_addr_t *addr);
-int connect(int fd, const sock_addr_t *addr);
-int listen(int fd, int backlog);
-int accept(int fd, sock_addr_t *addr);
-int recvfrom(int fd, void *buf, int nbytes, sock_addr_t *addr);
-int sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr);
+__cdecl int halt(int status);
+__cdecl int execute(const char *command);
+__cdecl int read(int fd, void *buf, int nbytes);
+__cdecl int write(int fd, const void *buf, int nbytes);
+__cdecl int open(const char *filename);
+__cdecl int close(int fd);
+__cdecl int getargs(char *buf, int nbytes);
+__cdecl int vidmap(uint8_t **screen_start);
+__cdecl int sigaction(int signum, void *handler);
+__cdecl int sigreturn(void);
+__cdecl int sigraise(int signum);
+__cdecl int sigmask(int signum, int action);
+__cdecl int ioctl(int fd, int req, int arg);
+__cdecl int time(void);
+__cdecl int sbrk(int delta);
+__cdecl int socket(int type);
+__cdecl int bind(int fd, const sock_addr_t *addr);
+__cdecl int connect(int fd, const sock_addr_t *addr);
+__cdecl int listen(int fd, int backlog);
+__cdecl int accept(int fd, sock_addr_t *addr);
+__cdecl int recvfrom(int fd, void *buf, int nbytes, sock_addr_t *addr);
+__cdecl int sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr);
 
 #endif /* ASM */
 

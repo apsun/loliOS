@@ -31,6 +31,7 @@ clean:
 	rm -f *.o */*.o Makefile.dep
 	rm -f bootimg
 	rm -f mp3.img
+	rm -f filesys_img.new
 
 ifneq ($(MAKECMDGOALS),dep)
 ifneq ($(MAKECMDGOALS),clean)
