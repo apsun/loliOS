@@ -67,11 +67,12 @@ ip_handle_rx(net_iface_t *iface, skb_t *skb)
 
     /* Pop IP header, trim off Ethernet padding */
     ip_hdr_t *hdr = skb_reset_network_header(skb);
-    if (ntohs(hdr->be_total_length) < (uint16_t)sizeof(ip_hdr_t)) {
+    uint16_t ip_len = ntohs(hdr->be_total_length);
+    if (ip_len < sizeof(ip_hdr_t) || ip_len > skb_len(skb)) {
         debugf("Invalid packet length\n");
         return -1;
     }
-    skb_trim(skb, ntohs(hdr->be_total_length));
+    skb_trim(skb, ip_len);
     skb_pull(skb, sizeof(ip_hdr_t));
 
     /* Drop packets with unhandled fields */
