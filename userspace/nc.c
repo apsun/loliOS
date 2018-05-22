@@ -240,7 +240,9 @@ dns_resolve(const char *hostname, ip_addr_t *ip)
     while (time() <= start + DNS_TIMEOUT) {
         int rcnt;
         if ((rcnt = recvfrom(sockfd, rbuf, sizeof(rbuf), NULL)) != 0) {
-            if (rcnt < 0) {
+            if (rcnt == -EINTR || rcnt == -EAGAIN) {
+                continue;
+            } else if (rcnt < 0) {
                 goto cleanup;
             } else {
                 ret = dns_parse_reply(rbuf, rcnt, ip);
@@ -288,10 +290,13 @@ ip_parse(const char *str, ip_addr_t *ip)
 }
 
 static int
-nc_loop(ip_addr_t ip, uint16_t port, bool listen)
+nc_loop(ip_addr_t ip, uint16_t port, bool listen, bool udp)
 {
     int ret = 1;
     int sockfd = -1;
+
+    /* TODO */
+    (void)udp;
     
     if ((sockfd = socket(SOCK_UDP)) < 0) {
         puts("Failed to allocate socket");
@@ -300,6 +305,7 @@ nc_loop(ip_addr_t ip, uint16_t port, bool listen)
 
     sock_addr_t peer_addr;
     bool know_peer;
+    bool bound;
 
     if (listen) {
         sock_addr_t local_addr;
@@ -310,10 +316,12 @@ nc_loop(ip_addr_t ip, uint16_t port, bool listen)
             goto cleanup;
         }
         know_peer = false;
+        bound = true;
     } else {
         peer_addr.ip = ip;
         peer_addr.port = port;
         know_peer = true;
+        bound = false;
     }
 
     char recv_buf[0x600];
@@ -323,7 +331,10 @@ nc_loop(ip_addr_t ip, uint16_t port, bool listen)
         int cnt;
 
         /* Read data from stdin */
-        if ((cnt = read(0, &send_buf[send_buf_count], sizeof(send_buf) - send_buf_count)) < 0) {
+        cnt = read(0, &send_buf[send_buf_count], sizeof(send_buf) - send_buf_count);
+        if (cnt == -EINTR || cnt == -EAGAIN) {
+            cnt = 0;
+        } else if (cnt < 0) {
             puts("Terminal read failed");
             goto cleanup;
         }
@@ -347,21 +358,24 @@ nc_loop(ip_addr_t ip, uint16_t port, bool listen)
             }
             memmove(&send_buf[0], &send_buf[line_len], send_buf_count - line_len);
             send_buf_count -= line_len;
+            bound = true;
         }
 
         /* Read data from socket */
-        if ((cnt = recvfrom(sockfd, recv_buf, sizeof(recv_buf), &peer_addr)) < 0) {
-            puts("Read from socket failed");
-            goto cleanup;
-        }
-
-        /* Echo data to terminal */
-        if (cnt > 0) {
-            if (write(1, recv_buf, cnt) < cnt) {
-                puts("Terminal write failed");
+        if (bound) {
+            cnt = recvfrom(sockfd, recv_buf, sizeof(recv_buf), &peer_addr);
+            if (cnt == -EINTR || cnt == -EAGAIN) {
+                /* Do nothing */
+            } else if (cnt < 0) {
+                puts("Read from socket failed");
                 goto cleanup;
+            } else {
+                if (write(1, recv_buf, cnt) < cnt) {
+                    puts("Terminal write failed");
+                    goto cleanup;
+                }
+                know_peer = true;
             }
-            know_peer = true;
         }
     }
 
@@ -376,16 +390,34 @@ int
 main(void)
 {
     char args_buf[128];
-    char *args = args_buf;
     if (getargs(args_buf, sizeof(args_buf)) < 0) {
         puts("Failed to read args");
         return 1;
     }
 
     bool listen = false;
-    if (strncmp("-l ", args, strlen("-l ")) == 0) {
-        args += strlen("-l ");
-        listen = true;
+    bool udp = false;
+    char *args = args_buf;
+    while (1) {
+        if (*args == ' ') {
+            args++;
+        } else if (*args == '-') {
+            char c;
+            while ((c = *++args) && c != ' ') {
+                switch (c) {
+                case 'l':
+                    listen = true;
+                    break;
+                case 'u':
+                    break;
+                default:
+                    printf("Unknown option: %c\n", c);
+                    return 1;
+                }
+            }
+        } else {
+            break;
+        }
     }
 
     char *space = strchr(args, ' ');
@@ -419,5 +451,5 @@ main(void)
         return 1;
     }
 
-    return nc_loop(ip, port, listen);
+    return nc_loop(ip, port, listen, udp);
 }

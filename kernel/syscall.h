@@ -29,6 +29,9 @@
 #define SYS_RECVFROM    21
 #define SYS_SENDTO      22
 
+#define EINTR  2
+#define EAGAIN 3
+
 #ifndef ASM
 
 __cdecl int

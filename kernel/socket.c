@@ -31,6 +31,7 @@ static const file_ops_t fops_socket = {
 static const sock_ops_t sops_udp = {
     .socket = udp_socket,
     .bind = udp_bind,
+    .connect = udp_connect,
     .recvfrom = udp_recvfrom,
     .sendto = udp_sendto,
     .close = udp_close,
@@ -95,15 +96,27 @@ socket_obj_alloc(void)
         net_sock_t *sock = &socks[i];
         if (sock->sd < 0) {
             sock->sd = i;
-            sock->bound = false;
-            sock->iface = NULL;
-            sock->port = 0;
             sock->type = 0;
+            sock->bound = false;
+            sock->connected = false;
+            sock->listening = false;
+            sock->iface = NULL;
+            sock->local.ip = ANY_IP;
+            sock->local.port = 0;
+            sock->remote.ip = ANY_IP;
+            sock->remote.port = 0;
             sock->private = NULL;
             return sock;
         }
     }
     return NULL;
+}
+
+/* Frees a socket (but not the corresponding file) */
+static void
+socket_obj_free(net_sock_t *sock)
+{
+    sock->sd = -1;
 }
 
 /* Open syscall for socket files. This should never be called! */
@@ -138,7 +151,7 @@ socket_close(file_obj_t *file)
         sock->ops_table->close(sock) < 0) {
         return -1;
     }
-    sock->sd = -1;
+    socket_obj_free(sock);
     return 0;
 }
 
@@ -169,15 +182,15 @@ socket_socket(int type)
     file_obj_t *file = file_obj_alloc();
     if (file == NULL) {
         debugf("Failed to allocate file\n");
-        sock->sd = -1;
+        socket_obj_free(sock);
         return -1;
     }
 
     /* Initialize socket and file objects */
     if (socket_obj_init(sock, type) < 0) {
         debugf("Failed to initialize socket\n");
-        file->fd = -1;
-        sock->sd = -1;
+        file_obj_free(file);
+        socket_obj_free(sock);
         return -1;
     }
 
@@ -185,8 +198,8 @@ socket_socket(int type)
     if (sock->ops_table->socket != NULL &&
         sock->ops_table->socket(sock) < 0) {
         debugf("Socket constructor returned error\n");
-        file->fd = -1;
-        sock->sd = -1;
+        file_obj_free(file);
+        socket_obj_free(sock);
         return -1;
     }
 
@@ -257,11 +270,11 @@ socket_sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr)
 }
 
 /*
- * Checks whether a socket's bound address matches the
- * specified (IP, port) combination.
+ * Checks whether a socket's bound local address matches
+ * the specified (IP, port) tuple.
  */
 static bool
-socket_addr_matches(net_sock_t *sock, int type, ip_addr_t ip, int port)
+socket_local_addr_matches(net_sock_t *sock, int type, ip_addr_t ip, uint16_t port)
 {
     if (sock->sd < 0)
         return false;
@@ -269,27 +282,69 @@ socket_addr_matches(net_sock_t *sock, int type, ip_addr_t ip, int port)
         return false;
     if (sock->type != type)
         return false;
-    if (sock->port != port)
+    if (sock->local.port != port)
         return false;
     if (sock->iface == NULL)
         return true;
     if (ip_equals(ip, ANY_IP))
         return true;
-    return ip_equals(sock->iface->ip_addr, ip);
+    return ip_equals(sock->local.ip, ip);
 }
 
 /*
- * Returns a socket given the bound IP address and port.
- * If there is no socket for the (IP, port) combination,
- * returns null.
+ * Checks whether a socket's bound and connected addresses
+ * matches the specified (IP, port) combinations. If remote_ip
+ * equals ANY_IP and remote_port equals 0, this will match
+ * only unconnected sockets.
+ */
+static bool
+socket_addr_matches(net_sock_t *sock, int type,
+    ip_addr_t local_ip, uint16_t local_port,
+    ip_addr_t remote_ip, uint16_t remote_port)
+{
+    if (!socket_local_addr_matches(sock, type, local_ip, local_port))
+        return false;
+    if (!sock->connected)
+        return ip_equals(remote_ip, ANY_IP) && remote_port == 0;
+    if (!ip_equals(sock->remote.ip, remote_ip))
+        return false;
+    if (sock->local.port != remote_port)
+        return false;
+    return true;
+}
+
+/*
+ * Returns a socket given both the local and remote IP address
+ * and port. If there is no socket for the specified (IP, port)
+ * combinations, returns null.
  */
 net_sock_t *
-get_sock_by_addr(int type, ip_addr_t ip, uint16_t port)
+get_sock_by_addr(int type,
+    ip_addr_t local_ip, uint16_t local_port,
+    ip_addr_t remote_ip, uint16_t remote_port)
 {
     int i;
     for (i = 0; i < array_len(socks); ++i) {
         net_sock_t *sock = &socks[i];
-        if (socket_addr_matches(sock, type, ip, port)) {
+        if (socket_addr_matches(sock, type, local_ip, local_port, remote_ip, remote_port)) {
+            return sock;
+        }
+    }
+    return NULL;
+}
+
+/*
+ * Returns a socket given the local IP address and port.
+ * If there is no socket for the (IP, port) combination,
+ * returns null.
+ */
+net_sock_t *
+get_sock_by_local_addr(int type, ip_addr_t ip, uint16_t port)
+{
+    int i;
+    for (i = 0; i < array_len(socks); ++i) {
+        net_sock_t *sock = &socks[i];
+        if (socket_local_addr_matches(sock, type, ip, port)) {
             return sock;
         }
     }
@@ -313,7 +368,7 @@ socket_find_free_port(net_iface_t *iface, int type)
     int i;
     for (i = 0; i <= array_len(socks); ++i) {
         int port = EPHEMERAL_PORT_START + i;
-        if (get_sock_by_addr(type, ip, port) == NULL) {
+        if (get_sock_by_local_addr(type, ip, port) == NULL) {
             return port;
         }
     }
@@ -353,7 +408,7 @@ socket_bind_addr(net_sock_t *sock, ip_addr_t ip, uint16_t port)
     int i;
     for (i = 0; i < array_len(socks); ++i) {
         net_sock_t *tmp = &socks[i];
-        if (tmp != sock && socket_addr_matches(tmp, sock->type, ip, port)) {
+        if (tmp != sock && socket_local_addr_matches(tmp, sock->type, ip, port)) {
             debugf("Address already bound\n");
             return -1;
         }
@@ -361,7 +416,36 @@ socket_bind_addr(net_sock_t *sock, ip_addr_t ip, uint16_t port)
 
     sock->bound = true;
     sock->iface = iface;
-    sock->port = port;
+    sock->local.ip = ip;
+    sock->local.port = port;
+    return 0;
+}
+
+/*
+ * Connects a socket to the specified remote (IP, port).
+ * Returns 0 on success, -1 if the destination IP address
+ * is not routable or the port is invalid. This does not
+ * prevent re-connecting a connected socket.
+ */
+int
+socket_connect_addr(net_sock_t *sock, ip_addr_t ip, uint16_t port)
+{
+    /* Check remote port is valid */
+    if (port == 0) {
+        return -1;
+    }
+
+    /* Ensure we can actually route to destination */
+    ip_addr_t neigh_ip;
+    net_iface_t *iface = net_route(sock->iface, ip, &neigh_ip);
+    if (iface == NULL) {
+        debugf("Destination address not routable\n");
+        return -1;
+    }
+
+    sock->connected = true;
+    sock->remote.ip = ip;
+    sock->remote.port = port;
     return 0;
 }
 

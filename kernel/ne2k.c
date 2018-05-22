@@ -329,7 +329,7 @@ ne2k_reset(void)
 static void
 ne2k_handle_rx(void)
 {
-    while (1) {
+    while (true) {
         /* Read the current page (aka the tail of the ring buffer) */
         outb(NE2K_CMD_PAGE1, NE2K_CMD);
         uint8_t tail_pg = inb(NE2K_CURPAG);
@@ -353,14 +353,15 @@ ne2k_handle_rx(void)
 
         /* Check OK flag, drop packet if invalid */
         if ((hdr.status & NE2K_ENRSR_RXOK) != 0) {
-            skb_t *skb = skb_alloc();
+            /* Allocate SKB to hold frame */
+            int eth_size = hdr.size - sizeof(ne2k_hdr_t);
+            skb_t *skb = skb_alloc(eth_size);
             if (skb == NULL) {
                 debugf("Failed to allocate SKB for incoming packet\n");
                 break;
             }
 
             /* Read Ethernet frame content */
-            int eth_size = hdr.size - sizeof(ne2k_hdr_t);
             void *body = skb_put(skb, eth_size);
             ne2k_read_mem(body, offset + sizeof(ne2k_hdr_t), eth_size);
 

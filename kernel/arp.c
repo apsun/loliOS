@@ -219,6 +219,15 @@ arp_cache_insert(ip_addr_t ip, const mac_addr_t *mac)
 /*
  * Attempts to resolve an IP address to a MAC address,
  * using only the ARP cache.
+ *
+ * ARP_INVALID: MAC address is not cached and no request
+ * has been sent yet
+ *
+ * ARP_UNREACHABLE: timed out waiting for an ARP reply
+ *
+ * ARP_WAITING: ARP request sent, no reply received yet
+ *
+ * ARP_REACHABLE: MAC address is cached and not stale
  */
 arp_state_t
 arp_get_state(net_dev_t *dev, ip_addr_t ip, mac_addr_t *mac)
@@ -245,18 +254,22 @@ arp_get_state(net_dev_t *dev, ip_addr_t ip, mac_addr_t *mac)
 }
 
 /*
- * Sends an ARP packet.
+ * Sends an ARP packet. iface determines which device to send
+ * the packet on; op can either be a request or a reply.
+ * ip and mac are the destination addresses (mac can be
+ * BROADCAST_MAC if not known).
  */
 static int
 arp_send(net_iface_t *iface, ip_addr_t ip, mac_addr_t mac, int op)
 {
     /* Allocate new SKB */
-    skb_t *skb = skb_alloc();
+    int hdr_len = sizeof(arp_hdr_t) + sizeof(ethernet_hdr_t);
+    skb_t *skb = skb_alloc(sizeof(arp_body_t) + hdr_len);
     if (skb == NULL) {
         debugf("Failed to allocate new SKB\n");
         return -1;
     }
-    skb_reserve(skb, sizeof(ethernet_hdr_t) + sizeof(arp_hdr_t));
+    skb_reserve(skb, hdr_len);
 
     /* Fill out ARP body */
     arp_body_t *body = skb_put(skb, sizeof(arp_body_t));

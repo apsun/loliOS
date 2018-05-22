@@ -20,4 +20,5 @@ build.sh
     This script builds the entire project, including the kernel and all
     userspace programs. Run it with the optional "clean" argument to
     delete all object files. Run it with "run" to also boot QEMU after a
-    successful build.
+    successful build. The "-c" (compat) flag can be used to boot the
+    original ECE 391 filesystem.

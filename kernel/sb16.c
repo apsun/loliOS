@@ -121,7 +121,6 @@ sb16_start_playback(void)
     len--;
 
     /* Packet byte order is cmd, mode, LO(len), HI(len) */
-    debugf("sb16(cmd=0x%x, mode=0x%x, len=0x%x)\n", cmd, mode, len);
     sb16_out(cmd);
     sb16_out(mode);
     sb16_out((len >> 0) & 0xff);

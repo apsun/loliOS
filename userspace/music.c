@@ -31,9 +31,25 @@ typedef struct {
 } wave_header_t;
 
 int
+read_all(int fd, void *buf, int nbytes)
+{
+    int total = 0;
+    int cnt;
+    char *bufp = buf;
+    while (total < nbytes && (cnt = read(fd, &bufp[total], nbytes - total)) > 0) {
+        total += cnt;
+    }
+    if (total < nbytes) {
+        return -1;
+    } else {
+        return 0;
+    }
+}
+
+int
 read_wave_header(int soundfd, wave_header_t *hdr)
 {
-    if (read(soundfd, hdr, sizeof(*hdr)) < (int)sizeof(*hdr)) {
+    if (read_all(soundfd, hdr, sizeof(*hdr)) < 0) {
         puts("Could not read WAVE header");
         return -1;
     }

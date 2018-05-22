@@ -348,12 +348,12 @@ terminal_wait_kbd_input(kbd_input_buf_t *input_buf, int nbytes, bool nonblocking
          * have a newline character yet
          */
         if (nonblocking) {
-            return 0;
+            return -EAGAIN;
         }
 
         /* Exit early if we have a pending signal */
         if (signal_has_pending()) {
-            return -1;
+            return -EINTR;
         }
 
         /*
@@ -413,7 +413,7 @@ terminal_stdin_read(file_obj_t *file, void *buf, int nbytes)
     nbytes = terminal_wait_kbd_input(input_buf, nbytes, file->private);
 
     /* Abort if we have pending signals or nothing to read */
-    if (nbytes <= 0) {
+    if (nbytes < 0) {
         return nbytes;
     }
 

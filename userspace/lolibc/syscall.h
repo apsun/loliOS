@@ -24,6 +24,9 @@
 #define SYS_RECVFROM    21
 #define SYS_SENDTO      22
 
+#define EINTR  2
+#define EAGAIN 3
+
 #define SIG_DIV_ZERO  0
 #define SIG_SEGFAULT  1
 #define SIG_INTERRUPT 2

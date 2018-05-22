@@ -7,11 +7,11 @@
 #ifndef ASM
 
 /*
- * Socket kernel buffer structure, just like the one in Linux.
+ * Socket kernel buffer structure, kind of like the one in Linux.
+ * This version doesn't support dynamic reallocation/linearization;
+ * you must know the maximum size at allocation time.
  */
 typedef struct {
-    uint16_t refcnt; /* Must be first 2B, to ensure IP header alignment */
-    uint8_t buf[1514]; /* Maximum size of Ethernet frame */
     uint8_t *head;
     uint8_t *data;
     uint8_t *tail;
@@ -20,10 +20,18 @@ typedef struct {
     void *mac_header;
     void *network_header;
     void *transport_header;
+
+    /*
+     * Do not reorder this field; it must come right before the
+     * buffer to pad the IP header to a 4-byte boundary (since
+     * the Ethernet header normally ends at a 2-byte boundary).
+     */
+    uint16_t refcnt;
+    uint8_t buf[1516];
 } skb_t;
 
 /* Allocates a new SKB */
-skb_t *skb_alloc(void);
+skb_t *skb_alloc(int size);
 
 /* Increments the SKB reference count */
 skb_t *skb_retain(skb_t *skb);

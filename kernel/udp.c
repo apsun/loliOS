@@ -1,6 +1,7 @@
 #include "udp.h"
 #include "lib.h"
 #include "debug.h"
+#include "syscall.h"
 #include "paging.h"
 #include "net.h"
 #include "ip.h"
@@ -15,6 +16,8 @@ typedef struct {
 
 /* One private data per socket */
 static udp_sock_t udp_socks[36];
+
+#define UDP_HDR_SIZE (sizeof(udp_hdr_t) + sizeof(ip_hdr_t) + sizeof(ethernet_hdr_t))
 
 /*
  * Computes the UDP checksum. The SKB should contain the
@@ -51,6 +54,7 @@ udp_handle_rx(net_iface_t *iface, skb_t *skb)
     }
 
     /* Pop UDP header */
+    ip_hdr_t *ip_hdr = skb_network_header(skb);
     udp_hdr_t *hdr = skb_reset_transport_header(skb);
     if (htons(hdr->be_length) != skb_len(skb)) {
         debugf("UDP datagram size mismatch\n");
@@ -59,15 +63,23 @@ udp_handle_rx(net_iface_t *iface, skb_t *skb)
     skb_pull(skb, sizeof(udp_hdr_t));
 
     /* Find the corresponding socket */
-    ip_addr_t dest_ip = iface->ip_addr;
+    ip_addr_t dest_ip = ip_hdr->dest_ip;
     uint16_t dest_port = ntohs(hdr->be_dest_port);
-    net_sock_t *sock = get_sock_by_addr(SOCK_UDP, dest_ip, dest_port);
+    net_sock_t *sock = get_sock_by_local_addr(SOCK_UDP, dest_ip, dest_port);
     if (sock == NULL) {
         debugf("No UDP socket for (IP, port), dropping datagram\n");
         return -1;
     }
 
-    /* Append SKB to socket queue */
+    /* If the socket is connected, filter out packets from other endpoints */
+    if (sock->connected) {
+        if (!ip_equals(sock->remote.ip, ip_hdr->src_ip))
+            return -1;
+        if (sock->remote.port != ntohs(hdr->be_src_port))
+            return -1;
+    }
+
+    /* Append SKB to inbox queue */
     udp_sock_t *udp = sock->private;
     if (udp->inbox_num == array_len(udp->inbox)) {
         debugf("UDP inbox full, dropping datagram\n");
@@ -78,7 +90,7 @@ udp_handle_rx(net_iface_t *iface, skb_t *skb)
 }
 
 /* Sends a UDP datagram to the specified IP and port */
-int
+static int
 udp_send(net_sock_t *sock, skb_t *skb, ip_addr_t ip, int port)
 {
     /* Auto-bind sender address if not already done */
@@ -97,7 +109,7 @@ udp_send(net_sock_t *sock, skb_t *skb, ip_addr_t ip, int port)
 
     /* Prepend UDP header */
     udp_hdr_t *hdr = skb_push(skb, sizeof(udp_hdr_t));
-    hdr->be_src_port = htons(sock->port);
+    hdr->be_src_port = htons(sock->local.port);
     hdr->be_dest_port = htons(port);
     hdr->be_length = htons(skb_len(skb));
     hdr->be_checksum = htons(0);
@@ -138,29 +150,42 @@ udp_socket(net_sock_t *sock)
 int
 udp_bind(net_sock_t *sock, const sock_addr_t *addr)
 {
-    /* Copy bind address into kernelspace */
-    sock_addr_t local_addr;
-    if (!copy_from_user(&local_addr, addr, sizeof(sock_addr_t))) {
+    /* Copy address into kernelspace */
+    sock_addr_t tmp;
+    if (!copy_from_user(&tmp, addr, sizeof(sock_addr_t))) {
         return -1;
     }
 
-    /* Bind socket address */
-    if (socket_bind_addr(sock, local_addr.ip, local_addr.port) < 0) {
-        debugf("Could not bind address\n");
+    return socket_bind_addr(sock, tmp.ip, tmp.port);
+}
+
+/* connect() socketcall handler */
+int
+udp_connect(net_sock_t *sock, const sock_addr_t *addr)
+{
+    /* Copy address to kernelspace */
+    sock_addr_t tmp;
+    if (!copy_from_user(&tmp, addr, sizeof(sock_addr_t))) {
         return -1;
     }
 
-    return 0;
+    return socket_connect_addr(sock, tmp.ip, tmp.port);
 }
 
 /* recvfrom() socketcall handler */
 int
 udp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
 {
+    /* Can only receive packets after bind() */
+    if (!sock->bound) {
+        debugf("recvfrom() on unbound socket\n");
+        return -1;
+    }
+
     /* Do we have any queued packets? */
     udp_sock_t *udp = sock->private;
     if (udp->inbox_num == 0) {
-        return 0;
+        return -EAGAIN;
     }
 
     /* Get first packet in the inbox queue */
@@ -199,9 +224,11 @@ udp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
 int
 udp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *addr)
 {
-    /* Copy destination address from userspace */
+    /* If addr is not null, override connected address */
     sock_addr_t dest_addr;
-    if (!copy_from_user(&dest_addr, addr, sizeof(sock_addr_t))) {
+    if (addr == NULL && sock->connected) {
+        dest_addr = sock->remote;
+    } else if (!copy_from_user(&dest_addr, addr, sizeof(sock_addr_t))) {
         return -1;
     }
 
@@ -212,14 +239,15 @@ udp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
     }
 
     /* Allocate a new SKB */
-    skb_t *skb = skb_alloc();
+    int hdr_len = sizeof(udp_hdr_t) + sizeof(ip_hdr_t) + sizeof(ethernet_hdr_t);
+    skb_t *skb = skb_alloc(nbytes + hdr_len);
     if (skb == NULL) {
         debugf("Failed to allocate new SKB\n");
         return -1;
     }
 
     /* Reserve space for headers */
-    skb_reserve(skb, sizeof(udp_hdr_t) + sizeof(ip_hdr_t) + sizeof(ethernet_hdr_t));
+    skb_reserve(skb, hdr_len);
     if (nbytes > skb_tailroom(skb)) {
         debugf("Datagram body too long\n");
         skb_release(skb);

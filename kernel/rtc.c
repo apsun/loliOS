@@ -191,36 +191,22 @@ rtc_read(file_obj_t *file, void *buf, int nbytes)
     /* Wait until we reach the next multiple of max ticks */
     int target_counter = (rtc_counter + max_ticks) & -max_ticks;
 
-    /*
-     * We should break out of the wait loop early if we receive
-     * a signal that we need to handle.
-     */
-    bool have_signal = false;
-
     /* Wait for enough RTC interrupts or a signal, whichever comes first */
     while (true) {
         /* Check if we've received enough RTC interrupts */
         if (rtc_counter >= target_counter) {
-            break;
+            return 0;
         }
 
         /* Exit early if we have a pending signal */
-        have_signal = signal_has_pending();
-        if (have_signal) {
-            break;
+        if (signal_has_pending()) {
+            return -EINTR;
         }
 
         /* Sleep and wait for a new interrupt */
         sti();
         hlt();
         cli();
-    }
-
-    /* Return -1 if we aborted because of a signal */
-    if (have_signal) {
-        return -1;
-    } else {
-        return 0;
     }
 }
 

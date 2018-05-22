@@ -133,6 +133,15 @@ file_obj_alloc(void)
 }
 
 /*
+ * Frees a file object.
+ */
+void
+file_obj_free(file_obj_t *file)
+{
+    file->fd = -1;
+}
+
+/*
  * Initializes the file object from the given dentry.
  */
 static int
@@ -215,13 +224,13 @@ file_open(const char *filename)
 
     /* Initialize file object */
     if (file_obj_init(file, &dentry) < 0) {
-        file->fd = -1;
+        file_obj_free(file);
         return -1;
     }
 
     /* Perform post-initialization setup */
     if (file->ops_table->open(tmp, file) < 0) {
-        file->fd = -1;
+        file_obj_free(file);
         return -1;
     }
 
@@ -262,7 +271,7 @@ file_close(int fd)
     if (file->ops_table->close(file) < 0) {
         return -1;
     }
-    file->fd = -1;
+    file_obj_free(file);
     return 0;
 }
 

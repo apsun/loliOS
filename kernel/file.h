@@ -63,6 +63,9 @@ file_obj_t *get_executing_file(int fd);
 /* Allocates a new file obj (returns NULL if too many open files) */
 file_obj_t *file_obj_alloc(void);
 
+/* Frees a file object */
+void file_obj_free(file_obj_t *file);
+
 /* Initializes the specified file object array */
 void file_init(file_obj_t *files);
 

@@ -7,7 +7,7 @@
  * in the kernel page. If this limit becomes a problem,
  * we can allocate a dedicated 4MB page to hold the SKBs.
  */
-static skb_t skb_cache[16];
+static skb_t skb_cache[64];
 
 /*
  * Allocates and initializes a new SKB. Returns NULL if
@@ -15,7 +15,7 @@ static skb_t skb_cache[16];
  * initially set to 1.
  */
 skb_t *
-skb_alloc(void)
+skb_alloc(int size)
 {
     int i;
     for (i = 0; i < array_len(skb_cache); ++i) {
@@ -26,7 +26,7 @@ skb_alloc(void)
             skb->head = &skb->buf[0];
             skb->data = &skb->buf[0];
             skb->tail = &skb->buf[0];
-            skb->end = &skb->buf[sizeof(skb->buf)];
+            skb->end = &skb->buf[size];
             skb->mac_header = NULL;
             skb->network_header = NULL;
             skb->transport_header = NULL;

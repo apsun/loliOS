@@ -76,16 +76,13 @@ dma_start(
     int mode)
 {
     /* Basic sanity checks */
-    assert(channel < 8);
+    assert((channel & ~3) == 0);
     assert((mode & (~0xff | 3)) == 0);
 
     /* Buffer must be in the first 16MB = 2^24 bytes of memory */
     uint32_t addr = (uint32_t)buf;
     assert((addr & ~0xffffff) == 0);
     assert(((addr + nbytes - 1) & ~0xffffff) == 0);
-
-    debugf("dma(buf=0x%x, nbytes=0x%x, channel=%d, mode=0x%x)\n",
-        buf, nbytes, channel, mode);
 
     if (channel < 4) {
         /* 8-bit DMA */
