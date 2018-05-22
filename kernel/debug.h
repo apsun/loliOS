@@ -12,7 +12,7 @@
 
 /* Whether to enable debugf printing */
 #ifndef DEBUG_PRINT
-#define DEBUG_PRINT 0
+#define DEBUG_PRINT 1
 #endif
 
 /* Always-enabled panic macro */

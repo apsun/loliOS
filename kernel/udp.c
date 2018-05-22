@@ -17,8 +17,6 @@ typedef struct {
 /* One private data per socket */
 static udp_sock_t udp_socks[36];
 
-#define UDP_HDR_SIZE (sizeof(udp_hdr_t) + sizeof(ip_hdr_t) + sizeof(ethernet_hdr_t))
-
 /*
  * Computes the UDP checksum. The SKB should contain the
  * UDP header already, with the checksum set to zero. The

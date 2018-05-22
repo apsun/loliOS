@@ -1,6 +1,7 @@
 #include "ip.h"
 #include "lib.h"
 #include "debug.h"
+#include "tcp.h"
 #include "udp.h"
 
 /*
@@ -98,6 +99,9 @@ ip_handle_rx(net_iface_t *iface, skb_t *skb)
 
     /* Forward to upper layers */
     switch (hdr->protocol) {
+    case IPPROTO_TCP:
+        debugf("Received TCP packet\n");
+        return tcp_handle_rx(iface, skb);
     case IPPROTO_UDP:
         debugf("Received UDP packet\n");
         return udp_handle_rx(iface, skb);

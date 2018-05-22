@@ -3,6 +3,7 @@
 #include "debug.h"
 #include "file.h"
 #include "net.h"
+#include "tcp.h"
 #include "udp.h"
 
 /* Lowest port number used for random local port numbers */
@@ -35,6 +36,18 @@ static const sock_ops_t sops_udp = {
     .recvfrom = udp_recvfrom,
     .sendto = udp_sendto,
     .close = udp_close,
+};
+
+/* TCP socket operations table */
+static const sock_ops_t sops_tcp = {
+    .socket = tcp_socket,
+    .bind = tcp_bind,
+    .connect = tcp_connect,
+    .listen = tcp_listen,
+    .accept = tcp_accept,
+    .recvfrom = tcp_recvfrom,
+    .sendto = tcp_sendto,
+    .close = tcp_close,
 };
 
 /*
@@ -73,6 +86,9 @@ static int
 socket_obj_init(net_sock_t *sock, int type)
 {
     switch (type) {
+    case SOCK_TCP:
+        sock->ops_table = &sops_tcp;
+        break;
     case SOCK_UDP:
         sock->ops_table = &sops_udp;
         break;

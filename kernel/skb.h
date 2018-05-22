@@ -27,7 +27,7 @@ typedef struct {
      * the Ethernet header normally ends at a 2-byte boundary).
      */
     uint16_t refcnt;
-    uint8_t buf[1516];
+    uint8_t buf[1514];
 } skb_t;
 
 /* Allocates a new SKB */
