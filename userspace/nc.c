@@ -409,6 +409,7 @@ main(void)
                     listen = true;
                     break;
                 case 'u':
+                    udp = true;
                     break;
                 default:
                     printf("Unknown option: %c\n", c);
