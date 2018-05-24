@@ -262,6 +262,13 @@ bswap32(uint32_t x)
  */
 #define array_len(arr) ((int)(sizeof(arr) / sizeof((arr)[0])))
 
+/*
+ * Returns a pointer to the parent structure of the
+ * specified structure pointer.
+ */
+#define container_of(ptr, type, member) \
+    ((type *)((char *)ptr - offsetof(type, member)))
+
 #endif /* ASM */
 
 #endif /* _LIB_H */

@@ -1,6 +1,8 @@
 #include "paging.h"
 #include "debug.h"
 #include "terminal.h"
+#include "bitmap.h"
+#include "list.h"
 
 /* Structure for 4KB page table entry */
 typedef struct {
@@ -71,12 +73,8 @@ static pte_t page_table[1024];
  * 1 page directory would be too high. Additionally, the
  * maximum number of processes is capped, so sharing
  * a limited number of pages is less of an issue.
- *
- * Finding free pages is just done using a linear scan
- * over this map. If desired, this can be packed into
- * a bit vector (since there are only 31 heap pages).
  */
-static bool heap_map[MAX_HEAP_PAGES];
+static bitmap_declare(heap_map, int, MAX_HEAP_PAGES);
 
 #define TO_4MB_BASE(x) (((uint32_t)(x)) >> 22)
 #define TO_4KB_BASE(x) (((uint32_t)(x)) >> 12)
@@ -254,27 +252,27 @@ static int
 paging_heap_alloc(int vi)
 {
     int pi;
-    for (pi = 0; pi < MAX_HEAP_PAGES; ++pi) {
-        if (!heap_map[pi]) {
-            uint32_t vaddr = HEAP_PAGE_START + vi * MB(4);
-            uint32_t paddr = HEAP_PAGE_START + pi * MB(4);
-
-            /* Update PDE */
-            pde_4mb_t *entry = DIR_4MB(vaddr);
-            assert(!entry->present);
-            entry->present = 1;
-            entry->base_addr = TO_4MB_BASE(paddr);
-
-            /* Mark page as allocated */
-            heap_map[pi] = true;
-
-            /* Zero out page for security */
-            paging_flush_tlb();
-            memset_dword((void *)vaddr, 0, MB(4) / 4);
-            return pi;
-        }
+    bitmap_find_zero(heap_map, pi);
+    if (pi >= MAX_HEAP_PAGES) {
+        return -1;
     }
-    return -1;
+
+    uint32_t vaddr = HEAP_PAGE_START + vi * MB(4);
+    uint32_t paddr = HEAP_PAGE_START + pi * MB(4);
+
+    /* Update PDE */
+    pde_4mb_t *entry = DIR_4MB(vaddr);
+    assert(!entry->present);
+    entry->present = 1;
+    entry->base_addr = TO_4MB_BASE(paddr);
+
+    /* Mark page as allocated */
+    bitmap_set(heap_map, pi);
+
+    /* Zero out page for security */
+    paging_flush_tlb();
+    memset_dword((void *)vaddr, 0, MB(4) / 4);
+    return pi;
 }
 
 /*
@@ -284,10 +282,10 @@ paging_heap_alloc(int vi)
 static void
 paging_heap_free(int vi, int pi)
 {
-    assert(heap_map[pi]);
+    assert(bitmap_get(heap_map, pi));
     pde_4mb_t *entry = DIR_4MB(HEAP_PAGE_START + vi * MB(4));
     entry->present = 0;
-    heap_map[pi] = false;
+    bitmap_clear(heap_map, pi);
     paging_flush_tlb();
 }
 

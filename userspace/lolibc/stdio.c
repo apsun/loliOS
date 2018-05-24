@@ -42,8 +42,8 @@ getchar(void)
 }
 
 /*
- * Reads a line from stdin. Returns an empty string if
- * stdin is non-blocking. The returned string does not
+ * Reads a line from stdin. Returns NULL if stdin is
+ * non-blocking. The returned string does not
  * contain the newline character.
  */
 char *
