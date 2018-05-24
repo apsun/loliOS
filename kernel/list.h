@@ -47,7 +47,7 @@ static inline void list_add(list_t *node, list_t *head)
     node->prev = head;
     node->next = head->next;
     head->next->prev = node;
-    head->prev->next = node;
+    head->next = node;
 }
 
 /*
@@ -58,7 +58,7 @@ static inline void list_add_tail(list_t *node, list_t *head)
     node->prev = head->prev;
     node->next = head;
     head->prev->next = node;
-    head->next->prev = node;
+    head->prev = node;
 }
 
 /*
