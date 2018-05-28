@@ -4,6 +4,13 @@
 #include "bitmap.h"
 #include "list.h"
 
+/* PDE size field values */
+#define SIZE_4KB 0
+#define SIZE_4MB 1
+
+/* Number of 4MB pages in the system */
+#define TOTAL_PAGES 1024
+
 /* Structure for 4KB page table entry */
 typedef struct {
     uint32_t present        : 1;
@@ -66,15 +73,11 @@ __aligned(KB(4))
 static pte_t page_table[1024];
 
 /*
- * We will use a very simple heap allocation scheme:
- * each process allocates heap space in increments of
- * 4MB. Ideally this would be 4KB, but the overhead
- * of maintaining 1024 page tables instead of just
- * 1 page directory would be too high. Additionally, the
- * maximum number of processes is capped, so sharing
- * a limited number of pages is less of an issue.
+ * We don't bother with free lists or any of that fancy stuff
+ * in our page allocator. Just use a single flat bitmap with
+ * one bit representing one 4KB page in the system.
  */
-static bitmap_declare(heap_map, int, MAX_HEAP_PAGES);
+static bitmap_declare(allocated_pages, int, TOTAL_PAGES);
 
 #define TO_4MB_BASE(x) (((uint32_t)(x)) >> 22)
 #define TO_4KB_BASE(x) (((uint32_t)(x)) >> 12)
@@ -96,6 +99,7 @@ paging_init_common(void)
     dir->user = 1; /* Needed for vidmap page */
     dir->size = SIZE_4KB;
     dir->base_addr = TO_4KB_BASE(page_table);
+    bitmap_set(allocated_pages, 0);
 }
 
 /* Initializes the page directory for the 4MB kernel page */
@@ -108,6 +112,7 @@ paging_init_kernel(void)
     dir->user = 0;
     dir->size = SIZE_4MB;
     dir->base_addr = TO_4MB_BASE(KERNEL_PAGE_START);
+    bitmap_set(allocated_pages, 1);
 }
 
 /* Initializes the 4KB video memory pages */
@@ -154,7 +159,7 @@ paging_init_vidmap(void)
     table->user = 1;
 }
 
-/* Initializes the 64KB SB16 DMA zone pages */
+/* Initializes the SB16 DMA pages */
 static void
 paging_init_sb16(void)
 {
@@ -196,12 +201,12 @@ paging_init_registers(void)
         "andl $0x00000fff, %%eax;"
         "orl %0, %%eax;"
         "movl %%eax, %%cr3;"
-        
+
         /* Enable 4MB pages */
         "movl %%cr4, %%eax;"
         "orl $0x00000010, %%eax;"
         "movl %%eax, %%cr4;"
-        
+
         /* Enable paging (this must come last!) */
         "movl %%cr0, %%eax;"
         "orl $0x80000000, %%eax;"
@@ -245,15 +250,46 @@ paging_enable(void)
 }
 
 /*
+ * Allocates a new 4MB page. Returns its page frame number.
+ * If no free pages are available, returns -1. This does
+ * not modify the page directory; it only prevents this
+ * function from returning the same address in the future
+ * until paging_page_free() is called.
+ */
+static int
+paging_page_alloc(void)
+{
+    /* Find a free page... */
+    int pfn;
+    bitmap_find_zero(allocated_pages, pfn);
+    if (pfn >= MAX_HEAP_PAGES) {
+        return -1;
+    }
+
+    /* ... and mark it as allocated. */
+    bitmap_set(allocated_pages, pfn);
+    return pfn;
+}
+
+/*
+ * Frees a 4MB page obtained from paging_page_alloc().
+ */
+static void
+paging_page_free(int pfn)
+{
+    bitmap_clear(allocated_pages, pfn);
+}
+
+/*
  * Allocates a new 4MB heap page on behalf of the
  * calling process. This will modify the page directory.
  */
 static int
 paging_heap_alloc(int vi)
 {
-    int pi;
-    bitmap_find_zero(heap_map, pi);
-    if (pi >= MAX_HEAP_PAGES) {
+    /* Allocate a new page */
+    int pi = paging_page_alloc();
+    if (pi < 0) {
         return -1;
     }
 
@@ -265,9 +301,6 @@ paging_heap_alloc(int vi)
     assert(!entry->present);
     entry->present = 1;
     entry->base_addr = TO_4MB_BASE(paddr);
-
-    /* Mark page as allocated */
-    bitmap_set(heap_map, pi);
 
     /* Zero out page for security */
     paging_flush_tlb();
@@ -282,10 +315,10 @@ paging_heap_alloc(int vi)
 static void
 paging_heap_free(int vi, int pi)
 {
-    assert(bitmap_get(heap_map, pi));
+    assert(bitmap_get(allocated_pages, pi));
     pde_4mb_t *entry = DIR_4MB(HEAP_PAGE_START + vi * MB(4));
     entry->present = 0;
-    bitmap_clear(heap_map, pi);
+    paging_page_free(pi);
     paging_flush_tlb();
 }
 

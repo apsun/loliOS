@@ -3,9 +3,6 @@
 
 #include "types.h"
 
-#define SIZE_4KB 0
-#define SIZE_4MB 1
-
 #define KB(x) ((x) * 1024)
 #define MB(x) ((x) * 1024 * 1024)
 
@@ -15,11 +12,11 @@
 #define VIDMAP_PAGE_START   0x000B9000
 #define VIDMAP_PAGE_END     0x000BA000
 
-#define TERMINAL_PAGE_START 0x000BB000
-/* End point is determined by the number of terminals */
+#define SB16_PAGE_START     0x00100000
+#define SB16_PAGE_END       0x00102000
 
-#define SB16_PAGE_START     0x003C0000
-#define SB16_PAGE_END       0x003C2000
+#define TERMINAL_PAGE_START 0x00102000
+/* End point is determined by the number of terminals */
 
 #define KERNEL_PAGE_START   0x00400000
 #define KERNEL_PAGE_END     0x00800000
@@ -37,16 +34,13 @@
 
 /* Container for a process's heap info */
 typedef struct {
-    /* Size of the heap in bytes, might not be a multiple of 4MB */
+    /* Size of the heap in bytes, might not be a multiple of page size */
     int size;
 
     /* Number of valid entries in the array below */
     int num_pages;
 
-    /*
-     * Holds a list of allocated heap pages, represented as
-     * an index offset from HEAP_PAGE_START.
-     */
+    /* List of physical pages that are allocated for this heap */
     int pages[MAX_HEAP_PAGES];
 } paging_heap_t;
 

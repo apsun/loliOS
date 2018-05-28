@@ -42,7 +42,8 @@ typedef struct list {
 /*
  * Adds a node to the head of the specified linked list.
  */
-static inline void list_add(list_t *node, list_t *head)
+static inline void
+list_add(list_t *node, list_t *head)
 {
     node->prev = head;
     node->next = head->next;
@@ -53,10 +54,11 @@ static inline void list_add(list_t *node, list_t *head)
 /*
  * Adds a node to the tail of the specified linked list.
  */
-static inline void list_add_tail(list_t *node, list_t *head)
+static inline void
+list_add_tail(list_t *node, list_t *head)
 {
-    node->prev = head->prev;
     node->next = head;
+    node->prev = head->prev;
     head->prev->next = node;
     head->prev = node;
 }
@@ -64,7 +66,8 @@ static inline void list_add_tail(list_t *node, list_t *head)
 /*
  * Removes the specified node from its linked list.
  */
-static inline void list_del(list_t *node)
+static inline void
+list_del(list_t *node)
 {
     node->next->prev = node->prev;
     node->prev->next = node->next;
