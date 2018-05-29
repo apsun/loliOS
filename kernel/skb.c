@@ -3,6 +3,9 @@
 #include "debug.h"
 #include "myalloc.h"
 
+/* 1500 bytes for Ethernet body + 14 byte Ethernet header */
+#define SKB_MAX_LEN 1514
+
 /*
  * Allocates and initializes a new SKB. Returns NULL if
  * there are no free SKBs. The new SKB has reference count
@@ -11,6 +14,10 @@
 skb_t *
 skb_alloc(int size)
 {
+    if (size > SKB_MAX_LEN) {
+        return NULL;
+    }
+
     skb_t *skb = malloc(sizeof(skb_t) + size);
     if (skb == NULL) {
         return NULL;

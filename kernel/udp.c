@@ -7,6 +7,9 @@
 #include "ip.h"
 #include "ethernet.h"
 
+/* Maximum length of a UDP datagram body */
+#define UDP_MAX_LEN 1472
+
 /* UDP socket private data */
 typedef struct {
     bool used;
@@ -236,6 +239,12 @@ udp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
         return -1;
     }
 
+    /* Validate datagram length */
+    if (nbytes < 0 || nbytes > UDP_MAX_LEN) {
+        debugf("Datagram body too long\n");
+        return -1;
+    }
+
     /* Allocate a new SKB */
     int hdr_len = sizeof(udp_hdr_t) + sizeof(ip_hdr_t) + sizeof(ethernet_hdr_t);
     skb_t *skb = skb_alloc(nbytes + hdr_len);
@@ -246,11 +255,6 @@ udp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
 
     /* Reserve space for headers */
     skb_reserve(skb, hdr_len);
-    if (nbytes > skb_tailroom(skb)) {
-        debugf("Datagram body too long\n");
-        skb_release(skb);
-        return -1;
-    }
 
     /* Copy datagram body from userspace into SKB */
     void *body = skb_put(skb, nbytes);

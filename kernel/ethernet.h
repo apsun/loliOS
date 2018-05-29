@@ -8,6 +8,9 @@
 #define ETHERTYPE_IPV4 0x0800
 #define ETHERTYPE_ARP 0x0806
 
+/* Maximum length of an Ethernet frame body */
+#define ETHERNET_MAX_LEN 1500
+
 #ifndef ASM
 
 /* Ethernet header */
