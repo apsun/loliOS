@@ -25,6 +25,11 @@ typedef struct {
     int pid;
 
     /*
+     * Allocated physical page frame number for this process's 128MB page.
+     */
+    int pfn;
+
+    /*
      * PID of the parent process that created this process. If
      * there is no parent, this will be negative.
      */

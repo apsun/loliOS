@@ -8,8 +8,12 @@
 #define SIZE_4KB 0
 #define SIZE_4MB 1
 
-/* Number of 4MB pages in the system */
-#define TOTAL_PAGES 1024
+/* Maximum number of supported pages (4GB / 4MB) */
+#define MAX_PAGES 1024
+
+/* Actual number of available pages (256MB / 4MB) */
+#define AVAIL_RAM MB(256)
+#define AVAIL_PAGES (AVAIL_RAM / MB(4))
 
 /* Structure for 4KB page table entry */
 typedef struct {
@@ -75,25 +79,36 @@ static pte_t page_table[1024];
 /*
  * We don't bother with free lists or any of that fancy stuff
  * in our page allocator. Just use a single flat bitmap with
- * one bit representing one 4KB page in the system.
+ * one bit representing one 4MB page in the system.
  */
-static bitmap_declare(allocated_pages, int, TOTAL_PAGES);
+static bitmap_declare(allocated_pages, int, MAX_PAGES);
 
+/*
+ * Helpful macros to access page table stuff. Conventions:
+ *
+ * DIR = base address of page directory
+ * TABLE = base address of page table
+ * PDE = pointer to single page directory entry
+ * PTE = pointer to single page table entry
+ */
 #define TO_4MB_BASE(x) (((uint32_t)(x)) >> 22)
 #define TO_4KB_BASE(x) (((uint32_t)(x)) >> 12)
 #define TO_DIR_INDEX(x) (((uint32_t)(x)) >> 22)
 #define TO_TABLE_INDEX(x) ((((uint32_t)(x)) >> 12) & 0x3ff)
-
-/* Helpful macros to access page table stuff */
-#define DIR_4KB(addr) (&page_dir[TO_DIR_INDEX(addr)].dir_4kb)
-#define DIR_4MB(addr) (&page_dir[TO_DIR_INDEX(addr)].dir_4mb)
-#define TABLE(addr) (&page_table[TO_TABLE_INDEX(addr)])
+#define DIR_TO_PDE_4KB(dir, addr) (&(dir)[TO_DIR_INDEX(addr)].dir_4kb)
+#define DIR_TO_PDE_4MB(dir, addr) (&(dir)[TO_DIR_INDEX(addr)].dir_4mb)
+#define TABLE_TO_PTE(table, addr) (&(table)[TO_TABLE_INDEX(addr)])
+#define PDE_TO_TABLE(pde) ((pte_t *)((pde)->base_addr << 12))
+#define PDE_TO_PTE(pde, addr) (TABLE_TO_PTE(PDE_TO_TABLE(pde), addr))
+#define PDE_4KB(addr) (DIR_TO_PDE_4KB(page_dir, addr))
+#define PDE_4MB(addr) (DIR_TO_PDE_4MB(page_dir, addr))
+#define PTE(addr) (PDE_TO_PTE(PDE_4KB(addr), addr))
 
 /* Initializes the page directory for the first 4MB of memory */
 static void
 paging_init_common(void)
 {
-    pde_4kb_t *dir = DIR_4KB(0);
+    pde_4kb_t *dir = PDE_4KB(0);
     dir->present = 1;
     dir->write = 1;
     dir->user = 1; /* Needed for vidmap page */
@@ -106,7 +121,7 @@ paging_init_common(void)
 static void
 paging_init_kernel(void)
 {
-    pde_4mb_t *dir = DIR_4MB(KERNEL_PAGE_START);
+    pde_4mb_t *dir = PDE_4MB(KERNEL_PAGE_START);
     dir->present = 1;
     dir->write = 1;
     dir->user = 0;
@@ -120,7 +135,7 @@ static void
 paging_init_video(void)
 {
     /* Global (VGA) video memory page */
-    pte_t *global_table = TABLE(VIDEO_PAGE_START);
+    pte_t *global_table = PTE(VIDEO_PAGE_START);
     global_table->present = 1;
     global_table->write = 1;
     global_table->user = 0;
@@ -130,7 +145,7 @@ paging_init_video(void)
     int i;
     for (i = 0; i < NUM_TERMINALS; ++i) {
         uint32_t term_addr = TERMINAL_PAGE_START + i * KB(4);
-        pte_t *term_table = TABLE(term_addr);
+        pte_t *term_table = PTE(term_addr);
         term_table->present = 1;
         term_table->write = 1;
         term_table->user = 0;
@@ -142,7 +157,7 @@ paging_init_video(void)
 static void
 paging_init_user(void)
 {
-    pde_4mb_t *dir = DIR_4MB(USER_PAGE_START);
+    pde_4mb_t *dir = PDE_4MB(USER_PAGE_START);
     dir->present = 1;
     dir->write = 1;
     dir->user = 1;
@@ -153,7 +168,7 @@ paging_init_user(void)
 static void
 paging_init_vidmap(void)
 {
-    pte_t *table = TABLE(VIDMAP_PAGE_START);
+    pte_t *table = PTE(VIDMAP_PAGE_START);
     table->present = 0;
     table->write = 1;
     table->user = 1;
@@ -165,7 +180,7 @@ paging_init_sb16(void)
 {
     uint32_t addr = SB16_PAGE_START;
     while (addr < SB16_PAGE_END) {
-        pte_t *table = TABLE(addr);
+        pte_t *table = PTE(addr);
         table->present = 1;
         table->write = 1;
         table->user = 0;
@@ -180,7 +195,7 @@ paging_init_heap(void)
 {
     int i;
     for (i = 0; i < MAX_HEAP_PAGES; ++i) {
-        pde_4mb_t *dir = DIR_4MB(HEAP_PAGE_START + i * MB(4));
+        pde_4mb_t *dir = PDE_4MB(HEAP_PAGE_START + i * MB(4));
         dir->present = 0;
         dir->write = 1;
         dir->user = 1;
@@ -236,6 +251,12 @@ paging_enable(void)
     assert(((uint32_t)page_dir   & 0xfff) == 0);
     assert(((uint32_t)page_table & 0xfff) == 0);
 
+    /* Mark high pages as "allocated" */
+    int pfn;
+    for (pfn = AVAIL_PAGES; pfn < MAX_PAGES; ++pfn) {
+        bitmap_set(allocated_pages, pfn);
+    }
+
     /* Initialize page table entries */
     paging_init_common();
     paging_init_kernel();
@@ -250,13 +271,13 @@ paging_enable(void)
 }
 
 /*
- * Allocates a new 4MB page. Returns its page frame number.
+ * Allocates a new page and returns its page frame number.
  * If no free pages are available, returns -1. This does
  * not modify the page directory; it only prevents this
  * function from returning the same address in the future
  * until paging_page_free() is called.
  */
-static int
+int
 paging_page_alloc(void)
 {
     /* Find a free page... */
@@ -272,54 +293,52 @@ paging_page_alloc(void)
 }
 
 /*
- * Frees a 4MB page obtained from paging_page_alloc().
+ * Frees a page obtained from paging_page_alloc().
  */
-static void
+void
 paging_page_free(int pfn)
 {
+    assert(bitmap_get(allocated_pages, pfn));
     bitmap_clear(allocated_pages, pfn);
 }
 
 /*
- * Allocates a new 4MB heap page on behalf of the
+ * Allocates a new heap page on behalf of the
  * calling process. This will modify the page directory.
+ * Returns the PFN of the allocated page.
  */
 static int
-paging_heap_alloc(int vi)
+paging_heap_alloc(int vfn)
 {
     /* Allocate a new page */
-    int pi = paging_page_alloc();
-    if (pi < 0) {
+    int pfn = paging_page_alloc();
+    if (pfn < 0) {
         return -1;
     }
 
-    uint32_t vaddr = HEAP_PAGE_START + vi * MB(4);
-    uint32_t paddr = HEAP_PAGE_START + pi * MB(4);
-
     /* Update PDE */
-    pde_4mb_t *entry = DIR_4MB(vaddr);
+    uint32_t vaddr = vfn * MB(4);
+    pde_4mb_t *entry = PDE_4MB(vaddr);
     assert(!entry->present);
     entry->present = 1;
-    entry->base_addr = TO_4MB_BASE(paddr);
+    entry->base_addr = pfn;
 
     /* Zero out page for security */
-    paging_flush_tlb();
-    memset_dword((void *)vaddr, 0, MB(4) / 4);
-    return pi;
+    return pfn;
 }
 
 /*
- * Frees a 4MB heap page previously allocated using
- * paging_heap_alloc. This will modify the page directory.
+ * Frees a heap page previously allocated using
+ * paging_heap_alloc(). This will modify the page
+ * directory.
  */
 static void
-paging_heap_free(int vi, int pi)
+paging_heap_free(int vfn, int pfn)
 {
-    assert(bitmap_get(allocated_pages, pi));
-    pde_4mb_t *entry = DIR_4MB(HEAP_PAGE_START + vi * MB(4));
+    pde_4mb_t *entry = PDE_4MB(vfn * MB(4));
+    assert(entry->present);
     entry->present = 0;
-    paging_page_free(pi);
-    paging_flush_tlb();
+    paging_page_free(pfn);
 }
 
 /*
@@ -330,6 +349,50 @@ paging_heap_init(paging_heap_t *heap)
 {
     heap->size = 0;
     heap->num_pages = 0;
+}
+
+/*
+ * Shrinks the specified heap to the specified number of pages.
+ * This will flush the TLB.
+ */
+static void
+paging_heap_shrink(paging_heap_t *heap, int new_pages)
+{
+    while (heap->num_pages > new_pages) {
+        int i = --heap->num_pages;
+        int vfn = HEAP_PAGE_START / MB(4) + i;
+        int pfn = heap->pages[i];
+        paging_heap_free(vfn, pfn);
+    }
+    paging_flush_tlb();
+}
+
+/*
+ * Grows the specified heap to the specified number of pages.
+ * This will flush the TLB. If there are not enough free
+ * pages to satisfy the allocation, the heap will not be
+ * modified and -1 will be returned.
+ */
+static int
+paging_heap_grow(paging_heap_t *heap, int new_pages)
+{
+    int orig_pages = heap->num_pages;
+    while (heap->num_pages < new_pages) {
+        int vfn = HEAP_PAGE_START / MB(4) + heap->num_pages;
+        int pfn = paging_heap_alloc(vfn);
+
+        /* If allocation fails, undo allocations */
+        if (pfn < 0) {
+            debugf("Physical memory exhausted\n");
+            paging_heap_shrink(heap, orig_pages);
+            return -1;
+        }
+
+        heap->pages[heap->num_pages++] = pfn;
+    }
+
+    paging_flush_tlb();
+    return 0;
 }
 
 /*
@@ -344,6 +407,7 @@ paging_heap_sbrk(paging_heap_t *heap, int delta)
     int orig_size = heap->size;
     int orig_num_pages = heap->num_pages;
     int orig_brk = HEAP_PAGE_START + orig_size;
+    void *orig_page_brk = (void *)(HEAP_PAGE_START + orig_num_pages * MB(4));
 
     /* Upper bound limit (if delta is huge, rhs is negative -> true) */
     if (delta > 0 && orig_size > MAX_HEAP_SIZE - delta) {
@@ -360,33 +424,17 @@ paging_heap_sbrk(paging_heap_t *heap, int delta)
     int new_size = orig_size + delta;
     int new_num_pages = (new_size + MB(4) - 1) / MB(4);
 
-    /* Allocate new pages as necessary */
-    while (heap->num_pages < new_num_pages) {
-        int page = paging_heap_alloc(heap->num_pages);
-
-        /* If we don't have enough pages, undo allocation */
-        if (page < 0) {
-            debugf("Physical memory exhausted\n");
-
-            while (heap->num_pages > orig_num_pages) {
-                int vi = --heap->num_pages;
-                int pi = heap->pages[vi];
-                paging_heap_free(vi, pi);
-            }
-
+    /* Grow or shrink heap as necessary */
+    if (new_num_pages > orig_num_pages) {
+        if (paging_heap_grow(heap, new_num_pages) < 0) {
             return -1;
         }
-
-        heap->pages[heap->num_pages++] = page;
+        memset(orig_page_brk, 0, (new_num_pages - orig_num_pages) * MB(4));
+    } else if (new_num_pages < orig_num_pages) {
+        paging_heap_shrink(heap, new_num_pages);
     }
 
-    /* Free deallocated pages as necessary */
-    while (heap->num_pages > new_num_pages) {
-        int vi = --heap->num_pages;
-        int pi = heap->pages[vi];
-        paging_heap_free(vi, pi);
-    }
-
+    /* Update heap size */
     heap->size = new_size;
     return orig_brk;
 }
@@ -397,13 +445,8 @@ paging_heap_sbrk(paging_heap_t *heap, int delta)
 void
 paging_heap_destroy(paging_heap_t *heap)
 {
-    int vi;
-    for (vi = 0; vi < heap->num_pages; ++vi) {
-        int pi = heap->pages[vi];
-        paging_heap_free(vi, pi);
-    }
+    paging_heap_shrink(heap, 0);
     heap->size = 0;
-    heap->num_pages = 0;
     paging_flush_tlb();
 }
 
@@ -413,20 +456,18 @@ paging_heap_destroy(paging_heap_t *heap)
  * This should be called during context switching.
  */
 void
-paging_set_context(int pid, paging_heap_t *heap)
+paging_set_context(int pfn, paging_heap_t *heap)
 {
-    assert(pid >= 0);
-
     /* Point the user page to the corresponding physical address */
-    DIR_4MB(USER_PAGE_START)->base_addr = TO_4MB_BASE(MB(pid * 4 + 8));
+    PDE_4MB(USER_PAGE_START)->base_addr = pfn;
 
     /* Replace heap page directory entries */
     int i;
     for (i = 0; i < MAX_HEAP_PAGES; ++i) {
-        pde_4mb_t *entry = DIR_4MB(HEAP_PAGE_START + i * MB(4));
+        pde_4mb_t *entry = PDE_4MB(HEAP_PAGE_START + i * MB(4));
         if (i < heap->num_pages) {
             entry->present = 1;
-            entry->base_addr = TO_4MB_BASE(HEAP_PAGE_START + heap->pages[i] * MB(4));
+            entry->base_addr = TO_4MB_BASE(heap->pages[i] * MB(4));
         } else {
             entry->present = 0;
         }
@@ -445,7 +486,7 @@ void
 paging_update_vidmap_page(uint8_t *video_mem, bool present)
 {
     /* Update page table structures */
-    pte_t *table = TABLE(VIDMAP_PAGE_START);
+    pte_t *table = PTE(VIDMAP_PAGE_START);
     table->present = present ? 1 : 0;
     table->base_addr = TO_4KB_BASE(video_mem);
 
@@ -464,23 +505,20 @@ static bool
 is_page_user_accessible(uint32_t *addr, bool write)
 {
     /* Access page info through the directory */
-    pde_4kb_t *dir = DIR_4KB(*addr);
-    if (!dir->present || !dir->user || (!dir->write && write)) {
+    pde_4kb_t *pde = PDE_4KB(*addr);
+    if (!pde->present || !pde->user || (!pde->write && write)) {
         return false;
     }
 
     /* If it's a 4MB page, we're done. */
-    if (dir->size == SIZE_4MB) {
+    if (pde->size == SIZE_4MB) {
         *addr = (*addr + MB(4)) & -MB(4);
         return true;
     }
 
-    /*
-     * It's a 4KB page so it must be in the first 4MB.
-     * Access it through the single page table.
-     */
-    pte_t *table = TABLE(*addr);
-    if (!table->present || !table->user || (!table->write && write)) {
+    /* It's a 4KB page, access info through the table */
+    pte_t *pte = PDE_TO_PTE(pde, addr);
+    if (!pte->present || !pte->user || (!pte->write && write)) {
         return false;
     }
 
@@ -527,14 +565,13 @@ is_user_accessible(const void *start, int nbytes, bool write)
 bool
 strscpy_from_user(char *dest, const char *src, int n)
 {
-    int i;
-    for (i = 0; i < n; ++i) {
-        if (!is_user_accessible(&src[i], 1, false)) {
-            return false;
-        }
-
-        if ((dest[i] = src[i]) == '\0') {
-            return true;
+    int i = 0;
+    uint32_t limit = (uint32_t)src;
+    while (i < n && is_page_user_accessible(&limit, false)) {
+        for (; i < n && (uint32_t)&src[i] < limit; ++i) {
+            if ((dest[i] = src[i]) == '\0') {
+                return true;
+            }
         }
     }
 
@@ -548,7 +585,7 @@ strscpy_from_user(char *dest, const char *src, int n)
  * true if the entire buffer could be copied, and false otherwise.
  */
 bool
-copy_from_user(void *dest, const void *src, int n)
+copy_from_user(void *dest, const void *src, int)
 {
     if (!is_user_accessible(src, n, false)) {
         return false;

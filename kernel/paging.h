@@ -47,6 +47,12 @@ typedef struct {
 /* Enables paging */
 void paging_enable(void);
 
+/* Allocates a physical 4MB page */
+int paging_page_alloc(void);
+
+/* Deallocates a physical 4MB page */
+void paging_page_free(int pfn);
+
 /* Initializes a process heap */
 void paging_heap_init(paging_heap_t *heap);
 
@@ -57,7 +63,7 @@ int paging_heap_sbrk(paging_heap_t *heap, int delta);
 void paging_heap_destroy(paging_heap_t *heap);
 
 /* Updates the process pages */
-void paging_set_context(int pid, paging_heap_t *heap);
+void paging_set_context(int pfn, paging_heap_t *heap);
 
 /* Updates the vidmap page to point to the specified address */
 void paging_update_vidmap_page(uint8_t *video_mem, bool present);

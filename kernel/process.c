@@ -330,7 +330,7 @@ static void
 process_set_context(pcb_t *to)
 {
     /* Restore process page */
-    paging_set_context(to->pid, &to->heap);
+    paging_set_context(to->pfn, &to->heap);
 
     /* Restore vidmap status */
     terminal_update_vidmap(to->terminal, to->vidmap);
@@ -450,6 +450,14 @@ process_create_child(const char *command, pcb_t *parent_pcb, int terminal)
         return NULL;
     }
 
+    /* Allocate physical memory to hold process */
+    int pfn = paging_page_alloc();
+    if (pfn < 0) {
+        debugf("Cannot allocate page for child process\n");
+        child_pcb->pid = -1;
+        return NULL;
+    }
+
     /* Initialize child PCB */
     if (parent_pcb == NULL) {
         /* This is the first process! */
@@ -463,6 +471,7 @@ process_create_child(const char *command, pcb_t *parent_pcb, int terminal)
     }
 
     /* Common initialization */
+    child_pcb->pfn = pfn;
     child_pcb->status = PROCESS_SCHED;
     child_pcb->vidmap = false;
     child_pcb->last_alarm = rtc_get_counter();
@@ -475,7 +484,7 @@ process_create_child(const char *command, pcb_t *parent_pcb, int terminal)
     process_data[child_pcb->pid].pcb = child_pcb;
 
     /* Copy our program into physical memory */
-    paging_set_context(child_pcb->pid, &child_pcb->heap);
+    paging_set_context(child_pcb->pfn, &child_pcb->heap);
     child_pcb->entry_point = process_load_exe(inode);
 
     return child_pcb;
@@ -548,6 +557,9 @@ process_halt_impl(int status)
             file_close(i);
         }
     }
+
+    /* Release physical page used by process */
+    paging_page_free(child_pcb->pfn);
 
     /* Free all heap pages allocated by this process */
     paging_heap_destroy(&child_pcb->heap);
