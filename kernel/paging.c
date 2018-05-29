@@ -447,7 +447,6 @@ paging_heap_destroy(paging_heap_t *heap)
 {
     paging_heap_shrink(heap, 0);
     heap->size = 0;
-    paging_flush_tlb();
 }
 
 /*
@@ -585,7 +584,7 @@ strscpy_from_user(char *dest, const char *src, int n)
  * true if the entire buffer could be copied, and false otherwise.
  */
 bool
-copy_from_user(void *dest, const void *src, int)
+copy_from_user(void *dest, const void *src, int n)
 {
     if (!is_user_accessible(src, n, false)) {
         return false;
