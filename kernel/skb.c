@@ -1,13 +1,7 @@
 #include "skb.h"
 #include "lib.h"
 #include "debug.h"
-
-/*
- * Since each SKB is about 1.5KB, we can't have too many
- * in the kernel page. If this limit becomes a problem,
- * we can allocate a dedicated 4MB page to hold the SKBs.
- */
-static skb_t skb_cache[16];
+#include "myalloc.h"
 
 /*
  * Allocates and initializes a new SKB. Returns NULL if
@@ -17,23 +11,21 @@ static skb_t skb_cache[16];
 skb_t *
 skb_alloc(int size)
 {
-    int i;
-    for (i = 0; i < array_len(skb_cache); ++i) {
-        skb_t *skb = &skb_cache[i];
-        if (skb->refcnt == 0) {
-            skb->refcnt = 1;
-            skb->len = 0;
-            skb->head = &skb->buf[0];
-            skb->data = &skb->buf[0];
-            skb->tail = &skb->buf[0];
-            skb->end = &skb->buf[size];
-            skb->mac_header = NULL;
-            skb->network_header = NULL;
-            skb->transport_header = NULL;
-            return skb;
-        }
+    skb_t *skb = malloc(sizeof(skb_t) + size);
+    if (skb == NULL) {
+        return NULL;
     }
-    return NULL;
+
+    skb->refcnt = 1;
+    skb->len = 0;
+    skb->head = &skb->buf[0];
+    skb->data = &skb->buf[0];
+    skb->tail = &skb->buf[0];
+    skb->end = &skb->buf[size];
+    skb->mac_header = NULL;
+    skb->network_header = NULL;
+    skb->transport_header = NULL;
+    return skb;
 }
 
 /*
@@ -57,7 +49,9 @@ void
 skb_release(skb_t *skb)
 {
     assert(skb->refcnt > 0);
-    skb->refcnt--;
+    if (--skb->refcnt == 0) {
+        free(skb);
+    }
 }
 
 /*
@@ -104,7 +98,7 @@ skb_tailroom(skb_t *skb)
 
 /*
  * Pushes data into the SKB at the beginning of the data
- * section. Aborts if there is not enough space in the
+ * section. Panics if there is not enough space in the
  * head section to cover the allocation. Returns a pointer
  * to the *new* beginning of the data section.
  */

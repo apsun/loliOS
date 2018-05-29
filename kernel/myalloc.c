@@ -15,12 +15,10 @@
  *
  * Have fun, myaa~
  */
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <syscall.h>
+#include "myalloc.h"
+#include "debug.h"
+#include "lib.h"
+#include "paging.h"
 
 /*
  * Whether we want to replace the C standard library functions.
@@ -53,7 +51,7 @@
  * Generally, this should be set to the page size for
  * maximum performance.
  */
-#define MYA_SBRK_ALIGN 4096
+#define MYA_SBRK_ALIGN MB(4)
 
 /*
  * Masks for extracting the size and flags out of the
@@ -157,12 +155,21 @@ static mya_header_t *mya_free_list = NULL;
  * This caches the value of the last call to sbrk, so that we can
  * efficiently check if an allocation would overflow.
  */
-static void *mya_last_brk = NULL;
+static void *mya_last_brk = (void *)MB(8);
 
 /*
  * Whether we've initialized the global state.
  */
 static bool mya_initialized = false;
+
+/*
+ * List of PFNs that have been allocated by the kernel. Since we
+ * restrict the kernel to allocate in the 8~128MB virtual address
+ * range, we can only allocate a maximum of 30 pages. To convert
+ * to a VFN, just add 2 to the index.
+ */
+static int mya_pages[(128 - 8) / 4];
+static int mya_num_pages = 0;
 
 /*
  * Adds a block to the free list. Upon entry,
@@ -272,21 +279,39 @@ mya_coalesce(mya_header_t *header)
 static bool
 mya_sbrk(size_t delta, void **orig_brk, void **new_brk)
 {
-    /* If allocation would overflow, fail fast */
-    if ((size_t)mya_last_brk + delta < (size_t)mya_last_brk) {
+    /* Only allow increments of 4MB in the kernel */
+    assert(delta % MYA_SBRK_ALIGN == 0);
+
+    /* Check that we don't overflow above 128MB */
+    if (delta / MYA_SBRK_ALIGN + mya_num_pages >= array_len(mya_pages)) {
         return false;
     }
 
-    /* We know the allocation is safe, call sbrk */
-    void *last_brk;
-    if ((last_brk = (void *)sbrk(delta)) == (void *)-1) {
-        return false;
+    /* Allocate one page at a time */
+    int orig_num_pages = mya_num_pages;
+    size_t allocated = 0;
+    while (allocated < delta) {
+        int pfn = paging_page_alloc();
+
+        /* If allocation fails, undo mappings and abort */
+        if (pfn < 0) {
+            while (mya_num_pages > orig_num_pages) {
+                paging_page_unmap(--mya_num_pages + 2);
+            }
+            return false;
+        }
+
+        /*
+         * Map the new page into virtual memory.
+         * +2 since we skip the first 8MB = 2 pages.
+         */
+        paging_page_map(mya_num_pages + 2, pfn, false);
+        mya_pages[mya_num_pages++] = pfn;
+        allocated += MB(4);
     }
 
-    /* Update cached brk value */
-    mya_last_brk = (void *)((char *)last_brk + delta);
-
-    *orig_brk = last_brk;
+    *orig_brk = mya_last_brk;
+    mya_last_brk = (void *)((char *)mya_last_brk + allocated);
     *new_brk = mya_last_brk;
     return true;
 }
@@ -314,12 +339,6 @@ mya_initialize(void)
      *        | | size = X | used = 0 |            |
      * header | | size = 0 | used = 1 |____________v_______
      */
-
-    /* Initialize cached brk value */
-    mya_last_brk = (void *)sbrk(0);
-    if (mya_last_brk == (void *)-1) {
-        return false;
-    }
 
     /* Allocate some starting memory */
     void *orig_brk, *new_brk;

@@ -22,12 +22,13 @@ typedef struct {
     void *transport_header;
 
     /*
-     * Do not reorder this field; it must come right before the
-     * buffer to pad the IP header to a 4-byte boundary (since
-     * the Ethernet header normally ends at a 2-byte boundary).
+     * Do not reorder the following fields; a 2-byte value must come right
+     * before the buffer to pad the IP header to a 4-byte boundary (since
+     * the Ethernet header normally ends at a 2-byte boundary). Also,
+     * the buffer must be last, since we allocate it as a flexible array.
      */
     uint16_t refcnt;
-    uint8_t buf[1514];
+    uint8_t buf[0];
 } skb_t;
 
 /* Allocates a new SKB */
