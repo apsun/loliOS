@@ -283,7 +283,7 @@ mya_sbrk(size_t delta, void **orig_brk, void **new_brk)
     assert(delta % MYA_SBRK_ALIGN == 0);
 
     /* Check that we don't overflow above 128MB */
-    if (delta / MYA_SBRK_ALIGN + mya_num_pages >= array_len(mya_pages)) {
+    if (delta / MYA_SBRK_ALIGN + mya_num_pages > array_len(mya_pages)) {
         return false;
     }
 
