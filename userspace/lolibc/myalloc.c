@@ -53,7 +53,7 @@
  * Generally, this should be set to the page size for
  * maximum performance.
  */
-#define MYA_SBRK_ALIGN 4096
+#define MYA_SBRK_ALIGN (4 * 1024 * 1024)
 
 /*
  * Masks for extracting the size and flags out of the
@@ -428,7 +428,7 @@ mya_split_block(mya_header_t *header, size_t aligned_size)
 
     /* This will be the size of our split block */
     size_t split_size = curr_size - aligned_size - MYA_INFO_SIZE;
-    
+
     /* Update the previous field of the next adjacent block */
     mya_header_t *next_header = mya_next(header);
     mya_set_size(prev, next_header, split_size);
