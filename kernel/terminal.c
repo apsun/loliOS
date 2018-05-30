@@ -377,7 +377,7 @@ int
 terminal_kbd_open(const char *filename, file_obj_t *file)
 {
     /* Set to blocking mode by default */
-    file->private = 0;
+    file->private = (void *)false;
     return 0;
 }
 
@@ -410,7 +410,7 @@ terminal_stdin_read(file_obj_t *file, void *buf, int nbytes)
      * Interrupts must be disabled upon entry, and
      * will be disabled upon return.
      */
-    nbytes = terminal_wait_kbd_input(input_buf, nbytes, file->private);
+    nbytes = terminal_wait_kbd_input(input_buf, nbytes, (bool)file->private);
 
     /* Abort if we have pending signals or nothing to read */
     if (nbytes < 0) {
@@ -496,7 +496,7 @@ terminal_stdin_ioctl(file_obj_t *file, int req, int arg)
 {
     switch (req) {
     case STDIN_NONBLOCK:
-        file->private = !!arg;
+        file->private = (void *)!!arg;
         return 0;
     default:
         return -1;

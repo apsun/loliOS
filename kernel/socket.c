@@ -1,6 +1,7 @@
 #include "socket.h"
 #include "lib.h"
 #include "debug.h"
+#include "myalloc.h"
 #include "file.h"
 #include "net.h"
 #include "tcp.h"
@@ -8,9 +9,10 @@
 
 /* Lowest port number used for random local port numbers */
 #define EPHEMERAL_PORT_START 49152
+#define MAX_PORT 65535
 
-/* Global socket list */
-static net_sock_t socks[36];
+/* Global list of sockets */
+static list_declare(socket_list);
 
 /* File operations syscall forward declarations */
 static int socket_open(const char *filename, file_obj_t *file);
@@ -60,7 +62,7 @@ get_sock(file_obj_t *file)
     if (file->ops_table != &fops_socket) {
         return NULL;
     }
-    return &socks[file->private];
+    return file->private;
 }
 
 /*
@@ -107,32 +109,31 @@ socket_obj_init(net_sock_t *sock, int type)
 static net_sock_t *
 socket_obj_alloc(void)
 {
-    int i;
-    for (i = 0; i < array_len(socks); ++i) {
-        net_sock_t *sock = &socks[i];
-        if (sock->sd < 0) {
-            sock->sd = i;
-            sock->type = 0;
-            sock->bound = false;
-            sock->connected = false;
-            sock->listening = false;
-            sock->iface = NULL;
-            sock->local.ip = ANY_IP;
-            sock->local.port = 0;
-            sock->remote.ip = ANY_IP;
-            sock->remote.port = 0;
-            sock->private = NULL;
-            return sock;
-        }
+    net_sock_t *sock = malloc(sizeof(net_sock_t));
+    if (sock == NULL) {
+        return NULL;
     }
-    return NULL;
+
+    sock->type = 0;
+    sock->bound = false;
+    sock->connected = false;
+    sock->listening = false;
+    sock->iface = NULL;
+    sock->local.ip = ANY_IP;
+    sock->local.port = 0;
+    sock->remote.ip = ANY_IP;
+    sock->remote.port = 0;
+    sock->private = NULL;
+    list_add(&sock->list, &socket_list);
+    return sock;
 }
 
 /* Frees a socket (but not the corresponding file) */
 static void
 socket_obj_free(net_sock_t *sock)
 {
-    sock->sd = -1;
+    list_del(&sock->list);
+    free(sock);
 }
 
 /* Open syscall for socket files. This should never be called! */
@@ -220,7 +221,7 @@ socket_socket(int type)
     }
 
     file->ops_table = &fops_socket;
-    file->private = sock->sd;
+    file->private = sock;
     return file->fd;
 }
 
@@ -292,8 +293,6 @@ socket_sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr)
 static bool
 socket_local_addr_matches(net_sock_t *sock, int type, ip_addr_t ip, uint16_t port)
 {
-    if (sock->sd < 0)
-        return false;
     if (!sock->bound)
         return false;
     if (sock->type != type)
@@ -339,9 +338,9 @@ get_sock_by_addr(int type,
     ip_addr_t local_ip, uint16_t local_port,
     ip_addr_t remote_ip, uint16_t remote_port)
 {
-    int i;
-    for (i = 0; i < array_len(socks); ++i) {
-        net_sock_t *sock = &socks[i];
+    list_t *pos;
+    list_for_each(pos, &socket_list) {
+        net_sock_t *sock = list_entry(pos, net_sock_t, list);
         if (socket_addr_matches(sock, type, local_ip, local_port, remote_ip, remote_port)) {
             return sock;
         }
@@ -357,9 +356,9 @@ get_sock_by_addr(int type,
 net_sock_t *
 get_sock_by_local_addr(int type, ip_addr_t ip, uint16_t port)
 {
-    int i;
-    for (i = 0; i < array_len(socks); ++i) {
-        net_sock_t *sock = &socks[i];
+    list_t *pos;
+    list_for_each(pos, &socket_list) {
+        net_sock_t *sock = list_entry(pos, net_sock_t, list);
         if (socket_local_addr_matches(sock, type, ip, port)) {
             return sock;
         }
@@ -368,12 +367,9 @@ get_sock_by_local_addr(int type, ip_addr_t ip, uint16_t port)
 }
 
 /*
- * Finds a free port. By the pidgeonhole principle, if we just
- * try array_len(socks) + 1 distinct ports, there must be one
- * that is unused. Since we only allow a limited number of sockets,
- * this algorithm is sufficient.
+ * Finds a free port. Returns 0 if no ports are free.
  */
-static int
+static uint16_t
 socket_find_free_port(net_iface_t *iface, int type)
 {
     ip_addr_t ip = ANY_IP;
@@ -381,16 +377,21 @@ socket_find_free_port(net_iface_t *iface, int type)
         ip = iface->ip_addr;
     }
 
-    int i;
-    for (i = 0; i <= array_len(socks); ++i) {
-        int port = EPHEMERAL_PORT_START + i;
+    /*
+     * A simple bitmap doesn't work here since we can have
+     * two sockets listening on different interfaces but the
+     * same port. We can also have two sockets on the same
+     * interface, but one TCP and one UDP, with the same port.
+     * Hence, the slow algorithm it is!
+     */
+    int port;
+    for (port = EPHEMERAL_PORT_START; port <= MAX_PORT; ++port) {
         if (get_sock_by_local_addr(type, ip, port) == NULL) {
             return port;
         }
     }
 
-    panic("Failed to find a free port for binding");
-    return -1;
+    return 0;
 }
 
 /*
@@ -418,16 +419,17 @@ socket_bind_addr(net_sock_t *sock, ip_addr_t ip, uint16_t port)
     /* If port is 0, pick one at random */
     if (port == 0) {
         port = socket_find_free_port(iface, sock->type);
+        if (port == 0) {
+            debugf("All ports already in use\n");
+            return -1;
+        }
     }
 
     /* Check for collisions */
-    int i;
-    for (i = 0; i < array_len(socks); ++i) {
-        net_sock_t *tmp = &socks[i];
-        if (tmp != sock && socket_local_addr_matches(tmp, sock->type, ip, port)) {
-            debugf("Address already bound\n");
-            return -1;
-        }
+    net_sock_t *existing = get_sock_by_local_addr(sock->type, ip, port);
+    if (existing != NULL && existing != sock) {
+        debugf("Address already bound\n");
+        return -1;
     }
 
     sock->bound = true;
@@ -463,14 +465,4 @@ socket_connect_addr(net_sock_t *sock, ip_addr_t ip, uint16_t port)
     sock->remote.ip = ip;
     sock->remote.port = port;
     return 0;
-}
-
-/* Initializes all sockets to an invalid state */
-void
-socket_init(void)
-{
-    int i;
-    for (i = 0; i < array_len(socks); ++i) {
-        socks[i].sd = -1;
-    }
 }

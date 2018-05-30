@@ -154,7 +154,7 @@ read_data(int inode, int offset, uint8_t *buf, int length)
 int
 fs_open(const char *filename, file_obj_t *file)
 {
-    file->private = 0;
+    file->private = (void *)0;
     return 0;
 }
 
@@ -172,7 +172,7 @@ fs_dir_read(file_obj_t *file, void *buf, int nbytes)
 
     /* Read next file dentry, return 0 if no more entries */
     dentry_t dentry;
-    if (read_dentry_by_index(file->private, &dentry) != 0) {
+    if (read_dentry_by_index((int)file->private, &dentry) != 0) {
         return 0;
     }
 
@@ -208,7 +208,7 @@ fs_file_read(file_obj_t *file, void *buf, int nbytes)
     }
 
     /* Read directly into userspace buffer */
-    int count = read_data(file->inode_idx, file->private, buf, nbytes);
+    int count = read_data(file->inode_idx, (int)file->private, buf, nbytes);
     if (count <= 0) {
         return count;
     }

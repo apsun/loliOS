@@ -1,6 +1,8 @@
 #include "udp.h"
 #include "lib.h"
 #include "debug.h"
+#include "list.h"
+#include "myalloc.h"
 #include "syscall.h"
 #include "paging.h"
 #include "net.h"
@@ -10,15 +12,16 @@
 /* Maximum length of a UDP datagram body */
 #define UDP_MAX_LEN 1472
 
+/* Structure to hold SKBs in an inbox */
+typedef struct {
+    list_t list;
+    skb_t *skb;
+} inbox_pkt_t;
+
 /* UDP socket private data */
 typedef struct {
-    bool used;
-    skb_t *inbox[32];
-    int inbox_num;
+    list_t inbox;
 } udp_sock_t;
-
-/* One private data per socket */
-static udp_sock_t udp_socks[36];
 
 /*
  * Computes the UDP checksum. The SKB should contain the
@@ -74,19 +77,24 @@ udp_handle_rx(net_iface_t *iface, skb_t *skb)
 
     /* If the socket is connected, filter out packets from other endpoints */
     if (sock->connected) {
-        if (!ip_equals(sock->remote.ip, ip_hdr->src_ip))
+        if (!ip_equals(sock->remote.ip, ip_hdr->src_ip)) {
             return -1;
-        if (sock->remote.port != ntohs(hdr->be_src_port))
+        } else if (sock->remote.port != ntohs(hdr->be_src_port)) {
             return -1;
+        }
     }
+
+    /* Allocate inbox space */
+    inbox_pkt_t *pkt = malloc(sizeof(inbox_pkt_t));
+    if (pkt == NULL) {
+        debugf("Cannot allocate space for packet\n");
+        return -1;
+    }
+    pkt->skb = skb_retain(skb);
 
     /* Append SKB to inbox queue */
     udp_sock_t *udp = sock->private;
-    if (udp->inbox_num == array_len(udp->inbox)) {
-        debugf("UDP inbox full, dropping datagram\n");
-        return -1;
-    }
-    udp->inbox[udp->inbox_num++] = skb_retain(skb);
+    list_add_tail(&pkt->list, &udp->inbox);
     return 0;
 }
 
@@ -118,31 +126,16 @@ udp_send(net_sock_t *sock, skb_t *skb, ip_addr_t ip, int port)
     return ip_send(iface, neigh_ip, skb, ip, IPPROTO_UDP);
 }
 
-/* Allocates a UDP socket private data object */
-static udp_sock_t *
-udp_sock_alloc(void)
-{
-    int i;
-    for (i = 0; i < array_len(udp_socks); ++i) {
-        udp_sock_t *udp = &udp_socks[i];
-        if (!udp->used) {
-            udp->used = true;
-            udp->inbox_num = 0;
-            return udp;
-        }
-    }
-    return NULL;
-}
-
 /* socket() socketcall handler */
 int
 udp_socket(net_sock_t *sock)
 {
-    udp_sock_t *udp = udp_sock_alloc();
+    udp_sock_t *udp = malloc(sizeof(udp_sock_t));
     if (udp == NULL) {
-        debugf("Failed to allocate UDP private data\n");
+        debugf("Cannot allocate space for UDP data\n");
         return -1;
     }
+    list_init(&udp->inbox);
     sock->private = udp;
     return 0;
 }
@@ -185,12 +178,13 @@ udp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
 
     /* Do we have any queued packets? */
     udp_sock_t *udp = sock->private;
-    if (udp->inbox_num == 0) {
+    if (list_empty(&udp->inbox)) {
         return -EAGAIN;
     }
 
     /* Get first packet in the inbox queue */
-    skb_t *skb = udp->inbox[0];
+    inbox_pkt_t *pkt = list_first_entry(&udp->inbox, inbox_pkt_t, list);
+    skb_t *skb = pkt->skb;
     int len = skb_len(skb);
     if (nbytes > len) {
         nbytes = len;
@@ -214,10 +208,9 @@ udp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
     }
 
     /* Shift remaining packets up, free SKB */
-    memmove(&udp->inbox[0], &udp->inbox[1], (udp->inbox_num - 1) * sizeof(skb_t *));
-    udp->inbox_num--;
+    list_del(&pkt->list);
+    free(pkt);
     skb_release(skb);
-
     return nbytes;
 }
 
@@ -273,7 +266,17 @@ udp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
 int
 udp_close(net_sock_t *sock)
 {
+    /* Release all queued packets */
     udp_sock_t *udp = sock->private;
-    udp->used = false;
+    list_t *pos, *next;
+    list_for_each_safe(pos, next, &udp->inbox) {
+        inbox_pkt_t *pkt = list_entry(pos, inbox_pkt_t, list);
+        skb_release(pkt->skb);
+        free(pkt);
+    }
+
+    /* Free UDP data */
+    free(udp);
+    sock->private = NULL;
     return 0;
 }

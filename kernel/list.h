@@ -28,6 +28,18 @@ typedef struct list {
     container_of(ptr, type, member)
 
 /*
+ * Returns the first entry in the list.
+ */
+#define list_first_entry(head, type, member) \
+    list_entry((head)->next, type, member)
+
+/*
+ * Returns the last entry in the list.
+ */
+#define list_last_entry(head, type, member) \
+    list_entry((head)->prev, type, member)
+
+/*
  * Forward iteration helper for linked list, replaces "for (...)".
  */
 #define list_for_each(pos, head) \
@@ -52,6 +64,16 @@ typedef struct list {
  */
 #define list_for_each_prev_safe(pos, prev, head) \
     for (pos = (head)->prev, prev = pos->prev; pos != (head); pos = prev, prev = pos->prev)
+
+/*
+ * Dynamic version of list_declare. Initializes an empty list.
+ */
+static inline void
+list_init(list_t *head)
+{
+    head->prev = head;
+    head->next = head;
+}
 
 /*
  * Adds a node to the head of the specified linked list.
@@ -87,6 +109,15 @@ list_del(list_t *node)
     node->prev->next = node->next;
     node->next = NULL;
     node->prev = NULL;
+}
+
+/*
+ * Checks whether the list is empty.
+ */
+static inline bool
+list_empty(const list_t *head)
+{
+    return head->next == head;
 }
 
 #endif /* ASM */

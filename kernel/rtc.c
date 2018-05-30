@@ -172,7 +172,7 @@ rtc_open(const char *filename, file_obj_t *file)
      * File private field holds the virtual interrupt frequency
      * for this file.
      */
-    file->private = 2;
+    file->private = (void *)2;
     return 0;
 }
 
@@ -186,7 +186,7 @@ int
 rtc_read(file_obj_t *file, void *buf, int nbytes)
 {
     /* Max number of ticks we need to wait */
-    int max_ticks = MAX_RTC_FREQ / file->private;
+    int max_ticks = MAX_RTC_FREQ / (int)file->private;
 
     /* Wait until we reach the next multiple of max ticks */
     int target_counter = (rtc_counter + max_ticks) & -max_ticks;
@@ -239,7 +239,7 @@ rtc_write(file_obj_t *file, const void *buf, int nbytes)
     }
 
     /* Save desired interrupt frequency in file */
-    file->private = freq;
+    file->private = (void *)freq;
 
     return 0;
 }

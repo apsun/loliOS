@@ -2,6 +2,7 @@
 #define _SOCKET_H
 
 #include "types.h"
+#include "list.h"
 #include "net.h"
 
 #define SOCK_TCP 1
@@ -24,8 +25,8 @@ typedef struct net_sock_t {
     /* Socket operations table */
     const sock_ops_t *ops_table;
 
-    /* Socket descriptor, -1 if the socket is unallocated */
-    int sd;
+    /* Used to maintain a global list of sockets in socket.c */
+    list_t list;
 
     /* Socket type (one of the SOCK_* constants) */
     int type;
@@ -81,9 +82,6 @@ int socket_bind_addr(net_sock_t *sock, ip_addr_t ip, uint16_t port);
 
 /* Connects a socket to the specified remote (IP, port) combination */
 int socket_connect_addr(net_sock_t *sock, ip_addr_t ip, uint16_t port);
-
-/* Initializes sockets */
-void socket_init(void);
 
 #endif /* ASM */
 

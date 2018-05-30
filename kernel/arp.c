@@ -107,7 +107,7 @@ arp_entry_is_unreachable(arp_entry_t *entry)
 static void
 arp_queue_flush(ip_addr_t ip, const mac_addr_t *mac)
 {
-    struct list *pos, *next;
+    list_t *pos, *next;
     list_for_each_safe(pos, next, &packet_queue) {
         queue_pkt_t *pkt = list_entry(pos, queue_pkt_t, list);
         if (ip_equals(pkt->ip, ip)) {

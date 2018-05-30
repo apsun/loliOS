@@ -42,7 +42,7 @@ typedef struct {
     /*
      * File-private data, use is determined by driver.
      */
-    int private;
+    void *private;
 } file_obj_t;
 
 /* File operations table */
