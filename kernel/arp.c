@@ -1,6 +1,8 @@
 #include "arp.h"
 #include "lib.h"
 #include "debug.h"
+#include "list.h"
+#include "myalloc.h"
 #include "ethernet.h"
 #include "rtc.h"
 
@@ -47,16 +49,17 @@ typedef struct {
 
 /*
  * Structure for packets that need to be sent, and the IP address
- * they're waiting on. Struct is only valid if skb != NULL.
+ * they're waiting on.
  */
 typedef struct {
+    list_t list;
     skb_t *skb;
     net_dev_t *dev;
     ip_addr_t ip;
 } queue_pkt_t;
 
-/* Enqueued packet array */
-static queue_pkt_t packet_queue[16];
+/* Queue for packets waiting for an ARP reply */
+static list_declare(packet_queue);
 
 /*
  * We only have one Ethernet device, so a global ARP
@@ -97,39 +100,23 @@ arp_entry_is_unreachable(arp_entry_t *entry)
 }
 
 /*
- * Sends all packets waiting for an ARP reply from the
- * IP address.
+ * Flushes all packets waiting for an ARP reply from the
+ * specified IP address. If mac is not null, the packets
+ * are sent. If it is null, they are dropped.
  */
 static void
-arp_queue_send(ip_addr_t ip, mac_addr_t mac)
+arp_queue_flush(ip_addr_t ip, const mac_addr_t *mac)
 {
-    int i;
-    for (i = 0; i < array_len(packet_queue); ++i) {
-        queue_pkt_t *pkt = &packet_queue[i];
-        if (pkt->skb != NULL && ip_equals(pkt->ip, ip)) {
-            debugf("Sending queued packet\n");
-            if (ethernet_send_mac(pkt->dev, pkt->skb, mac, ETHERTYPE_IPV4) < 0) {
-                debugf("Queued packet send failed, dropping\n");
+    struct list *pos, *next;
+    list_for_each_safe(pos, next, &packet_queue) {
+        queue_pkt_t *pkt = list_entry(pos, queue_pkt_t, list);
+        if (ip_equals(pkt->ip, ip)) {
+            if (mac != NULL) {
+                ethernet_send_mac(pkt->dev, pkt->skb, *mac, ETHERTYPE_IPV4);
             }
             skb_release(pkt->skb);
-            pkt->skb = NULL;
-        }
-    }
-}
-
-/*
- * Drops all packets waiting for an ARP reply from the
- * IP address corresponding to the given entry.
- */
-static void
-arp_queue_drop(ip_addr_t ip)
-{
-    int i;
-    for (i = 0; i < array_len(packet_queue); ++i) {
-        queue_pkt_t *pkt = &packet_queue[i];
-        if (pkt->skb != NULL && ip_equals(pkt->ip, ip)) {
-            skb_release(pkt->skb);
-            pkt->skb = NULL;
+            list_del(&pkt->list);
+            free(pkt);
         }
     }
 }
@@ -145,19 +132,17 @@ arp_queue_drop(ip_addr_t ip)
 int
 arp_queue_insert(net_dev_t *dev, skb_t *skb, ip_addr_t ip)
 {
-    int i;
-    for (i = 0; i < array_len(packet_queue); ++i) {
-        queue_pkt_t *pkt = &packet_queue[i];
-        if (pkt->skb == NULL) {
-            pkt->dev = dev;
-            pkt->skb = skb_retain(skb);
-            pkt->ip = ip;
-            return 0;
-        }
+    queue_pkt_t *pkt = malloc(sizeof(queue_pkt_t));
+    if (pkt == NULL) {
+        debugf("Cannot allocate space for packet\n");
+        return -1;
     }
 
-    debugf("ARP packet queue full\n");
-    return -1;
+    pkt->dev = dev;
+    pkt->skb = skb_retain(skb);
+    pkt->ip = ip;
+    list_add_tail(&pkt->list, &packet_queue);
+    return 0;
 }
 
 /*
@@ -181,7 +166,7 @@ arp_cache_insert(ip_addr_t ip, const mac_addr_t *mac)
 
         /* While we're here, clean up expired entries */
         if (tmp->exists && arp_entry_is_expired(tmp)) {
-            arp_queue_drop(tmp->ip_addr);
+            arp_queue_flush(tmp->ip_addr, NULL);
             tmp->exists = false;
         }
 
@@ -237,7 +222,7 @@ arp_get_state(net_dev_t *dev, ip_addr_t ip, mac_addr_t *mac)
         arp_entry_t *entry = &arp_cache[i];
         if (entry->exists && ip_equals(ip, entry->ip_addr)) {
             if (arp_entry_is_expired(entry)) {
-                arp_queue_drop(entry->ip_addr);
+                arp_queue_flush(entry->ip_addr, NULL);
                 entry->exists = false;
                 return ARP_INVALID;
             } else if (arp_entry_is_unreachable(entry)) {
@@ -298,6 +283,12 @@ arp_send(net_iface_t *iface, ip_addr_t ip, mac_addr_t mac, int op)
 int
 arp_send_request(net_iface_t *iface, ip_addr_t ip)
 {
+    /* Insert pending entry into ARP cache */
+    if (arp_cache_insert(ip, NULL) < 0) {
+        return -1;
+    }
+
+    /* Send ARP request */
     return arp_send(iface, ip, BROADCAST_MAC, ARP_OP_REQUEST);
 }
 
@@ -307,6 +298,10 @@ arp_send_request(net_iface_t *iface, ip_addr_t ip)
 static int
 arp_send_reply(net_iface_t *iface, ip_addr_t ip, mac_addr_t mac)
 {
+    /* Insert into cache (we always send the reply, so ignore failure) */
+    arp_cache_insert(ip, &mac);
+
+    /* Send ARP reply */
     return arp_send(iface, ip, mac, ARP_OP_REPLY);
 }
 
@@ -321,7 +316,7 @@ arp_handle_reply(net_dev_t *dev, skb_t *skb)
     debugf("Received ARP reply\n");
     arp_body_t *body = skb_data(skb);
     int ret = arp_cache_insert(body->src_proto_addr, &body->src_hw_addr);
-    arp_queue_send(body->src_proto_addr, body->src_hw_addr);
+    arp_queue_flush(body->src_proto_addr, &body->src_hw_addr);
     return ret;
 }
 

@@ -382,7 +382,7 @@ paging_heap_grow(paging_heap_t *heap, int new_pages)
  * Grows or shrinks a heap, depending on the value
  * of delta. Returns -1 on error (e.g. shrinking by
  * more than available, or not enough physical memory).
- * On success, returns the previous brk.
+ * On success, returns the previous brk's virtual address.
  */
 int
 paging_heap_sbrk(paging_heap_t *heap, int delta)
@@ -457,8 +457,7 @@ paging_set_context(int pfn, paging_heap_t *heap)
 
 /*
  * Updates the vidmap page to point to the specified address.
- * If present is false, the vidmap page is disabled. Returns
- * the virtual address of the vidmap page.
+ * If present is false, the vidmap page is disabled.
  */
 void
 paging_update_vidmap_page(uint8_t *video_mem, bool present)

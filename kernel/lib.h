@@ -263,6 +263,12 @@ bswap32(uint32_t x)
 #define array_len(arr) ((int)(sizeof(arr) / sizeof((arr)[0])))
 
 /*
+ * Returns the offset of a field inside a structure.
+ */
+#define offsetof(type, member) \
+    ((size_t)&(((type *)NULL)->member))
+
+/*
  * Returns a pointer to the parent structure of the
  * specified structure pointer.
  */

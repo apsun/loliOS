@@ -14,10 +14,7 @@
 skb_t *
 skb_alloc(int size)
 {
-    if (size > SKB_MAX_LEN) {
-        return NULL;
-    }
-
+    assert(size >= 0 && size <= SKB_MAX_LEN);
     skb_t *skb = malloc(sizeof(skb_t) + size);
     if (skb == NULL) {
         return NULL;

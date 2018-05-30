@@ -25,7 +25,7 @@ typedef struct list {
  * this linked list node.
  */
 #define list_entry(ptr, type, member) \
-    container_of(ptr, type_member)
+    container_of(ptr, type, member)
 
 /*
  * Forward iteration helper for linked list, replaces "for (...)".
@@ -34,10 +34,24 @@ typedef struct list {
     for (pos = (head)->next; pos != (head); pos = pos->next)
 
 /*
+ * Forward iteration helper for linked list that allows for
+ * concurrent modifications during traversal.
+ */
+#define list_for_each_safe(pos, next, head) \
+    for (pos = (head)->next, next = pos->next; pos != (head); pos = next, next = pos->next)
+
+/*
  * Reverse iteration helper for linked list, replaces "for (...)".
  */
 #define list_for_each_prev(pos, head) \
     for (pos = (head)->prev; pos != (head); pos = pos->prev)
+
+/*
+ * Reverse iteration helper for linked list that allows for
+ * concurrent modifications during traversal.
+ */
+#define list_for_each_prev_safe(pos, prev, head) \
+    for (pos = (head)->prev, prev = pos->prev; pos != (head); pos = prev, prev = pos->prev)
 
 /*
  * Adds a node to the head of the specified linked list.
