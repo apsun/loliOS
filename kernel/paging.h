@@ -53,11 +53,11 @@ int paging_page_alloc(void);
 /* Deallocates a physical 4MB page */
 void paging_page_free(int pfn);
 
-/* Maps a virtual page to a physical page */
-void paging_page_map(int vfn, int pfn, bool user);
+/* Allocates and maps a virtual 4MB page */
+int get_free_page(int vfn, bool user);
 
-/* Unmaps a virtual page */
-void paging_page_unmap(int vfn);
+/* Deallocates and unmaps a virtual 4MB page */
+void free_page(int vfn, int pfn);
 
 /* Initializes a process heap */
 void paging_heap_init(paging_heap_t *heap);

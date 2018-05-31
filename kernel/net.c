@@ -42,7 +42,7 @@ net_in_subnet(net_iface_t *iface, ip_addr_t ip)
  * Finds an appropriate interface and IP address to send
  * an IP packet to. If iface is not NULL, the packet will
  * be forced to route through it. Otherwise, an interface
- * will be chosen (currently at random). neigh_ip will be
+ * will be chosen (currently by first match). neigh_ip will be
  * set to the IP of the next-hop, and the interface that
  * the packet will be routed on is returned. If the packet
  * cannot be routed, NULL is returned.

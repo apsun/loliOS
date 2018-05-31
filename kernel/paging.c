@@ -271,7 +271,7 @@ paging_page_free(int pfn)
  * address to the specified physical address. This should
  * only be used for pages obtained from paging_page_alloc().
  */
-void
+static void
 paging_page_map(int vfn, int pfn, bool user)
 {
     uint32_t vaddr = vfn * MB(4);
@@ -288,7 +288,7 @@ paging_page_map(int vfn, int pfn, bool user)
  * Modifies the page tables to unmap the specified virtual
  * address.
  */
-void
+static void
 paging_page_unmap(int vfn)
 {
     uint32_t vaddr = vfn * MB(4);
@@ -298,29 +298,28 @@ paging_page_unmap(int vfn)
 }
 
 /*
- * Allocates a new heap page on behalf of the
- * calling process. This will modify the page directory.
- * Returns the PFN of the allocated page.
+ * Allocates and maps a new page. This will modify the page
+ * directory. Returns the PFN of the allocated page, or -1
+ * if there are no free pages remaining.
  */
-static int
-paging_heap_alloc(int vfn)
+int
+get_free_page(int vfn, bool user)
 {
     int pfn = paging_page_alloc();
     if (pfn < 0) {
         return -1;
     } else {
-        paging_page_map(vfn, pfn, true);
+        paging_page_map(vfn, pfn, user);
         return pfn;
     }
 }
 
 /*
- * Frees a heap page previously allocated using
- * paging_heap_alloc(). This will modify the page
- * directory.
+ * Frees a page previously allocated using get_free_page().
+ * This will modify the page directory.
  */
-static void
-paging_heap_free(int vfn, int pfn)
+void
+free_page(int vfn, int pfn)
 {
     paging_page_unmap(vfn);
     paging_page_free(pfn);
@@ -347,7 +346,7 @@ paging_heap_shrink(paging_heap_t *heap, int new_pages)
         int i = --heap->num_pages;
         int vfn = HEAP_PAGE_START / MB(4) + i;
         int pfn = heap->pages[i];
-        paging_heap_free(vfn, pfn);
+        free_page(vfn, pfn);
     }
 }
 
@@ -363,7 +362,7 @@ paging_heap_grow(paging_heap_t *heap, int new_pages)
     int orig_pages = heap->num_pages;
     while (heap->num_pages < new_pages) {
         int vfn = HEAP_PAGE_START / MB(4) + heap->num_pages;
-        int pfn = paging_heap_alloc(vfn);
+        int pfn = get_free_page(vfn, true);
 
         /* If allocation fails, undo allocations */
         if (pfn < 0) {

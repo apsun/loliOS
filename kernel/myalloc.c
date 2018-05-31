@@ -291,21 +291,19 @@ mya_sbrk(size_t delta, void **orig_brk, void **new_brk)
     int orig_num_pages = mya_num_pages;
     size_t allocated = 0;
     while (allocated < delta) {
-        int pfn = paging_page_alloc();
-
-        /* If allocation fails, undo mappings and abort */
+        /*
+         * Allocate and map a page into virtual memory.
+         * +2 since we skip the first 8MB = 2 pages.
+         */
+        int pfn = get_free_page(mya_num_pages + 2, false);
         if (pfn < 0) {
             while (mya_num_pages > orig_num_pages) {
-                paging_page_unmap(--mya_num_pages + 2);
+                mya_num_pages--;
+                free_page(mya_num_pages + 2, mya_pages[mya_num_pages]);
             }
             return false;
         }
 
-        /*
-         * Map the new page into virtual memory.
-         * +2 since we skip the first 8MB = 2 pages.
-         */
-        paging_page_map(mya_num_pages + 2, pfn, false);
         mya_pages[mya_num_pages++] = pfn;
         allocated += MB(4);
     }
