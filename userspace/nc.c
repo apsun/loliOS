@@ -8,8 +8,6 @@
 
 #define STDIN_NONBLOCK 1
 
-#define IP(a, b, c, d) ((ip_addr_t){.bytes = {(a), (b), (c), (d)}})
-
 #define DNS_SERVER IP(10, 0, 2, 3)
 #define DNS_PORT 53
 #define DNS_TIMEOUT 1 /* Sadly seconds is the best resolution we have */

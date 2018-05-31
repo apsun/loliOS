@@ -56,6 +56,8 @@ typedef struct {
     uint16_t port;
 } sock_addr_t;
 
+#define IP(a, b, c, d) ((ip_addr_t){.bytes = {(a), (b), (c), (d)}})
+
 __cdecl int halt(int status);
 __cdecl int execute(const char *command);
 __cdecl int read(int fd, void *buf, int nbytes);

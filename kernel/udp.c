@@ -259,7 +259,11 @@ udp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
     /* udp_send() will prepend the UDP header for us */
     int ret = udp_send(sock, skb, dest_addr.ip, dest_addr.port);
     skb_release(skb);
-    return ret;
+    if (ret < 0) {
+        return ret;
+    } else {
+        return nbytes;
+    }
 }
 
 /* close() socketcall handler */
