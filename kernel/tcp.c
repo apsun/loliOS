@@ -1,6 +1,9 @@
 #include "tcp.h"
 #include "lib.h"
 #include "debug.h"
+#include "syscall.h"
+#include "myalloc.h"
+#include "socket.h"
 #include "paging.h"
 #include "net.h"
 #include "ip.h"
@@ -13,6 +16,31 @@
  * host. Unless your network is perfect, you should not use
  * this code!
  */
+typedef struct {
+    list_t backlog;
+
+    list_t inbox;
+    list_t outbox;
+    int inbox_size;
+    int outbox_size;
+
+    /*
+     * Sequence number: in bytes, represents the number of the
+     * NEXT byte that we expect to receive.
+     */
+    uint32_t local_seq;
+    uint32_t remote_ack;
+
+    /*
+     * Congestion window: how much more is this connection able
+     * to receive before the buffer is full?
+     */
+    uint32_t local_cwnd;
+    uint32_t remote_cwnd;
+
+    bool should_send_ack : 1;
+    bool should_send_syn : 1;
+} tcp_sock_t;
 
 /*
  * Handles an incoming SYN to a listening socket.
@@ -71,7 +99,7 @@ tcp_handle_rx(net_iface_t *iface, skb_t *skb)
         }
     }
 
-    /* Discard any other packets */
+    /* Discard other packets */
     return -1;
 }
 
@@ -79,7 +107,14 @@ tcp_handle_rx(net_iface_t *iface, skb_t *skb)
 int
 tcp_socket(net_sock_t *sock)
 {
+    tcp_sock_t *tcp = malloc(sizeof(tcp_sock_t));
+    if (tcp == NULL) {
+        debugf("Cannot allocate space for TCP data\n");
+        return -1;
+    }
+
     /* TODO */
+    sock->private = tcp;
     return 0;
 }
 
@@ -146,6 +181,13 @@ tcp_accept(net_sock_t *sock, sock_addr_t *addr)
         return -1;
     }
 
+    /* Check if we have any pending connections */
+    tcp_sock_t *tcp = sock->private;
+    if (list_empty(&tcp->backlog)) {
+        return -EAGAIN;
+    }
+
+    /* Create a new socket */
     /* TODO */
     return -1;
 }

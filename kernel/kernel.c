@@ -192,6 +192,9 @@ entry(unsigned long magic, unsigned long addr)
     printf("Initializing NE2000 driver...\n");
     ne2k_init();
 
+    printf("Seeding random number generator...\n");
+    srand(rtc_time());
+
     /* We made it! */
     printf("Boot successful!\n");
 

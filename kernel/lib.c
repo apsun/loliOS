@@ -2,6 +2,8 @@
 #include "debug.h"
 #include "terminal.h"
 
+static unsigned int rand_state = 1;
+
 /*
  * Checks whether the input is a lowercase
  * alphabetical character.
@@ -1097,4 +1099,26 @@ printf(const char *format, ...)
     int ret = vprintf(format, args);
     va_end(args);
     return ret;
+}
+
+/*
+ * Generates a random number.
+ */
+int
+rand(void)
+{
+    unsigned int tmp = rand_state;
+    tmp *= 1103515245;
+    tmp += 12345;
+    tmp &= 0x7fffffff;
+    return (int)(rand_state = tmp);
+}
+
+/*
+ * Seeds the random number generator.
+ */
+void
+srand(unsigned int seed)
+{
+    rand_state = seed;
 }
