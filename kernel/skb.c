@@ -124,7 +124,7 @@ bool
 skb_may_pull(skb_t *skb, int len)
 {
     assert(skb->refcnt > 0);
-    return len < skb->len;
+    return len <= skb->len;
 }
 
 /*
@@ -138,7 +138,7 @@ void *
 skb_pull(skb_t *skb, int len)
 {
     assert(skb->refcnt > 0);
-    assert(len < skb->len);
+    assert(len <= skb->len);
     skb->data += len;
     skb->len -= len;
     return skb->data;

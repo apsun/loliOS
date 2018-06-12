@@ -8,7 +8,7 @@
  * Computes a IPv4, TCP, or UDP checksum. The sum should
  * be computed from calling ip_partial_checksum().
  */
-uint16_t
+static uint16_t
 ip_checksum(uint32_t sum)
 {
     while (sum & ~0xffff) {
@@ -22,7 +22,7 @@ ip_checksum(uint32_t sum)
  * partial results to ip_checksum() to get the final
  * result.
  */
-uint32_t
+static uint32_t
 ip_partial_checksum(const void *buf, int len)
 {
     uint32_t sum = 0;
@@ -34,6 +34,30 @@ ip_partial_checksum(const void *buf, int len)
     if (len & 1) {
         const uint8_t *bufb = buf;
         sum += ntohs(bufb[len - 1]);
+    }
+    return sum;
+}
+
+/*
+ * Computes a TCP/UDP checksum. The SKB should contain the
+ * transport header already, with the checksum set to zero. The
+ * source IP is the address of the interface that will be
+ * used to send the datagram.
+ */
+uint16_t
+ip_pseudo_checksum(skb_t *skb, ip_addr_t src_ip, ip_addr_t dest_ip, int protocol)
+{
+    ip_pseudo_hdr_t phdr;
+    phdr.src_ip = src_ip;
+    phdr.dest_ip = dest_ip;
+    phdr.zero = 0;
+    phdr.protocol = protocol;
+    phdr.be_length = htons(skb_len(skb));
+    uint16_t sum = ip_checksum(
+        ip_partial_checksum(&phdr, sizeof(phdr)) +
+        ip_partial_checksum(skb_data(skb), skb_len(skb)));
+    if (sum == 0) {
+        sum = 0xffff;
     }
     return sum;
 }
@@ -121,8 +145,14 @@ ip_handle_rx(net_iface_t *iface, skb_t *skb)
 int
 ip_send(net_iface_t *iface, ip_addr_t neigh_ip, skb_t *skb, ip_addr_t dest_ip, int protocol)
 {
-    /* Prepend IP header */
-    ip_hdr_t *hdr = skb_push(skb, sizeof(ip_hdr_t));
+    /* Push IP header if it doesn't already exist */
+    ip_hdr_t *hdr = skb_network_header(skb);
+    if (hdr == NULL) {
+        hdr = skb_push(skb, sizeof(ip_hdr_t));
+        skb_reset_network_header(skb);
+    }
+
+    /* Fill out IP header */
     hdr->ihl = sizeof(ip_hdr_t) / 4;
     hdr->version = 4;
     hdr->tos = 0;

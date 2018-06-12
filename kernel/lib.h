@@ -116,7 +116,7 @@ inl(uint16_t port)
 static inline uint16_t
 bswap16(uint16_t x)
 {
-    return (
+    return (uint16_t)(
         (x & 0x00ff) << 8 |
         (x & 0xff00) >> 8);
 }
@@ -127,7 +127,7 @@ bswap16(uint16_t x)
 static inline uint32_t
 bswap32(uint32_t x)
 {
-    return (
+    return (uint32_t)(
         (x & 0x000000ff) << 24 |
         (x & 0x0000ff00) << 8  |
         (x & 0x00ff0000) >> 8  |

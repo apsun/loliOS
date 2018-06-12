@@ -3,6 +3,7 @@
 
 #include "types.h"
 #include "lib.h"
+#include "list.h"
 
 #ifndef ASM
 
@@ -12,6 +13,12 @@
  * you must know the maximum size at allocation time.
  */
 typedef struct {
+    /*
+     * Used for queues. Only one layer may queue the SKB at any time,
+     * so this field is owned by that layer.
+     */
+    list_t list;
+
     uint8_t *head;
     uint8_t *data;
     uint8_t *tail;

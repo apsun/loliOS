@@ -12,7 +12,7 @@
 #ifndef ASM
 
 /* Forward declaration */
-typedef struct sock_ops_t sock_ops_t;
+typedef struct sock_ops sock_ops_t;
 
 /* Socket address */
 typedef struct {
@@ -21,15 +21,18 @@ typedef struct {
 } sock_addr_t;
 
 /* Layer-4 UDP/TCP socket */
-typedef struct net_sock_t {
-    /* Socket operations table */
-    const sock_ops_t *ops_table;
-
+typedef struct {
     /* Used to maintain a global list of sockets in socket.c */
     list_t list;
 
+    /* Socket operations table */
+    const sock_ops_t *ops_table;
+
     /* Socket type (one of the SOCK_* constants) */
     int type;
+
+    /* Reference count of this socket */
+    int refcnt;
 
     /* Whether bind(), connect(), listen() have been called */
     bool bound     : 1;
@@ -47,8 +50,10 @@ typedef struct net_sock_t {
     void *private;
 } net_sock_t;
 
-/* Socket operations table */
-struct sock_ops_t {
+/*
+ * Socket operations table. All functions are optional.
+ */
+struct sock_ops {
     int (*socket)(net_sock_t *sock);
     int (*bind)(net_sock_t *sock, const sock_addr_t *addr);
     int (*connect)(net_sock_t *sock, const sock_addr_t *addr);
@@ -68,6 +73,15 @@ __cdecl int socket_listen(int fd, int backlog);
 __cdecl int socket_accept(int fd, sock_addr_t *addr);
 __cdecl int socket_recvfrom(int fd, void *buf, int nbytes, sock_addr_t *addr);
 __cdecl int socket_sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr);
+
+/* Returns the socket corresponding to the specified fd */
+net_sock_t *get_executing_sock(int fd);
+
+/* Increments the reference count of a socket */
+net_sock_t *socket_obj_retain(net_sock_t *sock);
+
+/* Decrements the reference count of a socket, freeing it if no refs left */
+void socket_obj_release(net_sock_t *sock);
 
 /* Finds a socket given a local (IP, port) combination */
 net_sock_t *get_sock_by_local_addr(int type, ip_addr_t ip, uint16_t port);

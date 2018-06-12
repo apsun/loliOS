@@ -12,40 +12,17 @@
 /* Maximum length of a UDP datagram body */
 #define UDP_MAX_LEN 1472
 
-/* Structure to hold SKBs in an inbox */
+/* UDP-private socket state */
 typedef struct {
-    list_t list;
-    skb_t *skb;
-} inbox_pkt_t;
+    /* Back-pointer to the socket object */
+    net_sock_t *sock;
 
-/* UDP socket private data */
-typedef struct {
+    /* Simple queue of incoming packets */
     list_t inbox;
 } udp_sock_t;
 
-/*
- * Computes the UDP checksum. The SKB should contain the
- * UDP header already, with the checksum set to zero. The
- * source IP is the address of the interface that will be
- * used to send the datagram.
- */
-static uint16_t
-udp_checksum(skb_t *skb, ip_addr_t src_ip, ip_addr_t dest_ip)
-{
-    ip_pseudo_hdr_t phdr;
-    phdr.src_ip = src_ip;
-    phdr.dest_ip = dest_ip;
-    phdr.zero = 0;
-    phdr.protocol = IPPROTO_UDP;
-    phdr.be_length = htons(skb_len(skb));
-    uint16_t sum = ip_checksum(
-        ip_partial_checksum(&phdr, sizeof(phdr)) +
-        ip_partial_checksum(skb_data(skb), skb_len(skb)));
-    if (sum == 0) {
-        sum = 0xffff;
-    }
-    return sum;
-}
+/* Obtains a udp_sock_t reference from a net_sock_t */
+#define udp_sock(sock) ((udp_sock_t *)(sock)->private)
 
 /* Handles reception of a UDP datagram */
 int
@@ -84,17 +61,9 @@ udp_handle_rx(net_iface_t *iface, skb_t *skb)
         }
     }
 
-    /* Allocate inbox space */
-    inbox_pkt_t *pkt = malloc(sizeof(inbox_pkt_t));
-    if (pkt == NULL) {
-        debugf("Cannot allocate space for packet\n");
-        return -1;
-    }
-    pkt->skb = skb_retain(skb);
-
     /* Append SKB to inbox queue */
-    udp_sock_t *udp = sock->private;
-    list_add_tail(&pkt->list, &udp->inbox);
+    udp_sock_t *udp = udp_sock(sock);
+    list_add_tail(&skb_retain(skb)->list, &udp->inbox);
     return 0;
 }
 
@@ -121,8 +90,8 @@ udp_send(net_sock_t *sock, skb_t *skb, ip_addr_t ip, int port)
     hdr->be_src_port = htons(sock->local.port);
     hdr->be_dest_port = htons(port);
     hdr->be_length = htons(skb_len(skb));
-    hdr->be_checksum = htons(0);
-    hdr->be_checksum = htons(udp_checksum(skb, iface->ip_addr, ip));
+    hdr->be_checksum = htons(0); /* First set to zero to compute checksum */
+    hdr->be_checksum = htons(ip_pseudo_checksum(skb, iface->ip_addr, ip, IPPROTO_UDP));
     return ip_send(iface, neigh_ip, skb, ip, IPPROTO_UDP);
 }
 
@@ -136,6 +105,7 @@ udp_socket(net_sock_t *sock)
         return -1;
     }
     list_init(&udp->inbox);
+    udp->sock = sock;
     sock->private = udp;
     return 0;
 }
@@ -177,14 +147,13 @@ udp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
     }
 
     /* Do we have any queued packets? */
-    udp_sock_t *udp = sock->private;
+    udp_sock_t *udp = udp_sock(sock);
     if (list_empty(&udp->inbox)) {
         return -EAGAIN;
     }
 
     /* Get first packet in the inbox queue */
-    inbox_pkt_t *pkt = list_first_entry(&udp->inbox, inbox_pkt_t, list);
-    skb_t *skb = pkt->skb;
+    skb_t *skb = list_first_entry(&udp->inbox, skb_t, list);
     int len = skb_len(skb);
     if (nbytes > len) {
         nbytes = len;
@@ -208,8 +177,7 @@ udp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
     }
 
     /* Shift remaining packets up, free SKB */
-    list_del(&pkt->list);
-    free(pkt);
+    list_del(&skb->list);
     skb_release(skb);
     return nbytes;
 }
@@ -271,15 +239,14 @@ int
 udp_close(net_sock_t *sock)
 {
     /* Release all queued packets */
-    udp_sock_t *udp = sock->private;
+    udp_sock_t *udp = udp_sock(sock);
     list_t *pos, *next;
     list_for_each_safe(pos, next, &udp->inbox) {
-        inbox_pkt_t *pkt = list_entry(pos, inbox_pkt_t, list);
-        skb_release(pkt->skb);
-        free(pkt);
+        skb_t *skb = list_entry(pos, skb_t, list);
+        skb_release(skb);
     }
 
-    /* Free UDP data */
+    /* Free the UDP data */
     free(udp);
     sock->private = NULL;
     return 0;

@@ -35,11 +35,8 @@ typedef struct {
     uint16_t be_length;
 } ip_pseudo_hdr_t;
 
-/* Computes a IPv4, TCP, or UDP checksum */
-uint16_t ip_checksum(uint32_t sum);
-
-/* Computes a partial IPv4, TCP, or UDP checksum */
-uint32_t ip_partial_checksum(const void *buf, int len);
+/* Computes a TCP or UDP checksum */
+uint16_t ip_pseudo_checksum(skb_t *skb, ip_addr_t src_ip, ip_addr_t dest_ip, int protocol);
 
 /* Handles an incoming IP packet */
 int ip_handle_rx(net_iface_t *iface, skb_t *skb);

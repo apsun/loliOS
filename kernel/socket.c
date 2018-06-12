@@ -15,7 +15,6 @@
 static list_declare(socket_list);
 
 /* File operations syscall forward declarations */
-static int socket_open(const char *filename, file_obj_t *file);
 static int socket_read(file_obj_t *file, void *buf, int nbytes);
 static int socket_write(file_obj_t *file, const void *buf, int nbytes);
 static int socket_close(file_obj_t *file);
@@ -23,7 +22,7 @@ static int socket_ioctl(file_obj_t *file, int req, int arg);
 
 /* Network socket file ops */
 static const file_ops_t fops_socket = {
-    .open = socket_open,
+    .open = NULL, /* Can never be reached */
     .read = socket_read,
     .write = socket_write,
     .close = socket_close,
@@ -70,7 +69,7 @@ get_sock(file_obj_t *file)
  * for the currently executing process. Returns null if the
  * descriptor is invalid or does not correspond to a socket.
  */
-static net_sock_t *
+net_sock_t *
 get_executing_sock(int fd)
 {
     file_obj_t *file = get_executing_file(fd);
@@ -107,14 +106,19 @@ socket_obj_init(net_sock_t *sock, int type)
  * object.
  */
 static net_sock_t *
-socket_obj_alloc(void)
+socket_obj_alloc(int type)
 {
     net_sock_t *sock = malloc(sizeof(net_sock_t));
     if (sock == NULL) {
         return NULL;
     }
 
-    sock->type = 0;
+    if (socket_obj_init(sock, type) < 0) {
+        free(sock);
+        return NULL;
+    }
+
+    sock->refcnt = 1;
     sock->bound = false;
     sock->connected = false;
     sock->listening = false;
@@ -128,20 +132,29 @@ socket_obj_alloc(void)
     return sock;
 }
 
-/* Frees a socket (but not the corresponding file) */
-static void
-socket_obj_free(net_sock_t *sock)
+/*
+ * Increments the reference count of a socket.
+ */
+net_sock_t *
+socket_obj_retain(net_sock_t *sock)
 {
-    list_del(&sock->list);
-    free(sock);
+    assert(sock->refcnt > 0);
+    sock->refcnt++;
+    return sock;
 }
 
-/* Open syscall for socket files. This should never be called! */
-static int
-socket_open(const char *filename, file_obj_t *file)
+/*
+ * Decrements the reference count of a socket, and frees it
+ * once the reference count reaches zero.
+ */
+void
+socket_obj_release(net_sock_t *sock)
 {
-    panic("Socket object open() called");
-    return -1;
+    assert(sock->refcnt > 0);
+    if (--sock->refcnt == 0) {
+        list_del(&sock->list);
+        free(sock);
+    }
 }
 
 /* Read syscall for socket files. Wrapper around recvfrom(). */
@@ -158,17 +171,16 @@ socket_write(file_obj_t *file, const void *buf, int nbytes)
     return socket_sendto(file->fd, buf, nbytes, NULL);
 }
 
-/* Close syscall for socket files. Frees the associated socket. */
+/* Close syscall for socket files. */
 static int
 socket_close(file_obj_t *file)
 {
     net_sock_t *sock = get_sock(file);
     assert(sock != NULL);
-    if (sock->ops_table->close != NULL &&
-        sock->ops_table->close(sock) < 0) {
+    if (sock->ops_table->close != NULL && sock->ops_table->close(sock) < 0) {
         return -1;
     }
-    socket_obj_free(sock);
+    socket_obj_release(sock);
     return 0;
 }
 
@@ -188,35 +200,26 @@ socket_ioctl(file_obj_t *file, int req, int arg)
 __cdecl int
 socket_socket(int type)
 {
-    /* Allocate a socket */
-    net_sock_t *sock = socket_obj_alloc();
-    if (sock == NULL) {
-        debugf("Failed to allocate socket\n");
-        return -1;
-    }
-
     /* Allocate a file object */
     file_obj_t *file = file_obj_alloc();
     if (file == NULL) {
         debugf("Failed to allocate file\n");
-        socket_obj_free(sock);
         return -1;
     }
 
-    /* Initialize socket and file objects */
-    if (socket_obj_init(sock, type) < 0) {
-        debugf("Failed to initialize socket\n");
+    /* Allocate a socket */
+    net_sock_t *sock = socket_obj_alloc(type);
+    if (sock == NULL) {
+        debugf("Failed to allocate socket\n");
         file_obj_free(file);
-        socket_obj_free(sock);
         return -1;
     }
 
-    /* Call type-specific constructor, if any */
-    if (sock->ops_table->socket != NULL &&
-        sock->ops_table->socket(sock) < 0) {
+    /* Call type-specific constructor */
+    if (sock->ops_table->socket != NULL && sock->ops_table->socket(sock) < 0) {
         debugf("Socket constructor returned error\n");
+        socket_obj_release(sock);
         file_obj_free(file);
-        socket_obj_free(sock);
         return -1;
     }
 
@@ -313,7 +316,8 @@ socket_local_addr_matches(net_sock_t *sock, int type, ip_addr_t ip, uint16_t por
  * only unconnected sockets.
  */
 static bool
-socket_addr_matches(net_sock_t *sock, int type,
+socket_addr_matches(
+    net_sock_t *sock, int type,
     ip_addr_t local_ip, uint16_t local_port,
     ip_addr_t remote_ip, uint16_t remote_port)
 {
@@ -323,7 +327,7 @@ socket_addr_matches(net_sock_t *sock, int type,
         return ip_equals(remote_ip, ANY_IP) && remote_port == 0;
     if (!ip_equals(sock->remote.ip, remote_ip))
         return false;
-    if (sock->local.port != remote_port)
+    if (sock->remote.port != remote_port)
         return false;
     return true;
 }
@@ -334,7 +338,8 @@ socket_addr_matches(net_sock_t *sock, int type,
  * combinations, returns null.
  */
 net_sock_t *
-get_sock_by_addr(int type,
+get_sock_by_addr(
+    int type,
     ip_addr_t local_ip, uint16_t local_port,
     ip_addr_t remote_ip, uint16_t remote_port)
 {
