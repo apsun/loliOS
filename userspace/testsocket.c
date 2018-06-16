@@ -202,6 +202,92 @@ test_bind_conflict(void)
     close(c);
 }
 
+void
+test_tcp_basic(void)
+{
+    int ret;
+    int a = socket(SOCK_TCP);
+    int b = socket(SOCK_TCP);
+    char buf[64], tmp[1500];
+    fill_buffer(buf, sizeof(buf));
+
+    /* Create a listening socket */
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 5555};
+    ret = bind(a, &a_addr);
+    assert(ret == 0);
+    ret = listen(a, 64);
+    assert(ret == 0);
+
+    /* Connect to listening socket */
+    sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 5556};
+    ret = bind(b, &b_addr);
+    assert(ret == 0);
+    ret = connect(b, &a_addr);
+    assert(ret == 0);
+
+    /* Accept incoming connection */
+    sock_addr_t tmp_addr;
+    int a_conn = accept(a, &tmp_addr);
+    assert(a_conn >= 0);
+    assert(memcmp(&b_addr, &tmp_addr, sizeof(sock_addr_t)) == 0);
+
+    /* Send data */
+    ret = write(a_conn, buf, sizeof(buf));
+    assert(ret == sizeof(buf));
+
+    /* Receive data */
+    ret = read(b, tmp, sizeof(tmp));
+    assert(ret == sizeof(buf));
+    assert(memcmp(buf, tmp, sizeof(buf)) == 0);
+
+    close(a_conn);
+    close(a);
+    close(b);
+}
+
+void
+test_tcp_invalid(void)
+{
+    int ret;
+    int a = socket(SOCK_TCP);
+
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 5555};
+    ret = bind(a, &a_addr);
+    assert(ret == 0);
+    ret = listen(a, 64);
+    assert(ret == 0);
+
+    /* Check that accept() before listen(), connect() after listen() fail */
+    int b = socket(SOCK_TCP);
+    ret = accept(b, NULL);
+    assert(ret == -1);
+    ret = listen(b, 64);
+    assert(ret == 0);
+    ret = connect(b, &a_addr);
+    assert(ret == -1);
+    close(b);
+
+    /* Test sendto/recvfrom don't work on unconnected sockets */
+    b = socket(SOCK_TCP);
+    char buf[16] = {0};
+    ret = recvfrom(b, buf, sizeof(buf), NULL);
+    assert(ret == -1);
+    ret = sendto(b, buf, sizeof(buf), &a_addr);
+    assert(ret == -1);
+
+    /* Test accept() w/ null addr fails */
+    ret = connect(b, &a_addr);
+    assert(ret == 0);
+    int aconn = accept(a, NULL);
+    assert(aconn >= 0);
+    ret = sendto(b, buf, sizeof(buf), NULL);
+    assert(ret == sizeof(buf));
+
+    close(aconn);
+    close(b);
+    close(a);
+}
+
 int
 main(void)
 {
@@ -210,6 +296,8 @@ main(void)
     test_udp_queue();
     test_udp_connect();
     test_bind_conflict();
+    test_tcp_basic();
+    test_tcp_invalid();
     printf("All tests passed!\n");
     return 0;
 }

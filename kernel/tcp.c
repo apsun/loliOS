@@ -1109,6 +1109,12 @@ tcp_accept(net_sock_t *sock, sock_addr_t *addr)
 
     /* Pop first entry from the backlog */
     tcp_sock_t *conntcp = list_first_entry(&tcp->backlog, tcp_sock_t, backlog);
+    net_sock_t *connsock = net_sock(conntcp);
+
+    /* Copy address to userspace */
+    if (addr != NULL && !copy_to_user(addr, &connsock->remote, sizeof(sock_addr_t))) {
+        return -1;
+    }
 
     /* Bind the socket to a file */
     int fd = socket_obj_bind_file(net_sock(conntcp));
