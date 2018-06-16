@@ -288,58 +288,75 @@ ip_parse(const char *str, ip_addr_t *ip)
 }
 
 static int
-nc_loop(ip_addr_t ip, uint16_t port, bool listen, bool udp)
+nc_loop(ip_addr_t ip, uint16_t port, bool passive, bool udp)
 {
-    int ret = 1;
+    int ret;
     int sockfd = -1;
-
-    /* TODO */
-    (void)udp;
-    
-    if ((sockfd = socket(SOCK_UDP)) < 0) {
-        puts("Failed to allocate socket");
-        goto cleanup;
-    }
-
-    sock_addr_t peer_addr;
-    bool know_peer;
-    bool bound;
-
-    if (listen) {
-        sock_addr_t local_addr;
-        local_addr.ip = ip;
-        local_addr.port = port;
-        if (bind(sockfd, &local_addr) < 0) {
-            puts("Failed to bind socket");
-            goto cleanup;
-        }
-        know_peer = false;
-        bound = true;
-    } else {
-        peer_addr.ip = ip;
-        peer_addr.port = port;
-        know_peer = true;
-        bound = false;
-    }
-
+    int listenfd = -1;
     char recv_buf[0x600];
     char send_buf[256];
     int send_buf_count = 0;
+    bool bound = false;
+    bool connected = false;
+    sock_addr_t local_addr;
+    sock_addr_t remote_addr;
+
+#define CALL(expr) do {        \
+    ret = expr;                \
+    if (ret == -1) {           \
+        puts(#expr " failed"); \
+        goto cleanup;          \
+    }                          \
+} while (0)
+
+    if (passive) {
+        local_addr.ip = ip;
+        local_addr.port = port;
+        if (udp) {
+            CALL(sockfd = socket(SOCK_UDP));
+            CALL(bind(sockfd, &local_addr));
+            bound = true;
+        } else {
+            CALL(listenfd = socket(SOCK_TCP));
+            CALL(bind(listenfd, &local_addr));
+            CALL(listen(listenfd, 128));
+            bound = false;
+        }
+        connected = false;
+    } else {
+        remote_addr.ip = ip;
+        remote_addr.port = port;
+        if (udp) {
+            CALL(sockfd = socket(SOCK_UDP));
+            bound = false;
+        } else {
+            CALL(sockfd = socket(SOCK_TCP));
+            bound = true;
+        }
+        CALL(connect(sockfd, &remote_addr));
+        connected = true;
+    }
+
     while (1) {
-        int cnt;
+        /* If passive TCP socket, wait for a connection */
+        if (sockfd < 0) {
+            CALL(sockfd = accept(listenfd, &remote_addr));
+            if (sockfd == -EINTR || sockfd == -EAGAIN) {
+                continue;
+            }
+            connected = true;
+            bound = true;
+        }
 
         /* Read data from stdin */
-        cnt = read(0, &send_buf[send_buf_count], sizeof(send_buf) - send_buf_count);
-        if (cnt == -EINTR || cnt == -EAGAIN) {
-            cnt = 0;
-        } else if (cnt < 0) {
-            puts("Terminal read failed");
-            goto cleanup;
+        CALL(read(0, &send_buf[send_buf_count], sizeof(send_buf) - send_buf_count));
+        if (ret == -EINTR || ret == -EAGAIN) {
+            ret = 0;
         }
-        send_buf_count += cnt;
+        send_buf_count += ret;
 
         /* Scan for a newline in the buffer */
-        int line_len = -1;
+        int line_len = 0;
         int i;
         for (i = 0; i < send_buf_count; ++i) {
             if (send_buf[i] == '\n') {
@@ -349,11 +366,8 @@ nc_loop(ip_addr_t ip, uint16_t port, bool listen, bool udp)
         }
 
         /* If we found an entire line, send it */
-        if (know_peer && line_len > 0) {
-            if (sendto(sockfd, send_buf, line_len, &peer_addr) < 0) {
-                puts("Socket write failed");
-                goto cleanup;
-            }
+        if (connected && line_len > 0) {
+            CALL(write(sockfd, send_buf, line_len));
             memmove(&send_buf[0], &send_buf[line_len], send_buf_count - line_len);
             send_buf_count -= line_len;
             bound = true;
@@ -361,18 +375,14 @@ nc_loop(ip_addr_t ip, uint16_t port, bool listen, bool udp)
 
         /* Read data from socket */
         if (bound) {
-            cnt = recvfrom(sockfd, recv_buf, sizeof(recv_buf), &peer_addr);
-            if (cnt == -EINTR || cnt == -EAGAIN) {
-                /* Do nothing */
-            } else if (cnt < 0) {
-                puts("Read from socket failed");
-                goto cleanup;
-            } else {
-                if (write(1, recv_buf, cnt) < cnt) {
-                    puts("Terminal write failed");
-                    goto cleanup;
-                }
-                know_peer = true;
+            CALL(recvfrom(sockfd, recv_buf, sizeof(recv_buf), &remote_addr));
+            if (ret == -EINTR || ret == -EAGAIN) {
+                continue;
+            }
+            CALL(write(1, recv_buf, ret));
+            if (!connected) {
+                CALL(connect(sockfd, &remote_addr));
+                connected = true;
             }
         }
     }
@@ -380,6 +390,7 @@ nc_loop(ip_addr_t ip, uint16_t port, bool listen, bool udp)
     ret = 0;
 
 cleanup:
+    if (listenfd >= 0) close(listenfd);
     if (sockfd >= 0) close(sockfd);
     return ret;
 }

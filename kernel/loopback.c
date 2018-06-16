@@ -11,8 +11,12 @@
 static int
 loopback_send(net_iface_t *iface, skb_t *skb, ip_addr_t ip)
 {
-    debugf("Received loopback packet\n");
-    return ip_handle_rx(iface, skb);
+    /*
+     * Cloning the SKB is necessary, since SKBs may only be in
+     * one queue at a time, and TCP requires both an inbox and
+     * outbox queue.
+     */
+    return ip_handle_rx(iface, skb_clone(skb));
 }
 
 /* Loopback interface */

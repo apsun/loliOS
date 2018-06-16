@@ -19,14 +19,14 @@ typedef struct {
      */
     list_t list;
 
-    uint8_t *head;
-    uint8_t *data;
-    uint8_t *tail;
-    uint8_t *end;
+    int head;
+    int data;
+    int tail;
+    int end;
     int len;
-    void *mac_header;
-    void *network_header;
-    void *transport_header;
+    int mac_header;
+    int network_header;
+    int transport_header;
 
     /*
      * Do not reorder the following fields; a 2-byte value must come right
@@ -46,6 +46,9 @@ skb_t *skb_retain(skb_t *skb);
 
 /* Decrements the SKB reference count and frees it if zero */
 void skb_release(skb_t *skb);
+
+/* Creates a copy of the SKB with reference count set to 1 */
+skb_t *skb_clone(skb_t *skb);
 
 /* Returns a pointer to the beginning of the data section */
 void *skb_data(skb_t *skb);

@@ -22,13 +22,14 @@ skb_alloc(int size)
 
     skb->refcnt = 1;
     skb->len = 0;
-    skb->head = &skb->buf[0];
-    skb->data = &skb->buf[0];
-    skb->tail = &skb->buf[0];
-    skb->end = &skb->buf[size];
-    skb->mac_header = NULL;
-    skb->network_header = NULL;
-    skb->transport_header = NULL;
+    skb->head = 0;
+    skb->data = 0;
+    skb->tail = 0;
+    skb->end = size;
+    skb->mac_header = -1;
+    skb->network_header = -1;
+    skb->transport_header = -1;
+    list_init(&skb->list);
     return skb;
 }
 
@@ -59,13 +60,27 @@ skb_release(skb_t *skb)
 }
 
 /*
+ * Clones the existing SKB. The new SKB has refcount 1
+ * and is not in a list.
+ */
+skb_t *
+skb_clone(skb_t *skb)
+{
+    skb_t *clone = malloc(sizeof(skb_t) + skb->end);
+    memcpy(clone, skb, sizeof(skb_t) + skb->end);
+    clone->refcnt = 1;
+    list_init(&clone->list);
+    return clone;
+}
+
+/*
  * Returns a pointer to the beginning of the data section.
  */
 void *
 skb_data(skb_t *skb)
 {
     assert(skb->refcnt > 0);
-    return skb->data;
+    return &skb->buf[skb->data];
 }
 
 /*
@@ -113,7 +128,7 @@ skb_push(skb_t *skb, int len)
     assert(skb->data - len >= skb->head);
     skb->data -= len;
     skb->len += len;
-    return skb->data;
+    return &skb->buf[skb->data];
 }
 
 /*
@@ -141,7 +156,7 @@ skb_pull(skb_t *skb, int len)
     assert(len <= skb->len);
     skb->data += len;
     skb->len -= len;
-    return skb->data;
+    return &skb->buf[skb->data];
 }
 
 /*
@@ -155,10 +170,10 @@ skb_put(skb_t *skb, int len)
 {
     assert(skb->refcnt > 0);
     assert(skb->tail + len <= skb->end);
-    void *orig_tail = skb->tail;
+    int orig_tail = skb->tail;
     skb->tail += len;
     skb->len += len;
-    return orig_tail;
+    return &skb->buf[orig_tail];
 }
 
 /*
@@ -200,7 +215,7 @@ void *
 skb_reset_mac_header(skb_t *skb)
 {
     assert(skb->refcnt > 0);
-    return skb->mac_header = skb->data;
+    return &skb->buf[skb->mac_header = skb->data];
 }
 
 /*
@@ -211,7 +226,7 @@ void *
 skb_reset_network_header(skb_t *skb)
 {
     assert(skb->refcnt > 0);
-    return skb->network_header = skb->data;
+    return &skb->buf[skb->network_header = skb->data];
 }
 
 /*
@@ -222,7 +237,7 @@ void *
 skb_reset_transport_header(skb_t *skb)
 {
     assert(skb->refcnt > 0);
-    return skb->transport_header = skb->data;
+    return &skb->buf[skb->transport_header = skb->data];
 }
 
 /*
@@ -232,7 +247,10 @@ void *
 skb_mac_header(skb_t *skb)
 {
     assert(skb->refcnt > 0);
-    return skb->mac_header;
+    if (skb->mac_header < 0) {
+        return NULL;
+    }
+    return &skb->buf[skb->mac_header];
 }
 
 /*
@@ -242,7 +260,10 @@ void *
 skb_network_header(skb_t *skb)
 {
     assert(skb->refcnt > 0);
-    return skb->network_header;
+    if (skb->network_header < 0) {
+        return NULL;
+    }
+    return &skb->buf[skb->network_header];
 }
 
 /*
@@ -252,5 +273,8 @@ void *
 skb_transport_header(skb_t *skb)
 {
     assert(skb->refcnt > 0);
-    return skb->transport_header;
+    if (skb->transport_header < 0) {
+        return NULL;
+    }
+    return &skb->buf[skb->transport_header];
 }

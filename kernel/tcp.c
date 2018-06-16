@@ -327,7 +327,6 @@ tcp_alloc_skb(size_t body_len)
 static int
 tcp_send_raw(net_iface_t *iface, ip_addr_t dest_ip, skb_t *skb)
 {
-
     /* Determine next-hop IP address */
     ip_addr_t neigh_ip;
     iface = net_route(iface, dest_ip, &neigh_ip);
@@ -726,6 +725,9 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
                 tcp_handle_rx_ack(tcp, ack(hdr));
             }
 
+            /* Insert packet into inbox in case there's data to process */
+            tcp_inbox_insert(tcp, skb);
+
             /*
              * If our SYN got ACKed, we should already be in the
              * ESTABLISHED state. If we're still in SYN_SENT, that
@@ -741,8 +743,6 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
                 tcp_send_ack(tcp);
             }
 
-            /* Insert packet into inbox in case there's data to process */
-            tcp_inbox_insert(tcp, skb);
             return 0;
         }
 
@@ -895,7 +895,7 @@ tcp_handle_rx_listening(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
         /* Add packet to inbox in case it contains data */
         tcp_inbox_insert(conntcp, skb);
 
-        /* Send our initial SYN(ACK) */
+        /* Send our initial SYN-ACK */
         if (tcp_send_syn(conntcp) < 0) {
             tcp_set_state(conntcp, CLOSED);
             socket_obj_release(connsock);
@@ -903,7 +903,7 @@ tcp_handle_rx_listening(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
         }
 
         /* Add socket to backlog for accept() */
-        list_add(&conntcp->backlog, &tcp->backlog);
+        list_add_tail(&conntcp->backlog, &tcp->backlog);
         return 0;
     }
 
@@ -1126,7 +1126,7 @@ int
 tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
 {
     /* Standard error checks */
-    if (nbytes < 0 || addr != NULL || !sock->connected) {
+    if (nbytes < 0 || !sock->connected) {
         return -1;
     }
 
@@ -1216,7 +1216,7 @@ int
 tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *addr)
 {
     /* Standard error checks */
-    if (nbytes < 0 || addr != NULL || !sock->connected) {
+    if (nbytes < 0 || !sock->connected) {
         return -1;
     }
 
