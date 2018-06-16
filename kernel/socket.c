@@ -173,6 +173,26 @@ socket_obj_release(net_sock_t *sock)
     }
 }
 
+/*
+ * Binds a socket object to a file. This does NOT increment
+ * the socket reference count. Returns the file descriptor,
+ * or -1 if no files are available.
+ */
+int
+socket_obj_bind_file(net_sock_t *sock)
+{
+    /* Allocate a file object */
+    file_obj_t *file = file_obj_alloc();
+    if (file == NULL) {
+        debugf("Failed to allocate file\n");
+        return -1;
+    }
+
+    file->ops_table = &fops_socket;
+    file->private = sock;
+    return file->fd;
+}
+
 /* Read syscall for socket files. Wrapper around recvfrom(). */
 static int
 socket_read(file_obj_t *file, void *buf, int nbytes)
@@ -216,24 +236,22 @@ socket_ioctl(file_obj_t *file, int req, int arg)
 __cdecl int
 socket_socket(int type)
 {
-    /* Allocate a file object */
-    file_obj_t *file = file_obj_alloc();
-    if (file == NULL) {
-        debugf("Failed to allocate file\n");
-        return -1;
-    }
-
     /* Allocate and initialize socket */
     net_sock_t *sock = socket_obj_alloc(type);
     if (sock == NULL) {
         debugf("Failed to allocate socket\n");
-        file_obj_free(file);
         return -1;
     }
 
-    file->ops_table = &fops_socket;
-    file->private = sock;
-    return file->fd;
+    /* Bind socket to a file */
+    int fd = socket_obj_bind_file(sock);
+    if (fd < 0) {
+        debugf("Failed to bind to file\n");
+        socket_obj_release(sock);
+        return -1;
+    }
+
+    return fd;
 }
 
 /*

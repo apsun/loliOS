@@ -15,9 +15,12 @@
  * SLIRP is implemented on top of the host OS's TCP sockets, which
  * means data will always arrive in-order.
  */
-#define TCP_DEBUG 1
+#define TCP_DEBUG 0
 #define TCP_DEBUG_RX_DROP_FREQ 20
 #define TCP_DEBUG_TX_DROP_FREQ 20
+
+/* Maximum length of the TCP body */
+#define TCP_MAX_LEN 1460
 
 /* State of a TCP connection */
 typedef enum {
@@ -369,7 +372,7 @@ tcp_send(tcp_sock_t *tcp, skb_t *skb)
      * alongside any data we send for the latest in-order segment
      * we've received so far.
      */
-    if (tcp->state != SYN_SENT) {
+    if (!tcp_in_state(tcp, SYN_SENT)) {
         hdr->ack = 1;
         hdr->be_ack_num = htonl(tcp->ack_num);
     }
@@ -668,11 +671,11 @@ tcp_handle_rx_ack(tcp_sock_t *tcp, uint32_t ack_num)
 static int
 tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
 {
-    assert(tcp->state != LISTEN);
+    assert(!tcp_in_state(tcp, LISTEN));
     tcp_hdr_t *hdr = skb_transport_header(skb);
 
     /* If socket is closed, reply with RST */
-    if (tcp->state == CLOSED) {
+    if (tcp_in_state(tcp, CLOSED)) {
         debugf("Received packet to closed socket\n");
         if (!hdr->rst) {
             tcp_reply_rst(net_sock(tcp)->iface, skb);
@@ -885,6 +888,8 @@ tcp_handle_rx_listening(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
 
         /* Transition to SYN-received state */
         tcp_sock_t *conntcp = tcp_sock(connsock);
+        conntcp->ack_num = seq(hdr) + 1;
+        conntcp->read_num = conntcp->ack_num;
         tcp_set_state(conntcp, SYN_RECEIVED);
 
         /* Add packet to inbox in case it contains data */
@@ -1102,12 +1107,16 @@ tcp_accept(net_sock_t *sock, sock_addr_t *addr)
         return -EAGAIN;
     }
 
-    /* Pop first entry from the backlog and bind to a file */
+    /* Pop first entry from the backlog */
     tcp_sock_t *conntcp = list_first_entry(&tcp->backlog, tcp_sock_t, backlog);
 
-    /* TODO: Bind socket to a file descriptor */
-    int fd = -1;
+    /* Bind the socket to a file */
+    int fd = socket_obj_bind_file(net_sock(conntcp));
+    if (fd < 0) {
+        return -1;
+    }
 
+    /* Consume socket from backlog */
     list_del(&conntcp->backlog);
     return fd;
 }
@@ -1211,8 +1220,45 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
         return -1;
     }
 
-    /* TODO: Send packet */
-    return -1;
+    tcp_sock_t *tcp = tcp_sock(sock);
+    const uint8_t *bufp = buf;
+    int sent = 0;
+
+    while (sent < nbytes) {
+        /* Split into MSS packets */
+        int body_len = nbytes - sent;
+        if (body_len > TCP_MAX_LEN) {
+            body_len = TCP_MAX_LEN;
+        }
+
+        /* Copy data into SKB */
+        skb_t *skb = tcp_alloc_skb(body_len);
+        uint8_t *body = skb_put(skb, body_len);
+        if (!copy_from_user(body, &bufp[sent], body_len)) {
+            skb_release(skb);
+            if (sent > 0) {
+                return sent;
+            } else {
+                return -1;
+            }
+        }
+
+        /* Initialize packet */
+        tcp_hdr_t *hdr = skb_transport_header(skb);
+        hdr->be_src_port = htons(sock->local.port);
+        hdr->be_dest_port = htons(sock->remote.port);
+        hdr->be_seq_num = htonl(tcp->seq_num);
+        tcp->seq_num += body_len;
+
+        /* Immediately send packet */
+        tcp_outbox_insert(tcp, skb);
+        tcp_send(tcp, skb);
+        skb_release(skb);
+
+        sent += body_len;
+    }
+
+    return sent;
 }
 
 /* close() socketcall handler */

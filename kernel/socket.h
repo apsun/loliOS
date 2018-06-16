@@ -87,6 +87,9 @@ net_sock_t *socket_obj_retain(net_sock_t *sock);
 /* Decrements the reference count of a socket, freeing it if no refs left */
 void socket_obj_release(net_sock_t *sock);
 
+/* Binds a socket object to a file */
+int socket_obj_bind_file(net_sock_t *sock);
+
 /* Finds a socket given a local (IP, port) combination */
 net_sock_t *get_sock_by_local_addr(int type, ip_addr_t ip, uint16_t port);
 
