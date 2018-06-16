@@ -54,7 +54,8 @@ typedef struct {
  * Socket operations table. All functions are optional.
  */
 struct sock_ops {
-    int (*socket)(net_sock_t *sock);
+    int (*ctor)(net_sock_t *sock);
+    void (*dtor)(net_sock_t *sock);
     int (*bind)(net_sock_t *sock, const sock_addr_t *addr);
     int (*connect)(net_sock_t *sock, const sock_addr_t *addr);
     int (*listen)(net_sock_t *sock, int backlog);
@@ -76,6 +77,9 @@ __cdecl int socket_sendto(int fd, const void *buf, int nbytes, const sock_addr_t
 
 /* Returns the socket corresponding to the specified fd */
 net_sock_t *get_executing_sock(int fd);
+
+/* Allocates and initializes a socket */
+net_sock_t *socket_obj_alloc(int type);
 
 /* Increments the reference count of a socket */
 net_sock_t *socket_obj_retain(net_sock_t *sock);

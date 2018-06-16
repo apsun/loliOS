@@ -31,17 +31,18 @@ static const file_ops_t fops_socket = {
 
 /* UDP socket operations table */
 static const sock_ops_t sops_udp = {
-    .socket = udp_socket,
+    .ctor = udp_ctor,
+    .dtor = udp_dtor,
     .bind = udp_bind,
     .connect = udp_connect,
     .recvfrom = udp_recvfrom,
     .sendto = udp_sendto,
-    .close = udp_close,
 };
 
 /* TCP socket operations table */
 static const sock_ops_t sops_tcp = {
-    .socket = tcp_socket,
+    .ctor = tcp_ctor,
+    .dtor = tcp_dtor,
     .bind = tcp_bind,
     .connect = tcp_connect,
     .listen = tcp_listen,
@@ -102,22 +103,26 @@ socket_obj_init(net_sock_t *sock, int type)
 }
 
 /*
- * Allocates a socket. This does not bind it with a file
- * object.
+ * Allocates and initializes a socket. This does not bind
+ * it with a file object. The type should be one of the
+ * SOCK_* constants.
  */
-static net_sock_t *
+net_sock_t *
 socket_obj_alloc(int type)
 {
+    /* Allocate socket */
     net_sock_t *sock = malloc(sizeof(net_sock_t));
     if (sock == NULL) {
         return NULL;
     }
 
+    /* Set socket ops table */
     if (socket_obj_init(sock, type) < 0) {
         free(sock);
         return NULL;
     }
 
+    /* Initialize fields */
     sock->refcnt = 1;
     sock->bound = false;
     sock->connected = false;
@@ -129,6 +134,14 @@ socket_obj_alloc(int type)
     sock->remote.port = 0;
     sock->private = NULL;
     list_add(&sock->list, &socket_list);
+
+    /* Call constructor */
+    if (sock->ops_table->ctor != NULL && sock->ops_table->ctor(sock) < 0) {
+        list_del(&sock->list);
+        free(sock);
+        return NULL;
+    }
+
     return sock;
 }
 
@@ -152,6 +165,9 @@ socket_obj_release(net_sock_t *sock)
 {
     assert(sock->refcnt > 0);
     if (--sock->refcnt == 0) {
+        if (sock->ops_table->dtor != NULL) {
+            sock->ops_table->dtor(sock);
+        }
         list_del(&sock->list);
         free(sock);
     }
@@ -207,18 +223,10 @@ socket_socket(int type)
         return -1;
     }
 
-    /* Allocate a socket */
+    /* Allocate and initialize socket */
     net_sock_t *sock = socket_obj_alloc(type);
     if (sock == NULL) {
         debugf("Failed to allocate socket\n");
-        file_obj_free(file);
-        return -1;
-    }
-
-    /* Call type-specific constructor */
-    if (sock->ops_table->socket != NULL && sock->ops_table->socket(sock) < 0) {
-        debugf("Socket constructor returned error\n");
-        socket_obj_release(sock);
         file_obj_free(file);
         return -1;
     }
@@ -389,13 +397,21 @@ socket_find_free_port(net_iface_t *iface, int type)
      * interface, but one TCP and one UDP, with the same port.
      * Hence, the slow algorithm it is!
      */
-    int port;
-    for (port = EPHEMERAL_PORT_START; port <= MAX_PORT; ++port) {
+    int start_port = rand() % (MAX_PORT - EPHEMERAL_PORT_START + 1) + EPHEMERAL_PORT_START;
+    int port = start_port;
+    do {
+        /* Try this port */
         if (get_sock_by_local_addr(type, ip, port) == NULL) {
             return port;
         }
-    }
 
+        /* Port already taken, try the next one */
+        if (++port > MAX_PORT) {
+            port = EPHEMERAL_PORT_START;
+        }
+    } while (port != start_port);
+
+    /* All ports exhausted */
     return 0;
 }
 

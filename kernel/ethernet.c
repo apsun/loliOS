@@ -75,7 +75,6 @@ ethernet_send_ip(net_iface_t *iface, skb_t *skb, ip_addr_t ip)
         debugf("Destination unreachable, dropping packet\n");
         return -1;
     case ARP_REACHABLE:
-        debugf("Destination reachable, sending packet\n");
         return ethernet_send_mac(dev, skb, mac, ETHERTYPE_IPV4);
     default:
         panic("Unknown ARP state");

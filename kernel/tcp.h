@@ -34,7 +34,8 @@ typedef struct {
 int tcp_handle_rx(net_iface_t *iface, skb_t *skb);
 
 /* Socket syscall handlers */
-int tcp_socket(net_sock_t *sock);
+int tcp_ctor(net_sock_t *sock);
+void tcp_dtor(net_sock_t *sock);
 int tcp_bind(net_sock_t *sock, const sock_addr_t *addr);
 int tcp_connect(net_sock_t *sock, const sock_addr_t *addr);
 int tcp_listen(net_sock_t *sock, int backlog);

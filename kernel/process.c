@@ -106,9 +106,9 @@ get_pcb_by_terminal(int terminal)
     int i;
     for (i = 0; i < MAX_PROCESSES; ++i) {
         pcb_t *pcb = &process_info[i];
-        if (pcb->pid >= 0 &&                /* Valid? */
-            pcb->terminal == terminal &&    /* Same terminal? */
-            pcb->status != PROCESS_SLEEP) { /* Running? */
+        if (pcb->pid >= 0                      /* Valid? */
+            && pcb->terminal == terminal       /* Same terminal? */
+            && pcb->status != PROCESS_SLEEP) { /* Running? */
             return pcb;
         }
     }

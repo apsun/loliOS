@@ -14,9 +14,6 @@
 
 /* UDP-private socket state */
 typedef struct {
-    /* Back-pointer to the socket object */
-    net_sock_t *sock;
-
     /* Simple queue of incoming packets */
     list_t inbox;
 } udp_sock_t;
@@ -95,9 +92,9 @@ udp_send(net_sock_t *sock, skb_t *skb, ip_addr_t ip, int port)
     return ip_send(iface, neigh_ip, skb, ip, IPPROTO_UDP);
 }
 
-/* socket() socketcall handler */
+/* UDP socket constructor */
 int
-udp_socket(net_sock_t *sock)
+udp_ctor(net_sock_t *sock)
 {
     udp_sock_t *udp = malloc(sizeof(udp_sock_t));
     if (udp == NULL) {
@@ -105,9 +102,24 @@ udp_socket(net_sock_t *sock)
         return -1;
     }
     list_init(&udp->inbox);
-    udp->sock = sock;
     sock->private = udp;
     return 0;
+}
+
+/* UDP socket destructor */
+void
+udp_dtor(net_sock_t *sock)
+{
+    /* Release all queued packets */
+    udp_sock_t *udp = udp_sock(sock);
+    list_t *pos, *next;
+    list_for_each_safe(pos, next, &udp->inbox) {
+        skb_t *skb = list_entry(pos, skb_t, list);
+        skb_release(skb);
+    }
+
+    /* Free the UDP data */
+    free(udp);
 }
 
 /* bind() socketcall handler */
@@ -232,22 +244,4 @@ udp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
     } else {
         return nbytes;
     }
-}
-
-/* close() socketcall handler */
-int
-udp_close(net_sock_t *sock)
-{
-    /* Release all queued packets */
-    udp_sock_t *udp = udp_sock(sock);
-    list_t *pos, *next;
-    list_for_each_safe(pos, next, &udp->inbox) {
-        skb_t *skb = list_entry(pos, skb_t, list);
-        skb_release(skb);
-    }
-
-    /* Free the UDP data */
-    free(udp);
-    sock->private = NULL;
-    return 0;
 }
