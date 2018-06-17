@@ -877,14 +877,14 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
      */
     if (tcp_in_state(tcp, ESTABLISHED | FIN_WAIT_1 | FIN_WAIT_2)) {
         tcp_inbox_insert(tcp, skb);
+    }
 
-        /*
-         * And finally, send an ACK if there was new data in this
-         * segment.
-         */
-        if (tcp_seg_len(skb) > 0) {
-            tcp_send_ack(tcp);
-        }
+    /*
+     * And finally, send an ACK if there was new data in this
+     * segment.
+     */
+    if (tcp_seg_len(skb) > 0) {
+        tcp_send_ack(tcp);
     }
 
     /*
