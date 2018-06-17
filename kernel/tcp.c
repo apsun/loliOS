@@ -457,24 +457,9 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
     list_add(&skb_retain(skb)->list, pos);
 
     /*
-     * Now update the ack_num for the next expected in-order segment.
-     *
-     * Example:
-     *
-     * [ 0 ]    [ 2 ] -> [ 4 ]
-     *   |        ^
-     *   |        |
-     *   +->[ 1 ]-+
-     *
-     * Say we just received packet SEQ=1. Before this function, ack_num
-     * should be 1, since we've previously processed packet SEQ=0.
-     * The loop iterations will proceed as follows:
-     *
-     * first iteration:  cmp(seq=0, ack_num=1) < 0 -> ack_num = 1
-     * second iteration: cmp(seq=1, ack_num=1) = 0 -> ack_num = 2
-     * third iteration:  cmp(seq=2, ack_num=2) = 0 -> ack_num = 3
-     * fourth iteration: cmp(seq=4, ack_num=3) > 0 -> break
-     * final state: ack_num == 3
+     * Next, update our ACK number, which is what we will send
+     * to the remote host in any packets containing an ACK. Basically,
+     * just process the packets in order until we find a gap.
      */
     list_for_each(pos, &tcp->inbox) {
         skb_t *iskb = list_entry(pos, skb_t, list);
@@ -485,26 +470,27 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
             break;
         }
 
-        /* Represents latest consecutive sequence number we've seen + 1 */
-        uint32_t end = seq(ihdr) + tcp_seg_len(iskb);
-
         /*
-         * Otherwise, we advance the next expected sequence number.
-         * Note that some segments may overlap, which is why we take
-         * the maximum of the two sequence numbers. For example, if
-         * ack_num = 5 and we get a packet containing seq = 4 ~ 7,
-         * then we advance ack_num to 8.
+         * Check if we've already seen this segment before. Note
+         * that some segments may overlap, so we check the ending
+         * sequence number of the packet.
          */
+        uint32_t end = seq(ihdr) + tcp_seg_len(iskb);
         if (cmp(end, tcp->ack_num) <= 0) {
             continue;
         }
 
+        /* Discard any packets after a FIN */
+        if (tcp_in_state(tcp, CLOSING | TIME_WAIT | CLOSE_WAIT | LAST_ACK | CLOSED)) {
+            list_del(pos);
+            skb_release(iskb);
+            continue;
+        }
+
+        /* Looks good, advance the ACK number */
         tcp->ack_num = end;
 
-        /*
-         * Reached an in-order FIN for the first time.
-         * Perform state transitions.
-         */
+        /* Reached a FIN for the first time */
         if (hdr->fin) {
             if (tcp_in_state(tcp, SYN_RECEIVED | ESTABLISHED)) {
                 tcp_set_state(tcp, CLOSE_WAIT);
@@ -517,10 +503,9 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
                 tcp_set_state(tcp, CLOSING);
             } else if (tcp_in_state(tcp, FIN_WAIT_2)) {
                 tcp_set_state(tcp, TIME_WAIT);
-
-                /* TODO: hack since we don't have timers yet, immediately close */
-                tcp_set_state(tcp, CLOSED);
                 /* TODO: start time-wait timer, disable other timers */
+                /* TODO: HACK: since we don't have timers yet, immediately close */
+                tcp_set_state(tcp, CLOSED);
             } else if (tcp_in_state(tcp, TIME_WAIT)) {
                 /* TODO: restart time-wait timer */
             }
@@ -681,6 +666,9 @@ tcp_handle_rx_ack(tcp_sock_t *tcp, uint32_t ack_num)
          * only called in the SYN_SENT state if we just received
          * a SYN, so it is correct to move from SYN_SENT to ESTABLISHED
          * here.
+         *
+         * TODO: We should also send all the packets accumulated
+         * in the outbox when this happens.
          */
         if (ohdr->syn && tcp_in_state(tcp, SYN_SENT | SYN_RECEIVED)) {
             tcp_set_state(tcp, ESTABLISHED);
@@ -692,8 +680,8 @@ tcp_handle_rx_ack(tcp_sock_t *tcp, uint32_t ack_num)
                 tcp_set_state(tcp, FIN_WAIT_2);
             } else if (tcp_in_state(tcp, CLOSING)) {
                 tcp_set_state(tcp, TIME_WAIT);
-
-                /* TODO: hack since we don't have timers yet, immediately close */
+                /* TODO: start time-wait timer, disable other timers */
+                /* TODO: HACK: since we don't have timers yet, immediately close */
                 tcp_set_state(tcp, CLOSED);
             } else if (tcp_in_state(tcp, LAST_ACK)) {
                 tcp_set_state(tcp, CLOSED);
@@ -887,18 +875,20 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
      * processing of FIN flags, once the segment containing
      * the FIN is in-order.
      */
-    tcp_inbox_insert(tcp, skb);
+    if (tcp_in_state(tcp, ESTABLISHED | FIN_WAIT_1 | FIN_WAIT_2)) {
+        tcp_inbox_insert(tcp, skb);
 
-    /*
-     * And finally, send an ACK if there was new data in this
-     * segment.
-     */
-    if (tcp_seg_len(skb) > 0) {
-        tcp_send_ack(tcp);
+        /*
+         * And finally, send an ACK if there was new data in this
+         * segment.
+         */
+        if (tcp_seg_len(skb) > 0) {
+            tcp_send_ack(tcp);
+        }
     }
 
     /*
-     * TODO: UGLY HACK: need to send ACK for FIN before closing
+     * TODO: HACK: need to send ACK for FIN before closing
      * to fix hanging in LAST_ACK. Normally inserting into the
      * inbox should never close the socket, delete this once we
      * correctly handle timers.
@@ -1241,7 +1231,6 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
         return -EAGAIN;
     }
 
-    /* TODO: Filter out packets after FIN */
     uint8_t *bufp = buf;
     int copied = 0;
     while (!list_empty(&tcp->inbox)) {
@@ -1300,8 +1289,8 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
     }
 
     /*
-     * If we didn't copy anything and we hit the FIN, there's no
-     * more data in the stream to read. Otherwise, it just means
+     * If we didn't copy anything and we're in a closing state, there's
+     * no more data in the stream to read. Otherwise, it just means
      * we didn't get any data yet, so return -EAGAIN.
      */
     if (copied == 0) {
@@ -1324,16 +1313,9 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
         return -1;
     }
 
-    /* Check socket state */
     tcp_sock_t *tcp = tcp_sock(sock);
-    if (!tcp_in_state(tcp, ESTABLISHED | CLOSE_WAIT)) {
-        debugf("sendto() in state %s\n", tcp_get_state_str(tcp->state));
-        return -1;
-    }
-
     const uint8_t *bufp = buf;
     int sent = 0;
-
     while (sent < nbytes) {
         /* Split into MSS packets */
         int body_len = nbytes - sent;
@@ -1360,11 +1342,15 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
         hdr->be_seq_num = htonl(tcp->seq_num);
         tcp->seq_num += body_len;
 
-        /* Append to outbox and send packet */
+        /*
+         * Append to outbox. If 3-way handshake is complete,
+         * send the packet immediately.
+         */
         tcp_outbox_insert(tcp, skb);
-        tcp_send(tcp, skb);
+        if (!tcp_in_state(tcp, SYN_SENT | SYN_RECEIVED)) {
+            tcp_send(tcp, skb);
+        }
         skb_release(skb);
-
         sent += body_len;
     }
 

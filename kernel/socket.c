@@ -149,7 +149,7 @@ socket_obj_alloc(int type)
 /*
  * Frees a socket, ignoring the reference count.
  */
-void
+static void
 socket_obj_free(net_sock_t *sock)
 {
     if (sock->ops_table->dtor != NULL) {
