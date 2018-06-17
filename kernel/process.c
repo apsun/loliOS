@@ -211,8 +211,6 @@ process_parse_cmd(const char *command, int *out_inode_idx, char *out_args)
         return -1;
     }
 
-    debugf("Trying to execute: %s\n", filename);
-
     /* Strip leading whitespace */
     while (command[i] == ' ') {
         i++;

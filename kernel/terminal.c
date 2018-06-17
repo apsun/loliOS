@@ -678,9 +678,7 @@ terminal_handle_mouse_input(mouse_input_t input)
 {
     terminal_state_t *term = get_display_terminal();
     mouse_input_buf_t *input_buf = &term->mouse_input;
-    if (input_buf->count == MOUSE_BUF_SIZE) {
-        debugf("Mouse buffer full, dropping packet\n");
-    } else {
+    if (input_buf->count < MOUSE_BUF_SIZE) {
         input_buf->buf[input_buf->count++] = input;
     }
 }
