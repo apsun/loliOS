@@ -313,7 +313,6 @@ arp_send_reply(net_iface_t *iface, ip_addr_t ip, mac_addr_t mac)
 static int
 arp_handle_reply(net_dev_t *dev, skb_t *skb)
 {
-    debugf("Received ARP reply\n");
     arp_body_t *body = skb_data(skb);
     int ret = arp_cache_insert(body->src_proto_addr, &body->src_hw_addr);
     arp_queue_flush(body->src_proto_addr, &body->src_hw_addr);
