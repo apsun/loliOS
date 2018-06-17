@@ -105,7 +105,8 @@ socket_obj_init(net_sock_t *sock, int type)
 /*
  * Allocates and initializes a socket. This does not bind
  * it with a file object. The type should be one of the
- * SOCK_* constants.
+ * SOCK_* constants. The socket has an initial reference
+ * count of ZERO, not one.
  */
 net_sock_t *
 socket_obj_alloc(int type)
@@ -123,7 +124,7 @@ socket_obj_alloc(int type)
     }
 
     /* Initialize fields */
-    sock->refcnt = 1;
+    sock->refcnt = 0;
     sock->bound = false;
     sock->connected = false;
     sock->listening = false;
@@ -146,12 +147,24 @@ socket_obj_alloc(int type)
 }
 
 /*
+ * Frees a socket, ignoring the reference count.
+ */
+void
+socket_obj_free(net_sock_t *sock)
+{
+    if (sock->ops_table->dtor != NULL) {
+        sock->ops_table->dtor(sock);
+    }
+    list_del(&sock->list);
+    free(sock);
+}
+
+/*
  * Increments the reference count of a socket.
  */
 net_sock_t *
 socket_obj_retain(net_sock_t *sock)
 {
-    assert(sock->refcnt > 0);
     sock->refcnt++;
     return sock;
 }
@@ -165,18 +178,14 @@ socket_obj_release(net_sock_t *sock)
 {
     assert(sock->refcnt > 0);
     if (--sock->refcnt == 0) {
-        if (sock->ops_table->dtor != NULL) {
-            sock->ops_table->dtor(sock);
-        }
-        list_del(&sock->list);
-        free(sock);
+        socket_obj_free(sock);
     }
 }
 
 /*
- * Binds a socket object to a file. This does NOT increment
- * the socket reference count. Returns the file descriptor,
- * or -1 if no files are available.
+ * Binds a socket object to a file. This will increment
+ * the socket reference count on success. Returns the file
+ * descriptor, or -1 if no files are available.
  */
 int
 socket_obj_bind_file(net_sock_t *sock)
@@ -189,7 +198,7 @@ socket_obj_bind_file(net_sock_t *sock)
     }
 
     file->ops_table = &fops_socket;
-    file->private = sock;
+    file->private = socket_obj_retain(sock);
     return file->fd;
 }
 
@@ -216,6 +225,7 @@ socket_close(file_obj_t *file)
     if (sock->ops_table->close != NULL && sock->ops_table->close(sock) < 0) {
         return -1;
     }
+    file->private = NULL;
     socket_obj_release(sock);
     return 0;
 }
@@ -247,7 +257,7 @@ socket_socket(int type)
     int fd = socket_obj_bind_file(sock);
     if (fd < 0) {
         debugf("Failed to bind to file\n");
-        socket_obj_release(sock);
+        socket_obj_free(sock);
         return -1;
     }
 

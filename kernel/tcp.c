@@ -10,12 +10,22 @@
 #include "ethernet.h"
 
 /*
+ * Enable for verbose TCP logging. Warning: very verbose.
+ */
+#define TCP_DEBUG_PRINT 1
+#if TCP_DEBUG_PRINT
+    #define tcp_debugf(...) debugf(__VA_ARGS__)
+#else
+    #define tcp_debugf(...) ((void)0)
+#endif
+
+/*
  * If this option is enabled, we randomly drop some packets, simulating
  * real-world network conditions. This is necessary since QEMU's
  * SLIRP is implemented on top of the host OS's TCP sockets, which
  * means data will always arrive in-order.
  */
-#define TCP_DEBUG 0
+#define TCP_DEBUG_DROP 0
 #define TCP_DEBUG_RX_DROP_FREQ 20
 #define TCP_DEBUG_TX_DROP_FREQ 20
 
@@ -147,10 +157,8 @@ tcp_seg_len(skb_t *skb)
 static void
 tcp_dump_pkt(const char *prefix, skb_t *skb)
 {
-    tcp_hdr_t *hdr = skb_transport_header(skb);
-    (void)hdr;
-
-    debugf("%s: SEQ=%u, LEN=%u, ACK=%u, CTL=%s%s%s%s%s\b\n",
+    tcp_hdr_t *hdr __unused = skb_transport_header(skb);
+    tcp_debugf("%s: SEQ=%u, LEN=%u, ACK=%u, CTL=%s%s%s%s%s\b\n",
         prefix, seq(hdr), tcp_seg_len(skb), ack(hdr),
         (hdr->fin) ? "FIN+" : "",
         (hdr->syn) ? "SYN+" : "",
@@ -190,7 +198,8 @@ tcp_get_state_str(tcp_state_t state)
 static void
 tcp_set_state(tcp_sock_t *tcp, tcp_state_t state)
 {
-    debugf("TCP state %s -> %s\n",
+    tcp_debugf("TCP state (0x%08x) %s -> %s\n",
+        tcp,
         tcp_get_state_str(tcp->state),
         tcp_get_state_str(state));
     tcp->state = state;
@@ -271,13 +280,26 @@ tcp_in_rwnd(tcp_sock_t *tcp, skb_t *skb)
 }
 
 /*
- * Terminates the TCP connection.
+ * Increments the TCP socket reference count.
  */
 static void
-tcp_terminate(tcp_sock_t *tcp)
+tcp_acquire(tcp_sock_t *tcp)
 {
-    /* TODO */
-    // socket_obj_release(net_sock(tcp));
+    tcp_debugf("acquire(0x%08x)\n", tcp);
+    socket_obj_retain(net_sock(tcp));
+}
+
+/*
+ * Decrements the TCP socket reference count.
+ * This may free the socket if the reference count
+ * reaches zero, so this must be called after all
+ * uses of the socket.
+ */
+static void
+tcp_release(tcp_sock_t *tcp)
+{
+    tcp_debugf("release(0x%08x)\n", tcp);
+    socket_obj_release(net_sock(tcp));
 }
 
 /*
@@ -341,7 +363,7 @@ tcp_send_raw(net_iface_t *iface, ip_addr_t dest_ip, skb_t *skb)
         skb, iface->ip_addr, dest_ip, IPPROTO_TCP));
 
     /* If debugging is enabled, randomly drop some packets */
-#if TCP_DEBUG
+#if TCP_DEBUG_DROP
     if (rand() % 100 < TCP_DEBUG_TX_DROP_FREQ) {
         tcp_dump_pkt("send (dropped)", skb);
         return 0;
@@ -364,7 +386,6 @@ tcp_send(tcp_sock_t *tcp, skb_t *skb)
 {
     net_sock_t *sock = net_sock(tcp);
     tcp_hdr_t *hdr = skb_transport_header(skb);
-    assert(!tcp_in_state(tcp, CLOSED | LISTEN));
 
     /*
      * If we know the peer's sequence number, always send an ACK
@@ -496,10 +517,16 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
                 tcp_set_state(tcp, CLOSING);
             } else if (tcp_in_state(tcp, FIN_WAIT_2)) {
                 tcp_set_state(tcp, TIME_WAIT);
+
+                /* TODO: hack since we don't have timers yet, immediately close */
+                tcp_set_state(tcp, CLOSED);
                 /* TODO: start time-wait timer, disable other timers */
             } else if (tcp_in_state(tcp, TIME_WAIT)) {
                 /* TODO: restart time-wait timer */
             }
+
+            /* Should not process anything after the FIN */
+            break;
         }
     }
 }
@@ -524,6 +551,34 @@ tcp_send_syn(tcp_sock_t *tcp)
     hdr->be_dest_port = htons(sock->remote.port);
     hdr->be_seq_num = htonl(tcp->seq_num++);
     hdr->syn = 1;
+
+    /* Enqueue packet in outbox and immediately send */
+    tcp_outbox_insert(tcp, skb);
+    tcp_send(tcp, skb);
+    skb_release(skb);
+    return 0;
+}
+
+/*
+ * Creates and sends a new SYN packet to the remote peer.
+ */
+static int
+tcp_send_fin(tcp_sock_t *tcp)
+{
+    net_sock_t *sock = net_sock(tcp);
+
+    /* Allocate packet */
+    skb_t *skb = tcp_alloc_skb(0);
+    if (skb == NULL) {
+        return -1;
+    }
+
+    /* Initialize packet */
+    tcp_hdr_t *hdr = skb_transport_header(skb);
+    hdr->be_src_port = htons(sock->local.port);
+    hdr->be_dest_port = htons(sock->remote.port);
+    hdr->be_seq_num = htonl(tcp->seq_num++);
+    hdr->fin = 1;
 
     /* Enqueue packet in outbox and immediately send */
     tcp_outbox_insert(tcp, skb);
@@ -615,9 +670,9 @@ tcp_handle_rx_ack(tcp_sock_t *tcp, uint32_t ack_num)
 
         /*
          * Since ACK is for the next expected sequence number,
-         * it's only useful when SEQ(pkt) + SEG_LEN(pkt) < ack_num.
+         * it's only useful when SEQ(pkt) + SEG_LEN(pkt) <= ack_num.
          */
-        if (cmp(ack(ohdr) + tcp_seg_len(oskb), ack_num) >= 0) {
+        if (cmp(seq(ohdr) + tcp_seg_len(oskb), ack_num) > 0) {
             break;
         }
 
@@ -637,6 +692,9 @@ tcp_handle_rx_ack(tcp_sock_t *tcp, uint32_t ack_num)
                 tcp_set_state(tcp, FIN_WAIT_2);
             } else if (tcp_in_state(tcp, CLOSING)) {
                 tcp_set_state(tcp, TIME_WAIT);
+
+                /* TODO: hack since we don't have timers yet, immediately close */
+                tcp_set_state(tcp, CLOSED);
             } else if (tcp_in_state(tcp, LAST_ACK)) {
                 tcp_set_state(tcp, CLOSED);
             } else if (tcp_in_state(tcp, TIME_WAIT)) {
@@ -696,7 +754,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
                 tcp_reply_rst(net_sock(tcp)->iface, skb);
             }
             tcp_set_state(tcp, CLOSED);
-            tcp_terminate(tcp);
+            tcp_release(tcp);
             return 0;
         }
 
@@ -708,7 +766,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
             debugf("Received RST in SYN_SENT state\n");
             if (hdr->ack && tcp_is_ack_current(tcp, hdr)) {
                 tcp_set_state(tcp, CLOSED);
-                tcp_terminate(tcp);
+                tcp_release(tcp);
             }
             return 0;
         }
@@ -769,7 +827,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
     if (hdr->rst) {
         debugf("Received RST in middle of connection\n");
         tcp_set_state(tcp, CLOSED);
-        tcp_terminate(tcp);
+        tcp_release(tcp);
         return 0;
     }
 
@@ -781,7 +839,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
         debugf("Received SYN in middle of connection\n");
         tcp_reply_rst(net_sock(tcp)->iface, skb);
         tcp_set_state(tcp, CLOSED);
-        tcp_terminate(tcp);
+        tcp_release(tcp);
         return 0;
     }
 
@@ -820,7 +878,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
      */
     tcp_handle_rx_ack(tcp, ack(hdr));
     if (tcp_in_state(tcp, CLOSED)) {
-        tcp_terminate(tcp);
+        tcp_release(tcp);
         return 0;
     }
 
@@ -837,6 +895,17 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
      */
     if (tcp_seg_len(skb) > 0) {
         tcp_send_ack(tcp);
+    }
+
+    /*
+     * TODO: UGLY HACK: need to send ACK for FIN before closing
+     * to fix hanging in LAST_ACK. Normally inserting into the
+     * inbox should never close the socket, delete this once we
+     * correctly handle timers.
+     */
+    if (tcp_in_state(tcp, CLOSED)) {
+        tcp_release(tcp);
+        return 0;
     }
 
     return 0;
@@ -890,6 +959,7 @@ tcp_handle_rx_listening(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
         tcp_sock_t *conntcp = tcp_sock(connsock);
         conntcp->ack_num = seq(hdr) + 1;
         conntcp->read_num = conntcp->ack_num;
+        tcp_acquire(conntcp);
         tcp_set_state(conntcp, SYN_RECEIVED);
 
         /* Add packet to inbox in case it contains data */
@@ -898,7 +968,7 @@ tcp_handle_rx_listening(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
         /* Send our initial SYN-ACK */
         if (tcp_send_syn(conntcp) < 0) {
             tcp_set_state(conntcp, CLOSED);
-            socket_obj_release(connsock);
+            tcp_release(conntcp);
             return -1;
         }
 
@@ -932,7 +1002,7 @@ tcp_handle_rx(net_iface_t *iface, skb_t *skb)
     skb_pull(skb, options_len);
 
     /* If debugging is enabled, randomly drop some packets */
-#if TCP_DEBUG
+#if TCP_DEBUG_DROP
     if (rand() % 100 < TCP_DEBUG_RX_DROP_FREQ) {
         tcp_dump_pkt("recv (dropped)", skb);
         return 0;
@@ -996,8 +1066,30 @@ void
 tcp_dtor(net_sock_t *sock)
 {
     tcp_sock_t *tcp = tcp_sock(sock);
-    /* TODO */
+    list_t *pos, *next;
 
+    /* If this is a listening socket, terminate all pending connections */
+    if (sock->listening) {
+        list_for_each_safe(pos, next, &tcp->backlog) {
+            tcp_sock_t *pending = list_entry(pos, tcp_sock_t, backlog);
+            tcp_set_state(pending, FIN_WAIT_1);
+            tcp_send_fin(pending);
+        }
+    }
+
+    /* Clear inbox */
+    list_for_each_safe(pos, next, &tcp->inbox) {
+        skb_t *skb = list_entry(pos, skb_t, list);
+        skb_release(skb);
+    }
+
+    /* Clear outbox */
+    list_for_each_safe(pos, next, &tcp->outbox) {
+        skb_t *skb = list_entry(pos, skb_t, list);
+        skb_release(skb);
+    }
+
+    tcp_debugf("Destroyed TCP socket 0x%08x\n", tcp);
     free(tcp);
 }
 
@@ -1005,10 +1097,14 @@ tcp_dtor(net_sock_t *sock)
 int
 tcp_bind(net_sock_t *sock, const sock_addr_t *addr)
 {
-    /* Can't re-bind connected sockets */
-    if (sock->connected) {
+    /* Can't bind connected or listening sockets */
+    if (sock->connected || sock->listening) {
         return -1;
     }
+
+    /* Socket must be closed at this point */
+    tcp_sock_t *tcp = tcp_sock(sock);
+    assert(tcp_in_state(tcp, CLOSED));
 
     /* Copy address into kernelspace */
     sock_addr_t tmp;
@@ -1056,6 +1152,7 @@ tcp_connect(net_sock_t *sock, const sock_addr_t *addr)
     }
 
     /* Send our SYN packet */
+    tcp_acquire(tcp);
     tcp_set_state(tcp, SYN_SENT);
     if (tcp_send_syn(tcp) < 0) {
         debugf("Could not send SYN\n");
@@ -1064,6 +1161,7 @@ tcp_connect(net_sock_t *sock, const sock_addr_t *addr)
             sock->bound = false;
         }
         tcp_set_state(tcp, CLOSED);
+        tcp_release(tcp);
     }
 
     return 0;
@@ -1073,7 +1171,8 @@ tcp_connect(net_sock_t *sock, const sock_addr_t *addr)
 int
 tcp_listen(net_sock_t *sock, int backlog)
 {
-    if (sock->connected) {
+    /* Cannot call listen() on a unbound or connected socket */
+    if (!sock->bound || sock->connected) {
         return -1;
     } else if (sock->listening) {
         return 0;
@@ -1083,9 +1182,10 @@ tcp_listen(net_sock_t *sock, int backlog)
     tcp_sock_t *tcp = tcp_sock(sock);
     assert(tcp_in_state(tcp, CLOSED));
 
-    /* Just transition from CLOSED -> LISTEN state */
+    /* Transition from CLOSED -> LISTEN state */
     sock->listening = true;
-    tcp_set_state(tcp_sock(sock), LISTEN);
+    tcp_acquire(tcp);
+    tcp_set_state(tcp, LISTEN);
     return 0;
 }
 
@@ -1094,11 +1194,10 @@ int
 tcp_accept(net_sock_t *sock, sock_addr_t *addr)
 {
     /* Cannot call accept() on a non-listening socket */
-    if (!sock->listening || !sock->bound) {
+    if (!sock->listening) {
         return -1;
     }
 
-    /* accept() only works on listening sockets */
     tcp_sock_t *tcp = tcp_sock(sock);
     assert(tcp_in_state(tcp, LISTEN));
 
@@ -1117,7 +1216,7 @@ tcp_accept(net_sock_t *sock, sock_addr_t *addr)
     }
 
     /* Bind the socket to a file */
-    int fd = socket_obj_bind_file(net_sock(conntcp));
+    int fd = socket_obj_bind_file(connsock);
     if (fd < 0) {
         return -1;
     }
@@ -1138,7 +1237,6 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
 
     /* Three way handshake not yet complete */
     tcp_sock_t *tcp = tcp_sock(sock);
-    assert(!tcp_in_state(tcp, LISTEN));
     if (tcp_in_state(tcp, SYN_SENT | SYN_RECEIVED)) {
         return -EAGAIN;
     }
@@ -1155,7 +1253,7 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
          * so stop here.
          */
         uint32_t pkt_seq_num = seq(hdr);
-        if (cmp(pkt_seq_num, tcp->ack_num) >= 0) {
+        if (cmp(pkt_seq_num, tcp->ack_num) > 0) {
             break;
         }
 
@@ -1167,7 +1265,7 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
         int seq_offset = tcp->read_num - pkt_seq_num;
         int byte_offset = hdr->syn ? seq_offset - 1 : seq_offset;
         int bytes_remaining = tcp_body_len(skb) - byte_offset;
-        if (bytes_remaining > 0) {
+        if (bytes_remaining >= 0) {
             /* Clamp to actual size of buffer */
             int bytes_to_copy = bytes_remaining;
             if (bytes_to_copy > nbytes - copied) {
@@ -1226,7 +1324,13 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
         return -1;
     }
 
+    /* Check socket state */
     tcp_sock_t *tcp = tcp_sock(sock);
+    if (!tcp_in_state(tcp, ESTABLISHED | CLOSE_WAIT)) {
+        debugf("sendto() in state %s\n", tcp_get_state_str(tcp->state));
+        return -1;
+    }
+
     const uint8_t *bufp = buf;
     int sent = 0;
 
@@ -1256,7 +1360,7 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
         hdr->be_seq_num = htonl(tcp->seq_num);
         tcp->seq_num += body_len;
 
-        /* Immediately send packet */
+        /* Append to outbox and send packet */
         tcp_outbox_insert(tcp, skb);
         tcp_send(tcp, skb);
         skb_release(skb);
@@ -1271,6 +1375,20 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
 int
 tcp_close(net_sock_t *sock)
 {
-    /* TODO */
+    tcp_sock_t *tcp = tcp_sock(sock);
+
+    if (tcp_in_state(tcp, LISTEN | SYN_SENT)) {
+        tcp_set_state(tcp, CLOSED);
+        tcp_release(tcp);
+    } else if (tcp_in_state(tcp, SYN_RECEIVED | ESTABLISHED)) {
+        tcp_set_state(tcp, FIN_WAIT_1);
+        tcp_send_fin(tcp);
+    } else if (tcp_in_state(tcp, CLOSE_WAIT)) {
+        tcp_set_state(tcp, LAST_ACK);
+        tcp_send_fin(tcp);
+    } else {
+        debugf("close() called in state %s\n", tcp_get_state_str(tcp->state));
+    }
+
     return 0;
 }

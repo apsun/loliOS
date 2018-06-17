@@ -7,6 +7,7 @@
 #include "process.h"
 #include "signal.h"
 #include "terminal.h"
+#include "loopback.h"
 
 /* Convenience wrapper around SET_IDT_ENTRY */
 #define WRITE_IDT_ENTRY(i, name) do {       \
@@ -134,6 +135,14 @@ idt_handle_interrupt(int_regs_t *regs)
     } else {
         debugf("Unknown interrupt: %d\n", regs->int_num);
     }
+
+    /*
+     * Deliver any queued up loopback packets now. This would
+     * probably be more elegant as a generic bottom half handler,
+     * but currently only the loopback code needs bottom halves,
+     * so we just call it directly here.
+     */
+    loopback_deliver();
 
     /*
      * If process has any pending signals, run their handlers.

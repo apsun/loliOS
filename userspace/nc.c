@@ -378,6 +378,8 @@ nc_loop(ip_addr_t ip, uint16_t port, bool passive, bool udp)
             CALL(recvfrom(sockfd, recv_buf, sizeof(recv_buf), &remote_addr));
             if (ret == -EINTR || ret == -EAGAIN) {
                 continue;
+            } else if (ret == 0) {
+                break;
             }
             CALL(write(1, recv_buf, ret));
             if (!connected) {
@@ -386,6 +388,8 @@ nc_loop(ip_addr_t ip, uint16_t port, bool passive, bool udp)
             }
         }
     }
+
+#undef CALL
 
     ret = 0;
 

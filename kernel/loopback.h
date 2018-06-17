@@ -3,6 +3,9 @@
 
 #ifndef ASM
 
+/* Delivers any enqueued loopback packets */
+void loopback_deliver(void);
+
 /* Initializes the loopback interface */
 void loopback_init(void);
 

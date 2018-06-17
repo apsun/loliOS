@@ -4,20 +4,11 @@
 #include "net.h"
 #include "ip.h"
 
-/*
- * Loopback "send" function - just redirects the packet
- * to the IP rx handler.
- */
-static int
-loopback_send(net_iface_t *iface, skb_t *skb, ip_addr_t ip)
-{
-    /*
-     * Cloning the SKB is necessary, since SKBs may only be in
-     * one queue at a time, and TCP requires both an inbox and
-     * outbox queue.
-     */
-    return ip_handle_rx(iface, skb_clone(skb));
-}
+/* Packets that are waiting to be sent */
+static list_declare(queue);
+
+/* Forward declaration */
+static int loopback_send(net_iface_t *iface, skb_t *skb, ip_addr_t ip);
 
 /* Loopback interface */
 static net_iface_t lo = {
@@ -28,6 +19,34 @@ static net_iface_t lo = {
     .dev = NULL,
     .send_ip_skb = loopback_send,
 };
+
+/*
+ * Loopback "send" function - just redirects the packet
+ * to the IP rx handler. Packets will be delivered at the
+ * end of the current interrupt.
+ */
+static int
+loopback_send(net_iface_t *iface, skb_t *skb, ip_addr_t ip)
+{
+    skb_t *clone = skb_clone(skb);
+    list_add_tail(&clone->list, &queue);
+    return 0;
+}
+
+/*
+ * Delivers any queued loopback packets. Called at the end of
+ * every interrupt.
+ */
+void
+loopback_deliver(void)
+{
+    while (!list_empty(&queue)) {
+        skb_t *pending = list_first_entry(&queue, skb_t, list);
+        list_del(&pending->list);
+        ip_handle_rx(&lo, pending);
+        skb_release(pending);
+    }
+}
 
 /* Initializes the loopback interface */
 void

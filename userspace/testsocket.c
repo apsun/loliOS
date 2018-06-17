@@ -152,7 +152,8 @@ test_udp_connect(void)
 
     /* Check packets from non-connected peers are dropped */
     ret = sendto(c, buf, sizeof(buf), &b_addr);
-    assert(ret < 0);
+    ret = recvfrom(b, tmp, sizeof(tmp), NULL);
+    assert(ret == -EAGAIN);
 
     close(a);
     close(b);
@@ -259,6 +260,9 @@ test_tcp_invalid(void)
 
     /* Check that accept() before listen(), connect() after listen() fail */
     int b = socket(SOCK_TCP);
+    sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 5556};
+    ret = bind(b, &b_addr);
+    assert(ret == 0);
     ret = accept(b, NULL);
     assert(ret == -1);
     ret = listen(b, 64);
@@ -288,6 +292,103 @@ test_tcp_invalid(void)
     close(a);
 }
 
+void
+test_tcp_close_with_backlog(void)
+{
+    int ret;
+    int a = socket(SOCK_TCP);
+
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 5555};
+    ret = bind(a, &a_addr);
+    assert(ret == 0);
+    ret = listen(a, 64);
+    assert(ret == 0);
+
+    /* Connect to a, but don't accept */
+    int b = socket(SOCK_TCP);
+    ret = connect(b, &a_addr);
+    assert(ret == 0);
+
+    /* Close a before b */
+    close(a);
+    close(b);
+}
+
+void
+test_tcp_close_early(void)
+{
+    int ret;
+    int a = socket(SOCK_TCP);
+    ret = close(a);
+    assert(ret == 0);
+}
+
+void
+test_tcp_multi_accept(void)
+{
+    int ret;
+    int a = socket(SOCK_TCP);
+    int b = socket(SOCK_TCP);
+    int c = socket(SOCK_TCP);
+
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 5555};
+    ret = bind(a, &a_addr);
+    assert(ret == 0);
+    ret = listen(a, 128);
+    assert(ret == 0);
+    ret = accept(a, NULL);
+    assert(ret == -EAGAIN);
+
+    ret = connect(b, &a_addr);
+    assert(ret == 0);
+    ret = connect(c, &a_addr);
+    assert(ret == 0);
+
+    int b_conn = accept(a, NULL);
+    assert(b_conn >= 0);
+    int c_conn = accept(a, NULL);
+    assert(c_conn >= 0);
+
+    close(c_conn);
+    close(b_conn);
+    close(c);
+    close(b);
+    close(a);
+}
+
+void
+test_tcp_segmentation(void)
+{
+    int ret;
+    int a = socket(SOCK_TCP);
+    int b = socket(SOCK_TCP);
+
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 5555};
+    ret = bind(a, &a_addr);
+    assert(ret == 0);
+    ret = listen(a, 128);
+    assert(ret == 0);
+
+    ret = connect(b, &a_addr);
+    assert(ret == 0);
+    int aconn = accept(a, NULL);
+    assert(aconn >= 0);
+
+    char buf[5000];
+    fill_buffer(buf, sizeof(buf));
+    ret = write(aconn, buf, sizeof(buf));
+    assert(ret == sizeof(buf));
+
+    char tmp[5000];
+    ret = read(b, tmp, sizeof(tmp));
+    assert(ret == sizeof(buf));
+    assert(memcmp(tmp, buf, sizeof(buf)) == 0);
+
+    close(aconn);
+    close(b);
+    close(a);
+}
+
 int
 main(void)
 {
@@ -298,6 +399,10 @@ main(void)
     test_bind_conflict();
     test_tcp_basic();
     test_tcp_invalid();
+    test_tcp_close_with_backlog();
+    test_tcp_close_early();
+    test_tcp_multi_accept();
+    test_tcp_segmentation();
     printf("All tests passed!\n");
     return 0;
 }
