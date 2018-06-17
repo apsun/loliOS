@@ -461,7 +461,8 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
      * to the remote host in any packets containing an ACK. Basically,
      * just process the packets in order until we find a gap.
      */
-    list_for_each(pos, &tcp->inbox) {
+    list_t *next;
+    list_for_each_safe(pos, next, &tcp->inbox) {
         skb_t *iskb = list_entry(pos, skb_t, list);
         tcp_hdr_t *ihdr = skb_transport_header(iskb);
 
