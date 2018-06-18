@@ -26,7 +26,7 @@ typedef struct timer {
  * this timer.
  */
 #define timer_entry(ptr, type, member) \
-    list_entry(ptr, type, member)
+    container_of(ptr, type, member)
 
 /* Updates all active timers and runs callbacks upon expiry */
 void timer_tick(int now);

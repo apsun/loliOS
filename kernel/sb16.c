@@ -179,6 +179,11 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
         nbytes = SB16_HALF_BUFFER_SIZE - audio_buf_count;
     }
 
+    /* If can't write anything, notify caller that buffer is full */
+    if (nbytes == 0) {
+        return -EAGAIN;
+    }
+
     /* Copy sample data into the audio buffer */
     if (!copy_from_user(&audio_buf[audio_buf_count], buf, nbytes)) {
         return -1;
@@ -186,7 +191,7 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
     audio_buf_count += nbytes;
 
     /* Start playback immediately if not already playing */
-    if (!is_playing && audio_buf_count > 0) {
+    if (!is_playing) {
         sb16_start_playback();
         sb16_swap_buffers();
     }

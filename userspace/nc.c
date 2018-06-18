@@ -6,8 +6,6 @@
 #include <string.h>
 #include <syscall.h>
 
-#define STDIN_NONBLOCK 1
-
 #define DNS_SERVER IP(10, 0, 2, 3)
 #define DNS_PORT 53
 #define DNS_TIMEOUT 1 /* Sadly seconds is the best resolution we have */

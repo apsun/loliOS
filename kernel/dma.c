@@ -75,8 +75,7 @@ dma_start(
     int channel,
     int mode)
 {
-    /* Basic sanity checks */
-    assert((channel & ~3) == 0);
+    /* Basic sanity check */
     assert((mode & (~0xff | 3)) == 0);
 
     /* Buffer must be in the first 16MB = 2^24 bytes of memory */

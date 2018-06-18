@@ -24,40 +24,54 @@
 #define SYS_RECVFROM    21
 #define SYS_SENDTO      22
 
+/* syscall.h */
 #define EINTR  2
 #define EAGAIN 3
 
+/* signal.h */
 #define SIG_DIV_ZERO  0
 #define SIG_SEGFAULT  1
 #define SIG_INTERRUPT 2
 #define SIG_ALARM     3
 #define SIG_USER1     4
 
+/* signal.h */
 #define SIGMASK_NONE    0
 #define SIGMASK_BLOCK   1
 #define SIGMASK_UNBLOCK 2
 
+/* socket.h */
 #define SOCK_TCP 1
 #define SOCK_UDP 2
 #define SOCK_IP  3
+
+/* terminal.h */
+#define STDIN_NONBLOCK 1
+
+/* sb16.h */
+#define SOUND_SET_BITS_PER_SAMPLE 1
+#define SOUND_SET_NUM_CHANNELS 2
+#define SOUND_SET_SAMPLE_RATE 3
 
 #ifndef ASM
 
 #include <stdint.h>
 
-#define __cdecl __attribute__((cdecl))
-
+/* net.h */
 typedef struct {
     uint8_t bytes[4];
 } ip_addr_t;
 
+/* net.h */
 typedef struct {
     ip_addr_t ip;
     uint16_t port;
 } sock_addr_t;
 
+/* net.h */
 #define IP(a, b, c, d) ((ip_addr_t){.bytes = {(a), (b), (c), (d)}})
 
+#define __cdecl __attribute__((cdecl))
 __cdecl int halt(int status);
 __cdecl int execute(const char *command);
 __cdecl int read(int fd, void *buf, int nbytes);

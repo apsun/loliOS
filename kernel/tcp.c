@@ -78,6 +78,14 @@ typedef struct {
      */
     list_t outbox;
 
+    /*
+     * Receive window size of the socket. This is used to limit the incoming
+     * packet rate, so we don't spend 100% of our time handling packets.
+     * This value may be negative to indicate that our inbox is fuller than
+     * normal; when reading this value it should be treated as zero.
+     */
+    int rwnd_size;
+
     /* Remote sequence number that the application has consumed up to */
     uint32_t read_num;
 
@@ -248,8 +256,10 @@ tcp_is_ack_current(tcp_sock_t *tcp, tcp_hdr_t *hdr)
 static uint16_t
 tcp_rwnd_size(tcp_sock_t *tcp)
 {
-    /* TODO */
-    return 8192;
+    if (tcp->rwnd_size < 0) {
+        return 0;
+    }
+    return tcp->rwnd_size;
 }
 
 /*
@@ -424,6 +434,17 @@ tcp_outbox_insert(tcp_sock_t *tcp, skb_t *skb)
 }
 
 /*
+ * Removes a packet from the TCP inbox. This also adjusts the
+ * receive window accordingly.
+ */
+static void
+tcp_inbox_remove(tcp_sock_t *tcp, skb_t *skb)
+{
+    tcp->rwnd_size += tcp_seg_len(skb);
+    list_del(&skb->list);
+}
+
+/*
  * Inserts an incoming TCP packet into the specified socket's
  * inbox, so that its data can be read later in recvfrom().
  * This will advance the ack_num, and also process FIN flags
@@ -456,6 +477,9 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
     }
     list_add(&skb_retain(skb)->list, pos);
 
+    /* Adjust the receive window */
+    tcp->rwnd_size -= tcp_seg_len(skb);
+
     /*
      * Next, update our ACK number, which is what we will send
      * to the remote host in any packets containing an ACK. Basically,
@@ -483,7 +507,7 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
 
         /* Discard any packets after a FIN */
         if (tcp_in_state(tcp, CLOSING | TIME_WAIT | CLOSE_WAIT | LAST_ACK | CLOSED)) {
-            list_del(pos);
+            tcp_inbox_remove(tcp, iskb);
             skb_release(iskb);
             continue;
         }
@@ -1041,6 +1065,7 @@ tcp_ctor(net_sock_t *sock)
     list_init(&tcp->backlog);
     list_init(&tcp->inbox);
     list_init(&tcp->outbox);
+    tcp->rwnd_size = 8192;
     tcp->read_num = 0;
     tcp->ack_num = 0;
     tcp->seq_num = rand();
@@ -1223,9 +1248,15 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
         return -1;
     }
 
-    /* Three way handshake not yet complete */
+    /*
+     * If the socket is closed, it must have been reset,
+     * so reading from it is a failure. Reading before the
+     * 3-way handshake is fine, however.
+     */
     tcp_sock_t *tcp = tcp_sock(sock);
-    if (tcp_in_state(tcp, SYN_SENT | SYN_RECEIVED)) {
+    if (tcp_in_state(tcp, CLOSED)) {
+        return -1;
+    } else if (tcp_in_state(tcp, SYN_SENT | SYN_RECEIVED)) {
         return -EAGAIN;
     }
 
@@ -1282,9 +1313,16 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
             }
         }
 
-        list_del(&skb->list);
+        tcp_inbox_remove(tcp, skb);
         skb_release(skb);
     }
+
+    /*
+     * TODO: This is a workaround for the zero-window problem.
+     * Once we consume data from the inbox, tell the remote
+     * peer that we have some space again.
+     */
+    tcp_send_ack(tcp);
 
     /*
      * If we didn't copy anything and we're in a closing state, there's
@@ -1311,7 +1349,12 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
         return -1;
     }
 
+    /* Check that socket is still open */
     tcp_sock_t *tcp = tcp_sock(sock);
+    if (tcp_in_state(tcp, CLOSED)) {
+        return -1;
+    }
+
     const uint8_t *bufp = buf;
     int sent = 0;
     while (sent < nbytes) {
