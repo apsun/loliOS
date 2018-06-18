@@ -510,9 +510,6 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
             } else if (tcp_in_state(tcp, TIME_WAIT)) {
                 /* TODO: restart time-wait timer */
             }
-
-            /* Should not process anything after the FIN */
-            break;
         }
     }
 }

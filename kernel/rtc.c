@@ -2,7 +2,9 @@
 #include "lib.h"
 #include "debug.h"
 #include "irq.h"
-#include "process.h"
+#include "paging.h"
+#include "signal.h"
+#include "timer.h"
 
 /* RTC IO ports */
 #define RTC_PORT_INDEX 0x70
@@ -91,8 +93,8 @@ rtc_handle_irq(void)
     /* Increment the global RTC interrupt counter */
     int new_counter = ++rtc_counter;
 
-    /* Broadcast counter update for alarm signals */
-    process_update_clock(new_counter);
+    /* Update timers */
+    timer_tick(new_counter);
 }
 
 /*
@@ -186,7 +188,7 @@ int
 rtc_read(file_obj_t *file, void *buf, int nbytes)
 {
     /* Max number of ticks we need to wait */
-    int max_ticks = MAX_RTC_FREQ / (int)file->private;
+    int max_ticks = RTC_HZ / (int)file->private;
 
     /* Wait until we reach the next multiple of max ticks */
     int target_counter = (rtc_counter + max_ticks) & -max_ticks;
@@ -346,7 +348,7 @@ rtc_init(void)
      * to be at least as large as the largest virtual
      * frequency.
      */
-    rtc_set_frequency(MAX_RTC_FREQ);
+    rtc_set_frequency(RTC_HZ);
 
     /* Register RTC IRQ handler and enable interrupts */
     irq_register_handler(IRQ_RTC, rtc_handle_irq);

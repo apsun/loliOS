@@ -18,8 +18,8 @@
  * timeout = how long to cache results before sending
  * a new ARP request.
  */
-#define ARP_RESOLVE_TIMEOUT (1 * MAX_RTC_FREQ)
-#define ARP_CACHE_TIMEOUT (60 * MAX_RTC_FREQ)
+#define ARP_RESOLVE_TIMEOUT (1 * RTC_HZ)
+#define ARP_CACHE_TIMEOUT (60 * RTC_HZ)
 
 /* ARP cache entry */
 typedef struct {

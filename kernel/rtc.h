@@ -10,7 +10,7 @@
  * frequency. Also used as the real interrupt frequency
  * for the RTC counter.
  */
-#define MAX_RTC_FREQ 1024
+#define RTC_HZ 1024
 
 #ifndef ASM
 

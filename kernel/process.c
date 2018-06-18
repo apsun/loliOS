@@ -5,7 +5,6 @@
 #include "paging.h"
 #include "terminal.h"
 #include "x86_desc.h"
-#include "rtc.h"
 
 /* Maximum length of string passed to execute() */
 #define MAX_EXEC_LEN 128
@@ -338,6 +337,18 @@ process_set_context(pcb_t *to)
 }
 
 /*
+ * SIGALARM timer callback, raises the signal and
+ * restarts the timer.
+ */
+static void
+process_alarm_callback(timer_t *timer)
+{
+    pcb_t *pcb = timer_entry(timer, pcb_t, alarm_timer);
+    signal_raise(pcb->pid, SIG_ALARM);
+    timer_setup(timer, TIMER_HZ * SIG_ALARM_PERIOD, process_alarm_callback);
+}
+
+/*
  * Jumps into userspace and executes the specified process.
  */
 __noinline static int
@@ -356,6 +367,9 @@ process_run(pcb_t *pcb)
 
     /* Set the global execution context */
     process_set_context(pcb);
+
+    /* Start the SIGALARM timer for this process */
+    timer_setup(&pcb->alarm_timer, TIMER_HZ * SIG_ALARM_PERIOD, process_alarm_callback);
 
     /*
      * Save ESP and EBP of the current call frame so that we
@@ -472,7 +486,7 @@ process_create_child(const char *command, pcb_t *parent_pcb, int terminal)
     child_pcb->pfn = pfn;
     child_pcb->status = PROCESS_SCHED;
     child_pcb->vidmap = false;
-    child_pcb->last_alarm = rtc_get_counter();
+    timer_init(&child_pcb->alarm_timer);
     signal_init(child_pcb->signals);
     file_init(child_pcb->files);
     paging_heap_init(&child_pcb->heap);
@@ -555,6 +569,9 @@ process_halt_impl(int status)
             file_close(i);
         }
     }
+
+    /* Stop SIGALARM timer */
+    timer_cancel(&child_pcb->alarm_timer);
 
     /* Release physical page used by process */
     paging_page_free(child_pcb->pfn);
@@ -771,24 +788,4 @@ process_start_shell(void)
         process_create_child("shell", NULL, i);
     }
     process_execute_impl("shell", NULL, 0);
-}
-
-/*
- * Handles RTC updates by sending an alarm signal
- * to each process every 10 seconds since its creation.
- */
-void
-process_update_clock(int rtc_counter)
-{
-    int i;
-    for (i = 0; i < MAX_PROCESSES; ++i) {
-        pcb_t *pcb = &process_info[i];
-        if (pcb->pid >= 0) {
-            int elapsed_time = rtc_counter - pcb->last_alarm;
-            if (elapsed_time >= MAX_RTC_FREQ * SIG_ALARM_PERIOD) {
-                pcb->last_alarm = rtc_counter;
-                signal_raise(pcb->pid, SIG_ALARM);
-            }
-        }
-    }
 }

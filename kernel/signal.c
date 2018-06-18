@@ -24,13 +24,13 @@ signal_deliver(signal_info_t *sig, int_regs_t *regs)
     /* "Shellcode" that calls the sigreturn() syscall */
     uint8_t shellcode[] = {
         /* movl $SYS_SIGRETURN, %eax */
-        0xB8, 0xAA, 0xAA, 0xAA, 0xAA,
+        0xB8, 0x00, 0x00, 0x00, 0x00,
 
         /* movl signum, %ebx */
-        0xBB, 0xBB, 0xBB, 0xBB, 0xBB,
+        0xBB, 0x00, 0x00, 0x00, 0x00,
 
         /* movl regs, %ecx */
-        0xB9, 0xCC, 0xCC, 0xCC, 0xCC,
+        0xB9, 0x00, 0x00, 0x00, 0x00,
 
         /* int 0x80 */
         0xCD, 0x80,
@@ -73,7 +73,6 @@ signal_deliver(signal_info_t *sig, int_regs_t *regs)
     bufp -= sizeof(int);
     esp -= sizeof(int);
     memcpy(bufp, &sig->signum, sizeof(int));
-    uint8_t *signum_addr = esp;
 
     /* Push return address (which is sigreturn linkage) onto user stack */
     bufp -= sizeof(uint32_t);
@@ -83,7 +82,7 @@ signal_deliver(signal_info_t *sig, int_regs_t *regs)
     /* Fill in shellcode values */
     int syscall_num = SYS_SIGRETURN;
     memcpy(shellcode_bufp + 1, &syscall_num, 4);
-    memcpy(shellcode_bufp + 6, signum_addr, 4);
+    memcpy(shellcode_bufp + 6, &sig->signum, 4);
     memcpy(shellcode_bufp + 11, &intregs_addr, 4);
 
     /* Copy everything into userspace */

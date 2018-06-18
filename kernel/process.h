@@ -7,6 +7,7 @@
 #include "idt.h"
 #include "signal.h"
 #include "paging.h"
+#include "timer.h"
 
 /* Maximum argument length, including the NUL terminator */
 #define MAX_ARGS_LEN 128
@@ -75,9 +76,9 @@ typedef struct {
     bool vidmap;
 
     /*
-     * Holds the time of the last alarm, in terms of the RTC counter.
+     * Timer for the SIGALARM signal.
      */
-    int last_alarm;
+    timer_t alarm_timer;
 
     /*
      * Signal handler and status array.

@@ -35,7 +35,7 @@ typedef struct {
      * the buffer must be last, since we allocate it as a flexible array.
      */
     uint16_t refcnt;
-    uint8_t buf[0];
+    uint8_t buf[];
 } skb_t;
 
 /* Allocates a new SKB */
