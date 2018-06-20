@@ -148,7 +148,7 @@ read_wave_info(int soundfd, wave_info_t *info)
 int
 main(void)
 {
-    int ret = 0;
+    int ret = 1;
     int soundfd = -1;
     int devfd = -1;
     uint8_t *audio_data = NULL;
@@ -172,8 +172,7 @@ main(void)
     if (filename[0] == '@') {
         soundfd = socket(SOCK_TCP);
         sock_addr_t addr = {.ip = SERVER_IP, .port = SERVER_PORT};
-        ret = connect(soundfd, &addr);
-        if (ret < 0) {
+        if (connect(soundfd, &addr) < 0) {
             puts("Could not connect to music server");
             goto cleanup;
         }

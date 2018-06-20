@@ -407,12 +407,6 @@ tcp_send(tcp_sock_t *tcp, skb_t *skb)
         hdr->be_ack_num = htonl(tcp->ack_num);
     }
 
-    /* Determine next-hop IP address */
-    ip_addr_t dest_ip = sock->remote.ip;
-    ip_addr_t neigh_ip;
-    net_iface_t *iface = net_route(sock->iface, dest_ip, &neigh_ip);
-    assert(iface != NULL);
-
     /* Update window size */
     hdr->be_window_size = htons(tcp_rwnd_size(tcp));
 
@@ -1114,10 +1108,6 @@ tcp_bind(net_sock_t *sock, const sock_addr_t *addr)
     if (sock->connected || sock->listening) {
         return -1;
     }
-
-    /* Socket must be closed at this point */
-    tcp_sock_t *tcp = tcp_sock(sock);
-    assert(tcp_in_state(tcp, CLOSED));
 
     /* Copy address into kernelspace */
     sock_addr_t tmp;
