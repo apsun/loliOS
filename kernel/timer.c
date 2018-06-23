@@ -43,9 +43,9 @@ timer_tick(int now)
 }
 
 /*
- * Initializes a new timer. Technically this isn't necessary,
- * but since we use the callback to check timer state, we
- * need to ensure that it is initialized to NULL.
+ * Initializes a new timer. This is necessary since we use
+ * the callback to determine whether the timer is currently
+ * active or not.
  */
 void
 timer_init(timer_t *timer)
@@ -55,41 +55,32 @@ timer_init(timer_t *timer)
 
 /*
  * Activates a timer to expire after the specified delay.
- * This cannot be called for an already active timer.
  * Note that the delay is relative to the current time,
  * and is in timer tick units (i.e. for a 3 second timeout,
- * delay should be 3 * TIMER_HZ).
+ * delay should be 3 * TIMER_HZ). If the timer is already
+ * active, the original callback will be cancelled and the
+ * timer rescheduled.
  */
 void
 timer_setup(timer_t *timer, int delay, void (*callback)(timer_t *))
 {
-    assert(timer->callback == NULL);
+    if (timer->callback != NULL) {
+        list_del(&timer->list);
+    }
     timer->when = rtc_get_counter() + delay;
     timer->callback = callback;
     timer_insert_list(timer);
 }
 
 /*
- * Reschedules a timer to expire after the specified delay.
- * This can only be called for an already active timer.
- */
-void
-timer_reschedule(timer_t *timer, int delay)
-{
-    assert(timer->callback != NULL);
-    list_del(&timer->list);
-    timer->when = rtc_get_counter() + delay;
-    timer_insert_list(timer);
-}
-
-/*
- * Cancels an active timer. This can only be called for an
- * already active timer.
+ * Cancels an active timer. This has no effect if the timer
+ * is not active.
  */
 void
 timer_cancel(timer_t *timer)
 {
-    assert(timer->callback != NULL);
-    list_del(&timer->list);
-    timer->callback = NULL;
+    if (timer->callback != NULL) {
+        list_del(&timer->list);
+        timer->callback = NULL;
+    }
 }

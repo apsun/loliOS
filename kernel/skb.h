@@ -14,8 +14,8 @@
  */
 typedef struct {
     /*
-     * Used for queues. Only one layer may queue the SKB at any time,
-     * so this field is owned by that layer.
+     * Used for queues. Only one layer may queue the SKB at any time.
+     * Currently, this is exclusively used by the transport layer.
      */
     list_t list;
 

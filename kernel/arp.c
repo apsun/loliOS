@@ -2,9 +2,9 @@
 #include "lib.h"
 #include "debug.h"
 #include "list.h"
+#include "timer.h"
 #include "myalloc.h"
 #include "ethernet.h"
-#include "rtc.h"
 
 #define ARP_OP_REQUEST 1
 #define ARP_OP_REPLY 2
@@ -18,16 +18,16 @@
  * timeout = how long to cache results before sending
  * a new ARP request.
  */
-#define ARP_RESOLVE_TIMEOUT (1 * RTC_HZ)
-#define ARP_CACHE_TIMEOUT (60 * RTC_HZ)
+#define ARP_RESOLVE_TIMEOUT (1 * TIMER_HZ)
+#define ARP_CACHE_TIMEOUT (60 * TIMER_HZ)
 
 /* ARP cache entry */
 typedef struct {
+    list_t list;
     ip_addr_t ip_addr;
     mac_addr_t mac_addr;
-    bool exists : 1;
-    bool resolved : 1;
-    int timestamp;
+    arp_state_t state;
+    timer_t timeout;
 } arp_entry_t;
 
 /* ARP packet header */
@@ -66,38 +66,8 @@ static list_declare(packet_queue);
  * cache is sufficient for now. If we ever decide to
  * support multiple devices, we'll need a hashing
  * mechanism to separate the entries by device.
- *
- * Since we're running in QEMU, there's only like
- * 4 or so destinations that we need to know about.
- * The rest will go through the default gateway.
- * Maintain some excess space for bogus entries.
  */
-static arp_entry_t arp_cache[16];
-
-/*
- * Checks whether an ARP entry is expired; that is,
- * its data is too old and a new ARP request needs to
- * be sent.
- */
-static bool
-arp_entry_is_expired(arp_entry_t *entry)
-{
-    return entry->timestamp + ARP_CACHE_TIMEOUT < rtc_get_counter();
-}
-
-/*
- * Checks whether an ARP entry is unreachable; that is,
- * it has not been resolved and the reply timeout
- * has been reached. These are not immediately deleted
- * from the cache since we want to prevent the same
- * IP address from being re-requested for a short time.
- */
-static bool
-arp_entry_is_unreachable(arp_entry_t *entry)
-{
-    if (entry->resolved) return false;
-    return entry->timestamp + ARP_RESOLVE_TIMEOUT < rtc_get_counter();
-}
+static list_declare(arp_cache);
 
 /*
  * Flushes all packets waiting for an ARP reply from the
@@ -146,6 +116,50 @@ arp_queue_insert(net_dev_t *dev, skb_t *skb, ip_addr_t ip)
 }
 
 /*
+ * Callback for when an ARP cache entry reaches its maximum
+ * lifetime. Removes the entry from the cache.
+ */
+static void
+arp_on_cache_timeout(timer_t *timer)
+{
+    arp_entry_t *entry = timer_entry(timer, arp_entry_t, timeout);
+    list_del(&entry->list);
+    free(entry);
+}
+
+/*
+ * Callback for when an ARP request has timed out, and we
+ * want to consider the destination unreachable. This will
+ * purge all packets in the packet queue for the IP address
+ * associated with the request.
+ */
+static void
+arp_on_resolve_timeout(timer_t *timer)
+{
+    arp_entry_t *entry = timer_entry(timer, arp_entry_t, timeout);
+    entry->state = ARP_UNREACHABLE;
+    timer_setup(&entry->timeout, ARP_CACHE_TIMEOUT, arp_on_cache_timeout);
+    arp_queue_flush(entry->ip_addr, NULL);
+}
+
+/*
+ * Finds the ARP entry corresponding to the specified IP
+ * address. Returns NULL if the IP address is not in the cache.
+ */
+static arp_entry_t *
+arp_cache_find(ip_addr_t ip)
+{
+    list_t *pos;
+    list_for_each(pos, &arp_cache) {
+        arp_entry_t *entry = list_entry(pos, arp_entry_t, list);
+        if (ip_equals(ip, entry->ip_addr)) {
+            return entry;
+        }
+    }
+    return NULL;
+}
+
+/*
  * Inserts an entry into the ARP cache. If there is an
  * existing entry with the given IP address, this will
  * overwrite it. The MAC address may be null to indicate
@@ -155,48 +169,26 @@ arp_queue_insert(net_dev_t *dev, skb_t *skb, ip_addr_t ip)
 static int
 arp_cache_insert(ip_addr_t ip, const mac_addr_t *mac)
 {
-    /*
-     * Find existing entry, or the first blank entry.
-     * Existing entry has higher priority.
-     */
-    arp_entry_t *entry = NULL;
-    int i;
-    for (i = 0; i < array_len(arp_cache); ++i) {
-        arp_entry_t *tmp = &arp_cache[i];
-
-        /* While we're here, clean up expired entries */
-        if (tmp->exists && arp_entry_is_expired(tmp)) {
-            arp_queue_flush(tmp->ip_addr, NULL);
-            tmp->exists = false;
-        }
-
-        /* Pick a free slot if available */
-        if (!tmp->exists && entry == NULL) {
-            entry = tmp;
-        }
-
-        /* Stop if the address is already in the cache */
-        if (tmp->exists && ip_equals(ip, tmp->ip_addr)) {
-            entry = tmp;
-            break;
-        }
-    }
-
-    /* No free space and mapping doesn't already exist */
+    /* Find existing entry, or allocate a new one */
+    arp_entry_t *entry = arp_cache_find(ip);
     if (entry == NULL) {
-        debugf("ARP cache full, cannot insert entry\n");
-        return -1;
+        entry = malloc(sizeof(arp_entry_t));
+        if (entry == NULL) {
+            return -1;
+        }
+        list_add(&entry->list, &arp_cache);
+        timer_init(&entry->timeout);
     }
 
-    /* Update entry in the cache */
-    entry->exists = true;
-    entry->timestamp = rtc_get_counter();
+    /* Update entry fields */
     entry->ip_addr = ip;
     if (mac != NULL) {
         entry->mac_addr = *mac;
-        entry->resolved = true;
+        entry->state = ARP_REACHABLE;
+        timer_setup(&entry->timeout, ARP_CACHE_TIMEOUT, arp_on_cache_timeout);
     } else {
-        entry->resolved = false;
+        entry->state = ARP_WAITING;
+        timer_setup(&entry->timeout, ARP_RESOLVE_TIMEOUT, arp_on_resolve_timeout);
     }
     return 0;
 }
@@ -204,38 +196,21 @@ arp_cache_insert(ip_addr_t ip, const mac_addr_t *mac)
 /*
  * Attempts to resolve an IP address to a MAC address,
  * using only the ARP cache.
- *
- * ARP_INVALID: MAC address is not cached and no request
- * has been sent yet
- *
- * ARP_UNREACHABLE: timed out waiting for an ARP reply
- *
- * ARP_WAITING: ARP request sent, no reply received yet
- *
- * ARP_REACHABLE: MAC address is cached and not stale
  */
 arp_state_t
 arp_get_state(net_dev_t *dev, ip_addr_t ip, mac_addr_t *mac)
 {
-    int i;
-    for (i = 0; i < array_len(arp_cache); ++i) {
-        arp_entry_t *entry = &arp_cache[i];
-        if (entry->exists && ip_equals(ip, entry->ip_addr)) {
-            if (arp_entry_is_expired(entry)) {
-                arp_queue_flush(entry->ip_addr, NULL);
-                entry->exists = false;
-                return ARP_INVALID;
-            } else if (arp_entry_is_unreachable(entry)) {
-                return ARP_UNREACHABLE;
-            } else if (!entry->resolved) {
-                return ARP_WAITING;
-            } else {
-                *mac = entry->mac_addr;
-                return ARP_REACHABLE;
-            }
-        }
+    /* Find entry for specified IP address */
+    arp_entry_t *entry = arp_cache_find(ip);
+    if (entry == NULL) {
+        return ARP_INVALID;
     }
-    return ARP_INVALID;
+
+    /* Copy MAC address if known */
+    if (entry->state == ARP_REACHABLE) {
+        *mac = entry->mac_addr;
+    }
+    return entry->state;
 }
 
 /*

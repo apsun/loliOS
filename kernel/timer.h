@@ -37,9 +37,6 @@ void timer_init(timer_t *timer);
 /* Starts a new timer with the specified delay and callback */
 void timer_setup(timer_t *timer, int delay, void (*callback)(timer_t *));
 
-/* Reschedules an already running timer */
-void timer_reschedule(timer_t *timer, int delay);
-
 /* Cancels a running timer */
 void timer_cancel(timer_t *timer);
 
