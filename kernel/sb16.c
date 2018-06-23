@@ -179,6 +179,11 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
         nbytes = SB16_HALF_BUFFER_SIZE - audio_buf_count;
     }
 
+    /* If we're using the 16-bit DMA channel, nbytes must be even */
+    if (bits_per_sample != 8) {
+        nbytes &= ~1;
+    }
+
     /* If can't write anything, notify caller that buffer is full */
     if (nbytes == 0) {
         return -EAGAIN;

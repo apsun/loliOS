@@ -439,6 +439,32 @@ tcp_inbox_remove(tcp_sock_t *tcp, skb_t *skb)
 }
 
 /*
+ * Used to drain the inbox if we know the user will never be
+ * able to read its contents. This is used to free memory and
+ * ensure the rwnd doesn't stay at zero forever.
+ */
+static void
+tcp_inbox_drain(tcp_sock_t *tcp)
+{
+    while (!list_empty(&tcp->inbox)) {
+        skb_t *skb = list_first_entry(&tcp->inbox, skb_t, list);
+        tcp_hdr_t *hdr = skb_transport_header(skb);
+
+        /*
+         * If this packet hasn't been ACKed yet, we must have a hole,
+         * so stop here.
+         */
+        uint32_t pkt_seq_num = seq(hdr);
+        if (cmp(pkt_seq_num, tcp->ack_num) > 0) {
+            break;
+        }
+
+        tcp_inbox_remove(tcp, skb);
+        skb_release(skb);
+    }
+}
+
+/*
  * Inserts an incoming TCP packet into the specified socket's
  * inbox, so that its data can be read later in recvfrom().
  * This will advance the ack_num, and also process FIN flags
@@ -529,6 +555,15 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
                 /* TODO: restart time-wait timer */
             }
         }
+    }
+
+    /*
+     * If we're in any of these states, the user has closed
+     * the connection, so pretend they're reading from
+     * the socket here to free up space.
+     */
+    if (tcp_in_state(tcp, FIN_WAIT_1 | FIN_WAIT_2 | CLOSING | TIME_WAIT | LAST_ACK)) {
+        tcp_inbox_drain(tcp);
     }
 }
 
@@ -814,37 +849,38 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
 
     /*
      * If the segment is outside of the receive window,
-     * discard it and send an ACK if no RST.
+     * discard it and send an ACK if no RST. Note that
+     * we still process ACKs, so we don't return immediately.
      */
-    if (!tcp_in_rwnd(tcp, skb)) {
+    bool in_rwnd = tcp_in_rwnd(tcp, skb);
+    if (!in_rwnd) {
         debugf("Packet outside receive window\n");
         if (!hdr->rst) {
             tcp_send_ack(tcp);
         }
-        return 0;
-    }
+    } else {
+        /*
+         * Handle RST (we use the sequence number instead of
+         * ack number here, which is checked above).
+         */
+        if (hdr->rst) {
+            debugf("Received RST in middle of connection\n");
+            tcp_set_state(tcp, CLOSED);
+            tcp_release(tcp);
+            return 0;
+        }
 
-    /*
-     * Handle RST (we use the sequence number instead of
-     * ack number here, which is checked above).
-     */
-    if (hdr->rst) {
-        debugf("Received RST in middle of connection\n");
-        tcp_set_state(tcp, CLOSED);
-        tcp_release(tcp);
-        return 0;
-    }
-
-    /*
-     * If we got a SYN in the middle of the connection,
-     * reset the connection.
-     */
-    if (hdr->syn) {
-        debugf("Received SYN in middle of connection\n");
-        tcp_reply_rst(net_sock(tcp)->iface, skb);
-        tcp_set_state(tcp, CLOSED);
-        tcp_release(tcp);
-        return 0;
+        /*
+         * If we got a SYN in the middle of the connection,
+         * reset the connection.
+         */
+        if (hdr->syn) {
+            debugf("Received SYN in middle of connection\n");
+            tcp_reply_rst(net_sock(tcp)->iface, skb);
+            tcp_set_state(tcp, CLOSED);
+            tcp_release(tcp);
+            return 0;
+        }
     }
 
     /*
@@ -891,7 +927,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
      * processing of FIN flags, once the segment containing
      * the FIN is in-order.
      */
-    if (tcp_in_state(tcp, ESTABLISHED | FIN_WAIT_1 | FIN_WAIT_2)) {
+    if (in_rwnd && tcp_in_state(tcp, ESTABLISHED | FIN_WAIT_1 | FIN_WAIT_2)) {
         tcp_inbox_insert(tcp, skb);
     }
 
