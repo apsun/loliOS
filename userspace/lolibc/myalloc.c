@@ -23,12 +23,21 @@
 #include <syscall.h>
 
 /*
+ * Whether to poison new allocations with an invalid pattern to
+ * catch usages of uninitialized/freed memory.
+ */
+#ifndef MYA_POISON
+    #define MYA_POISON 1
+#endif
+#define MYA_POISON_UNINIT ((size_t)0xba110cedba110ced)
+#define MYA_POISON_FREED ((size_t)0xdeadbeefdeadbeef)
+
+/*
  * Whether we want to replace the C standard library functions.
  */
 #ifndef MYA_REPLACE_STD
     #define MYA_REPLACE_STD 1
 #endif
-
 #if MYA_REPLACE_STD
     #define mya_malloc malloc
     #define mya_calloc calloc
@@ -458,6 +467,21 @@ mya_split_block(mya_header_t *header, size_t aligned_size)
 }
 
 /*
+ * Fills a region of memory with the specified pattern.
+ */
+static void
+mya_poison(void *ptr, size_t size, size_t pattern)
+{
+#if MYA_POISON
+    size_t *wptr = ptr;
+    size_t i;
+    for (i = 0; i < size / sizeof(size_t); ++i) {
+        wptr[i] = pattern;
+    }
+#endif
+}
+
+/*
  * Allocates the specified number of bytes and returns a pointer
  * to the allocated memory. If size equals 0 or there is no
  * more memory available, NULL is returned.
@@ -505,7 +529,9 @@ mya_malloc(size_t size)
     mya_set_used(prev, mya_next(header), 1);
 
     /* Return pointer to the user data */
-    return mya_header_to_data(header);
+    void *ptr = mya_header_to_data(header);
+    mya_poison(ptr, aligned_size, MYA_POISON_UNINIT);
+    return ptr;
 }
 
 /*
@@ -522,6 +548,9 @@ mya_free(void *ptr)
 
     /* Find header for the user data */
     mya_header_t *header = mya_data_to_header(ptr);
+
+    /* Poison original contents */
+    mya_poison(ptr, mya_size(curr, header), MYA_POISON_FREED);
 
     /* Mark block as free */
     mya_set_used(curr, header, 0);
@@ -590,6 +619,7 @@ mya_realloc(void *ptr, size_t size)
 
     /* Save original size of block */
     size_t orig_size = mya_size(curr, header);
+    char *orig_end = (char *)ptr + orig_size;
 
     /*
      * If we're shrinking the block, try to split it
@@ -604,6 +634,7 @@ mya_realloc(void *ptr, size_t size)
     if (mya_coalesce_next(header)) {
         if (aligned_size <= mya_size(curr, header)) {
             mya_split_block(header, aligned_size);
+            mya_poison(orig_end, aligned_size - orig_size, MYA_POISON_UNINIT);
             return ptr;
         }
     }
@@ -615,6 +646,7 @@ mya_realloc(void *ptr, size_t size)
         if (next_alloc != NULL) {
             mya_coalesce_next(header);
             mya_split_block(header, aligned_size);
+            mya_poison(orig_end, aligned_size - orig_size, MYA_POISON_UNINIT);
             return ptr;
         }
     }
