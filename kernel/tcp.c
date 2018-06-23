@@ -1286,6 +1286,7 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
         return -EAGAIN;
     }
 
+    uint16_t original_rwnd = tcp_rwnd_size(tcp);
     uint8_t *bufp = buf;
     int copied = 0;
     while (!list_empty(&tcp->inbox)) {
@@ -1347,8 +1348,14 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
      * TODO: This is a workaround for the zero-window problem.
      * Once we consume data from the inbox, tell the remote
      * peer that we have some space again.
+     *
+     * I don't know why, but it seems that QEMU doesn't send
+     * us any packets if the rwnd can hold less than the MSS.
+     * Hence, we should only advertise when the rwnd is large enough.
      */
-    tcp_send_ack(tcp);
+    if (original_rwnd < TCP_MAX_LEN && tcp_rwnd_size(tcp) >= TCP_MAX_LEN) {
+        tcp_send_ack(tcp);
+    }
 
     /*
      * If we didn't copy anything and we're in a closing state, there's

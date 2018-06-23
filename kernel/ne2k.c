@@ -2,6 +2,8 @@
 #include "debug.h"
 #include "lib.h"
 #include "irq.h"
+#include "list.h"
+#include "myalloc.h"
 #include "paging.h"
 #include "net.h"
 #include "ethernet.h"
@@ -164,6 +166,12 @@ static net_iface_t eth0 = {
     .send_ip_skb = ethernet_send_ip,
 };
 
+/* Structure to hold enqueued packets */
+typedef struct {
+    list_t list;
+    skb_t *skb;
+} queue_frame_t;
+
 /* NE2k frame header */
 typedef struct {
     uint8_t status;
@@ -179,6 +187,9 @@ static int tx_buf = 0;
 
 /* Length of data in each tx buffer, 0 = free buffer */
 static int tx_buf_len[2];
+
+/* Packets waiting to be sent */
+static list_declare(tx_queue);
 
 /* Sets the remote DMA byte offset and count */
 static void
@@ -405,6 +416,18 @@ ne2k_begin_tx(void)
 }
 
 /*
+ * Copies a frame to the NE2k memory so that it can be
+ * transmitted.
+ */
+static void
+ne2k_copy_to_tx(int buf, skb_t *skb)
+{
+    int page = NE2K_TX_START_PAGE + buf * NE2K_PAGES_PER_PKT;
+    ne2k_write_mem(page * NE2K_BYTES_PER_PAGE, skb_data(skb), skb_len(skb));
+    tx_buf_len[buf] = skb_len(skb);
+}
+
+/*
  * Packet transmit handler. Handles completion of a
  * transmission by the device. If there is another
  * packet in NE2k memory ready to be sent, this will
@@ -413,8 +436,23 @@ ne2k_begin_tx(void)
 static void
 ne2k_handle_tx(void)
 {
+    /* Mark current tx slot as free */
     tx_busy = false;
     tx_buf_len[tx_buf] = 0;
+
+    /*
+     * If we have more packets to send, copy it to
+     * the slot that just finished.
+     */
+    if (!list_empty(&tx_queue)) {
+        queue_frame_t *pkt = list_first_entry(&tx_queue, queue_frame_t, list);
+        ne2k_copy_to_tx(tx_buf, pkt->skb);
+        list_del(&pkt->list);
+        skb_release(pkt->skb);
+        free(pkt);
+    }
+
+    /* Begin transmitting the other tx slot */
     tx_buf = !tx_buf;
     if (tx_buf_len[tx_buf] > 0) {
         ne2k_begin_tx();
@@ -469,14 +507,18 @@ ne2k_send(net_dev_t *dev, skb_t *skb)
     } else if (tx_buf_len[!tx_buf] == 0) {
         buf = !tx_buf;
     } else {
-        debugf("Both TX buffers full, cannot send packet\n");
-        return -1;
+        queue_frame_t *pkt = malloc(sizeof(queue_frame_t));
+        if (pkt == NULL) {
+            debugf("Cannot allocate space on tx queue\n");
+            return -1;
+        }
+        pkt->skb = skb_retain(skb);
+        list_add_tail(&pkt->list, &tx_queue);
+        return 0;
     }
 
     /* Copy packet to NE2k memory */
-    int page = NE2K_TX_START_PAGE + buf * NE2K_PAGES_PER_PKT;
-    ne2k_write_mem(page * NE2K_BYTES_PER_PAGE, skb_data(skb), skb_len(skb));
-    tx_buf_len[buf] = skb_len(skb);
+    ne2k_copy_to_tx(buf, skb);
 
     /* Begin transmission if device is not busy */
     if (!tx_busy) {
