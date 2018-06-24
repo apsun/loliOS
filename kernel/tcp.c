@@ -231,7 +231,7 @@ tcp_seg_len(skb_t *skb)
 }
 
 /*
- * Prints the control information of a packet using debugf().
+ * Prints the control information of a packet using tcp_debugf().
  */
 static void
 tcp_dump_pkt(const char *prefix, skb_t *skb)
@@ -493,7 +493,7 @@ tcp_on_fin_timeout(timer_t *timer)
 {
     tcp_sock_t *tcp = timer_entry(timer, tcp_sock_t, fin_timer);
     if (!tcp_in_state(tcp, CLOSED)) {
-        debugf("FIN timeout reached, closing\n");
+        tcp_debugf("FIN timeout reached, closing\n");
         tcp_set_state(tcp, CLOSED);
         tcp_release(tcp);
     }
@@ -589,7 +589,7 @@ tcp_on_retransmit_timeout(timer_t *timer)
 
     /* If we've tried too many times, give up and kill the connection */
     if (pkt->num_transmissions > TCP_MAX_RETRANSMISSIONS) {
-        debugf("Too many retransmissions, giving up\n");
+        tcp_debugf("Too many retransmissions, giving up\n");
         tcp_set_state(tcp, CLOSED);
         tcp_release(tcp);
         return;
@@ -696,11 +696,12 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
     tcp->rwnd_size -= tcp_seg_len(skb);
 
     /*
-     * If we get another FIN while in TIME_WAIT state, restart
-     * the timeout since this indicates that they may not have
-     * received our ACK for their FIN.
+     * If we get more packets while the FIN timer is active, restart
+     * the timeout. In TIME_WAIT state, this means that the remote
+     * peer might not have received our ACK for their FIN; in FIN_WAIT_2,
+     * this indicates that the remote peer has more packets to send.
      */
-    if (hdr->fin && tcp_in_state(tcp, TIME_WAIT)) {
+    if (tcp_in_state(tcp, TIME_WAIT | FIN_WAIT_2)) {
         tcp_start_fin_timeout(tcp);
     }
 
@@ -987,7 +988,7 @@ tcp_handle_rx_ack(tcp_sock_t *tcp, uint32_t ack_num)
     /* If we get three duplicate ACKs, retransmit earliest packet */
     if (num_acked == 0 && !list_empty(&tcp->outbox)) {
         if (++tcp->num_duplicate_acks == 3) {
-            debugf("Retransmitting earliest packet\n");
+            tcp_debugf("Retransmitting earliest packet\n");
             tcp_outbox_transmit(tcp, list_first_entry(&tcp->outbox, tcp_pkt_t, list));
             tcp->num_duplicate_acks = 0;
         }
@@ -1009,7 +1010,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
 
     /* If socket is closed, reply with RST */
     if (tcp_in_state(tcp, CLOSED)) {
-        debugf("Received packet to closed socket\n");
+        tcp_debugf("Received packet to closed socket\n");
         if (!hdr->rst) {
             tcp_reply_rst(net_sock(tcp)->iface, skb);
         }
@@ -1025,7 +1026,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
          * reply with RST.
          */
         if (hdr->ack && !tcp_is_ack_valid(tcp, hdr)) {
-            debugf("Bogus ACK received in SYN_SENT state\n");
+            tcp_debugf("Bogus ACK received in SYN_SENT state\n");
             if (!hdr->rst) {
                 tcp_reply_rst(net_sock(tcp)->iface, skb);
             }
@@ -1039,7 +1040,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
          * grant their wish. Otherwise, ignore the reset.
          */
         if (hdr->rst) {
-            debugf("Received RST in SYN_SENT state\n");
+            tcp_debugf("Received RST in SYN_SENT state\n");
             if (hdr->ack && tcp_is_ack_current(tcp, hdr)) {
                 tcp_set_state(tcp, CLOSED);
                 tcp_release(tcp);
@@ -1080,7 +1081,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
             return 0;
         }
 
-        debugf("Unhandled packet in SYN_SENT state, dropping\n");
+        tcp_debugf("Unhandled packet in SYN_SENT state, dropping\n");
         return 0;
     }
 
@@ -1091,7 +1092,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
      */
     bool in_rwnd = tcp_in_rwnd(tcp, skb);
     if (!in_rwnd) {
-        debugf("Packet outside receive window\n");
+        tcp_debugf("Packet outside receive window\n");
         if (!hdr->rst) {
             tcp_send_ack(tcp);
         }
@@ -1101,7 +1102,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
          * ack number here, which is checked above).
          */
         if (hdr->rst) {
-            debugf("Received RST in middle of connection\n");
+            tcp_debugf("Received RST in middle of connection\n");
             tcp_set_state(tcp, CLOSED);
             tcp_release(tcp);
             return 0;
@@ -1112,7 +1113,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
          * reset the connection.
          */
         if (hdr->syn) {
-            debugf("Received SYN in middle of connection\n");
+            tcp_debugf("Received SYN in middle of connection\n");
             tcp_reply_rst(net_sock(tcp)->iface, skb);
             tcp_set_state(tcp, CLOSED);
             tcp_release(tcp);
@@ -1125,7 +1126,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
      * even if there's data in it.
      */
     if (!hdr->ack) {
-        debugf("No ACK in packet, dropping\n");
+        tcp_debugf("No ACK in packet, dropping\n");
         return 0;
     }
 
@@ -1137,13 +1138,13 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
      */
     if (tcp_in_state(tcp, SYN_RECEIVED)) {
         if (!tcp_is_ack_valid(tcp, hdr) || !tcp_is_ack_current(tcp, hdr)) {
-            debugf("Invalid ACK in SYN_RECEIVED state\n");
+            tcp_debugf("Invalid ACK in SYN_RECEIVED state\n");
             tcp_reply_rst(net_sock(tcp)->iface, skb);
             return 0;
         }
     } else {
         if (!tcp_is_ack_valid(tcp, hdr)) {
-            debugf("Invalid ACK\n");
+            tcp_debugf("Invalid ACK\n");
             tcp_send_ack(tcp);
             return 0;
         }
@@ -1255,7 +1256,7 @@ tcp_handle_rx(net_iface_t *iface, skb_t *skb)
 {
     /* Pop header */
     if (!skb_may_pull(skb, sizeof(tcp_hdr_t))) {
-        debugf("TCP packet too small: cannot pull header\n");
+        tcp_debugf("TCP packet too small: cannot pull header\n");
         return -1;
     }
     tcp_hdr_t *hdr = skb_reset_transport_header(skb);
@@ -1264,7 +1265,7 @@ tcp_handle_rx(net_iface_t *iface, skb_t *skb)
     /* Pop and ignore options */
     int options_len = hdr->data_offset * 4 - sizeof(tcp_hdr_t);
     if (!skb_may_pull(skb, options_len)) {
-        debugf("TCP packet too small: cannot pull options\n");
+        tcp_debugf("TCP packet too small: cannot pull options\n");
         return -1;
     }
     skb_pull(skb, options_len);
@@ -1312,7 +1313,7 @@ tcp_ctor(net_sock_t *sock)
 {
     tcp_sock_t *tcp = malloc(sizeof(tcp_sock_t));
     if (tcp == NULL) {
-        debugf("Cannot allocate space for TCP data\n");
+        tcp_debugf("Cannot allocate space for TCP data\n");
         return -1;
     }
 
@@ -1413,7 +1414,7 @@ tcp_connect(net_sock_t *sock, const sock_addr_t *addr)
 
     /* Attempt to connect */
     if (socket_connect_addr(sock, tmp.ip, tmp.port) < 0) {
-        debugf("Could not connect socket\n");
+        tcp_debugf("Could not connect socket\n");
         return -1;
     }
 
@@ -1422,7 +1423,7 @@ tcp_connect(net_sock_t *sock, const sock_addr_t *addr)
     if (!sock->bound) {
         if (socket_bind_addr(sock, ANY_IP, 0) < 0) {
             sock->connected = false;
-            debugf("Could not auto-bind socket\n");
+            tcp_debugf("Could not auto-bind socket\n");
             return -1;
         }
         autobound = true;
@@ -1432,7 +1433,7 @@ tcp_connect(net_sock_t *sock, const sock_addr_t *addr)
     tcp_acquire(tcp);
     tcp_set_state(tcp, SYN_SENT);
     if (tcp_send_syn(tcp) < 0) {
-        debugf("Could not send SYN\n");
+        tcp_debugf("Could not send SYN\n");
         sock->connected = false;
         if (autobound) {
             sock->bound = false;
@@ -1709,7 +1710,7 @@ tcp_close(net_sock_t *sock)
             tcp_release(tcp);
         }
     } else {
-        debugf("close() called in state %s\n", tcp_get_state_str(tcp->state));
+        tcp_debugf("close() called in state %s\n", tcp_get_state_str(tcp->state));
     }
 
     return 0;
