@@ -43,6 +43,15 @@ timer_tick(int now)
 }
 
 /*
+ * Returns the current timer counter.
+ */
+int
+timer_now(void)
+{
+    return rtc_get_counter();
+}
+
+/*
  * Initializes a new timer. This is necessary since we use
  * the callback to determine whether the timer is currently
  * active or not.
@@ -51,6 +60,15 @@ void
 timer_init(timer_t *timer)
 {
     timer->callback = NULL;
+}
+
+/*
+ * Returns whether the timer is currently active.
+ */
+bool
+timer_is_active(timer_t *timer)
+{
+    return timer->callback != NULL;
 }
 
 /*
@@ -67,7 +85,7 @@ timer_setup(timer_t *timer, int delay, void (*callback)(timer_t *))
     if (timer->callback != NULL) {
         list_del(&timer->list);
     }
-    timer->when = rtc_get_counter() + delay;
+    timer->when = timer_now() + delay;
     timer->callback = callback;
     timer_insert_list(timer);
 }

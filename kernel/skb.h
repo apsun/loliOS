@@ -14,8 +14,13 @@
  */
 typedef struct {
     /*
-     * Used for queues. Only one layer may queue the SKB at any time.
-     * Currently, this is exclusively used by the transport layer.
+     * This field is a bit weird, and is a compromise between good code
+     * design and having a ton of boilerplate. Generally, if you want
+     * to use this field, you should clone the SKB first so you do not
+     * break another layer's list. The exception to this is when receiving
+     * packets, since those are delivered in a strictly bottom-up fashion,
+     * so once it leaves that layer it will never return, and hence no
+     * cloning is necessary.
      */
     list_t list;
 

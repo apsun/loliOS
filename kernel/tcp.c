@@ -1,6 +1,16 @@
+/*
+ * Note: This implementation of TCP is not standards-compliant.
+ * It does not fully implement the following features:
+ *
+ * - URG flag
+ * - TCP options (window scale, etc)
+ * - Congestion/flow control
+ * - Delayed ACK
+ */
 #include "tcp.h"
 #include "lib.h"
 #include "debug.h"
+#include "timer.h"
 #include "syscall.h"
 #include "myalloc.h"
 #include "socket.h"
@@ -12,7 +22,7 @@
 /*
  * Enable for verbose TCP logging. Warning: very verbose.
  */
-#define TCP_DEBUG_PRINT 1
+#define TCP_DEBUG_PRINT 0
 #if TCP_DEBUG_PRINT
     #define tcp_debugf(...) debugf(__VA_ARGS__)
 #else
@@ -26,11 +36,27 @@
  * means data will always arrive in-order.
  */
 #define TCP_DEBUG_DROP 0
-#define TCP_DEBUG_RX_DROP_FREQ 20
-#define TCP_DEBUG_TX_DROP_FREQ 20
+#define TCP_DEBUG_RX_DROP_FREQ 5
+#define TCP_DEBUG_TX_DROP_FREQ 5
 
 /* Maximum length of the TCP body */
 #define TCP_MAX_LEN 1460
+
+/*
+ * Time to wait in the TIME_WAIT and FIN_WAIT_2 states before
+ * releasing the socket.
+ */
+#define TCP_FIN_TIMEOUT (60 * TIMER_HZ)
+
+/*
+ * Maximum number of times to attempt retransmitting a packet
+ * before killing the connection.
+ */
+#define TCP_MAX_RETRANSMISSIONS 3
+
+/* Allowed RTO range for retransmission timer */
+#define TCP_MIN_RTO (1 * TIMER_HZ)
+#define TCP_MAX_RTO (120 * TIMER_HZ)
 
 /* State of a TCP connection */
 typedef enum {
@@ -74,9 +100,16 @@ typedef struct {
     /*
      * Linked list of outgoing TCP packets that have not been sent or
      * ACKed yet. This list is maintained in increasing order of local
-     * sequence number, and never has holes or overlaps.
+     * sequence number, and never has holes or overlaps. The element type
+     * is tcp_pkt_t, not skb_t!
      */
     list_t outbox;
+
+    /*
+     * Timer for the TIME_WAIT and FIN_WAIT_2 states. When this timer expires,
+     * the socket is released.
+     */
+    timer_t fin_timer;
 
     /*
      * Receive window size of the socket. This is used to limit the incoming
@@ -100,7 +133,42 @@ typedef struct {
 
     /* Duplicate ACK counter for fast retransmission */
     uint8_t num_duplicate_acks : 2;
+
+    /* RTT measurement for timeouts */
+    int estimated_rtt;
+    int variance_rtt;
 } tcp_sock_t;
+
+/*
+ * Packet in the TCP outbox. Contains transmission info used to perform
+ * retransmission of lost packets.
+ */
+typedef struct {
+    list_t list;
+    tcp_sock_t *tcp;
+    skb_t *skb;
+
+    /*
+     * Timer used to retransmit this packet if it ever gets lost.
+     */
+    timer_t retransmit_timer;
+
+    /*
+     * Number of times we've transmitted this packet. Used for three
+     * purposes: (1) queueing packets before the 3-way handshake is
+     * complete, so we know which packets to transmit upon completion;
+     * (2) limit maximum number of retransmissions; (3) apply Karn's
+     * algorithm (only update RTT if no retransmission, and double
+     * timeout at every retransmission).
+     */
+    int num_transmissions;
+
+    /*
+     * Time at which we last transmitted this packet, used to update
+     * the RTT when we receive the ACK for this packet.
+     */
+    int transmit_time;
+} tcp_pkt_t;
 
 /* Converts between tcp_sock_t and net_sock_t */
 #define tcp_sock(sock) ((tcp_sock_t *)(sock)->private)
@@ -113,6 +181,9 @@ typedef struct {
 #define cmp(a, b) ((int)((a) - (b)))
 #define ack(hdr) (ntohl((hdr)->be_ack_num))
 #define seq(hdr) (ntohl((hdr)->be_seq_num))
+
+/* Forward declaration */
+static void tcp_on_retransmit_timeout(timer_t *timer);
 
 /*
  * Returns the body length of the given TCP packet.
@@ -414,17 +485,141 @@ tcp_send(tcp_sock_t *tcp, skb_t *skb)
 }
 
 /*
- * Adds an outgoing TCP packet to the outbox queue.
+ * Callback for when we finally time out. Closes and releases
+ * the socket.
  */
 static void
-tcp_outbox_insert(tcp_sock_t *tcp, skb_t *skb)
+tcp_on_fin_timeout(timer_t *timer)
+{
+    tcp_sock_t *tcp = timer_entry(timer, tcp_sock_t, fin_timer);
+    if (!tcp_in_state(tcp, CLOSED)) {
+        debugf("FIN timeout reached, closing\n");
+        tcp_set_state(tcp, CLOSED);
+        tcp_release(tcp);
+    }
+}
+
+/*
+ * (Re)starts the FIN timeout timer.
+ */
+static void
+tcp_start_fin_timeout(tcp_sock_t *tcp)
+{
+    timer_setup(&tcp->fin_timer, TCP_FIN_TIMEOUT, tcp_on_fin_timeout);
+}
+
+/*
+ * Updates the socket RTT statistics with the
+ * given sampled RTT time. This time is used to
+ * compute the retransmit timeout.
+ */
+static void
+tcp_update_rtt(tcp_sock_t *tcp, int sample_rtt)
+{
+    /* On the first update, estimated = sample; deviation = sample / 2 */
+    if (tcp->estimated_rtt < 0) {
+        tcp->estimated_rtt = sample_rtt;
+        tcp->variance_rtt = sample_rtt / 2;
+    }
+
+    /* Jacobson's algorithm */
+    int error = sample_rtt - tcp->estimated_rtt;
+    if (error < 0) {
+        error = -error;
+    }
+    tcp->estimated_rtt = 7 * tcp->estimated_rtt / 8 + sample_rtt / 8;
+    tcp->variance_rtt = 3 * tcp->variance_rtt / 4 + error / 4;
+}
+
+/*
+ * Computes the retransmit timeout for the given socket
+ * based on the RTT statistics.
+ */
+static int
+tcp_get_retransmit_timeout(tcp_sock_t *tcp)
+{
+    /* Default RTO if no data collected */
+    if (tcp->estimated_rtt < 0) {
+        return 3 * TIMER_HZ;
+    }
+
+    /* RTO = EstRTT + 4*VarRTT, clamped to [MIN_RTO, MAX_RTO] range */
+    int rto = tcp->estimated_rtt + 4 * tcp->variance_rtt;
+    if (rto < TCP_MIN_RTO) {
+        rto = TCP_MIN_RTO;
+    } else if (rto > TCP_MAX_RTO) {
+        rto = TCP_MAX_RTO;
+    }
+    return rto;
+}
+
+/*
+ * Transmits a packet that was already in the outbox.
+ */
+static int
+tcp_outbox_transmit(tcp_sock_t *tcp, tcp_pkt_t *pkt)
 {
     /*
-     * Since we add stuff to the outbox in a monotonically
-     * increasing order, no need for any list traversal stuff
-     * here. Just add it at the end of the queue.
+     * Start the retransmit timer. Scale the timeout by
+     * 2^(number of times we've transmitted this packet - 1),
+     * which is part of Karn's algorithm.
      */
-    list_add_tail(&skb_retain(skb)->list, &tcp->outbox);
+    int timeout = tcp_get_retransmit_timeout(tcp) << pkt->num_transmissions;
+    timer_setup(&pkt->retransmit_timer, timeout, tcp_on_retransmit_timeout);
+
+    /* Update packet info and send the segment */
+    pkt->transmit_time = timer_now();
+    pkt->num_transmissions++;
+    return tcp_send(tcp, pkt->skb);
+}
+
+/*
+ * Callback for when a packet transmission times out. If we
+ * still have some attempts remaining, retransmit the packet;
+ * otherwise give up and kill the connection.
+ */
+static void
+tcp_on_retransmit_timeout(timer_t *timer)
+{
+    tcp_pkt_t *pkt = timer_entry(timer, tcp_pkt_t, retransmit_timer);
+    tcp_sock_t *tcp = pkt->tcp;
+    if (tcp_in_state(tcp, CLOSED)) {
+        return;
+    }
+
+    /* If we've tried too many times, give up and kill the connection */
+    if (pkt->num_transmissions > TCP_MAX_RETRANSMISSIONS) {
+        debugf("Too many retransmissions, giving up\n");
+        tcp_set_state(tcp, CLOSED);
+        tcp_release(tcp);
+        return;
+    }
+
+    /* Finally retransmit the packet (this will start the re-tx timer) */
+    tcp_outbox_transmit(tcp, pkt);
+}
+
+/*
+ * Adds a packet to the TCP outbox queue. This does NOT
+ * transmit the packet. Returns the packet that can be
+ * passed to tcp_outbox_transmit, or NULL if no memory
+ * is available to allocate the packet data.
+ */
+static tcp_pkt_t *
+tcp_outbox_insert(tcp_sock_t *tcp, skb_t *skb)
+{
+    tcp_pkt_t *pkt = malloc(sizeof(tcp_pkt_t));
+    if (pkt == NULL) {
+        return NULL;
+    }
+
+    pkt->tcp = tcp;
+    pkt->skb = skb_retain(skb);
+    pkt->num_transmissions = 0;
+    pkt->transmit_time = timer_now();
+    timer_init(&pkt->retransmit_timer);
+    list_add_tail(&pkt->list, &tcp->outbox);
+    return pkt;
 }
 
 /*
@@ -516,6 +711,16 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
         }
 
         /*
+         * If we get anything while in TIME_WAIT state, restart
+         * the timeout since this indicates that they may not have
+         * received our ACK for their FIN. Also extend timeout
+         * if we get more data while waiting for a FIN.
+         */
+        if (tcp_in_state(tcp, TIME_WAIT | FIN_WAIT_2)) {
+            tcp_start_fin_timeout(tcp);
+        }
+
+        /*
          * Check if we've already seen this segment before. Note
          * that some segments may overlap, so we check the ending
          * sequence number of the packet.
@@ -548,11 +753,7 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
                 tcp_set_state(tcp, CLOSING);
             } else if (tcp_in_state(tcp, FIN_WAIT_2)) {
                 tcp_set_state(tcp, TIME_WAIT);
-                /* TODO: start time-wait timer, disable other timers */
-                /* TODO: HACK: since we don't have timers yet, immediately close */
-                tcp_set_state(tcp, CLOSED);
-            } else if (tcp_in_state(tcp, TIME_WAIT)) {
-                /* TODO: restart time-wait timer */
+                tcp_start_fin_timeout(tcp);
             }
         }
     }
@@ -589,9 +790,12 @@ tcp_send_syn(tcp_sock_t *tcp)
     hdr->syn = 1;
 
     /* Enqueue packet in outbox and immediately send */
-    tcp_outbox_insert(tcp, skb);
-    tcp_send(tcp, skb);
-    skb_release(skb);
+    tcp_pkt_t *pkt = tcp_outbox_insert(tcp, skb);
+    if (pkt == NULL) {
+        skb_release(skb);
+        return -1;
+    }
+    tcp_outbox_transmit(tcp, pkt);
     return 0;
 }
 
@@ -617,9 +821,12 @@ tcp_send_fin(tcp_sock_t *tcp)
     hdr->fin = 1;
 
     /* Enqueue packet in outbox and immediately send */
-    tcp_outbox_insert(tcp, skb);
-    tcp_send(tcp, skb);
-    skb_release(skb);
+    tcp_pkt_t *pkt = tcp_outbox_insert(tcp, skb);
+    if (pkt == NULL) {
+        skb_release(skb);
+        return -1;
+    }
+    tcp_outbox_transmit(tcp, pkt);
     return 0;
 }
 
@@ -701,15 +908,27 @@ tcp_handle_rx_ack(tcp_sock_t *tcp, uint32_t ack_num)
     int num_acked = 0;
     list_t *pos, *next;
     list_for_each_safe(pos, next, &tcp->outbox) {
-        skb_t *oskb = list_entry(pos, skb_t, list);
+        tcp_pkt_t *opkt = list_entry(pos, tcp_pkt_t, list);
+        skb_t *oskb = opkt->skb;
         tcp_hdr_t *ohdr = skb_transport_header(oskb);
 
         /*
          * Since ACK is for the next expected sequence number,
          * it's only useful when SEQ(pkt) + SEG_LEN(pkt) <= ack_num.
+         * If this is an ACK for this specific packet, update the RTT.
          */
-        if (cmp(seq(ohdr) + tcp_seg_len(oskb), ack_num) > 0) {
+        int d = cmp(seq(ohdr) + tcp_seg_len(oskb), ack_num);
+        if (d > 0) {
             break;
+        } else if (d == 0) {
+            /*
+             * Karn's algorithm: Only update RTT on packets that have
+             * been transmitted once to avoid ambiguous results on
+             * retransmitted packets.
+             */
+            if (opkt->num_transmissions == 1) {
+                tcp_update_rtt(tcp, timer_now() - opkt->transmit_time);
+            }
         }
 
         /*
@@ -717,33 +936,52 @@ tcp_handle_rx_ack(tcp_sock_t *tcp, uint32_t ack_num)
          * only called in the SYN_SENT state if we just received
          * a SYN, so it is correct to move from SYN_SENT to ESTABLISHED
          * here.
-         *
-         * TODO: We should also send all the packets accumulated
-         * in the outbox when this happens.
          */
         if (ohdr->syn && tcp_in_state(tcp, SYN_SENT | SYN_RECEIVED)) {
             tcp_set_state(tcp, ESTABLISHED);
+
+            /*
+             * Also transmit any packets that were waiting for
+             * the 3-way handshake to be sent. This will
+             * not retransmit the SYN, since that must have had
+             * num_transmissions > 0.
+             */
+            list_t *txpos;
+            list_for_each(txpos, &tcp->outbox) {
+                tcp_pkt_t *txpkt = list_entry(txpos, tcp_pkt_t, list);
+                if (txpkt->num_transmissions == 0) {
+                    tcp_outbox_transmit(tcp, txpkt);
+                }
+            }
         }
 
         /* We got an ACK for our FIN */
         if (ohdr->fin) {
             if (tcp_in_state(tcp, FIN_WAIT_1)) {
                 tcp_set_state(tcp, FIN_WAIT_2);
+
+                /*
+                 * We also start the FIN timeout when entering FIN_WAIT_2 state,
+                 * to prevent a situation where the socket is closed locally and
+                 * the remote sender dies - we would be waiting forever for the
+                 * remote peer to send its FIN.
+                 */
+                tcp_start_fin_timeout(tcp);
             } else if (tcp_in_state(tcp, CLOSING)) {
                 tcp_set_state(tcp, TIME_WAIT);
-                /* TODO: start time-wait timer, disable other timers */
-                /* TODO: HACK: since we don't have timers yet, immediately close */
-                tcp_set_state(tcp, CLOSED);
+                tcp_start_fin_timeout(tcp);
             } else if (tcp_in_state(tcp, LAST_ACK)) {
                 tcp_set_state(tcp, CLOSED);
             } else if (tcp_in_state(tcp, TIME_WAIT)) {
-                /* TODO: restart time-wait timer */
+                tcp_start_fin_timeout(tcp);
             }
         }
 
         /* No longer need to keep track of this packet! */
         list_del(pos);
         skb_release(oskb);
+        timer_cancel(&opkt->retransmit_timer);
+        free(opkt);
         num_acked++;
     }
 
@@ -751,13 +989,13 @@ tcp_handle_rx_ack(tcp_sock_t *tcp, uint32_t ack_num)
     if (num_acked == 0 && !list_empty(&tcp->outbox)) {
         if (++tcp->num_duplicate_acks == 3) {
             debugf("Retransmitting earliest packet\n");
-            tcp_send(tcp, list_first_entry(&tcp->outbox, skb_t, list));
+            tcp_outbox_transmit(tcp, list_first_entry(&tcp->outbox, tcp_pkt_t, list));
             tcp->num_duplicate_acks = 0;
         }
     } else {
         tcp->num_duplicate_acks = 0;
     }
-    
+
     return num_acked;
 }
 
@@ -834,8 +1072,8 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
              */
             if (tcp_in_state(tcp, SYN_SENT)) {
                 tcp_set_state(tcp, SYN_RECEIVED);
-                skb_t *syn = list_first_entry(&tcp->outbox, skb_t, list);
-                tcp_send(tcp, syn);
+                tcp_pkt_t *syn = list_first_entry(&tcp->outbox, tcp_pkt_t, list);
+                tcp_outbox_transmit(tcp, syn);
             } else {
                 tcp_send_ack(tcp);
             }
@@ -937,17 +1175,6 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
      */
     if (tcp_seg_len(skb) > 0) {
         tcp_send_ack(tcp);
-    }
-
-    /*
-     * TODO: HACK: need to send ACK for FIN before closing
-     * to fix hanging in LAST_ACK. Normally inserting into the
-     * inbox should never close the socket, delete this once we
-     * correctly handle timers.
-     */
-    if (tcp_in_state(tcp, CLOSED)) {
-        tcp_release(tcp);
-        return 0;
     }
 
     return 0;
@@ -1095,11 +1322,15 @@ tcp_ctor(net_sock_t *sock)
     list_init(&tcp->backlog);
     list_init(&tcp->inbox);
     list_init(&tcp->outbox);
+    timer_init(&tcp->fin_timer);
     tcp->rwnd_size = 8192;
     tcp->read_num = 0;
     tcp->ack_num = 0;
     tcp->seq_num = rand();
     tcp->unack_num = tcp->seq_num;
+    tcp->num_duplicate_acks = 0;
+    tcp->estimated_rtt = -1;
+    tcp->variance_rtt = -1;
     sock->private = tcp;
     return 0;
 }
@@ -1116,7 +1347,12 @@ tcp_dtor(net_sock_t *sock)
         list_for_each_safe(pos, next, &tcp->backlog) {
             tcp_sock_t *pending = list_entry(pos, tcp_sock_t, backlog);
             tcp_set_state(pending, FIN_WAIT_1);
-            tcp_send_fin(pending);
+
+            /* Try sending a FIN. If that fails, abort the hard way */
+            if (tcp_send_fin(pending) < 0) {
+                tcp_set_state(pending, CLOSED);
+                tcp_release(pending);
+            }
         }
     }
 
@@ -1128,11 +1364,14 @@ tcp_dtor(net_sock_t *sock)
 
     /* Clear outbox */
     list_for_each_safe(pos, next, &tcp->outbox) {
-        skb_t *skb = list_entry(pos, skb_t, list);
-        skb_release(skb);
+        tcp_pkt_t *pkt = list_entry(pos, tcp_pkt_t, list);
+        skb_release(pkt->skb);
+        timer_cancel(&pkt->retransmit_timer);
+        free(pkt);
     }
 
     tcp_debugf("Destroyed TCP socket 0x%08x\n", tcp);
+    timer_cancel(&tcp->fin_timer);
     free(tcp);
 }
 
@@ -1345,13 +1584,10 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
     }
 
     /*
-     * TODO: This is a workaround for the zero-window problem.
-     * Once we consume data from the inbox, tell the remote
-     * peer that we have some space again.
-     *
-     * I don't know why, but it seems that QEMU doesn't send
-     * us any packets if the rwnd can hold less than the MSS.
-     * Hence, we should only advertise when the rwnd is large enough.
+     * Only advertise window updates when we have at least
+     * one MSS worth of window space, to prevent silly window
+     * syndrome countermeasures on the receiver side from
+     * ignoring our window update.
      */
     if (original_rwnd < TCP_MAX_LEN && tcp_rwnd_size(tcp) >= TCP_MAX_LEN) {
         tcp_send_ack(tcp);
@@ -1388,6 +1624,11 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
         return -1;
     }
 
+    /* Don't return -1 if nothing to copy */
+    if (nbytes == 0) {
+        return 0;
+    }
+
     const uint8_t *bufp = buf;
     int sent = 0;
     while (sent < nbytes) {
@@ -1397,16 +1638,17 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
             body_len = TCP_MAX_LEN;
         }
 
-        /* Copy data into SKB */
+        /* Create new SKB for packet */
         skb_t *skb = tcp_alloc_skb(body_len);
+        if (skb == NULL) {
+            break;
+        }
+
+        /* Copy data into SKB */
         uint8_t *body = skb_put(skb, body_len);
         if (!copy_from_user(body, &bufp[sent], body_len)) {
             skb_release(skb);
-            if (sent > 0) {
-                return sent;
-            } else {
-                return -1;
-            }
+            break;
         }
 
         /* Initialize packet */
@@ -1416,19 +1658,30 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
         hdr->be_seq_num = htonl(tcp->seq_num);
         tcp->seq_num += body_len;
 
-        /*
-         * Append to outbox. If 3-way handshake is complete,
-         * send the packet immediately.
-         */
-        tcp_outbox_insert(tcp, skb);
+        /* Insert packet into outbox */
+        tcp_pkt_t *pkt = tcp_outbox_insert(tcp, skb);
+        if (pkt == NULL) {
+            skb_release(skb);
+            break;
+        }
+
+        /* If the 3-way handshake is complete, send the packet immediately */
         if (!tcp_in_state(tcp, SYN_SENT | SYN_RECEIVED)) {
-            tcp_send(tcp, skb);
+            tcp_outbox_transmit(tcp, pkt);
         }
         skb_release(skb);
         sent += body_len;
     }
 
-    return sent;
+    /*
+     * No bytes sent indicates complete failure;
+     * 0 < sent < nbytes indicates partial failure.
+     */
+    if (sent == 0) {
+        return -1;
+    } else {
+        return sent;
+    }
 }
 
 /* close() socketcall handler */
@@ -1437,15 +1690,25 @@ tcp_close(net_sock_t *sock)
 {
     tcp_sock_t *tcp = tcp_sock(sock);
 
+    /* Flush inbox immediately */
+    tcp_inbox_drain(tcp);
+
+    /* Perform state transition */
     if (tcp_in_state(tcp, LISTEN | SYN_SENT)) {
         tcp_set_state(tcp, CLOSED);
         tcp_release(tcp);
     } else if (tcp_in_state(tcp, SYN_RECEIVED | ESTABLISHED)) {
         tcp_set_state(tcp, FIN_WAIT_1);
-        tcp_send_fin(tcp);
+        if (tcp_send_fin(tcp) < 0) {
+            tcp_set_state(tcp, CLOSED);
+            tcp_release(tcp);
+        }
     } else if (tcp_in_state(tcp, CLOSE_WAIT)) {
         tcp_set_state(tcp, LAST_ACK);
-        tcp_send_fin(tcp);
+        if (tcp_send_fin(tcp) < 0) {
+            tcp_set_state(tcp, CLOSED);
+            tcp_release(tcp);
+        }
     } else {
         debugf("close() called in state %s\n", tcp_get_state_str(tcp->state));
     }

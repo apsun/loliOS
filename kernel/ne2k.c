@@ -166,12 +166,6 @@ static net_iface_t eth0 = {
     .send_ip_skb = ethernet_send_ip,
 };
 
-/* Structure to hold enqueued packets */
-typedef struct {
-    list_t list;
-    skb_t *skb;
-} queue_frame_t;
-
 /* NE2k frame header */
 typedef struct {
     uint8_t status;
@@ -441,15 +435,16 @@ ne2k_handle_tx(void)
     tx_buf_len[tx_buf] = 0;
 
     /*
-     * If we have more packets to send, copy it to
-     * the slot that just finished.
+     * If we have more packets to send, copy the first
+     * one to the slot that just finished. The invariant
+     * is that there can only be a packet in the queue
+     * if both tx buffers were full.
      */
     if (!list_empty(&tx_queue)) {
-        queue_frame_t *pkt = list_first_entry(&tx_queue, queue_frame_t, list);
-        ne2k_copy_to_tx(tx_buf, pkt->skb);
-        list_del(&pkt->list);
-        skb_release(pkt->skb);
-        free(pkt);
+        skb_t *skb = list_first_entry(&tx_queue, skb_t, list);
+        ne2k_copy_to_tx(tx_buf, skb);
+        list_del(&skb->list);
+        skb_release(skb);
     }
 
     /* Begin transmitting the other tx slot */
@@ -507,13 +502,13 @@ ne2k_send(net_dev_t *dev, skb_t *skb)
     } else if (tx_buf_len[!tx_buf] == 0) {
         buf = !tx_buf;
     } else {
-        queue_frame_t *pkt = malloc(sizeof(queue_frame_t));
-        if (pkt == NULL) {
-            debugf("Cannot allocate space on tx queue\n");
-            return -1;
-        }
-        pkt->skb = skb_retain(skb);
-        list_add_tail(&pkt->list, &tx_queue);
+        /*
+         * Need to clone this SKB, since it's possible for a higher
+         * level to re-transmit the same SKB at a later time which
+         * will break stuff. Enqueueing is a pretty rare operation
+         * anyways, so this should have minimal performance impact.
+         */
+        list_add_tail(&skb_clone(skb)->list, &tx_queue);
         return 0;
     }
 

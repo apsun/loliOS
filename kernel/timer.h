@@ -31,8 +31,14 @@ typedef struct timer {
 /* Updates all active timers and runs callbacks upon expiry */
 void timer_tick(int now);
 
+/* Returns the current timer counter */
+int timer_now(void);
+
 /* Initializes a timer object */
 void timer_init(timer_t *timer);
+
+/* Returns whether the timer is currently active */
+bool timer_is_active(timer_t *timer);
 
 /* Starts a new timer with the specified delay and callback */
 void timer_setup(timer_t *timer, int delay, void (*callback)(timer_t *));
