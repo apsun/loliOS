@@ -696,6 +696,15 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
     tcp->rwnd_size -= tcp_seg_len(skb);
 
     /*
+     * If we get another FIN while in TIME_WAIT state, restart
+     * the timeout since this indicates that they may not have
+     * received our ACK for their FIN.
+     */
+    if (hdr->fin && tcp_in_state(tcp, TIME_WAIT)) {
+        tcp_start_fin_timeout(tcp);
+    }
+
+    /*
      * Next, update our ACK number, which is what we will send
      * to the remote host in any packets containing an ACK. Basically,
      * just process the packets in order until we find a gap.
@@ -708,16 +717,6 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
         /* If seq > ack_num, we have a hole, so stop here */
         if (cmp(seq(ihdr), tcp->ack_num) > 0) {
             break;
-        }
-
-        /*
-         * If we get anything while in TIME_WAIT state, restart
-         * the timeout since this indicates that they may not have
-         * received our ACK for their FIN. Also extend timeout
-         * if we get more data while waiting for a FIN.
-         */
-        if (tcp_in_state(tcp, TIME_WAIT | FIN_WAIT_2)) {
-            tcp_start_fin_timeout(tcp);
         }
 
         /*
