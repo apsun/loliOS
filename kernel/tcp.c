@@ -57,6 +57,10 @@
 /* Allowed RTO range for retransmission timer */
 #define TCP_MIN_RTO (1 * TIMER_HZ)
 #define TCP_MAX_RTO (120 * TIMER_HZ)
+#define TCP_DEFAULT_RTO (3 * TIMER_HZ)
+
+/* Starting receive window size */
+#define TCP_RWND_SIZE 8192
 
 /* State of a TCP connection */
 typedef enum {
@@ -172,7 +176,7 @@ typedef struct {
 
 /* Converts between tcp_sock_t and net_sock_t */
 #define tcp_sock(sock) ((tcp_sock_t *)(sock)->private)
-#define net_sock(tcp) ((net_sock_t *)(tcp)->sock)
+#define net_sock(tcp) ((tcp)->sock)
 
 /*
  * Since sequence numbers can wrap around, use this macro to
@@ -540,7 +544,7 @@ tcp_get_retransmit_timeout(tcp_sock_t *tcp)
 {
     /* Default RTO if no data collected */
     if (tcp->estimated_rtt < 0) {
-        return 3 * TIMER_HZ;
+        return TCP_DEFAULT_RTO;
     }
 
     /* RTO = EstRTT + 4*VarRTT, clamped to [MIN_RTO, MAX_RTO] range */
@@ -1323,7 +1327,7 @@ tcp_ctor(net_sock_t *sock)
     list_init(&tcp->inbox);
     list_init(&tcp->outbox);
     timer_init(&tcp->fin_timer);
-    tcp->rwnd_size = 8192;
+    tcp->rwnd_size = TCP_RWND_SIZE;
     tcp->read_num = 0;
     tcp->ack_num = 0;
     tcp->seq_num = rand();

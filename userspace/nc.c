@@ -37,7 +37,7 @@ typedef struct {
     bool crlf : 1;
 } args_t;
 
-static bool stop = false;
+static volatile bool stop = false;
 
 static inline uint16_t
 bswap16(uint16_t x)
