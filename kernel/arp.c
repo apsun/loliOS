@@ -21,15 +21,6 @@
 #define ARP_RESOLVE_TIMEOUT (1 * TIMER_HZ)
 #define ARP_CACHE_TIMEOUT (60 * TIMER_HZ)
 
-/* ARP cache entry */
-typedef struct {
-    list_t list;
-    ip_addr_t ip_addr;
-    mac_addr_t mac_addr;
-    arp_state_t state;
-    timer_t timeout;
-} arp_entry_t;
-
 /* ARP packet header */
 typedef struct {
     uint16_t be_hw_type;
@@ -47,6 +38,16 @@ typedef struct {
     ip_addr_t dest_proto_addr;
 } __packed arp_body_t;
 
+/* ARP cache entry */
+typedef struct {
+    list_t list;
+    net_dev_t *dev;
+    ip_addr_t ip_addr;
+    mac_addr_t mac_addr;
+    arp_state_t state;
+    timer_t timeout;
+} arp_entry_t;
+
 /*
  * Structure for packets that need to be sent, and the IP address
  * they're waiting on.
@@ -58,16 +59,11 @@ typedef struct {
     ip_addr_t ip;
 } queue_pkt_t;
 
+/* ARP entry cache, in no particular order */
+static list_declare(arp_cache);
+
 /* Queue for packets waiting for an ARP reply */
 static list_declare(packet_queue);
-
-/*
- * We only have one Ethernet device, so a global ARP
- * cache is sufficient for now. If we ever decide to
- * support multiple devices, we'll need a hashing
- * mechanism to separate the entries by device.
- */
-static list_declare(arp_cache);
 
 /*
  * Flushes all packets waiting for an ARP reply from the
@@ -147,12 +143,12 @@ arp_on_resolve_timeout(timer_t *timer)
  * address. Returns NULL if the IP address is not in the cache.
  */
 static arp_entry_t *
-arp_cache_find(ip_addr_t ip)
+arp_cache_find(net_dev_t *dev, ip_addr_t ip)
 {
     list_t *pos;
     list_for_each(pos, &arp_cache) {
         arp_entry_t *entry = list_entry(pos, arp_entry_t, list);
-        if (ip_equals(ip, entry->ip_addr)) {
+        if (dev == entry->dev && ip_equals(ip, entry->ip_addr)) {
             return entry;
         }
     }
@@ -167,21 +163,22 @@ arp_cache_find(ip_addr_t ip)
  * success, < 0 on failure (cache is full).
  */
 static int
-arp_cache_insert(ip_addr_t ip, const mac_addr_t *mac)
+arp_cache_insert(net_dev_t *dev, ip_addr_t ip, const mac_addr_t *mac)
 {
     /* Find existing entry, or allocate a new one */
-    arp_entry_t *entry = arp_cache_find(ip);
+    arp_entry_t *entry = arp_cache_find(dev, ip);
     if (entry == NULL) {
         entry = malloc(sizeof(arp_entry_t));
         if (entry == NULL) {
             return -1;
         }
+        entry->dev = dev;
+        entry->ip_addr = ip;
         list_add(&entry->list, &arp_cache);
         timer_init(&entry->timeout);
     }
 
     /* Update entry fields */
-    entry->ip_addr = ip;
     if (mac != NULL) {
         entry->mac_addr = *mac;
         entry->state = ARP_REACHABLE;
@@ -201,7 +198,7 @@ arp_state_t
 arp_get_state(net_dev_t *dev, ip_addr_t ip, mac_addr_t *mac)
 {
     /* Find entry for specified IP address */
-    arp_entry_t *entry = arp_cache_find(ip);
+    arp_entry_t *entry = arp_cache_find(dev, ip);
     if (entry == NULL) {
         return ARP_INVALID;
     }
@@ -259,7 +256,7 @@ int
 arp_send_request(net_iface_t *iface, ip_addr_t ip)
 {
     /* Insert pending entry into ARP cache */
-    if (arp_cache_insert(ip, NULL) < 0) {
+    if (arp_cache_insert(iface->dev, ip, NULL) < 0) {
         return -1;
     }
 
@@ -274,7 +271,7 @@ static int
 arp_send_reply(net_iface_t *iface, ip_addr_t ip, mac_addr_t mac)
 {
     /* Insert into cache (we always send the reply, so ignore failure) */
-    arp_cache_insert(ip, &mac);
+    arp_cache_insert(iface->dev, ip, &mac);
 
     /* Send ARP reply */
     return arp_send(iface, ip, mac, ARP_OP_REPLY);
@@ -289,7 +286,7 @@ static int
 arp_handle_reply(net_dev_t *dev, skb_t *skb)
 {
     arp_body_t *body = skb_data(skb);
-    int ret = arp_cache_insert(body->src_proto_addr, &body->src_hw_addr);
+    int ret = arp_cache_insert(dev, body->src_proto_addr, &body->src_hw_addr);
     arp_queue_flush(body->src_proto_addr, &body->src_hw_addr);
     return ret;
 }
