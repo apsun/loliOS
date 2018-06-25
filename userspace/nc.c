@@ -363,21 +363,17 @@ nc_loop(ip_addr_t ip, uint16_t port, args_t args)
 
         /* Read data from stdin */
         CALL(read(0, &send_buf[send_buf_count], sizeof(send_buf) - 1 - send_buf_count));
-        if (ret == -EINTR || ret == -EAGAIN) {
+        if (ret == 0 && send_buf_count == 0) {
+            break;
+        } else if (ret == -EINTR || ret == -EAGAIN) {
             ret = 0;
         }
 
-        /* Convert LF to CRLF (no shift, since read will only return 1 line at a time) */
-        if (args.crlf) {
-            int i;
-            for (i = 0; i < ret; ++i) {
-                if (send_buf[send_buf_count + i] == '\n') {
-                    send_buf[send_buf_count + i] = '\r';
-                    send_buf[send_buf_count + i + 1] = '\n';
-                    ret++;
-                    break;
-                }
-            }
+        /* Convert LF to CRLF */
+        if (ret > 0 && args.crlf) {
+            send_buf[ret - 1] = '\r';
+            send_buf[ret] = '\n';
+            ret++;
         }
 
         send_buf_count += ret;
