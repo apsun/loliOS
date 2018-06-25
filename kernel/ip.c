@@ -100,11 +100,8 @@ ip_handle_rx(net_iface_t *iface, skb_t *skb)
     skb_trim(skb, ip_len);
     skb_pull(skb, sizeof(ip_hdr_t));
 
-    /* Drop packets with unhandled fields */
-    if (hdr->tos != 0) {
-        debugf("ToS not supported\n");
-        return -1;
-    } else if (ntohs(hdr->be_flags) & 0xffbf) {
+    /* Drop fragmented packets */
+    if (ntohs(hdr->be_flags) & 0xffbf) {
         debugf("Fragmented packets not supported\n");
         return -1;
     }

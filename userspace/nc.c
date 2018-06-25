@@ -31,6 +31,14 @@ typedef struct {
     uint16_t be_rdlength;
 } __attribute__((packed)) dns_a_hdr_t;
 
+typedef struct {
+    bool listen : 1;
+    bool udp : 1;
+    bool crlf : 1;
+} args_t;
+
+static bool stop = false;
+
 static inline uint16_t
 bswap16(uint16_t x)
 {
@@ -285,8 +293,14 @@ ip_parse(const char *str, ip_addr_t *ip)
     return true;
 }
 
+static void
+sig_interrupt_handler(void)
+{
+    stop = true;
+}
+
 static int
-nc_loop(ip_addr_t ip, uint16_t port, bool passive, bool udp)
+nc_loop(ip_addr_t ip, uint16_t port, args_t args)
 {
     int ret;
     int sockfd = -1;
@@ -307,10 +321,10 @@ nc_loop(ip_addr_t ip, uint16_t port, bool passive, bool udp)
     }                          \
 } while (0)
 
-    if (passive) {
+    if (args.listen) {
         local_addr.ip = ip;
         local_addr.port = port;
-        if (udp) {
+        if (args.udp) {
             CALL(sockfd = socket(SOCK_UDP));
             CALL(bind(sockfd, &local_addr));
             bound = true;
@@ -324,7 +338,7 @@ nc_loop(ip_addr_t ip, uint16_t port, bool passive, bool udp)
     } else {
         remote_addr.ip = ip;
         remote_addr.port = port;
-        if (udp) {
+        if (args.udp) {
             CALL(sockfd = socket(SOCK_UDP));
             bound = false;
         } else {
@@ -335,7 +349,8 @@ nc_loop(ip_addr_t ip, uint16_t port, bool passive, bool udp)
         connected = true;
     }
 
-    while (1) {
+    stop = false;
+    while (!stop) {
         /* If passive TCP socket, wait for a connection */
         if (sockfd < 0) {
             CALL(sockfd = accept(listenfd, &remote_addr));
@@ -347,10 +362,24 @@ nc_loop(ip_addr_t ip, uint16_t port, bool passive, bool udp)
         }
 
         /* Read data from stdin */
-        CALL(read(0, &send_buf[send_buf_count], sizeof(send_buf) - send_buf_count));
+        CALL(read(0, &send_buf[send_buf_count], sizeof(send_buf) - 1 - send_buf_count));
         if (ret == -EINTR || ret == -EAGAIN) {
             ret = 0;
         }
+
+        /* Convert LF to CRLF (no shift, since read will only return 1 line at a time) */
+        if (args.crlf) {
+            int i;
+            for (i = 0; i < ret; ++i) {
+                if (send_buf[send_buf_count + i] == '\n') {
+                    send_buf[send_buf_count + i] = '\r';
+                    send_buf[send_buf_count + i + 1] = '\n';
+                    ret++;
+                    break;
+                }
+            }
+        }
+
         send_buf_count += ret;
 
         /* Scan for a newline in the buffer */
@@ -400,27 +429,39 @@ cleanup:
 int
 main(void)
 {
+    /* Set signal handler */
+    if (sigaction(SIG_INTERRUPT, (void *)sig_interrupt_handler) < 0) {
+        puts("Could not set interrupt handler");
+        return 1;
+    }
+
+    /* Parse arguments */
     char args_buf[128];
     if (getargs(args_buf, sizeof(args_buf)) < 0) {
         puts("Failed to read args");
         return 1;
     }
-
-    bool listen = false;
-    bool udp = false;
-    char *args = args_buf;
+    char *argp = args_buf;
+    args_t args = {
+        .udp = false,
+        .listen = false,
+        .crlf = false,
+    };
     while (1) {
-        if (*args == ' ') {
-            args++;
-        } else if (*args == '-') {
+        if (*argp == ' ') {
+            argp++;
+        } else if (*argp == '-') {
             char c;
-            while ((c = *++args) && c != ' ') {
+            while ((c = *++argp) && c != ' ') {
                 switch (c) {
                 case 'l':
-                    listen = true;
+                    args.listen = true;
                     break;
                 case 'u':
-                    udp = true;
+                    args.udp = true;
+                    break;
+                case 'c':
+                    args.crlf = true;
                     break;
                 default:
                     printf("Unknown option: %c\n", c);
@@ -432,17 +473,19 @@ main(void)
         }
     }
 
-    char *space = strchr(args, ' ');
+    /* Find space between host and port */
+    char *space = strchr(argp, ' ');
     if (space == NULL) {
         puts("No port specified");
         return 1;
     }
     *space = '\0';
 
+    /* Parse hostname/IP address */
     ip_addr_t ip;
-    if (!ip_parse(args, &ip)) {
-        if (!listen) {
-            if (!dns_resolve(args, &ip)) {
+    if (!ip_parse(argp, &ip)) {
+        if (!args.listen) {
+            if (!dns_resolve(argp, &ip)) {
                 puts("Could not resolve address");
                 return 1;
             }
@@ -452,16 +495,18 @@ main(void)
         }
     }
 
+    /* Parse port number */
     int port = atoi(space + 1);
     if (port <= 0 || port >= 65536) {
         puts("Invalid port");
         return 1;
     }
 
+    /* Put stdin into nonblocking mode */
     if (ioctl(0, STDIN_NONBLOCK, 1) < 0) {
         puts("Failed to make stdin non-blocking");
         return 1;
     }
 
-    return nc_loop(ip, port, listen, udp);
+    return nc_loop(ip, port, args);
 }
