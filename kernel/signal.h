@@ -40,12 +40,12 @@ typedef struct {
     /*
      * Whether this signal is currently masked.
      */
-    bool masked;
+    bool masked : 1;
 
     /*
      * Whether this signal is scheduled for delivery.
      */
-    bool pending;
+    bool pending : 1;
 } signal_info_t;
 
 /* Signal syscall handlers */

@@ -679,11 +679,11 @@ typedef struct {
     int true_len;
     bool (*write)(const char *s, int len);
     int pad_width;
-    bool left_align;
-    bool positive_sign;
-    bool space_sign;
-    bool alternate_format;
-    bool pad_zeros;
+    bool left_align       : 1;
+    bool positive_sign    : 1;
+    bool space_sign       : 1;
+    bool alternate_format : 1;
+    bool pad_zeros        : 1;
 } printf_arg_t;
 
 /*

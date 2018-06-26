@@ -58,7 +58,7 @@ typedef struct {
      * True iff the process currently executing in this terminal
      * has called vidmap.
      */
-    bool vidmap;
+    bool vidmap : 1;
 } terminal_state_t;
 
 /* Terminal syscall functions */
