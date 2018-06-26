@@ -3,6 +3,7 @@
 #include "debug.h"
 #include "myalloc.h"
 #include "file.h"
+#include "paging.h"
 #include "net.h"
 #include "tcp.h"
 #include "udp.h"
@@ -202,21 +203,21 @@ socket_obj_bind_file(net_sock_t *sock)
     return file->fd;
 }
 
-/* Read syscall for socket files. Wrapper around recvfrom(). */
+/* read() syscall for socket files. Wrapper around recvfrom(). */
 static int
 socket_read(file_obj_t *file, void *buf, int nbytes)
 {
     return socket_recvfrom(file->fd, buf, nbytes, NULL);
 }
 
-/* Write syscall for socket files. Wrapper around sendto(). */
+/* write() syscall for socket files. Wrapper around sendto(). */
 static int
 socket_write(file_obj_t *file, const void *buf, int nbytes)
 {
     return socket_sendto(file->fd, buf, nbytes, NULL);
 }
 
-/* Close syscall for socket files. */
+/* close() syscall for socket files. */
 static int
 socket_close(file_obj_t *file)
 {
@@ -230,7 +231,7 @@ socket_close(file_obj_t *file)
     return 0;
 }
 
-/* Ioctl syscall for socket files. */
+/* ioctl() syscall for socket files. */
 static int
 socket_ioctl(file_obj_t *file, int req, int arg)
 {
@@ -242,7 +243,7 @@ socket_ioctl(file_obj_t *file, int req, int arg)
     return sock->ops_table->ioctl(sock, req, arg);
 }
 
-/* Socket syscall handler */
+/* socket() syscall handler */
 __cdecl int
 socket_socket(int type)
 {
@@ -283,46 +284,74 @@ socket_socket(int type)
     return sock->ops_table->fn(sock, __VA_ARGS__);     \
 } while (0)
 
-/* Bind syscall handler */
+/* bind() syscall handler */
 __cdecl int
 socket_bind(int fd, const sock_addr_t *addr)
 {
     FORWARD_SOCKETCALL(bind, addr);
 }
 
-/* Connect syscall handler */
+/* connect() syscall handler */
 __cdecl int
 socket_connect(int fd, const sock_addr_t *addr)
 {
     FORWARD_SOCKETCALL(connect, addr);
 }
 
-/* Listen syscall handler */
+/* listen() syscall handler */
 __cdecl int
 socket_listen(int fd, int backlog)
 {
     FORWARD_SOCKETCALL(listen, backlog);
 }
 
-/* Accept syscall handler */
+/* accept() syscall handler */
 __cdecl int
 socket_accept(int fd, sock_addr_t *addr)
 {
     FORWARD_SOCKETCALL(accept, addr);
 }
 
-/* Recvfrom syscall handler */
+/* recvfrom() syscall handler */
 __cdecl int
 socket_recvfrom(int fd, void *buf, int nbytes, sock_addr_t *addr)
 {
     FORWARD_SOCKETCALL(recvfrom, buf, nbytes, addr);
 }
 
-/* Sendto syscall handler */
+/* sendto() syscall handler */
 __cdecl int
 socket_sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr)
 {
     FORWARD_SOCKETCALL(sendto, buf, nbytes, addr);
+}
+
+/* getsockname() syscall handler */
+__cdecl int
+socket_getsockname(int fd, sock_addr_t *addr)
+{
+    net_sock_t *sock = get_executing_sock(fd);
+    if (sock == NULL || !sock->bound) {
+        return -1;
+    }
+    if (!copy_to_user(addr, &sock->local, sizeof(sock_addr_t))) {
+        return -1;
+    }
+    return 0;
+}
+
+/* getpeername() syscall handler */
+__cdecl int
+socket_getpeername(int fd, sock_addr_t *addr)
+{
+    net_sock_t *sock = get_executing_sock(fd);
+    if (sock == NULL || !sock->connected) {
+        return -1;
+    }
+    if (!copy_to_user(addr, &sock->remote, sizeof(sock_addr_t))) {
+        return -1;
+    }
+    return 0;
 }
 
 /*

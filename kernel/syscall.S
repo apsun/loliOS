@@ -34,6 +34,8 @@ syscall_jump_table:
     .long socket_accept
     .long socket_recvfrom
     .long socket_sendto
+    .long socket_getsockname
+    .long socket_getpeername
 
 .text
 

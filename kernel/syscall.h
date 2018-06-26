@@ -4,8 +4,6 @@
 #include "types.h"
 #include "idt.h"
 
-#define NUM_SYSCALL     22
-
 #define SYS_HALT        1
 #define SYS_EXECUTE     2
 #define SYS_READ        3
@@ -28,6 +26,9 @@
 #define SYS_ACCEPT      20
 #define SYS_RECVFROM    21
 #define SYS_SENDTO      22
+#define SYS_GETSOCKNAME 23
+#define SYS_GETPEERNAME 24
+#define NUM_SYSCALL     24
 
 #define EINTR  2
 #define EAGAIN 3

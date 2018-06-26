@@ -23,6 +23,8 @@
 #define SYS_ACCEPT      20
 #define SYS_RECVFROM    21
 #define SYS_SENDTO      22
+#define SYS_GETSOCKNAME 23
+#define SYS_GETPEERNAME 24
 
 /* syscall.h */
 #define EINTR  2
@@ -94,6 +96,8 @@ __cdecl int listen(int fd, int backlog);
 __cdecl int accept(int fd, sock_addr_t *addr);
 __cdecl int recvfrom(int fd, void *buf, int nbytes, sock_addr_t *addr);
 __cdecl int sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr);
+__cdecl int getsockname(int fd, sock_addr_t *addr);
+__cdecl int getpeername(int fd, sock_addr_t *addr);
 
 #endif /* ASM */
 

@@ -74,6 +74,8 @@ __cdecl int socket_listen(int fd, int backlog);
 __cdecl int socket_accept(int fd, sock_addr_t *addr);
 __cdecl int socket_recvfrom(int fd, void *buf, int nbytes, sock_addr_t *addr);
 __cdecl int socket_sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr);
+__cdecl int socket_getsockname(int fd, sock_addr_t *addr);
+__cdecl int socket_getpeername(int fd, sock_addr_t *addr);
 
 /* Returns the socket corresponding to the specified fd */
 net_sock_t *get_executing_sock(int fd);

@@ -13,20 +13,30 @@ fill_buffer(char *buf, int len)
     }
 }
 
+int
+bind2(int fd, sock_addr_t *addr)
+{
+    int ret = bind(fd, addr);
+    if (ret == 0) {
+        ret = getsockname(fd, addr);
+    }
+    return ret;
+}
+
 void
 test_udp_loopback(void)
 {
     int ret;
     int a = socket(SOCK_UDP);
     int b = socket(SOCK_UDP);
-    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 5555};
-    sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 6666};
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
     char buf[64], tmp[1500];
     fill_buffer(buf, sizeof(buf));
     
-    ret = bind(a, &a_addr);
+    ret = bind2(a, &a_addr);
     assert(ret == 0);
-    ret = bind(b, &b_addr);
+    ret = bind2(b, &b_addr);
     assert(ret == 0);
 
     /* a -> b */
@@ -53,14 +63,14 @@ test_udp_huge(void)
     int ret;
     int a = socket(SOCK_UDP);
     int b = socket(SOCK_UDP);
-    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 5555};
-    sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 6666};
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
     char buf[2000], tmp[2000];
     fill_buffer(buf, sizeof(buf));
     
-    ret = bind(a, &a_addr);
+    ret = bind2(a, &a_addr);
     assert(ret == 0);
-    ret = bind(b, &b_addr);
+    ret = bind2(b, &b_addr);
     assert(ret == 0);
 
     /* Should fail to send */
@@ -81,14 +91,14 @@ test_udp_queue(void)
     int ret;
     int a = socket(SOCK_UDP);
     int b = socket(SOCK_UDP);
-    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 5555};
-    sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 6666};
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
     char buf[64], tmp[1500];
     fill_buffer(buf, sizeof(buf));
 
-    ret = bind(a, &a_addr);
+    ret = bind2(a, &a_addr);
     assert(ret == 0);
-    ret = bind(b, &b_addr);
+    ret = bind2(b, &b_addr);
     assert(ret == 0);
 
     /* Send a few packets at a time */
@@ -118,17 +128,17 @@ test_udp_connect(void)
     int a = socket(SOCK_UDP);
     int b = socket(SOCK_UDP);
     int c = socket(SOCK_UDP);
-    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 5555};
-    sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 6666};
-    sock_addr_t c_addr = {.ip = IP(127, 0, 0, 1), .port = 7777};
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    sock_addr_t c_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
     char buf[64], tmp[1500];
     fill_buffer(buf, sizeof(buf));
 
-    ret = bind(a, &a_addr);
+    ret = bind2(a, &a_addr);
     assert(ret == 0);
-    ret = bind(b, &b_addr);
+    ret = bind2(b, &b_addr);
     assert(ret == 0);
-    ret = bind(c, &c_addr);
+    ret = bind2(c, &c_addr);
     assert(ret == 0);
 
     ret = connect(a, &b_addr);
@@ -169,27 +179,27 @@ test_bind_conflict(void)
     int c = socket(SOCK_UDP);
 
     /* Should work */
-    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 5555};
-    ret = bind(a, &a_addr);
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    ret = bind2(a, &a_addr);
     assert(ret == 0);
 
     /* Same interface and port as a -> FAIL */
-    sock_addr_t b_addr_1 = {.ip = IP(127, 0, 0, 1), .port = 5555};
+    sock_addr_t b_addr_1 = {.ip = IP(127, 0, 0, 1), .port = a_addr.port};
     ret = bind(b, &b_addr_1);
     assert(ret < 0);
 
     /* All interfaces, same port as a -> FAIL */
-    sock_addr_t b_addr_2 = {.ip = IP(0, 0, 0, 0), .port = 5555};
+    sock_addr_t b_addr_2 = {.ip = IP(0, 0, 0, 0), .port = a_addr.port};
     ret = bind(b, &b_addr_2);
     assert(ret < 0);
 
     /* All interfaces, different port -> OK */
-    sock_addr_t b_addr_3 = {.ip = IP(0, 0, 0, 0), .port = 6666};
-    ret = bind(b, &b_addr_3);
+    sock_addr_t b_addr_3 = {.ip = IP(0, 0, 0, 0), .port = 0};
+    ret = bind2(b, &b_addr_3);
     assert(ret == 0);
 
     /* One interface, same port as b -> FAIL */
-    sock_addr_t c_addr = {.ip = IP(127, 0, 0, 1), .port = 6666};
+    sock_addr_t c_addr = {.ip = IP(127, 0, 0, 1), .port = b_addr_3.port};
     ret = bind(c, &c_addr);
     assert(ret < 0);
 
@@ -213,15 +223,15 @@ test_tcp_basic(void)
     fill_buffer(buf, sizeof(buf));
 
     /* Create a listening socket */
-    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 5555};
-    ret = bind(a, &a_addr);
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    ret = bind2(a, &a_addr);
     assert(ret == 0);
     ret = listen(a, 64);
     assert(ret == 0);
 
     /* Connect to listening socket */
-    sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 5556};
-    ret = bind(b, &b_addr);
+    sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    ret = bind2(b, &b_addr);
     assert(ret == 0);
     ret = connect(b, &a_addr);
     assert(ret == 0);
@@ -252,16 +262,17 @@ test_tcp_invalid(void)
     int ret;
     int a = socket(SOCK_TCP);
 
-    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 5555};
-    ret = bind(a, &a_addr);
+    /* Create listening socket */
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    ret = bind2(a, &a_addr);
     assert(ret == 0);
     ret = listen(a, 64);
     assert(ret == 0);
 
     /* Check that accept() before listen(), connect() after listen() fail */
     int b = socket(SOCK_TCP);
-    sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 5556};
-    ret = bind(b, &b_addr);
+    sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    ret = bind2(b, &b_addr);
     assert(ret == 0);
     ret = accept(b, NULL);
     assert(ret == -1);
@@ -298,8 +309,9 @@ test_tcp_close_with_backlog(void)
     int ret;
     int a = socket(SOCK_TCP);
 
-    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 5555};
-    ret = bind(a, &a_addr);
+    /* Create listening socket */
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    ret = bind2(a, &a_addr);
     assert(ret == 0);
     ret = listen(a, 64);
     assert(ret == 0);
@@ -331,19 +343,22 @@ test_tcp_multi_accept(void)
     int b = socket(SOCK_TCP);
     int c = socket(SOCK_TCP);
 
-    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 5555};
-    ret = bind(a, &a_addr);
+    /* Create listening socket */
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    ret = bind2(a, &a_addr);
     assert(ret == 0);
     ret = listen(a, 128);
     assert(ret == 0);
     ret = accept(a, NULL);
     assert(ret == -EAGAIN);
 
+    /* Connect 2 sockets */
     ret = connect(b, &a_addr);
     assert(ret == 0);
     ret = connect(c, &a_addr);
     assert(ret == 0);
 
+    /* Check that both can be accepted */
     int b_conn = accept(a, NULL);
     assert(b_conn >= 0);
     int c_conn = accept(a, NULL);
@@ -363,22 +378,26 @@ test_tcp_segmentation(void)
     int a = socket(SOCK_TCP);
     int b = socket(SOCK_TCP);
 
-    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 5555};
-    ret = bind(a, &a_addr);
+    /* Create listening socket */
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    ret = bind2(a, &a_addr);
     assert(ret == 0);
     ret = listen(a, 128);
     assert(ret == 0);
 
+    /* Connect to socket */
     ret = connect(b, &a_addr);
     assert(ret == 0);
     int aconn = accept(a, NULL);
     assert(aconn >= 0);
 
+    /* Send huge packet */
     char buf[5000];
     fill_buffer(buf, sizeof(buf));
     ret = write(aconn, buf, sizeof(buf));
     assert(ret == sizeof(buf));
 
+    /* Read huge packet */
     char tmp[5000];
     ret = read(b, tmp, sizeof(tmp));
     assert(ret == sizeof(buf));
