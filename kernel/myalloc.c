@@ -27,8 +27,8 @@
 #ifndef MYA_POISON
     #define MYA_POISON 1
 #endif
-#define MYA_POISON_UNINIT ((size_t)0xba110cedba110ced)
-#define MYA_POISON_FREED ((size_t)0xdeadbeefdeadbeef)
+#define MYA_POISON_UNINIT 0xba110ced
+#define MYA_POISON_FREED 0xdeadbeef
 
 /*
  * Whether we want to replace the C standard library functions.
@@ -487,12 +487,12 @@ mya_split_block(mya_header_t *header, size_t aligned_size)
  * Fills a region of memory with the specified pattern.
  */
 static void
-mya_poison(void *ptr, size_t size, size_t pattern)
+mya_poison(void *ptr, size_t size, int pattern)
 {
 #if MYA_POISON
-    size_t *wptr = ptr;
+    int *wptr = ptr;
     size_t i;
-    for (i = 0; i < size / sizeof(size_t); ++i) {
+    for (i = 0; i < size / sizeof(int); ++i) {
         wptr[i] = pattern;
     }
 #endif
