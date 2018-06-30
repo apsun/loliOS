@@ -11,8 +11,8 @@
 #define SYS_VIDMAP      8
 #define SYS_SIGACTION   9
 #define SYS_SIGRETURN   10
-#define SYS_SIGRAISE    11
-#define SYS_SIGMASK     12
+#define SYS_SIGMASK     11
+#define SYS_KILL        12
 #define SYS_IOCTL       13
 #define SYS_TIME        14
 #define SYS_SBRK        15
@@ -26,6 +26,9 @@
 #define SYS_GETSOCKNAME 23
 #define SYS_GETPEERNAME 24
 #define SYS_DUP         25
+#define SYS_FORK        26
+#define SYS_EXEC        27
+#define SYS_WAIT        28
 
 /* syscall.h */
 #define EINTR  2
@@ -85,8 +88,8 @@ __cdecl int getargs(char *buf, int nbytes);
 __cdecl int vidmap(uint8_t **screen_start);
 __cdecl int sigaction(int signum, void (*handler)(int signum));
 __cdecl int sigreturn(int signum, void *user_regs);
-__cdecl int sigraise(int signum);
 __cdecl int sigmask(int signum, int action);
+__cdecl int kill(int pid, int signum);
 __cdecl int ioctl(int fd, int req, int arg);
 __cdecl int time(void);
 __cdecl int sbrk(int delta);
@@ -99,7 +102,10 @@ __cdecl int recvfrom(int fd, void *buf, int nbytes, sock_addr_t *addr);
 __cdecl int sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr);
 __cdecl int getsockname(int fd, sock_addr_t *addr);
 __cdecl int getpeername(int fd, sock_addr_t *addr);
-__cdecl int dup(int destfd, int srcfd);
+__cdecl int dup(int srcfd, int destfd);
+__cdecl int fork(void);
+__cdecl int exec(const char *command);
+__cdecl int wait(int pid);
 
 #endif /* ASM */
 

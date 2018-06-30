@@ -84,6 +84,7 @@ __cdecl int file_read(int fd, void *buf, int nbytes);
 __cdecl int file_write(int fd, const void *buf, int nbytes);
 __cdecl int file_close(int fd);
 __cdecl int file_ioctl(int fd, int req, int arg);
+__cdecl int file_dup(int srcfd, int destfd);
 
 #endif /* ASM */
 

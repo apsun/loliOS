@@ -77,9 +77,9 @@ handle_user_exception(int int_num)
     debugf("Userspace exception: %s\n", exception_names[int_num]);
     pcb_t *pcb = get_executing_pcb();
     if (int_num == EXC_DE) {
-        signal_raise(pcb->pid, SIG_DIV_ZERO);
+        signal_kill(pcb->pid, SIG_DIV_ZERO);
     } else {
-        signal_raise(pcb->pid, SIG_SEGFAULT);
+        signal_kill(pcb->pid, SIG_SEGFAULT);
     }
 }
 

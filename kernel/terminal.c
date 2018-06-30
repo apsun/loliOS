@@ -607,7 +607,7 @@ terminal_interrupt(void)
         return;
     }
 
-    signal_raise(pcb->pid, SIG_INTERRUPT);
+    signal_kill(pcb->pid, SIG_INTERRUPT);
 }
 
 /* Handles a keyboard control sequence */

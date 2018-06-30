@@ -189,8 +189,8 @@ file_desc_unbind(file_obj_t **files, int fd)
 /*
  * Replaces the file object that a file descriptor points to
  * with a new file object. This will decrement the refcount
- * of the original file object and increment the refcount of
- * the new file object.
+ * of the original file object (if it was open) and increment
+ * the refcount of the new file object.
  */
 int
 file_desc_rebind(file_obj_t **files, int fd, file_obj_t *new_file)
@@ -258,7 +258,11 @@ file_deinit(file_obj_t **files)
     }
 }
 
-/* open() syscall handler */
+/*
+ * open() syscall handler. Creates a new file object that
+ * can be used to access the specified file. Returns the
+ * file descriptor on success, or -1 on error.
+ */
 __cdecl int
 file_open(const char *filename)
 {
@@ -302,7 +306,11 @@ file_open(const char *filename)
     return fd;
 }
 
-/* read() syscall handler */
+/*
+ * read() syscall handler. Reads the specified number of bytes
+ * from the file into the specified userspace buffer. The
+ * implementation is determined by the file type.
+ */
 __cdecl int
 file_read(int fd, void *buf, int nbytes)
 {
@@ -313,7 +321,11 @@ file_read(int fd, void *buf, int nbytes)
     return file->ops_table->read(file, buf, nbytes);
 }
 
-/* write() syscall handler */
+/*
+ * write() syscall handler. Writes the specified number of bytes
+ * from the specified userspace buffer into the file. The
+ * implementation is determined by the file type.
+ */
 __cdecl int
 file_write(int fd, const void *buf, int nbytes)
 {
@@ -324,14 +336,22 @@ file_write(int fd, const void *buf, int nbytes)
     return file->ops_table->write(file, buf, nbytes);
 }
 
-/* close() syscall handler */
+/*
+ * close() syscall handler. Releases the specified file descriptor,
+ * and if it was the last descriptor referring to a file object,
+ * that file object is also released. Always returns 0 unless the
+ * file descriptor is invalid.
+ */
 __cdecl int
 file_close(int fd)
 {
     return file_desc_unbind(get_executing_files(), fd);
 }
 
-/* ioctl() syscall handler */
+/*
+ * ioctl() syscall handler. Performs an arbitrary action determined
+ * by the file type.
+ */
 __cdecl int
 file_ioctl(int fd, int req, int arg)
 {
@@ -342,9 +362,16 @@ file_ioctl(int fd, int req, int arg)
     return file->ops_table->ioctl(file, req, arg);
 }
 
-/* dup() syscall handler */
+/*
+ * dup() syscall handler. If destfd == -1, this performs the
+ * Linux equivalent of dup(srcfd). Otherwise, this performs the
+ * Linux equivalent of dup2(srcfd, destfd). Upon return, destfd
+ * points to the same file object as srcfd, and the original
+ * destfd is closed (if it was originally open). On success,
+ * destfd is returned.
+ */
 __cdecl int
-file_dup(int destfd, int srcfd)
+file_dup(int srcfd, int destfd)
 {
     file_obj_t *new_file = get_executing_file(srcfd);
     if (new_file == NULL) {
@@ -357,9 +384,10 @@ file_dup(int destfd, int srcfd)
      * from how Linux does it - Linux uses two separate syscalls,
      * dup() and dup2().
      */
+    file_obj_t **files = get_executing_files();
     if (destfd == -1) {
-        return file_desc_bind(get_executing_files(), -1, new_file);
+        return file_desc_bind(files, -1, new_file);
     } else {
-        return file_desc_rebind(get_executing_files(), destfd, new_file);
+        return file_desc_rebind(files, destfd, new_file);
     }
 }

@@ -211,7 +211,13 @@ socket_obj_bind_file(file_obj_t **files, net_sock_t *sock)
     return fd;
 }
 
-/* close() syscall for socket files. */
+/*
+ * close() syscall for socket files. For UDP sockets, will
+ * immediately terminate the socket. For TCP sockets that
+ * are connected, the file will be immediately closed but
+ * the socket may remain for a short time. As a result, using
+ * the same local address may result in an address conflict.
+ */
 static int
 socket_close(file_obj_t *file)
 {
@@ -225,7 +231,10 @@ socket_close(file_obj_t *file)
     return 0;
 }
 
-/* ioctl() syscall for socket files. */
+/*
+ * ioctl() syscall for socket files. Dispatches it to the
+ * per-socket-type handler.
+ */
 static int
 socket_ioctl(file_obj_t *file, int req, int arg)
 {
@@ -237,7 +246,11 @@ socket_ioctl(file_obj_t *file, int req, int arg)
     return sock->ops_table->ioctl(sock, req, arg);
 }
 
-/* socket() syscall handler */
+/*
+ * socket() syscall handler. Creates a new socket of the
+ * specified type (either SOCK_TCP or SOCK_UDP) and returns
+ * a file descriptor that can be used to access the socket.
+ */
 __cdecl int
 socket_socket(int type)
 {
@@ -277,63 +290,96 @@ socket_socket(int type)
     return sock->ops_table->fn(sock, __VA_ARGS__);     \
 } while (0)
 
-/* bind() syscall handler */
+/*
+ * bind() syscall handler. Sets the local address of
+ * the given socket.
+ */
 __cdecl int
 socket_bind(int fd, const sock_addr_t *addr)
 {
     FORWARD_SOCKETCALL(get_executing_sock(fd), bind, addr);
 }
 
-/* connect() syscall handler */
+/*
+ * connect() syscall handler. Sets the remote address of
+ * the given socket. For a TCP socket, this will also
+ * start the three-way handshake. For a UDP socket, this
+ * will set the default address that packets are sent to
+ * when not specified in sendto(), and also filter out
+ * packets not from that address in recvfrom().
+ */
 __cdecl int
 socket_connect(int fd, const sock_addr_t *addr)
 {
     FORWARD_SOCKETCALL(get_executing_sock(fd), connect, addr);
 }
 
-/* listen() syscall handler */
+/*
+ * listen() syscall handler. Puts the socket into listening
+ * mode. Only valid on unconnected TCP sockets.
+ */
 __cdecl int
 socket_listen(int fd, int backlog)
 {
     FORWARD_SOCKETCALL(get_executing_sock(fd), listen, backlog);
 }
 
-/* accept() syscall handler */
+/*
+ * accept() syscall handler. Only valid on listening TCP sockets.
+ * Pulls the first connection from the backlog and creates a
+ * new connected socket from it.
+ */
 __cdecl int
 socket_accept(int fd, sock_addr_t *addr)
 {
     FORWARD_SOCKETCALL(get_executing_sock(fd), accept, addr);
 }
 
-/* recvfrom() syscall handler */
+/*
+ * recvfrom() syscall handler. Similar to read(), but only works
+ * on sockets. Only useful for UDP sockets - will copy the source
+ * packet address into addr if addr is not NULL.
+ */
 __cdecl int
 socket_recvfrom(int fd, void *buf, int nbytes, sock_addr_t *addr)
 {
     FORWARD_SOCKETCALL(get_executing_sock(fd), recvfrom, buf, nbytes, addr);
 }
 
-/* sendto() syscall handler */
+/*
+ * sendto() syscall handler. Similar to write(), but only works
+ * on sockets. Only useful for UDP sockets - will use the specified
+ * address as the packet destination. If addr is NULL, the socket
+ * must have been connected.
+ */
 __cdecl int
 socket_sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr)
 {
     FORWARD_SOCKETCALL(get_executing_sock(fd), sendto, buf, nbytes, addr);
 }
 
-/* read() syscall for socket files. Wrapper around recvfrom(). */
+/*
+ * read() syscall for socket files. Wrapper around recvfrom().
+ */
 static int
 socket_read(file_obj_t *file, void *buf, int nbytes)
 {
     FORWARD_SOCKETCALL(get_sock(file), recvfrom, buf, nbytes, NULL);
 }
 
-/* write() syscall for socket files. Wrapper around sendto(). */
+/*
+ * write() syscall for socket files. Wrapper around sendto().
+ */
 static int
 socket_write(file_obj_t *file, const void *buf, int nbytes)
 {
     FORWARD_SOCKETCALL(get_sock(file), sendto, buf, nbytes, NULL);
 }
 
-/* getsockname() syscall handler */
+/*
+ * getsockname() syscall handler. Copies the local address of
+ * the socket into addr.
+ */
 __cdecl int
 socket_getsockname(int fd, sock_addr_t *addr)
 {
@@ -347,7 +393,12 @@ socket_getsockname(int fd, sock_addr_t *addr)
     return 0;
 }
 
-/* getpeername() syscall handler */
+/*
+ * getpeername() syscall handler. Copies the remote address of
+ * the socket into addr. Note that for TCP sockets, a successful
+ * return value from this function does not indicate that the
+ * remote peer actually exists - only that connect() was called.
+ */
 __cdecl int
 socket_getpeername(int fd, sock_addr_t *addr)
 {

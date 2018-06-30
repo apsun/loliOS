@@ -57,8 +57,8 @@ __cdecl int signal_sigreturn(
     int unused2,
     int unused3,
     int_regs_t *kernel_regs);
-__cdecl int signal_sigraise(int signum);
 __cdecl int signal_sigmask(int signum, int action);
+__cdecl int signal_kill(int pid, int signum);
 
 /* Initializes the signal info array */
 void signal_init(signal_info_t *signals);

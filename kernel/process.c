@@ -344,7 +344,7 @@ static void
 process_alarm_callback(timer_t *timer)
 {
     pcb_t *pcb = timer_entry(timer, pcb_t, alarm_timer);
-    signal_raise(pcb->pid, SIG_ALARM);
+    signal_kill(pcb->pid, SIG_ALARM);
     timer_setup(timer, TIMER_HZ * SIG_ALARM_PERIOD, process_alarm_callback);
 }
 
@@ -698,7 +698,10 @@ process_halt(int status)
     return process_halt_impl(status & 0xff);
 }
 
-/* getargs() syscall handler */
+/*
+ * getargs() syscall handler. Copies the command-line arguments
+ * that were used to execute the current process into buf.
+ */
 __cdecl int
 process_getargs(char *buf, int nbytes)
 {
@@ -735,7 +738,10 @@ process_getargs(char *buf, int nbytes)
     return 0;
 }
 
-/* vidmap() syscall handler */
+/*
+ * vidmap() syscall handler. Enables the vidmap page and
+ * copies its address to screen_start.
+ */
 __cdecl int
 process_vidmap(uint8_t **screen_start)
 {
@@ -756,7 +762,10 @@ process_vidmap(uint8_t **screen_start)
     return 0;
 }
 
-/* sbrk() syscall handler */
+/*
+ * sbrk() syscall handler. Expands or shrinks the current
+ * process's heap by the specified number of bytes.
+ */
 __cdecl int
 process_sbrk(int delta)
 {
@@ -764,18 +773,21 @@ process_sbrk(int delta)
     return paging_heap_sbrk(&pcb->heap, delta);
 }
 
+/* fork() syscall handler */
 __cdecl int
 process_fork(void)
 {
     return -1;
 }
 
+/* exec() syscall handler */
 __cdecl int
 process_exec(const char *command)
 {
     return -1;
 }
 
+/* wait() syscall handler */
 __cdecl int
 process_wait(int pid)
 {

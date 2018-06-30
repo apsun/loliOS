@@ -22,8 +22,8 @@ syscall_jump_table:
     .long process_vidmap
     .long signal_sigaction
     .long signal_sigreturn
-    .long signal_sigraise
     .long signal_sigmask
+    .long signal_kill
     .long file_ioctl
     .long rtc_time
     .long process_sbrk
@@ -37,6 +37,9 @@ syscall_jump_table:
     .long socket_getsockname
     .long socket_getpeername
     .long file_dup
+    .long process_fork
+    .long process_exec
+    .long process_wait
 
 .text
 
