@@ -44,6 +44,7 @@ MAKE_SYS(recvfrom, SYS_RECVFROM)
 MAKE_SYS(sendto, SYS_SENDTO)
 MAKE_SYS(getsockname, SYS_GETSOCKNAME)
 MAKE_SYS(getpeername, SYS_GETPEERNAME)
+MAKE_SYS(dup, SYS_DUP)
 
 .globl _start
 _start:

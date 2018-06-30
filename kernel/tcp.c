@@ -1498,7 +1498,7 @@ tcp_accept(net_sock_t *sock, sock_addr_t *addr)
     }
 
     /* Bind the socket to a file */
-    int fd = socket_obj_bind_file(connsock);
+    int fd = socket_obj_bind_file(get_executing_files(), connsock);
     if (fd < 0) {
         return -1;
     }

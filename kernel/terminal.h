@@ -61,23 +61,6 @@ typedef struct {
     bool vidmap : 1;
 } terminal_state_t;
 
-/* Terminal syscall functions */
-int terminal_kbd_open(const char *filename, file_obj_t *file);
-int terminal_stdin_read(file_obj_t *file, void *buf, int nbytes);
-int terminal_stdin_write(file_obj_t *file, const void *buf, int nbytes);
-int terminal_stdout_read(file_obj_t *file, void *buf, int nbytes);
-int terminal_stdout_write(file_obj_t *file, const void *buf, int nbytes);
-int terminal_kbd_close(file_obj_t *file);
-int terminal_stdin_ioctl(file_obj_t *file, int req, int arg);
-int terminal_stdout_ioctl(file_obj_t *file, int req, int arg);
-
-/* Mouse syscall handlers */
-int terminal_mouse_open(const char *filename, file_obj_t *file);
-int terminal_mouse_read(file_obj_t *file, void *buf, int nbytes);
-int terminal_mouse_write(file_obj_t *file, const void *buf, int nbytes);
-int terminal_mouse_close(file_obj_t *file);
-int terminal_mouse_ioctl(file_obj_t *file, int req, int arg);
-
 /* Sets the currently displayed terminal */
 void set_display_terminal(int index);
 
@@ -101,6 +84,9 @@ void terminal_handle_mouse_input(mouse_input_t input);
 
 /* Updates the vidmap status for the specified terminal */
 void terminal_update_vidmap(int term_index, bool present);
+
+/* Opens the stdin and stdout streams for a process */
+int terminal_open_streams(file_obj_t **files);
 
 /* Initializes the terminal */
 void terminal_init(void);

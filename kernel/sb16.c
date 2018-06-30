@@ -1,6 +1,7 @@
 #include "sb16.h"
 #include "lib.h"
 #include "debug.h"
+#include "file.h"
 #include "paging.h"
 #include "irq.h"
 #include "dma.h"
@@ -44,9 +45,6 @@ static int bits_per_sample = 8;
 
 /* Whether there is currently audio being played */
 static bool is_playing = false;
-
-/* Whether the SB16 device is installed */
-static bool device_exists = false;
 
 /* Writes a single byte to the SB16 DSP */
 static void
@@ -142,13 +140,8 @@ sb16_swap_buffers(void)
 
 /* Acquires exclusive access to the Sound Blaster 16 device */
 int
-sb16_open(const char *filename, file_obj_t *file)
+sb16_open(file_obj_t *file)
 {
-    if (!device_exists) {
-        debugf("Sound Blaster 16 device not installed\n");
-        return -1;
-    }
-
     /* Only allow one open sound file at a time, since no mixer support */
     if (open_device != NULL) {
         debugf("Device busy, cannot open\n");
@@ -307,14 +300,23 @@ sb16_handle_irq(void)
     }
 }
 
+/* Sound Blaster 16 file ops */
+static const file_ops_t sb16_fops = {
+    .open = sb16_open,
+    .read = sb16_read,
+    .write = sb16_write,
+    .close = sb16_close,
+    .ioctl = sb16_ioctl,
+};
+
 /* Initializes the Sound Blaster 16 device */
 void
 sb16_init(void)
 {
     if (sb16_reset()) {
         debugf("Sound Blaster 16 device installed, registering IRQ handler\n");
-        device_exists = true;
         irq_register_handler(IRQ_SB16, sb16_handle_irq);
+        file_register_type(FILE_TYPE_SOUND, &sb16_fops);
     } else {
         debugf("Sound Blaster 16 device not installed\n");
     }

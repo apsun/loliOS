@@ -22,7 +22,7 @@ static int socket_close(file_obj_t *file);
 static int socket_ioctl(file_obj_t *file, int req, int arg);
 
 /* Network socket file ops */
-static const file_ops_t fops_socket = {
+static const file_ops_t socket_fops = {
     .open = NULL, /* Can never be reached */
     .read = socket_read,
     .write = socket_write,
@@ -60,7 +60,7 @@ static const sock_ops_t sops_tcp = {
 static net_sock_t *
 get_sock(file_obj_t *file)
 {
-    if (file->ops_table != &fops_socket) {
+    if (file->ops_table != &socket_fops) {
         return NULL;
     }
     return file->private;
@@ -148,11 +148,12 @@ socket_obj_alloc(int type)
 }
 
 /*
- * Frees a socket, ignoring the reference count.
+ * Frees a socket. The socket reference count must be zero.
  */
-static void
+void
 socket_obj_free(net_sock_t *sock)
 {
+    assert(sock->refcnt == 0);
     if (sock->ops_table->dtor != NULL) {
         sock->ops_table->dtor(sock);
     }
@@ -189,32 +190,25 @@ socket_obj_release(net_sock_t *sock)
  * descriptor, or -1 if no files are available.
  */
 int
-socket_obj_bind_file(net_sock_t *sock)
+socket_obj_bind_file(file_obj_t **files, net_sock_t *sock)
 {
     /* Allocate a file object */
-    file_obj_t *file = file_obj_alloc();
+    file_obj_t *file = file_obj_alloc(&socket_fops, false);
     if (file == NULL) {
         debugf("Failed to allocate file\n");
         return -1;
     }
 
-    file->ops_table = &fops_socket;
+    /* Allocate a file descriptor */
+    int fd = file_desc_bind(files, -1, file);
+    if (fd < 0) {
+        debugf("Failed to bind file descriptor\n");
+        file_obj_free(file, false);
+        return -1;
+    }
+
     file->private = socket_obj_retain(sock);
-    return file->fd;
-}
-
-/* read() syscall for socket files. Wrapper around recvfrom(). */
-static int
-socket_read(file_obj_t *file, void *buf, int nbytes)
-{
-    return socket_recvfrom(file->fd, buf, nbytes, NULL);
-}
-
-/* write() syscall for socket files. Wrapper around sendto(). */
-static int
-socket_write(file_obj_t *file, const void *buf, int nbytes)
-{
-    return socket_sendto(file->fd, buf, nbytes, NULL);
+    return fd;
 }
 
 /* close() syscall for socket files. */
@@ -255,7 +249,7 @@ socket_socket(int type)
     }
 
     /* Bind socket to a file */
-    int fd = socket_obj_bind_file(sock);
+    int fd = socket_obj_bind_file(get_executing_files(), sock);
     if (fd < 0) {
         debugf("Failed to bind to file\n");
         socket_obj_free(sock);
@@ -271,8 +265,7 @@ socket_socket(int type)
  * is not implemented; otherwise will delegate
  * to it.
  */
-#define FORWARD_SOCKETCALL(fn, ...) do {               \
-    net_sock_t *sock = get_executing_sock(fd);         \
+#define FORWARD_SOCKETCALL(sock, fn, ...) do {         \
     if (sock == NULL) {                                \
         debugf("Not a socket file\n");                 \
         return -1;                                     \
@@ -288,42 +281,56 @@ socket_socket(int type)
 __cdecl int
 socket_bind(int fd, const sock_addr_t *addr)
 {
-    FORWARD_SOCKETCALL(bind, addr);
+    FORWARD_SOCKETCALL(get_executing_sock(fd), bind, addr);
 }
 
 /* connect() syscall handler */
 __cdecl int
 socket_connect(int fd, const sock_addr_t *addr)
 {
-    FORWARD_SOCKETCALL(connect, addr);
+    FORWARD_SOCKETCALL(get_executing_sock(fd), connect, addr);
 }
 
 /* listen() syscall handler */
 __cdecl int
 socket_listen(int fd, int backlog)
 {
-    FORWARD_SOCKETCALL(listen, backlog);
+    FORWARD_SOCKETCALL(get_executing_sock(fd), listen, backlog);
 }
 
 /* accept() syscall handler */
 __cdecl int
 socket_accept(int fd, sock_addr_t *addr)
 {
-    FORWARD_SOCKETCALL(accept, addr);
+    FORWARD_SOCKETCALL(get_executing_sock(fd), accept, addr);
 }
 
 /* recvfrom() syscall handler */
 __cdecl int
 socket_recvfrom(int fd, void *buf, int nbytes, sock_addr_t *addr)
 {
-    FORWARD_SOCKETCALL(recvfrom, buf, nbytes, addr);
+    FORWARD_SOCKETCALL(get_executing_sock(fd), recvfrom, buf, nbytes, addr);
 }
 
 /* sendto() syscall handler */
 __cdecl int
 socket_sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr)
 {
-    FORWARD_SOCKETCALL(sendto, buf, nbytes, addr);
+    FORWARD_SOCKETCALL(get_executing_sock(fd), sendto, buf, nbytes, addr);
+}
+
+/* read() syscall for socket files. Wrapper around recvfrom(). */
+static int
+socket_read(file_obj_t *file, void *buf, int nbytes)
+{
+    FORWARD_SOCKETCALL(get_sock(file), recvfrom, buf, nbytes, NULL);
+}
+
+/* write() syscall for socket files. Wrapper around sendto(). */
+static int
+socket_write(file_obj_t *file, const void *buf, int nbytes)
+{
+    FORWARD_SOCKETCALL(get_sock(file), sendto, buf, nbytes, NULL);
 }
 
 /* getsockname() syscall handler */

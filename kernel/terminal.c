@@ -374,7 +374,7 @@ terminal_wait_kbd_input(kbd_input_buf_t *input_buf, int nbytes, bool nonblocking
  * Open syscall for stdin/stdout. Always succeeds.
  */
 int
-terminal_kbd_open(const char *filename, file_obj_t *file)
+terminal_kbd_open(file_obj_t *file)
 {
     /* Set to blocking mode by default */
     file->private = (void *)false;
@@ -516,7 +516,7 @@ terminal_stdout_ioctl(file_obj_t *file, int req, int arg)
  * Open syscall for the mouse. Always succeeds.
  */
 int
-terminal_mouse_open(const char *filename, file_obj_t *file)
+terminal_mouse_open(file_obj_t *file)
 {
     return 0;
 }
@@ -696,6 +696,63 @@ terminal_update_vidmap(int term_index, bool present)
     term->vidmap = present;
 }
 
+/* Terminal stdin file ops */
+static const file_ops_t terminal_stdin_fops = {
+    .open = terminal_kbd_open,
+    .read = terminal_stdin_read,
+    .write = terminal_stdin_write,
+    .close = terminal_kbd_close,
+    .ioctl = terminal_stdin_ioctl,
+};
+
+/* Terminal stdout file ops */
+static const file_ops_t terminal_stdout_fops = {
+    .open = terminal_kbd_open,
+    .read = terminal_stdout_read,
+    .write = terminal_stdout_write,
+    .close = terminal_kbd_close,
+    .ioctl = terminal_stdout_ioctl,
+};
+
+/* Mouse file ops */
+static const file_ops_t terminal_mouse_fops = {
+    .open = terminal_mouse_open,
+    .read = terminal_mouse_read,
+    .write = terminal_mouse_write,
+    .close = terminal_mouse_close,
+    .ioctl = terminal_mouse_ioctl,
+};
+
+/*
+ * Opens stdin and stdout as fd 0 and 1 respectively
+ * for a given process.
+ */
+int
+terminal_open_streams(file_obj_t **files)
+{
+    /* Create stdin stream */
+    file_obj_t *in = file_obj_alloc(&terminal_stdin_fops, true);
+    if (in == NULL) {
+        return -1;
+    }
+
+    /* Create stdout stream */
+    file_obj_t *out = file_obj_alloc(&terminal_stdout_fops, true);
+    if (out == NULL) {
+        file_obj_free(in, true);
+        return -1;
+    }
+
+    /* Bind to file descriptors */
+    int ret;
+    ret = file_desc_bind(files, 0, in);
+    assert(ret == 0);
+    ret = file_desc_bind(files, 1, out);
+    assert(ret == 1);
+
+    return 0;
+}
+
 /*
  * Initialize all terminals. This must be called before
  * any printing functions!
@@ -724,4 +781,7 @@ terminal_init(void)
 
     /* Set initially displayed terminal */
     display_terminal = 0;
+
+    /* Register mouse file ops (stdin/stdout handled specially) */
+    file_register_type(FILE_TYPE_MOUSE, &terminal_mouse_fops);
 }

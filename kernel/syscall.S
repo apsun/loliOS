@@ -36,6 +36,7 @@ syscall_jump_table:
     .long socket_sendto
     .long socket_getsockname
     .long socket_getpeername
+    .long file_dup
 
 .text
 

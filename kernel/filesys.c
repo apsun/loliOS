@@ -1,6 +1,7 @@
 #include "filesys.h"
 #include "lib.h"
 #include "debug.h"
+#include "file.h"
 #include "paging.h"
 
 /* Macros to access inode/data blocks */
@@ -57,7 +58,7 @@ fs_namelen(const char *file_name)
 int
 read_dentry_by_name(const char *fname, dentry_t *dentry)
 {
-    int i;
+    uint32_t i;
     for (i = 0; i < fs_boot_block->stat.dentry_count; ++i) {
         dentry_t* curr_dentry = &fs_boot_block->dir_entries[i];
         if (fs_namecmp(fname, curr_dentry->name) == 0) {
@@ -76,7 +77,7 @@ read_dentry_by_name(const char *fname, dentry_t *dentry)
 int
 read_dentry_by_index(int index, dentry_t *dentry)
 {
-    if (index < 0 || index >= fs_boot_block->stat.dentry_count) {
+    if ((uint32_t)index >= fs_boot_block->stat.dentry_count) {
         return -1;
     }
 
@@ -91,7 +92,7 @@ read_dentry_by_index(int index, dentry_t *dentry)
  * of bytes read, or -1 on error.
  */
 int
-read_data(int inode, int offset, uint8_t *buf, int length)
+read_data(uint32_t inode, int offset, uint8_t *buf, int length)
 {
     /* Check offset and length bounds */
     if (length < 0 || offset < 0) {
@@ -99,19 +100,19 @@ read_data(int inode, int offset, uint8_t *buf, int length)
     }
 
     /* Check inode index bounds */
-    if (inode < 0 || inode >= fs_boot_block->stat.inode_count) {
+    if (inode >= fs_boot_block->stat.inode_count) {
         return -1;
     }
 
     inode_t *inode_p = FS_INODE(inode);
 
     /* Reading past EOF is an error */
-    if (offset > inode_p->size) {
+    if ((uint32_t)offset > inode_p->size) {
         return -1;
     }
 
     /* Clamp read length to end of file */
-    if (length > inode_p->size - offset) {
+    if ((uint32_t)length > inode_p->size - offset) {
         length = inode_p->size - offset;
     }
 
@@ -151,8 +152,8 @@ read_data(int inode, int offset, uint8_t *buf, int length)
 /*
  * Open syscall for files/directories. Always succeeds.
  */
-int
-fs_open(const char *filename, file_obj_t *file)
+static int
+fs_open(file_obj_t *file)
 {
     file->private = (void *)0;
     return 0;
@@ -163,7 +164,7 @@ fs_open(const char *filename, file_obj_t *file)
  * entry in the directory to the buffer, NOT including the
  * NUL terminator. Returns the number of characters written.
  */
-int
+static int
 fs_dir_read(file_obj_t *file, void *buf, int nbytes)
 {
     if (nbytes < 0) {
@@ -199,7 +200,7 @@ fs_dir_read(file_obj_t *file, void *buf, int nbytes)
  * to the buffer, starting from where the previous call to read
  * left off. Returns the number of bytes written.
  */
-int
+static int
 fs_file_read(file_obj_t *file, void *buf, int nbytes)
 {
     /* Check that the buffer is valid */
@@ -223,7 +224,7 @@ fs_file_read(file_obj_t *file, void *buf, int nbytes)
 /*
  * Write syscall for files/directories. Always fails.
  */
-int
+static int
 fs_write(file_obj_t *file, const void *buf, int nbytes)
 {
     return -1;
@@ -232,7 +233,7 @@ fs_write(file_obj_t *file, const void *buf, int nbytes)
 /*
  * Close syscall for files/directories. Always succeeds.
  */
-int
+static int
 fs_close(file_obj_t *file)
 {
     return 0;
@@ -241,11 +242,29 @@ fs_close(file_obj_t *file)
 /*
  * Ioctl syscall for files/directories. Always fails.
  */
-int
+static int
 fs_ioctl(file_obj_t *file, int req, int arg)
 {
     return -1;
 }
+
+/* Directory file ops */
+static const file_ops_t fs_dir_fops = {
+    .open = fs_open,
+    .read = fs_dir_read,
+    .write = fs_write,
+    .close = fs_close,
+    .ioctl = fs_ioctl,
+};
+
+/* File (the real kind) file ops */
+static const file_ops_t fs_file_fops = {
+    .open = fs_open,
+    .read = fs_file_read,
+    .write = fs_write,
+    .close = fs_close,
+    .ioctl = fs_ioctl,
+};
 
 /* Initializes the filesystem */
 void
@@ -259,4 +278,8 @@ fs_init(uint32_t fs_start)
 
     /* Save address of boot block for future use */
     fs_boot_block = (boot_block_t *)fs_start;
+
+    /* Register file ops table */
+    file_register_type(FILE_TYPE_DIR, &fs_dir_fops);
+    file_register_type(FILE_TYPE_FILE, &fs_file_fops);
 }

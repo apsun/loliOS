@@ -8,12 +8,13 @@
 #define MAX_FILES 8
 
 /* File type constants */
-#define FTYPE_RTC 0
-#define FTYPE_DIR 1
-#define FTYPE_FILE 2
-#define FTYPE_MOUSE 3
-#define FTYPE_TAUX 4
-#define FTYPE_SOUND 5
+#define FILE_TYPE_RTC 0
+#define FILE_TYPE_DIR 1
+#define FILE_TYPE_FILE 2
+#define FILE_TYPE_MOUSE 3
+#define FILE_TYPE_TAUX 4
+#define FILE_TYPE_SOUND 5
+#define FILE_TYPE_COUNT 6
 
 #ifndef ASM
 
@@ -28,16 +29,16 @@ typedef struct {
     const file_ops_t *ops_table;
 
     /*
-     * Index (aka file descriptor) of this file object.
-     * Set to -1 if the file is unused.
+     * Reference count of the file. When this reaches zero,
+     * the file object is released.
      */
-    int fd;
+    int refcnt;
 
     /*
      * inode index of this file, unused if the file
      * does not refer to a physical file on disk.
      */
-    int inode_idx;
+    uint32_t inode_idx;
 
     /*
      * File-private data, use is determined by driver.
@@ -47,27 +48,35 @@ typedef struct {
 
 /* File operations table */
 struct file_ops_t {
-    int (*open)(const char *filename, file_obj_t *file);
+    int (*open)(file_obj_t *file);
     int (*read)(file_obj_t *file, void *buf, int nbytes);
     int (*write)(file_obj_t *file, const void *buf, int nbytes);
     int (*close)(file_obj_t *file);
     int (*ioctl)(file_obj_t *file, int req, int arg);
 };
 
-/* Returns all file objects for the executing process */
-file_obj_t *get_executing_files(void);
+/* Registers a file ops table with an associated type */
+void file_register_type(int file_type, const file_ops_t *ops_table);
 
-/* Returns a file object for the executing process */
+/* Returns the file object (array) for the executing process */
+file_obj_t **get_executing_files(void);
 file_obj_t *get_executing_file(int fd);
 
-/* Allocates a new file obj (returns NULL if too many open files) */
-file_obj_t *file_obj_alloc(void);
+/* File object alloc/free/retain/release functions */
+file_obj_t *file_obj_alloc(const file_ops_t *ops_table, bool open);
+void file_obj_free(file_obj_t *file, bool close);
+file_obj_t *file_obj_retain(file_obj_t *file);
+void file_obj_release(file_obj_t *file);
 
-/* Frees a file object */
-void file_obj_free(file_obj_t *file);
+/* File descriptor bind/unbind/rebind functions */
+int file_desc_bind(file_obj_t **files, int fd, file_obj_t *file);
+int file_desc_unbind(file_obj_t **files, int fd);
+int file_desc_rebind(file_obj_t **files, int fd, file_obj_t *new_file);
 
-/* Initializes the specified file object array */
-void file_init(file_obj_t *files);
+/* Initializes/clones the specified file object array */
+void file_init(file_obj_t **files);
+void file_deinit(file_obj_t **files);
+void file_clone(file_obj_t **new_files, file_obj_t **old_files);
 
 /* Direct syscall handlers */
 __cdecl int file_open(const char *filename);

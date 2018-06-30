@@ -25,6 +25,7 @@
 #define SYS_SENDTO      22
 #define SYS_GETSOCKNAME 23
 #define SYS_GETPEERNAME 24
+#define SYS_DUP         25
 
 /* syscall.h */
 #define EINTR  2
@@ -82,8 +83,8 @@ __cdecl int open(const char *filename);
 __cdecl int close(int fd);
 __cdecl int getargs(char *buf, int nbytes);
 __cdecl int vidmap(uint8_t **screen_start);
-__cdecl int sigaction(int signum, void *handler);
-__cdecl int sigreturn(void);
+__cdecl int sigaction(int signum, void (*handler)(int signum));
+__cdecl int sigreturn(int signum, void *user_regs);
 __cdecl int sigraise(int signum);
 __cdecl int sigmask(int signum, int action);
 __cdecl int ioctl(int fd, int req, int arg);
@@ -98,6 +99,7 @@ __cdecl int recvfrom(int fd, void *buf, int nbytes, sock_addr_t *addr);
 __cdecl int sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr);
 __cdecl int getsockname(int fd, sock_addr_t *addr);
 __cdecl int getpeername(int fd, sock_addr_t *addr);
+__cdecl int dup(int destfd, int srcfd);
 
 #endif /* ASM */
 

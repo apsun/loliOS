@@ -294,7 +294,7 @@ ip_parse(const char *str, ip_addr_t *ip)
 }
 
 static void
-sig_interrupt_handler(void)
+sig_interrupt_handler(int signum)
 {
     stop = true;
 }
@@ -426,7 +426,7 @@ int
 main(void)
 {
     /* Set signal handler */
-    if (sigaction(SIG_INTERRUPT, (void *)sig_interrupt_handler) < 0) {
+    if (sigaction(SIG_INTERRUPT, sig_interrupt_handler) < 0) {
         puts("Could not set interrupt handler");
         return 1;
     }

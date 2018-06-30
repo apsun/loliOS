@@ -17,11 +17,11 @@ typedef struct {
     /* Name of the file */
     char name[MAX_FILENAME_LEN];
 
-    /* Type of the file */
-    int32_t type;
+    /* Type of the file (see file.h) */
+    uint32_t type;
 
     /* Index of inode corresponding to this dentry */
-    int32_t inode_idx;
+    uint32_t inode_idx;
 
     /* Pad struct to 64 bytes */
     uint8_t reserved[24];
@@ -30,13 +30,13 @@ typedef struct {
 /* Stat entry structure */
 typedef struct stat_entry_t {
     /* Number of dentries in the filesystem */
-    int32_t dentry_count;
+    uint32_t dentry_count;
 
     /* Number of inode blocks in the filesystem */
-    int32_t inode_count;
+    uint32_t inode_count;
 
     /* Number of data blocks in the filesystem */
-    int32_t data_block_count;
+    uint32_t data_block_count;
 
     /* Pad struct to 64 bytes */
     uint8_t reserved[52];
@@ -54,10 +54,10 @@ typedef struct {
 /* inode block structure */
 typedef struct {
     /* Size of the file in bytes */
-    int32_t size;
+    uint32_t size;
 
     /* Array of data block indices that hold the file data */
-    int32_t data_blocks[1023];
+    uint32_t data_blocks[1023];
 } inode_t;
 
 /* Finds a dentry by its name */
@@ -67,18 +67,10 @@ int read_dentry_by_name(const char *fname, dentry_t *dentry);
 int read_dentry_by_index(int index, dentry_t* dentry);
 
 /* Reads some data from a file with the specified inode index */
-int read_data(int inode, int offset, uint8_t *buf, int length);
+int read_data(uint32_t inode, int offset, uint8_t *buf, int length);
 
 /* Initializes the filesystem */
 void fs_init(uint32_t fs_start);
-
-/* Filesystem syscall interface */
-int fs_open(const char *filename, file_obj_t *file);
-int fs_file_read(file_obj_t *file, void *buf, int nbytes);
-int fs_dir_read(file_obj_t *file, void *buf, int nbytes);
-int fs_write(file_obj_t *file, const void *buf, int nbytes);
-int fs_close(file_obj_t *file);
-int fs_ioctl(file_obj_t *file, int req, int arg);
 
 #endif /* ASM */
 

@@ -86,9 +86,10 @@ typedef struct {
     signal_info_t signals[NUM_SIGNALS];
 
     /*
-     * Array of file objects for this process.
+     * Array containing open file object pointers. The index in the
+     * array corresponds to the file descriptor.
      */
-    file_obj_t files[MAX_FILES];
+    file_obj_t *files[MAX_FILES];
 
     /*
      * Heap metadata for this process.

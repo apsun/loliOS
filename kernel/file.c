@@ -1,6 +1,7 @@
 #include "file.h"
 #include "lib.h"
 #include "debug.h"
+#include "myalloc.h"
 #include "rtc.h"
 #include "filesys.h"
 #include "terminal.h"
@@ -8,86 +9,39 @@
 #include "taux.h"
 #include "sb16.h"
 
-/* Terminal stdin file ops */
-static const file_ops_t fops_stdin = {
-    .open = terminal_kbd_open,
-    .read = terminal_stdin_read,
-    .write = terminal_stdin_write,
-    .close = terminal_kbd_close,
-    .ioctl = terminal_stdin_ioctl,
-};
+/* File type to ops table mapping */
+static const file_ops_t *file_ops_tables[FILE_TYPE_COUNT];
 
-/* Terminal stdout file ops */
-static const file_ops_t fops_stdout = {
-    .open = terminal_kbd_open,
-    .read = terminal_stdout_read,
-    .write = terminal_stdout_write,
-    .close = terminal_kbd_close,
-    .ioctl = terminal_stdout_ioctl,
-};
+/*
+ * Returns the file ops table corresponding to the specified
+ * file type.
+ */
+static const file_ops_t *
+get_file_ops(int file_type)
+{
+    if (file_type < 0 || file_type >= FILE_TYPE_COUNT) {
+        return NULL;
+    }
+    return file_ops_tables[file_type];
+}
 
-/* File (the real kind) file ops */
-static const file_ops_t fops_file = {
-    .open = fs_open,
-    .read = fs_file_read,
-    .write = fs_write,
-    .close = fs_close,
-    .ioctl = fs_ioctl,
-};
-
-/* Directory file ops */
-static const file_ops_t fops_dir = {
-    .open = fs_open,
-    .read = fs_dir_read,
-    .write = fs_write,
-    .close = fs_close,
-    .ioctl = fs_ioctl,
-};
-
-/* RTC file ops */
-static const file_ops_t fops_rtc = {
-    .open = rtc_open,
-    .read = rtc_read,
-    .write = rtc_write,
-    .close = rtc_close,
-    .ioctl = rtc_ioctl,
-};
-
-/* Mouse file ops */
-static const file_ops_t fops_mouse = {
-    .open = terminal_mouse_open,
-    .read = terminal_mouse_read,
-    .write = terminal_mouse_write,
-    .close = terminal_mouse_close,
-    .ioctl = terminal_mouse_ioctl,
-};
-
-/* Taux controller file ops */
-static const file_ops_t fops_taux = {
-    .open = taux_open,
-    .read = taux_read,
-    .write = taux_write,
-    .close = taux_close,
-    .ioctl = taux_ioctl,
-};
-
-/* Sound Blaster 16 file ops */
-static const file_ops_t fops_sb16 = {
-    .open = sb16_open,
-    .read = sb16_read,
-    .write = sb16_write,
-    .close = sb16_close,
-    .ioctl = sb16_ioctl,
-};
+/*
+ * Registers a file ops table with its type to be used by open().
+ */
+void
+file_register_type(int file_type, const file_ops_t *ops_table)
+{
+    assert(file_type >= 0 && file_type < FILE_TYPE_COUNT);
+    file_ops_tables[file_type] = ops_table;
+}
 
 /*
  * Gets the file object array for the executing process.
  */
-file_obj_t *
+file_obj_t **
 get_executing_files(void)
 {
     pcb_t *pcb = get_executing_pcb();
-    assert(pcb != NULL);
     return pcb->files;
 }
 
@@ -103,9 +57,34 @@ get_executing_file(int fd)
         return NULL;
     }
 
-    /* Get file object, check that it's open */
-    file_obj_t *file = &get_executing_files()[fd];
-    if (file->fd < 0) {
+    /* Get corresponding file object */
+    file_obj_t **files = get_executing_files();
+    return files[fd];
+}
+
+/*
+ * Allocates a new file object. Optionally calls open()
+ * on the file object. Note that the new file object
+ * starts with reference count ZERO, not one!
+ */
+file_obj_t *
+file_obj_alloc(const file_ops_t *ops_table, bool open)
+{
+    /* Allocate file */
+    file_obj_t *file = malloc(sizeof(file_obj_t));
+    if (file == NULL) {
+        return NULL;
+    }
+
+    /* Initialize fields */
+    file->ops_table = ops_table;
+    file->inode_idx = 0;
+    file->refcnt = 0;
+    file->private = NULL;
+
+    /* Call open() if necessary */
+    if (open && file->ops_table->open(file) < 0) {
+        free(file);
         return NULL;
     }
 
@@ -113,90 +92,169 @@ get_executing_file(int fd)
 }
 
 /*
- * Allocates a new file object for the executing process.
- * Returns NULL if the executing process has reached the
- * open file limit.
- */
-file_obj_t *
-file_obj_alloc(void)
-{
-    file_obj_t *files = get_executing_files();
-    int i;
-    for (i = 2; i < MAX_FILES; ++i) {
-        file_obj_t *file = &files[i];
-        if (file->fd < 0) {
-            file->fd = i;
-            return file;
-        }
-    }
-    return NULL;
-}
-
-/*
- * Frees a file object.
+ * Frees a file object. The file reference count must be zero.
+ * Optionally calls the close() function. This should only be
+ * directly called if the file cannot be correctly initialized,
+ * before it is associated with a file descriptor.
  */
 void
-file_obj_free(file_obj_t *file)
+file_obj_free(file_obj_t *file, bool close)
 {
-    file->fd = -1;
+    assert(file->refcnt == 0);
+    if (close) {
+        file->ops_table->close(file);
+    }
+    free(file);
 }
 
 /*
- * Initializes the file object from the given dentry.
+ * Increments the reference count of a file.
  */
-static int
-file_obj_init(file_obj_t *file, dentry_t *dentry)
+file_obj_t *
+file_obj_retain(file_obj_t *file)
 {
-    switch (dentry->type) {
-    case FTYPE_RTC:
-        file->ops_table = &fops_rtc;
-        break;
-    case FTYPE_DIR:
-        file->ops_table = &fops_dir;
-        break;
-    case FTYPE_FILE:
-        file->ops_table = &fops_file;
-        break;
-    case FTYPE_MOUSE:
-        file->ops_table = &fops_mouse;
-        break;
-    case FTYPE_TAUX:
-        file->ops_table = &fops_taux;
-        break;
-    case FTYPE_SOUND:
-        file->ops_table = &fops_sb16;
-        break;
-    default:
-        debugf("Unknown file type: %d\n", dentry->type);
+    file->refcnt++;
+    return file;
+}
+
+/*
+ * Decrements the reference count of a file. If the refcount
+ * reaches zero, close() is called and the file object is freed.
+ */
+void
+file_obj_release(file_obj_t *file)
+{
+    assert(file->refcnt > 0);
+    if (--file->refcnt == 0) {
+        file_obj_free(file, true);
+    }
+}
+
+/*
+ * Allocates a file descriptor and binds it to the specified
+ * file object, incrementing the reference count of the file.
+ * Returns the file descriptor, or -1 if no free file descriptors
+ * are available. If fd >= 0, will force the file to bind to
+ * that specific descriptor.
+ */
+int
+file_desc_bind(file_obj_t **files, int fd, file_obj_t *file)
+{
+    if (fd >= 0) {
+        /* Just check that the descriptor is valid and not in use */
+        if (fd >= MAX_FILES || files[fd] != NULL) {
+            return -1;
+        }
+    } else {
+        /* Find a free descriptor */
+        for (fd = 0; fd < MAX_FILES; ++fd) {
+            if (files[fd] == NULL) {
+                break;
+            }
+        }
+        if (fd == MAX_FILES) {
+            return -1;
+        }
+    }
+
+    /* Grab reference to object */
+    files[fd] = file_obj_retain(file);
+    return fd;
+}
+
+/*
+ * Frees a file descriptor and decrements the reference count
+ * of the corresponding file (may call close() if the refcount
+ * reaches zero). Returns -1 if the fd does not refer to a
+ * valid open file descriptor.
+ */
+int
+file_desc_unbind(file_obj_t **files, int fd)
+{
+    if (fd < 0 || fd >= MAX_FILES) {
         return -1;
     }
 
-    file->inode_idx = dentry->inode_idx;
+    /* Check for unbinding an unused file */
+    if (files[fd] == NULL) {
+        return -1;
+    }
+
+    /* Decrement refcount of the file object and mark fd as free */
+    file_obj_release(files[fd]);
+    files[fd] = NULL;
     return 0;
+}
+
+/*
+ * Replaces the file object that a file descriptor points to
+ * with a new file object. This will decrement the refcount
+ * of the original file object and increment the refcount of
+ * the new file object.
+ */
+int
+file_desc_rebind(file_obj_t **files, int fd, file_obj_t *new_file)
+{
+    if (fd < 0 || fd >= MAX_FILES) {
+        return -1;
+    }
+
+    /* If the two refer to the same file, do nothing */
+    file_obj_t *old_file = files[fd];
+    if (old_file == new_file) {
+        return fd;
+    }
+
+    /* Release old file, if present */
+    if (old_file != NULL) {
+        file_obj_release(old_file);
+    }
+
+    /* Replace it with the new file */
+    files[fd] = file_obj_retain(new_file);
+    return fd;
 }
 
 /*
  * Initializes the specified file object array.
  */
 void
-file_init(file_obj_t *files)
+file_init(file_obj_t **files)
 {
-    /* Initialize stdin as fd = 0 */
-    file_obj_t *in = &files[0];
-    in->fd = 0;
-    in->ops_table = &fops_stdin;
-    in->ops_table->open(NULL, in);
-
-    /* Initialize stdout as fd = 1 */
-    file_obj_t *out = &files[1];
-    out->fd = 1;
-    out->ops_table = &fops_stdout;
-    out->ops_table->open(NULL, out);
-
-    /* Clear the remaining files */
     int i;
-    for (i = 2; i < MAX_FILES; ++i) {
-        files[i].fd = -1;
+    for (i = 0; i < MAX_FILES; ++i) {
+        files[i] = NULL;
+    }
+}
+
+/*
+ * Clones the file object array of an existing process into
+ * that of a new process. This will update reference counts
+ * accordingly.
+ */
+void
+file_clone(file_obj_t **new_files, file_obj_t **old_files)
+{
+    int i;
+    for (i = 0; i < MAX_FILES; ++i) {
+        file_obj_t *file = old_files[i];
+        if (file != NULL) {
+            new_files[i] = file_obj_retain(file);
+        } else {
+            new_files[i] = NULL;
+        }
+    }
+}
+
+/*
+ * Closes all files in the specified file object array.
+ */
+void
+file_deinit(file_obj_t **files)
+{
+    int i;
+    for (i = 0; i < MAX_FILES; ++i) {
+        file_desc_unbind(files, i);
     }
 }
 
@@ -207,35 +265,41 @@ file_open(const char *filename)
     /* Copy filename into kernel memory */
     char tmp[MAX_FILENAME_LEN + 1];
     if (!strscpy_from_user(tmp, filename, sizeof(tmp))) {
+        debugf("Invalid string passed to open()\n");
         return -1;
     }
 
     /* Try to read filesystem entry */
     dentry_t dentry;
     if (read_dentry_by_name(tmp, &dentry) != 0) {
+        debugf("File not found\n");
         return -1;
     }
 
-    /* Allocate a file object to use */
-    file_obj_t *file = file_obj_alloc();
+    /* Get corresponding ops table */
+    const file_ops_t *ops_table = get_file_ops(dentry.type);
+    if (ops_table == NULL) {
+        debugf("Unhandled file type: %u\n", dentry.type);
+        return -1;
+    }
+
+    /* Allocate and initialize a file object */
+    file_obj_t *file = file_obj_alloc(ops_table, true);
     if (file == NULL) {
+        debugf("Failed to allocate file\n");
         return -1;
     }
 
-    /* Initialize file object */
-    if (file_obj_init(file, &dentry) < 0) {
-        file_obj_free(file);
+    /* Bind file object to a new descriptor */
+    int fd = file_desc_bind(get_executing_files(), -1, file);
+    if (fd < 0) {
+        debugf("Failed to bind file descriptor\n");
+        file_obj_free(file, true);
         return -1;
     }
 
-    /* Perform post-initialization setup */
-    if (file->ops_table->open(tmp, file) < 0) {
-        file_obj_free(file);
-        return -1;
-    }
-
-    /* Index becomes our file descriptor */
-    return file->fd;
+    file->inode_idx = dentry.inode_idx;
+    return fd;
 }
 
 /* read() syscall handler */
@@ -264,15 +328,7 @@ file_write(int fd, const void *buf, int nbytes)
 __cdecl int
 file_close(int fd)
 {
-    file_obj_t *file = get_executing_file(fd);
-    if (file == NULL) {
-        return -1;
-    }
-    if (file->ops_table->close(file) < 0) {
-        return -1;
-    }
-    file_obj_free(file);
-    return 0;
+    return file_desc_unbind(get_executing_files(), fd);
 }
 
 /* ioctl() syscall handler */
@@ -284,4 +340,26 @@ file_ioctl(int fd, int req, int arg)
         return -1;
     }
     return file->ops_table->ioctl(file, req, arg);
+}
+
+/* dup() syscall handler */
+__cdecl int
+file_dup(int destfd, int srcfd)
+{
+    file_obj_t *new_file = get_executing_file(srcfd);
+    if (new_file == NULL) {
+        return -1;
+    }
+
+    /*
+     * If destfd is -1, pick a new descriptor, otherwise use the
+     * one that they specified. Note that this is a bit different
+     * from how Linux does it - Linux uses two separate syscalls,
+     * dup() and dup2().
+     */
+    if (destfd == -1) {
+        return file_desc_bind(get_executing_files(), -1, new_file);
+    } else {
+        return file_desc_rebind(get_executing_files(), destfd, new_file);
+    }
 }

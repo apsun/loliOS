@@ -10,7 +10,7 @@
 static jmp_buf memcpy_env;
 
 static void
-segv_handler(void)
+segv_handler(int signum)
 {
     sigmask(SIG_SEGFAULT, SIGMASK_UNBLOCK);
     longjmp(memcpy_env, 1);

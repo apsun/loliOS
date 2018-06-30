@@ -3,6 +3,7 @@
 
 #include "types.h"
 #include "list.h"
+#include "file.h"
 #include "net.h"
 
 #define SOCK_TCP 1
@@ -80,17 +81,14 @@ __cdecl int socket_getpeername(int fd, sock_addr_t *addr);
 /* Returns the socket corresponding to the specified fd */
 net_sock_t *get_executing_sock(int fd);
 
-/* Allocates and initializes a socket */
+/* Socket object alloc/free/retain/release functions */
 net_sock_t *socket_obj_alloc(int type);
-
-/* Increments the reference count of a socket */
+void socket_obj_free(net_sock_t *sock);
 net_sock_t *socket_obj_retain(net_sock_t *sock);
-
-/* Decrements the reference count of a socket, freeing it if no refs left */
 void socket_obj_release(net_sock_t *sock);
 
 /* Binds a socket object to a file */
-int socket_obj_bind_file(net_sock_t *sock);
+int socket_obj_bind_file(file_obj_t **files, net_sock_t *sock);
 
 /* Finds a socket given a local (IP, port) combination */
 net_sock_t *get_sock_by_local_addr(int type, ip_addr_t ip, uint16_t port);

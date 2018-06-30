@@ -28,7 +28,8 @@
 #define SYS_SENDTO      22
 #define SYS_GETSOCKNAME 23
 #define SYS_GETPEERNAME 24
-#define NUM_SYSCALL     24
+#define SYS_DUP         25
+#define NUM_SYSCALL     25
 
 #define EINTR  2
 #define EAGAIN 3

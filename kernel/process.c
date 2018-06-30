@@ -237,7 +237,7 @@ process_parse_cmd(const char *command, int *out_inode_idx, char *out_args)
     }
 
     /* Can only execute files, obviously */
-    if (dentry.type != FTYPE_FILE) {
+    if (dentry.type != FILE_TYPE_FILE) {
         debugf("Can only execute files\n");
         return -1;
     }
@@ -476,10 +476,13 @@ process_create_child(const char *command, pcb_t *parent_pcb, int terminal)
         assert(terminal >= 0);
         child_pcb->parent_pid = -1;
         child_pcb->terminal = terminal;
+        file_init(child_pcb->files);
+        terminal_open_streams(child_pcb->files);
     } else {
         /* Inherit values from parent process */
         child_pcb->parent_pid = parent_pcb->pid;
         child_pcb->terminal = parent_pcb->terminal;
+        file_clone(child_pcb->files, parent_pcb->files);
     }
 
     /* Common initialization */
@@ -488,7 +491,6 @@ process_create_child(const char *command, pcb_t *parent_pcb, int terminal)
     child_pcb->vidmap = false;
     timer_init(&child_pcb->alarm_timer);
     signal_init(child_pcb->signals);
-    file_init(child_pcb->files);
     paging_heap_init(&child_pcb->heap);
     strncpy(child_pcb->args, args, MAX_ARGS_LEN);
 
@@ -563,12 +565,7 @@ process_halt_impl(int status)
     pcb_t *parent_pcb = get_pcb_by_pid(child_pcb->parent_pid);
 
     /* Close all open files */
-    int i;
-    for (i = 2; i < MAX_FILES; ++i) {
-        if (child_pcb->files[i].fd >= 0) {
-            file_close(i);
-        }
-    }
+    file_deinit(child_pcb->files);
 
     /* Stop SIGALARM timer */
     timer_cancel(&child_pcb->alarm_timer);
@@ -765,6 +762,24 @@ process_sbrk(int delta)
 {
     pcb_t *pcb = get_executing_pcb();
     return paging_heap_sbrk(&pcb->heap, delta);
+}
+
+__cdecl int
+process_fork(void)
+{
+    return -1;
+}
+
+__cdecl int
+process_exec(const char *command)
+{
+    return -1;
+}
+
+__cdecl int
+process_wait(int pid)
+{
+    return -1;
 }
 
 /* Initializes all process control related data */

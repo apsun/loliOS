@@ -67,13 +67,6 @@
 
 #ifndef ASM
 
-/* Taux controller syscalls */
-int taux_open(const char *filename, file_obj_t *file);
-int taux_read(file_obj_t *file, void *buf, int nbytes);
-int taux_write(file_obj_t *file, const void *buf, int nbytes);
-int taux_close(file_obj_t *file);
-int taux_ioctl(file_obj_t *file, int req, int arg);
-
 /* Initializes the taux driver */
 void taux_init(void);
 

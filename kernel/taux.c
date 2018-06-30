@@ -1,7 +1,8 @@
 #include "taux.h"
-#include "serial.h"
 #include "debug.h"
 #include "lib.h"
+#include "serial.h"
+#include "file.h"
 #include "paging.h"
 
 /*
@@ -355,8 +356,8 @@ taux_handle_poll_ok(uint8_t b, uint8_t c)
 /*
  * Taux controller open syscall handler. Always succeeds.
  */
-int
-taux_open(const char *filename, file_obj_t *file)
+static int
+taux_open(file_obj_t *file)
 {
     return 0;
 }
@@ -365,7 +366,7 @@ taux_open(const char *filename, file_obj_t *file)
  * Taux controller read syscall handler. Does nothing,
  * but always returns success (avoids grep failing).
  */
-int
+static int
 taux_read(file_obj_t *file, void *buf, int nbytes)
 {
     return 0;
@@ -374,7 +375,7 @@ taux_read(file_obj_t *file, void *buf, int nbytes)
 /*
  * Taux controller write syscall handler. Always fails.
  */
-int
+static int
 taux_write(file_obj_t *file, const void *buf, int nbytes)
 {
     return -1;
@@ -383,7 +384,7 @@ taux_write(file_obj_t *file, const void *buf, int nbytes)
 /*
  * Taux controller close syscall handler. Always succeeds.
  */
-int
+static int
 taux_close(file_obj_t *file)
 {
     return 0;
@@ -392,7 +393,7 @@ taux_close(file_obj_t *file)
 /*
  * Taux controller ioctl syscall handler.
  */
-int
+static int
 taux_ioctl(file_obj_t *file, int req, int arg)
 {
     switch (req) {
@@ -485,12 +486,22 @@ taux_handle_irq(void)
     }
 }
 
+/* Taux controller file ops */
+static const file_ops_t taux_fops = {
+    .open = taux_open,
+    .read = taux_read,
+    .write = taux_write,
+    .close = taux_close,
+    .ioctl = taux_ioctl,
+};
+
 /*
  * Initializes the taux controller driver.
  */
 void
 taux_init(void)
 {
+    /* Initialize serial channel and register IRQ handler */
     serial_init(
         TAUX_COM_PORT,
         TAUX_BAUD_RATE,
@@ -499,4 +510,7 @@ taux_init(void)
         TAUX_PARITY,
         TAUX_TRIGGER_LEVEL,
         taux_handle_irq);
+
+    /* Register fops table */
+    file_register_type(FILE_TYPE_TAUX, &taux_fops);
 }

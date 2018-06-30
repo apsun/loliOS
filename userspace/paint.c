@@ -249,7 +249,7 @@ canvas_to_screen(int cx, int cy, int *sx, int *sy)
 }
 
 void
-sig_interrupt_handler(void)
+sig_interrupt_handler(int signum)
 {
     haz_interrupt = true;
 }
@@ -261,7 +261,7 @@ main(void)
     int mouse_fd = -1;
 
     /* Set signal handler */
-    if (sigaction(SIG_INTERRUPT, (void *)sig_interrupt_handler) < 0) {
+    if (sigaction(SIG_INTERRUPT, sig_interrupt_handler) < 0) {
         puts("Could not set interrupt handler");
         ret = 3;
         goto exit;

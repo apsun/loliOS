@@ -2,6 +2,7 @@
 #include "lib.h"
 #include "debug.h"
 #include "irq.h"
+#include "file.h"
 #include "paging.h"
 #include "signal.h"
 #include "timer.h"
@@ -167,8 +168,8 @@ rtc_set_frequency(int freq)
 /*
  * Open syscall for RTC. Frequency is set to 2Hz by default.
  */
-int
-rtc_open(const char *filename, file_obj_t *file)
+static int
+rtc_open(file_obj_t *file)
 {
     /*
      * File private field holds the virtual interrupt frequency
@@ -184,7 +185,7 @@ rtc_open(const char *filename, file_obj_t *file)
  * If a signal is delivered during the read, the read
  * will be prematurely aborted and -1 will be returned.
  */
-int
+static int
 rtc_read(file_obj_t *file, void *buf, int nbytes)
 {
     /* Max number of ticks we need to wait */
@@ -221,7 +222,7 @@ rtc_read(file_obj_t *file, void *buf, int nbytes)
  * nbytes must equal sizeof(int). The frequency must be a
  * power of 2 between 2 and 1024. file is ignored.
  */
-int
+static int
 rtc_write(file_obj_t *file, const void *buf, int nbytes)
 {
     /* Check if we're reading the appropriate size */
@@ -249,7 +250,7 @@ rtc_write(file_obj_t *file, const void *buf, int nbytes)
 /*
  * Close syscall for RTC. Does nothing.
  */
-int
+static int
 rtc_close(file_obj_t *file)
 {
     return 0;
@@ -258,7 +259,7 @@ rtc_close(file_obj_t *file)
 /*
  * Ioctl syscall for RTC. Always fails.
  */
-int
+static int
 rtc_ioctl(file_obj_t *file, int req, int arg)
 {
     return -1;
@@ -322,6 +323,15 @@ rtc_get_counter(void)
     return rtc_counter;
 }
 
+/* RTC file ops */
+static const file_ops_t rtc_fops = {
+    .open = rtc_open,
+    .read = rtc_read,
+    .write = rtc_write,
+    .close = rtc_close,
+    .ioctl = rtc_ioctl,
+};
+
 /* Initializes the RTC and enables interrupts */
 void
 rtc_init(void)
@@ -352,4 +362,7 @@ rtc_init(void)
 
     /* Register RTC IRQ handler and enable interrupts */
     irq_register_handler(IRQ_RTC, rtc_handle_irq);
+
+    /* Register file ops table */
+    file_register_type(FILE_TYPE_RTC, &rtc_fops);
 }
