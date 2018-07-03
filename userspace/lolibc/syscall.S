@@ -48,6 +48,11 @@ MAKE_SYS(dup, SYS_DUP)
 MAKE_SYS(fork, SYS_FORK)
 MAKE_SYS(exec, SYS_EXEC)
 MAKE_SYS(wait, SYS_WAIT)
+MAKE_SYS(getpid, SYS_GETPID)
+MAKE_SYS(getpgrp, SYS_GETPGRP)
+MAKE_SYS(setpgrp, SYS_SETPGRP)
+MAKE_SYS(tcgetpgrp, SYS_TCGETPGRP)
+MAKE_SYS(tcsetpgrp, SYS_TCSETPGRP)
 
 .globl _start
 _start:

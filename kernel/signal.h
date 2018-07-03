@@ -69,9 +69,6 @@ void signal_handle_all(int_regs_t *regs);
 /* Returns whether the currently executing process has a pending signal */
 bool signal_has_pending(void);
 
-/* Raises a signal for the specified process */
-void signal_raise(int pid, int signum);
-
 #endif /* ASM */
 
 #endif /* _SIGNAL_H */

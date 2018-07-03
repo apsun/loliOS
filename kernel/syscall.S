@@ -40,6 +40,11 @@ syscall_jump_table:
     .long process_fork
     .long process_exec
     .long process_wait
+    .long process_getpid
+    .long process_getpgrp
+    .long process_setpgrp
+    .long terminal_tcgetpgrp
+    .long terminal_tcsetpgrp
 
 .text
 

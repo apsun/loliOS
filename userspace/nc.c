@@ -504,5 +504,14 @@ main(void)
         return 1;
     }
 
-    return nc_loop(ip, port, args);
+    /* Run main loop */
+    int ret = nc_loop(ip, port, args);
+
+    /* Restore original blocking mode */
+    if (ioctl(0, STDIN_NONBLOCK, 0) < 0) {
+        puts("Failed to restore stdin blocking mode");
+        return 1;
+    }
+
+    return ret;
 }

@@ -58,14 +58,17 @@ static process_data_t process_data[MAX_PROCESSES];
 pcb_t *
 get_pcb_by_pid(int pid)
 {
-    /* When getting the parent of a "root" process */
-    if (pid < 0) {
+    if (pid <= 0 || pid > MAX_PROCESSES) {
         return NULL;
     }
 
-    assert(pid < MAX_PROCESSES);
-    assert(process_info[pid].pid >= 0);
-    return &process_info[pid];
+    /* Since PCB is statically allocated, use PID to determine validity */
+    pcb_t *pcb = &process_info[pid - 1];
+    if (pcb->pid <= 0) {
+        return NULL;
+    }
+
+    return pcb;
 }
 
 /*
@@ -96,25 +99,6 @@ get_executing_pcb(void)
 }
 
 /*
- * Gets the PCB of the currently executing process
- * in the specified terminal.
- */
-pcb_t *
-get_pcb_by_terminal(int terminal)
-{
-    int i;
-    for (i = 0; i < MAX_PROCESSES; ++i) {
-        pcb_t *pcb = &process_info[i];
-        if (pcb->pid >= 0                      /* Valid? */
-            && pcb->terminal == terminal       /* Same terminal? */
-            && pcb->status != PROCESS_SLEEP) { /* Running? */
-            return pcb;
-        }
-    }
-    return NULL;
-}
-
-/*
  * Finds the next process that is scheduled for execution. If
  * there are no other process that can be executed, returns the
  * current process.
@@ -125,9 +109,9 @@ get_next_pcb(void)
     pcb_t *curr_pcb = get_executing_pcb();
     int i;
     for (i = 1; i < MAX_PROCESSES; ++i) {
-        int pid = (curr_pcb->pid + i) % MAX_PROCESSES;
-        pcb_t *pcb = &process_info[pid];
-        if (pcb->pid >= 0 && pcb->status != PROCESS_SLEEP) {
+        int pid = (curr_pcb->pid - 1 + i) % MAX_PROCESSES + 1;
+        pcb_t *pcb = &process_info[pid - 1];
+        if (pcb->pid > 0 && pcb->status != PROCESS_SLEEP) {
             return pcb;
         }
     }
@@ -147,8 +131,8 @@ process_new_pcb(void)
     /* Look for an empty process slot we can fill */
     int i;
     for (i = 0; i < MAX_PROCESSES; ++i) {
-        if (process_info[i].pid < 0) {
-            process_info[i].pid = i;
+        if (process_info[i].pid <= 0) {
+            process_info[i].pid = i + 1;
             return &process_info[i];
         }
     }
@@ -315,8 +299,8 @@ get_kernel_base_esp(pcb_t *pcb)
      * |   ...   |
      * (higher addresses)
      */
-    uint32_t stack_start = (uint32_t)process_data[pcb->pid].kernel_stack;
-    uint32_t stack_size = sizeof(process_data[pcb->pid].kernel_stack);
+    uint32_t stack_start = (uint32_t)process_data[pcb->pid - 1].kernel_stack;
+    uint32_t stack_size = sizeof(process_data[pcb->pid - 1].kernel_stack);
     return stack_start + stack_size;
 }
 
@@ -357,7 +341,7 @@ process_run(pcb_t *pcb)
     int ret;
 
     assert(pcb != NULL);
-    assert(pcb->pid >= 0);
+    assert(pcb->pid > 0);
 
     /* Mark process as initialized */
     pcb->status = PROCESS_RUN;
@@ -494,8 +478,13 @@ process_create_child(const char *command, pcb_t *parent_pcb, int terminal)
     paging_heap_init(&child_pcb->heap);
     strncpy(child_pcb->args, args, MAX_ARGS_LEN);
 
+    /* Process group related stuff */
+    child_pcb->group = child_pcb->pid;
+    list_init(&child_pcb->group_list);
+    terminal_tcsetpgrp_impl(child_pcb->terminal, child_pcb->group);
+
     /* Update PCB pointer in the kernel data for this process */
-    process_data[child_pcb->pid].pcb = child_pcb;
+    process_data[child_pcb->pid - 1].pcb = child_pcb;
 
     /* Copy our program into physical memory */
     paging_set_context(child_pcb->pfn, &child_pcb->heap);
@@ -589,6 +578,9 @@ process_halt_impl(int status)
         /* Should never get back to this point */
         panic("Should not have returned from shell");
     }
+
+    /* Restore foreground group */
+    terminal_tcsetpgrp_impl(parent_pcb->terminal, parent_pcb->group);
 
     /* Mark parent as runnable again */
     parent_pcb->status = PROCESS_RUN;
@@ -792,6 +784,78 @@ __cdecl int
 process_wait(int pid)
 {
     return -1;
+}
+
+/*
+ * getpid() syscall handler. Returns the PID of the calling
+ * process.
+ */
+__cdecl int
+process_getpid(void)
+{
+    pcb_t *pcb = get_executing_pcb();
+    return pcb->pid;
+}
+
+/*
+ * getpgrp() syscall handler. Returns the current process
+ * group of the calling process.
+ */
+__cdecl int
+process_getpgrp(void)
+{
+    pcb_t *pcb = get_executing_pcb();
+    return pcb->group;
+}
+
+/*
+ * setpgrp() syscall handler. Sets the process group
+ * of the specified process. If pid == 0, this sets the
+ * process group of the calling process. If pgrp == 0,
+ * the PID is used as the group ID.
+ */
+__cdecl int
+process_setpgrp(int pid, int pgrp)
+{
+    /* If pid is zero, this refers to the calling process */
+    pcb_t *pcb;
+    if (pid == 0) {
+        pcb = get_executing_pcb();
+        pid = pcb->pid;
+    } else {
+        pcb = get_pcb_by_pid(pid);
+        if (pcb == NULL) {
+            debugf("Invalid/nonexistent PID: %d\n", pid);
+            return -1;
+        }
+    }
+
+    /* If pgrp is zero, use the PID as the group ID */
+    if (pgrp == 0) {
+        pgrp = pid;
+    }
+
+    /*
+     * Lazy limitation: Only allow creation of new groups
+     * when PID == PGID. This way, we keep the invariant that
+     * if PID == PGID, the process is a head of a group, and
+     * if PID != PGID, the process is part of another group.
+     */
+    pcb_t *gpcb = get_pcb_by_pid(pgrp);
+    if (gpcb == NULL || (pcb != gpcb && gpcb->group != gpcb->pid)) {
+        debugf("Group ID must be PID of self or a group leader\n");
+        return -1;
+    }
+
+    /* Remove from old group, add to new group */
+    list_del(&pcb->group_list);
+    pcb->group = pgrp;
+    if (pcb == gpcb) {
+        list_init(&pcb->group_list);
+    } else {
+        list_add(&pcb->group_list, &gpcb->group_list);
+    }
+    return 0;
 }
 
 /* Initializes all process control related data */

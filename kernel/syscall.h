@@ -32,7 +32,12 @@
 #define SYS_FORK        26
 #define SYS_EXEC        27
 #define SYS_WAIT        28
-#define NUM_SYSCALL     28
+#define SYS_GETPID      29
+#define SYS_GETPGRP     30
+#define SYS_SETPGRP     31
+#define SYS_TCGETPGRP   32
+#define SYS_TCSETPGRP   33
+#define NUM_SYSCALL     33
 
 #define EINTR  2
 #define EAGAIN 3

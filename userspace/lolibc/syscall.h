@@ -29,6 +29,11 @@
 #define SYS_FORK        26
 #define SYS_EXEC        27
 #define SYS_WAIT        28
+#define SYS_GETPID      29
+#define SYS_GETPGRP     30
+#define SYS_SETPGRP     31
+#define SYS_TCGETPGRP   32
+#define SYS_TCSETPGRP   33
 
 /* syscall.h */
 #define EINTR  2
@@ -106,6 +111,11 @@ __cdecl int dup(int srcfd, int destfd);
 __cdecl int fork(void);
 __cdecl int exec(const char *command);
 __cdecl int wait(int pid);
+__cdecl int getpid(void);
+__cdecl int getpgrp(void);
+__cdecl int setpgrp(int pid, int pgrp);
+__cdecl int tcgetpgrp(void);
+__cdecl int tcsetpgrp(int pgrp);
 
 #endif /* ASM */
 

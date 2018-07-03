@@ -215,20 +215,75 @@ signal_sigmask(int signum, int action)
 }
 
 /*
- * kill() syscall handler. Sends a signal specified by
- * signum to the specified process.
+ * Delivers a signal to a single process.
+ */
+static int
+signal_kill_one(int pid, int signum)
+{
+    pcb_t *pcb = get_pcb_by_pid(pid);
+    if (pcb == NULL) {
+        return -1;
+    }
+
+    pcb->signals[signum].pending = true;
+    return 0;
+}
+
+/*
+ * Delivers a signal to every process in the specified
+ * process group.
+ */
+static int
+signal_kill_group(int pgid, int signum)
+{
+    pcb_t *gpcb = get_pcb_by_pid(pgid);
+    if (gpcb == NULL) {
+        return -1;
+    }
+
+    /*
+     * If the process is in another process group, then that means
+     * the given process group doesn't exist.
+     */
+    if (gpcb->group != gpcb->pid) {
+        debugf("Group with PGID %d does not exist\n", pgid);
+        return -1;
+    }
+
+    /*
+     * Deliver signal to all processes in the group. Also deliver
+     * to the group leader, obviously.
+     */
+    list_t *pos;
+    list_for_each(pos, &gpcb->group_list) {
+        pcb_t *pcb = list_entry(pos, pcb_t, group_list);
+        pcb->signals[signum].pending = true;
+    }
+    gpcb->signals[signum].pending = true;
+    return 0;
+}
+
+/*
+ * kill() syscall handler. If pid > 0, sends a signal specified by
+ * signum to the specified process. If pid < 0, sends the signal
+ * to every process in the process group with pgid == -pid. If
+ * pid == 0, sends the signal to every process in the calling
+ * process's group.
  */
 __cdecl int
 signal_kill(int pid, int signum)
 {
-    /* Check signal number range */
     if (signum < 0 || signum >= NUM_SIGNALS) {
         return -1;
     }
 
-    pcb_t *pcb = get_pcb_by_pid(pid);
-    pcb->signals[signum].pending = true;
-    return 0;
+    if (pid > 0) {
+        return signal_kill_one(pid, signum);
+    } else if (pid < 0) {
+        return signal_kill_group(-pid, signum);
+    } else {
+        return signal_kill_group(get_executing_pcb()->group, signum);
+    }
 }
 
 /*

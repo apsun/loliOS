@@ -19,9 +19,8 @@
  */
 typedef struct {
     /*
-     * PID of the this process. If the PCB does not represent
-     * a valid process, this will be negative. Non-negative PIDs
-     * represent valid processes.
+     * PID of the this process. If the PCB is not valid, this will contain
+     * a nonpositive number.
      */
     int pid;
 
@@ -32,14 +31,14 @@ typedef struct {
 
     /*
      * PID of the parent process that created this process. If
-     * there is no parent, this will be negative.
+     * there is no parent, this will be nonpositive.
      */
     int parent_pid;
 
     /*
      * Kernel ESP/EBP of the parent process. Used to return to the parent
      * process's stack frame from halt inside the child process. This is
-     * only valid if parent_pid >= 0.
+     * only valid if there is a parent.
      */
     uint32_t parent_esp;
     uint32_t parent_ebp;
@@ -67,6 +66,13 @@ typedef struct {
      * Execution status of the process.
      */
     int status;
+
+    /*
+     * Process group ID that this process belongs to, and a list
+     * of processes in that group.
+     */
+    int group;
+    list_t group_list;
 
     /*
      * Whether the process has the virtual video memory page
@@ -109,15 +115,18 @@ pcb_t *get_pcb_by_pid(int pid);
 /* Gets the PCB of the currently executing process */
 pcb_t *get_executing_pcb(void);
 
-/* Gets the PCB of the process currently running in the specified terminal */
-pcb_t *get_pcb_by_terminal(int terminal);
-
 /* Process syscall handlers */
 __cdecl int process_halt(int status);
 __cdecl int process_execute(const char *command);
 __cdecl int process_getargs(char *buf, int nbytes);
 __cdecl int process_vidmap(uint8_t **screen_start);
 __cdecl int process_sbrk(int delta);
+__cdecl int process_fork(void);
+__cdecl int process_exec(const char *command);
+__cdecl int process_wait(int pid);
+__cdecl int process_getpid(void);
+__cdecl int process_getpgrp(void);
+__cdecl int process_setpgrp(int pid, int pgrp);
 
 /* Initializes processes. */
 void process_init(void);

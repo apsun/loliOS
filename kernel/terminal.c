@@ -596,18 +596,18 @@ terminal_mouse_ioctl(file_obj_t *file, int req, int arg)
 
 /*
  * Handles CTRL-C input by sending an interrupt signal
- * to the process executing in the current terminal.
+ * to the foreground process group in the current terminal.
  */
 static void
 terminal_interrupt(void)
 {
-    pcb_t *pcb = get_pcb_by_terminal(display_terminal);
-    if (pcb == NULL) {
-        debugf("No process running in display terminal\n");
+    terminal_state_t *term = get_display_terminal();
+    int pgrp = term->fg_group;
+    if (pgrp == 0) {
+        debugf("No foreground process group in display terminal\n");
         return;
     }
-
-    signal_kill(pcb->pid, SIG_INTERRUPT);
+    signal_kill(-pgrp, SIG_INTERRUPT);
 }
 
 /* Handles a keyboard control sequence */
@@ -636,7 +636,8 @@ handle_ctrl_input(kbd_input_ctrl_t ctrl)
 static void
 handle_char_input(char c)
 {
-    /* We should insert characters into the currently displayed
+    /*
+     * We should insert characters into the currently displayed
      * terminal's input stream, not the currently executing terminal.
      */
     terminal_state_t *term = get_display_terminal();
@@ -750,6 +751,43 @@ terminal_open_streams(file_obj_t **files)
     ret = file_desc_bind(files, 1, out);
     assert(ret == 1);
 
+    return 0;
+}
+
+/*
+ * tcsetpgrp() compatibility function for code running
+ * inside the kernel during early kernel boot, when
+ * there is no executing process yet.
+ */
+void
+terminal_tcsetpgrp_impl(int terminal, int pgrp)
+{
+    terminal_state_t *term = get_terminal(terminal);
+    term->fg_group = pgrp;
+}
+
+/*
+ * tcgetpgrp() syscall handler. Returns the foreground
+ * process group of the terminal that this process is
+ * executing in.
+ */
+__cdecl int
+terminal_tcgetpgrp(void)
+{
+    terminal_state_t *term = get_executing_terminal();
+    return term->fg_group;
+}
+
+/*
+ * tcsetpgrp() syscall handler. Sets the foreground
+ * process group of the terminal that this process is
+ * executing in.
+ */
+__cdecl int
+terminal_tcsetpgrp(int pgrp)
+{
+    terminal_state_t *term = get_executing_terminal();
+    term->fg_group = pgrp;
     return 0;
 }
 
