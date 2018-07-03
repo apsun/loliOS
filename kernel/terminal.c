@@ -315,30 +315,35 @@ terminal_clear_input(int terminal)
 }
 
 /*
- * Waits until the keyboard input buffer can be read. This is satisfied
- * when one of these conditions are met:
- *
- * 1. We have enough characters in the buffer to fill the output buffer
- * 2. We have a \n character in the buffer
- *
+ * Waits until either the keyboard input buffer has enough
+ * data to be read, or the read call should return early.
  * Returns the number of characters that should be read.
  */
 static int
-terminal_wait_kbd_input(kbd_input_buf_t *input_buf, int nbytes, bool nonblocking)
+terminal_wait_kbd_input(terminal_state_t *term, int nbytes, bool nonblocking)
 {
     /*
      * If nbytes <= number of chars in the buffer, we just
      * return as much as will fit.
      */
+    pcb_t *pcb = get_executing_pcb();
     int count;
-    while (nbytes > (count = input_buf->count)) {
+    while (nbytes > (count = term->kbd_input.count)) {
+        /*
+         * If the process is not in the foreground group, don't
+         * allow the caller to read
+         */
+        if (term->fg_group != pcb->group) {
+            return -1;
+        }
+
         /*
          * Check if we have a newline character, if so, we should
          * only read up to and including that character
          */
         int i;
         for (i = 0; i < count; ++i) {
-            if (input_buf->buf[i] == '\n') {
+            if (term->kbd_input.buf[i] == '\n') {
                 return i + 1;
             }
         }
@@ -397,9 +402,6 @@ terminal_stdin_read(file_obj_t *file, void *buf, int nbytes)
         return -1;
     }
 
-    terminal_state_t *term = get_executing_terminal();
-    kbd_input_buf_t *input_buf = &term->kbd_input;
-
     /* Only allow reads up to the end of the buffer */
     if (nbytes > KEYBOARD_BUF_SIZE) {
         nbytes = KEYBOARD_BUF_SIZE;
@@ -410,7 +412,8 @@ terminal_stdin_read(file_obj_t *file, void *buf, int nbytes)
      * Interrupts must be disabled upon entry, and
      * will be disabled upon return.
      */
-    nbytes = terminal_wait_kbd_input(input_buf, nbytes, (bool)file->private);
+    terminal_state_t *term = get_executing_terminal();
+    nbytes = terminal_wait_kbd_input(term, nbytes, (bool)file->private);
 
     /* Abort if we have pending signals or nothing to read */
     if (nbytes < 0) {
@@ -418,6 +421,7 @@ terminal_stdin_read(file_obj_t *file, void *buf, int nbytes)
     }
 
     /* Copy input buffer to userspace */
+    kbd_input_buf_t *input_buf = &term->kbd_input;
     if (!copy_to_user(buf, (void *)input_buf->buf, nbytes)) {
         return -1;
     }
@@ -458,15 +462,19 @@ terminal_stdout_read(file_obj_t *file, void *buf, int nbytes)
 int
 terminal_stdout_write(file_obj_t *file, const void *buf, int nbytes)
 {
-    /* Early check, so we don't get partial writes to the terminal */
+    /* Cannot write if not in foreground group */
+    terminal_state_t *term = get_executing_terminal();
+    if (term->fg_group != get_executing_pcb()->group) {
+        return -1;
+    }
+
+    /* Ensure entire buffer is readable */
     if (!is_user_accessible(buf, nbytes, false)) {
         return -1;
     }
 
-    const char *src = (const char *)buf;
-    terminal_state_t *term = get_executing_terminal();
-
     /* Print characters to the terminal (don't update cursor) */
+    const char *src = (const char *)buf;
     int i;
     for (i = 0; i < nbytes; ++i) {
         terminal_putc_impl(term, src[i]);
@@ -525,7 +533,8 @@ terminal_mouse_open(file_obj_t *file)
  * Read syscall for the mouse. This does NOT block if no
  * inputs are available. Copies at most nbytes / sizeof(mouse_input_t)
  * input events to buf. If no events are available, this
- * simply returns 0.
+ * returns -EAGAIN. Note that this ignores foreground process
+ * groups.
  */
 int
 terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
@@ -537,6 +546,11 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
     /* Get the mouse buffer for the executing terminal */
     terminal_state_t *term = get_executing_terminal();
     mouse_input_buf_t *input_buf = &term->mouse_input;
+
+    /* Check if there's any input to read */
+    if (input_buf->count == 0) {
+        return -EAGAIN;
+    }
 
     /*
      * Return either the number of inputs in the buffer,
@@ -787,6 +801,11 @@ __cdecl int
 terminal_tcsetpgrp(int pgrp)
 {
     terminal_state_t *term = get_executing_terminal();
+    pcb_t *gpcb = get_pcb_by_pid(pgrp);
+    if (gpcb == NULL || gpcb->group != gpcb->pid) {
+        debugf("Process group does not exist\n");
+        return -1;
+    }
     term->fg_group = pgrp;
     return 0;
 }
