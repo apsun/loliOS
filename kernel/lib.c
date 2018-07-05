@@ -771,8 +771,33 @@ printf_append_string(printf_arg_t *a, const char *s)
 static bool
 printf_append_char(printf_arg_t *a, char c)
 {
-    char buf[2] = {c, '\0'};
-    return printf_append_string(a, buf);
+    /* If we've already hit an error condition, fail fast */
+    if (a->buf == NULL) {
+        a->true_len++;
+        return false;
+    }
+
+    /* Try copying it into the buffer */
+    if (a->capacity - a->count > 1) {
+        a->buf[a->count++] = c;
+        a->buf[a->count] = '\0';
+        a->true_len++;
+        return true;
+    }
+
+    /* Try flushing buffer and restart */
+    if (a->count > 0 && a->write != NULL) {
+        if (!printf_flush(a)) {
+            a->buf = NULL;
+            return false;
+        }
+        return printf_append_char(a, c);
+    }
+
+    /* String too long and we have nowhere to flush it to */
+    a->true_len++;
+    a->buf = NULL;
+    return false;
 }
 
 /*

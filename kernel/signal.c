@@ -2,16 +2,8 @@
 #include "lib.h"
 #include "debug.h"
 #include "process.h"
+#include "scheduler.h"
 #include "x86_desc.h"
-
-/* User-modifiable bits in EFLAGS */
-#define EFLAGS_USER 0xDD5
-
-/* Interrupt flag */
-#define EFLAGS_IF (1 << 9)
-
-/* Direction flag */
-#define EFLAGS_DF (1 << 10)
 
 /*
  * Pushes the signal handler context onto the user stack
@@ -215,52 +207,50 @@ signal_sigmask(int signum, int action)
 }
 
 /*
- * Delivers a signal to a single process.
+ * Marks a signal as pending for the given process, and
+ * wakes it if it's sleeping.
+ */
+static void
+signal_raise(pcb_t *pcb, int signum)
+{
+    pcb->signals[signum].pending = true;
+    if (signal_has_pending(pcb->signals)) {
+        scheduler_wake(pcb);
+    }
+}
+
+/*
+ * Raises a signal for a single process.
  */
 static int
 signal_kill_one(int pid, int signum)
 {
-    pcb_t *pcb = get_pcb_by_pid(pid);
+    pcb_t *pcb = get_pcb(pid);
     if (pcb == NULL) {
         return -1;
     }
 
-    pcb->signals[signum].pending = true;
+    signal_raise(pcb, signum);
     return 0;
 }
 
 /*
- * Delivers a signal to every process in the specified
- * process group.
+ * Raises a signal for every process in the specified
+ * process group. Returns 0 if there was at least one
+ * process in that group.
  */
 static int
 signal_kill_group(int pgid, int signum)
 {
-    pcb_t *gpcb = get_pcb_by_pid(pgid);
-    if (gpcb == NULL) {
-        return -1;
+    int ret = -1;
+    pcb_t *pcb;
+    process_for_each(pcb) {
+        if (pcb->group == pgid) {
+            ret = 0;
+            signal_raise(pcb, signum);
+        }
     }
-
-    /*
-     * If the process is in another process group, then that means
-     * the given process group doesn't exist.
-     */
-    if (gpcb->group != gpcb->pid) {
-        debugf("Group with PGID %d does not exist\n", pgid);
-        return -1;
-    }
-
-    /*
-     * Deliver signal to all processes in the group. Also deliver
-     * to the group leader, obviously.
-     */
-    list_t *pos;
-    list_for_each(pos, &gpcb->group_list) {
-        pcb_t *pcb = list_entry(pos, pcb_t, group_list);
-        pcb->signals[signum].pending = true;
-    }
-    gpcb->signals[signum].pending = true;
-    return 0;
+    return ret;
 }
 
 /*
@@ -325,32 +315,50 @@ signal_handle(signal_info_t *sig, int_regs_t *regs)
 }
 
 /*
- * Initializes the signal array for a proces.
+ * Initializes the signal state for a proces.
  */
 void
 signal_init(signal_info_t *signals)
 {
     int i;
     for (i = 0; i < NUM_SIGNALS; ++i) {
-        signals[i].signum = i;
-        signals[i].handler_addr = NULL;
-        signals[i].masked = false;
-        signals[i].pending = false;
+        signal_info_t *sig = &signals[i];
+        sig->signum = i;
+        sig->handler_addr = NULL;
+        sig->masked = false;
+        sig->pending = false;
     }
 }
 
 /*
- * If the currently executing process has any pending
- * signals, modifies the IRET context and user stack to run the
- * signal handler.
+ * Clones the signal state for a new process. Note that pending
+ * signals are not preserved.
  */
 void
-signal_handle_all(int_regs_t *regs)
+signal_clone(signal_info_t *dest, signal_info_t *src)
 {
-    pcb_t *pcb = get_executing_pcb();
     int i;
     for (i = 0; i < NUM_SIGNALS; ++i) {
-        signal_info_t *sig = &pcb->signals[i];
+        signal_info_t *di = &dest[i];
+        signal_info_t *si = &src[i];
+        di->signum = si->signum;
+        di->handler_addr = si->handler_addr;
+        di->masked = si->masked;
+        di->pending = false;
+    }
+}
+
+/*
+ * If a process has any pending signals, modifies its interrupt
+ * context and user stack to run the signal handler. regs must
+ * point to the process's interrupt context on the stack.
+ */
+void
+signal_handle_all(signal_info_t *signals, int_regs_t *regs)
+{
+    int i;
+    for (i = 0; i < NUM_SIGNALS; ++i) {
+        signal_info_t *sig = &signals[i];
         if (sig->pending && signal_handle(sig, regs)) {
             break;
         }
@@ -358,17 +366,16 @@ signal_handle_all(int_regs_t *regs)
 }
 
 /*
- * Returns whether the currently executing process
- * has a pending signal for which there exists a
- * handler (or default action) that does something.
+ * Returns whether a process has a pending signal for which
+ * there exists a handler (or default action) that does something.
+ * This is used to abort long-running wait loops with -EINTR.
  */
 bool
-signal_has_pending(void)
+signal_has_pending(signal_info_t *signals)
 {
-    pcb_t *pcb = get_executing_pcb();
     int i;
     for (i = 0; i < NUM_SIGNALS; ++i) {
-        signal_info_t *sig = &pcb->signals[i];
+        signal_info_t *sig = &signals[i];
         if (sig->pending) {
             /*
              * If user manually registered a handler and the

@@ -63,11 +63,14 @@ __cdecl int signal_kill(int pid, int signum);
 /* Initializes the signal info array */
 void signal_init(signal_info_t *signals);
 
-/* Handles any pending signals */
-void signal_handle_all(int_regs_t *regs);
+/* Clones an existing signal info array */
+void signal_clone(signal_info_t *dest, signal_info_t *src);
 
-/* Returns whether the currently executing process has a pending signal */
-bool signal_has_pending(void);
+/* Handles any pending signals */
+void signal_handle_all(signal_info_t *signals, int_regs_t *regs);
+
+/* Checks whether a process has a pending signal */
+bool signal_has_pending(signal_info_t *signals);
 
 #endif /* ASM */
 

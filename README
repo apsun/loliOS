@@ -22,3 +22,9 @@ build.sh
     delete all object files. Run it with "run" to also boot QEMU after a
     successful build. The "-c" (compat) flag can be used to boot the
     original ECE 391 filesystem.
+
+server.sh
+    This script runs a TCP music streaming server. It takes the path to
+    an audio file as an argument, converts it into WAV format, and serves
+    it at port 7878 on the host. To download this within the VM, connect
+    to 10.0.2.2:7878. ffmpeg is required to convert the file to WAV.

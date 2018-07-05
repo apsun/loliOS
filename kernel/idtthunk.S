@@ -103,6 +103,8 @@ idt_handle_common_thunk:
     call idt_handle_interrupt
     addl $4, %esp
 
+.globl idt_unwind_stack
+idt_unwind_stack:
     /* Ignore control registers */
     addl $16, %esp
 

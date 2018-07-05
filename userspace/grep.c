@@ -14,7 +14,7 @@ do_one_file(const char *s, const char *fname)
     char data[BUFSIZE + 1];
 
     if ((fd = open(fname)) < 0) {
-        puts("file open failed");
+        printf("file open failed: %s\n", fname);
         ret = -1;
         goto exit;
     }
@@ -23,7 +23,7 @@ do_one_file(const char *s, const char *fname)
     int cnt;
     do {
         if ((cnt = read(fd, &data[last], BUFSIZE - last)) < 0) {
-            puts("file read filed");
+            printf("file read filed: %s\n", fname);
             ret = -1;
             goto exit;
         }

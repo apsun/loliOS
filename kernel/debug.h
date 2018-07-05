@@ -12,8 +12,11 @@
 
 /* Whether to enable debugf printing */
 #ifndef DEBUG_PRINT
-#define DEBUG_PRINT 0
+#define DEBUG_PRINT 1
 #endif
+
+/* Unreachable panic macro */
+#define unreachable() panic("Reached 'unreachable' code")
 
 /* Always-enabled panic macro */
 #define panic(msg) do {                                    \

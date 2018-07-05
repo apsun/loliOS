@@ -6,6 +6,7 @@
 #include "idt.h"
 #include "paging.h"
 #include "process.h"
+#include "scheduler.h"
 #include "pit.h"
 #include "ps2.h"
 #include "keyboard.h"
@@ -180,6 +181,12 @@ entry(unsigned long magic, unsigned long addr)
     printf("Initializing processes...\n");
     process_init();
 
+    printf("Initializing scheduler...\n");
+    scheduler_init();
+
+    printf("Seeding random number generator...\n");
+    srand(rtc_time());
+
     printf("Initializing taux controller driver...\n");
     taux_init();
 
@@ -191,9 +198,6 @@ entry(unsigned long magic, unsigned long addr)
 
     printf("Initializing NE2000 driver...\n");
     ne2k_init();
-
-    printf("Seeding random number generator...\n");
-    srand(rtc_time());
 
     /* We made it! */
     printf("Boot successful!\n");

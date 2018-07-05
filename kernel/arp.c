@@ -174,7 +174,7 @@ arp_cache_insert(net_dev_t *dev, ip_addr_t ip, const mac_addr_t *mac)
         }
         entry->dev = dev;
         entry->ip_addr = ip;
-        list_add(&entry->list, &arp_cache);
+        list_add_tail(&entry->list, &arp_cache);
         timer_init(&entry->timeout);
     }
 

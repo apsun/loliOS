@@ -3,6 +3,7 @@
 #include "terminal.h"
 #include "bitmap.h"
 #include "list.h"
+#include "filesys.h"
 
 /* PDE size field values */
 #define SIZE_4KB 0
@@ -11,6 +12,9 @@
 /* Amount of physical memory present in the system (256MB) */
 #define MAX_RAM MB(256)
 #define MAX_PAGES (MAX_RAM / MB(4))
+
+/* Where in the user page to begin copying the userspace program */
+#define PROCESS_OFFSET 0x48000
 
 /* Structure for 4KB page table entry */
 typedef struct {
@@ -423,12 +427,87 @@ paging_heap_sbrk(paging_heap_t *heap, int delta)
 
 /*
  * Deallocates a heap, freeing all pages used by it.
+ * This restores the heap to its initial (empty) state.
  */
 void
 paging_heap_destroy(paging_heap_t *heap)
 {
     paging_heap_shrink(heap, 0);
     heap->size = 0;
+}
+
+/*
+ * Clones an existing process's heap. Note that this
+ * currently does not perform copy-on-write optimization.
+ */
+int
+paging_heap_clone(paging_heap_t *dest, paging_heap_t *src)
+{
+    /* Allocate same number of pages as src */
+    dest->size = src->size;
+    dest->num_pages = 0;
+    if (paging_heap_grow(dest, src->num_pages) < 0) {
+        return -1;
+    }
+
+    /*
+     * Copy page contents, 4MB at a time. Temporary page
+     * is necessary since we need to be able to view both
+     * physical addresses simultaneously, but both have
+     * the same virtual address.
+     */
+    int i;
+    for (i = 0; i < dest->num_pages; ++i) {
+        paging_page_map(TEMP_PAGE_START / MB(4), dest->pages[i], false);
+        memcpy((void *)TEMP_PAGE_START, (void *)(HEAP_PAGE_START / MB(4) + i), MB(4));
+    }
+    paging_page_unmap(TEMP_PAGE_START / MB(4));
+    return 0;
+}
+
+/*
+ * Clones an already-present page to a new, unmapped physical
+ * memory address.
+ */
+void
+paging_page_clone(int dest_pfn, void *src_vaddr)
+{
+    paging_page_map(TEMP_PAGE_START / MB(4), dest_pfn, false);
+    memcpy((void *)TEMP_PAGE_START, src_vaddr, MB(4));
+    paging_page_unmap(TEMP_PAGE_START / MB(4));
+}
+
+/*
+ * Copies a program into memory, and returns the virtual
+ * address of the entry point. This does not clobber any
+ * page mappings.
+ */
+uint32_t
+paging_load_exe(uint32_t inode_idx, int pfn)
+{
+    paging_page_map(TEMP_PAGE_START / MB(4), pfn, false);
+
+    /* Clear process page first */
+    memset((void *)TEMP_PAGE_START, 0, MB(4));
+
+    /* Copy program into memory */
+    int count;
+    int offset = 0;
+    do {
+        uint8_t *vaddr = (uint8_t *)TEMP_PAGE_START + PROCESS_OFFSET + offset;
+        count = read_data(inode_idx, offset, vaddr, MB(4));
+        offset += count;
+    } while (count > 0);
+
+    /*
+     * The entry point is located at bytes 24-27 of the executable.
+     * If the "executable" is less than 28 bytes long, this will just
+     * read garbage, which will cause the program to fault in userspace.
+     * No need to handle it here.
+     */
+    uint32_t entry_point = *(uint32_t *)(TEMP_PAGE_START + PROCESS_OFFSET + 24);
+    paging_page_unmap(TEMP_PAGE_START / MB(4));
+    return entry_point;
 }
 
 /*

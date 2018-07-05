@@ -110,7 +110,7 @@ __cdecl int getpeername(int fd, sock_addr_t *addr);
 __cdecl int dup(int srcfd, int destfd);
 __cdecl int fork(void);
 __cdecl int exec(const char *command);
-__cdecl int wait(int pid);
+__cdecl int wait(int *pid);
 __cdecl int getpid(void);
 __cdecl int getpgrp(void);
 __cdecl int setpgrp(int pid, int pgrp);

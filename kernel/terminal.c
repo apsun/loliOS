@@ -5,6 +5,7 @@
 #include "process.h"
 #include "paging.h"
 #include "signal.h"
+#include "scheduler.h"
 
 /* Terminal config */
 #define NUM_COLS  80
@@ -23,7 +24,7 @@
 static terminal_state_t terminal_states[NUM_TERMINALS];
 
 /* Index of the currently displayed terminal */
-static int display_terminal = -1;
+static int display_terminal = 0;
 
 /*
  * Returns the specified terminal.
@@ -31,6 +32,9 @@ static int display_terminal = -1;
 static terminal_state_t *
 get_terminal(int index)
 {
+    if (index < 0 || index >= NUM_TERMINALS) {
+        while (1);
+    }
     assert(index >= 0 && index < NUM_TERMINALS);
     return &terminal_states[index];
 }
@@ -303,6 +307,7 @@ terminal_clear(void)
     terminal_clear_impl(term);
     term->kbd_input.count = 0;
     term->mouse_input.count = 0;
+    scheduler_wake_all(&term->sleep_queue);
 }
 
 /* Clears the specified terminal's input buffers */
@@ -312,6 +317,7 @@ terminal_clear_input(int terminal)
     terminal_state_t *term = get_terminal(terminal);
     term->kbd_input.count = 0;
     term->mouse_input.count = 0;
+    scheduler_wake_all(&term->sleep_queue);
 }
 
 /*
@@ -322,11 +328,12 @@ terminal_clear_input(int terminal)
 static int
 terminal_wait_kbd_input(terminal_state_t *term, int nbytes, bool nonblocking)
 {
+    pcb_t *pcb = get_executing_pcb();
+
     /*
      * If nbytes <= number of chars in the buffer, we just
      * return as much as will fit.
      */
-    pcb_t *pcb = get_executing_pcb();
     int count;
     while (nbytes > (count = term->kbd_input.count)) {
         /*
@@ -357,19 +364,12 @@ terminal_wait_kbd_input(terminal_state_t *term, int nbytes, bool nonblocking)
         }
 
         /* Exit early if we have a pending signal */
-        if (signal_has_pending()) {
+        if (signal_has_pending(pcb->signals)) {
             return -EINTR;
         }
 
-        /*
-         * Wait for some more input (nicely, to save CPU cycles).
-         * There's no race condition between sti and hlt here,
-         * since sti will only take effect after the following
-         * instruction (hlt) has been executed.
-         */
-        sti();
-        hlt();
-        cli();
+        /* Wait for some more input */
+        scheduler_sleep(&term->sleep_queue);
     }
 
     return nbytes;
@@ -533,8 +533,8 @@ terminal_mouse_open(file_obj_t *file)
  * Read syscall for the mouse. This does NOT block if no
  * inputs are available. Copies at most nbytes / sizeof(mouse_input_t)
  * input events to buf. If no events are available, this
- * returns -EAGAIN. Note that this ignores foreground process
- * groups.
+ * returns 0, not -EAGAIN (for grep compatibility). Note
+ * that this ignores foreground process groups.
  */
 int
 terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
@@ -549,7 +549,7 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
 
     /* Check if there's any input to read */
     if (input_buf->count == 0) {
-        return -EAGAIN;
+        return 0;
     }
 
     /*
@@ -650,10 +650,6 @@ handle_ctrl_input(kbd_input_ctrl_t ctrl)
 static void
 handle_char_input(char c)
 {
-    /*
-     * We should insert characters into the currently displayed
-     * terminal's input stream, not the currently executing terminal.
-     */
     terminal_state_t *term = get_display_terminal();
     kbd_input_buf_t *input_buf = &term->kbd_input;
     if (c == '\b' && input_buf->count > 0 && term->cursor.logical_x > 0) {
@@ -666,6 +662,9 @@ handle_char_input(char c)
         terminal_putc_impl(term, c);
         terminal_update_cursor(term);
     }
+
+    /* Wake all processes waiting on input to this terminal */
+    scheduler_wake_all(&term->sleep_queue);
 }
 
 /* Handles input from the keyboard */
@@ -800,12 +799,13 @@ terminal_tcgetpgrp(void)
 __cdecl int
 terminal_tcsetpgrp(int pgrp)
 {
-    terminal_state_t *term = get_executing_terminal();
-    pcb_t *gpcb = get_pcb_by_pid(pgrp);
-    if (gpcb == NULL || gpcb->group != gpcb->pid) {
-        debugf("Process group does not exist\n");
+    if (pgrp < 0) {
         return -1;
+    } else if (pgrp == 0) {
+        pgrp = get_executing_pcb()->group;
     }
+
+    terminal_state_t *term = get_executing_terminal();
     term->fg_group = pgrp;
     return 0;
 }
@@ -819,25 +819,23 @@ terminal_init(void)
 {
     int i;
     for (i = 0; i < NUM_TERMINALS; ++i) {
-        /*
-         * Backing memory is the per-terminal page
-         * Note that it's safe to do this before initializing paging
-         * since everything is accessible at that point
-         */
-        terminal_states[i].backing_mem = (uint8_t *)TERMINAL_PAGE_START + KB(i * 4);
+        terminal_state_t *term = &terminal_states[i];
+
+        /* Point backing memory to the per-terminal page */
+        term->backing_mem = (uint8_t *)TERMINAL_PAGE_START + KB(i * 4);
 
         /* Active memory points to the backing memory */
-        terminal_states[i].video_mem = terminal_states[i].backing_mem;
+        term->video_mem = term->backing_mem;
 
         /* Initialize the terminal memory region */
-        vga_clear_region(terminal_states[i].backing_mem, VIDEO_MEM_SIZE / 2);
+        vga_clear_region(term->backing_mem, VIDEO_MEM_SIZE / 2);
+
+        /* Initialize the stdin sleep queue */
+        list_init(&term->sleep_queue);
     }
 
     /* First terminal's active video memory points to global VGA memory */
-    terminal_states[0].video_mem = VIDEO_MEM;
-
-    /* Set initially displayed terminal */
-    display_terminal = 0;
+    terminal_states[display_terminal].video_mem = VIDEO_MEM;
 
     /* Register mouse file ops (stdin/stdout handled specially) */
     file_register_type(FILE_TYPE_MOUSE, &terminal_mouse_fops);

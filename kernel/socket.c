@@ -135,7 +135,7 @@ socket_obj_alloc(int type)
     sock->remote.ip = ANY_IP;
     sock->remote.port = 0;
     sock->private = NULL;
-    list_add(&sock->list, &socket_list);
+    list_add_tail(&sock->list, &socket_list);
 
     /* Call constructor */
     if (sock->ops_table->ctor != NULL && sock->ops_table->ctor(sock) < 0) {

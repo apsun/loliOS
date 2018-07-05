@@ -5,12 +5,13 @@
 #include "paging.h"
 #include "terminal.h"
 #include "x86_desc.h"
+#include "scheduler.h"
 
-/* Maximum length of string passed to execute() */
+/* Maximum length of string passed to execute()/exec() */
 #define MAX_EXEC_LEN 128
 
-/* Maximum number of processes */
-#define MAX_PROCESSES 6
+/* Maximum number of processes, including idle process */
+#define MAX_PROCESSES 7
 
 /* Executable magic bytes ('\x7fELF') */
 #define EXE_MAGIC 0x464c457f
@@ -18,26 +19,8 @@
 /* Process data block size, MUST BE A POWER OF 2! */
 #define PROCESS_DATA_SIZE 8192
 
-/* The virtual address that the process should be copied to */
-#define PROCESS_VADDR (USER_PAGE_START + 0x48000)
-
-/*
- * The process has been initialized and is running or
- * is scheduled to run
- */
-#define PROCESS_RUN 0
-
-/*
- * The process is waiting for a child process to exit
- * and should not be scheduled for execution
- */
-#define PROCESS_SLEEP 1
-
-/*
- * The process has been created, but not initialized
- * (i.e. process_run has not yet been called)
- */
-#define PROCESS_SCHED 2
+/* Name of the userspace program to execute on boot */
+#define INIT_PROCESS "shell"
 
 /* Kernel stack struct */
 typedef struct {
@@ -52,23 +35,53 @@ static pcb_t process_info[MAX_PROCESSES];
 __aligned(PROCESS_DATA_SIZE)
 static process_data_t process_data[MAX_PROCESSES];
 
+/* Sleep queue for processes wait()ing on another process */
+static list_declare(wait_queue);
+
 /*
- * Gets the PCB of the specified process.
+ * Gets the PCB of the process with the given PID.
+ * This does NOT include the idle process.
  */
 pcb_t *
-get_pcb_by_pid(int pid)
+get_pcb(int pid)
 {
     if (pid <= 0 || pid > MAX_PROCESSES) {
         return NULL;
     }
 
-    /* Since PCB is statically allocated, use PID to determine validity */
-    pcb_t *pcb = &process_info[pid - 1];
-    if (pcb->pid <= 0) {
+    pcb_t *pcb = &process_info[pid];
+    if (pcb->pid < 0) {
         return NULL;
     }
 
     return pcb;
+}
+
+/*
+ * Iterator API for PCB objects. Call this with NULL
+ * as a parameter to get the first process; call this
+ * with the first process to get the second process;
+ * and so on. When all processes have been exhausted,
+ * this returns NULL. Note that this is NOT stateful;
+ * so all iterations must be executed in one go. This
+ * does NOT include the idle process.
+ */
+pcb_t *
+get_next_pcb(pcb_t *pcb)
+{
+    /* Task 0 always refers to the idle task */
+    if (pcb == NULL) {
+        pcb = &process_info[0];
+    }
+
+    int pid;
+    for (pid = pcb->pid + 1; pid < MAX_PROCESSES; ++pid) {
+        pcb_t *next = &process_info[pid];
+        if (next->pid > 0) {
+            return next;
+        }
+    }
+    return NULL;
 }
 
 /*
@@ -99,40 +112,19 @@ get_executing_pcb(void)
 }
 
 /*
- * Finds the next process that is scheduled for execution. If
- * there are no other process that can be executed, returns the
- * current process.
- */
-static pcb_t *
-get_next_pcb(void)
-{
-    pcb_t *curr_pcb = get_executing_pcb();
-    int i;
-    for (i = 1; i < MAX_PROCESSES; ++i) {
-        int pid = (curr_pcb->pid - 1 + i) % MAX_PROCESSES + 1;
-        pcb_t *pcb = &process_info[pid - 1];
-        if (pcb->pid > 0 && pcb->status != PROCESS_SLEEP) {
-            return pcb;
-        }
-    }
-
-    /* If nothing else can be executed, just return the current one */
-    return curr_pcb;
-}
-
-/*
  * Allocates a new PCB. Returns a pointer to the PCB, or
  * NULL if the maximum number of processes are already
  * running.
  */
 static pcb_t *
-process_new_pcb(void)
+process_alloc_pcb(void)
 {
     /* Look for an empty process slot we can fill */
     int i;
     for (i = 0; i < MAX_PROCESSES; ++i) {
-        if (process_info[i].pid <= 0) {
-            process_info[i].pid = i + 1;
+        if (process_info[i].pid < 0) {
+            process_info[i].pid = i;
+            process_data[i].pcb = &process_info[i];
             return &process_info[i];
         }
     }
@@ -142,12 +134,22 @@ process_new_pcb(void)
 }
 
 /*
+ * Frees an allocated PCB. This does NOT release any
+ * resource used by the PCB.
+ */
+static void
+process_free_pcb(pcb_t *pcb)
+{
+    pcb->pid = -1;
+}
+
+/*
  * Ensures that the given file is a valid executable file.
  * On success, writes the inode index of the file to out_inode_idx,
  * the arguments to out_args, and returns 0. Otherwise, returns -1.
  */
 static int
-process_parse_cmd(const char *command, int *out_inode_idx, char *out_args)
+process_parse_cmd(const char *command, uint32_t *out_inode_idx, char *out_args)
 {
     /*
      * Scan for the end of the exe filename
@@ -246,41 +248,6 @@ process_parse_cmd(const char *command, int *out_inode_idx, char *out_args)
 }
 
 /*
- * Copies the program into memory. Returns the address of
- * the entry point of the program.
- *
- * You must point the process page to the correct physical
- * page before calling this!
- */
-static uint32_t
-process_load_exe(int inode_idx)
-{
-    /* Copy program into memory */
-    int count;
-    int offset = 0;
-    do {
-        uint8_t *vaddr = (uint8_t *)PROCESS_VADDR + offset;
-        count = read_data(inode_idx, offset, vaddr, MB(4));
-        offset += count;
-    } while (count > 0);
-
-    /* Clear user page contents for security */
-    uint32_t head_size = PROCESS_VADDR - USER_PAGE_START;
-    uint32_t tail_size = USER_PAGE_END - PROCESS_VADDR - offset;
-    memset((uint8_t *)USER_PAGE_START, 0, head_size);
-    memset((uint8_t *)PROCESS_VADDR + offset, 0, tail_size);
-
-    /*
-     * The entry point is located at bytes 24-27 of the executable.
-     * If the "executable" is less than 28 bytes long, this will just
-     * read garbage, which will cause the program to fault in userspace.
-     * No need to handle it here.
-     */
-    uint32_t entry_point = *(uint32_t *)(PROCESS_VADDR + 24);
-    return entry_point;
-}
-
-/*
  * Gets the address of the bottom of the kernel stack
  * for the specified process.
  */
@@ -299,25 +266,51 @@ get_kernel_base_esp(pcb_t *pcb)
      * |   ...   |
      * (higher addresses)
      */
-    uint32_t stack_start = (uint32_t)process_data[pcb->pid - 1].kernel_stack;
-    uint32_t stack_size = sizeof(process_data[pcb->pid - 1].kernel_stack);
+    uint32_t stack_start = (uint32_t)process_data[pcb->pid].kernel_stack;
+    uint32_t stack_size = sizeof(process_data[pcb->pid].kernel_stack);
     return stack_start + stack_size;
 }
 
 /*
- * Sets the global execution context to the specified process.
+ * Sets the global execution context for the specified process.
  */
-static void
-process_set_context(pcb_t *to)
+void
+process_set_context(pcb_t *pcb)
 {
     /* Restore process page */
-    paging_set_context(to->pfn, &to->heap);
+    paging_set_context(pcb->user_pfn, &pcb->heap);
 
     /* Restore vidmap status */
-    terminal_update_vidmap(to->terminal, to->vidmap);
+    terminal_update_vidmap(pcb->terminal, pcb->vidmap);
 
     /* Restore TSS entry */
-    tss.esp0 = get_kernel_base_esp(to);
+    tss.esp0 = get_kernel_base_esp(pcb);
+}
+
+/*
+ * Copies the given interrupt context onto the specified
+ * kernel stack, then performs the IRET on behalf of that
+ * process. This function does not return.
+ */
+static void
+process_iret(int_regs_t *regs, void *kernel_stack)
+{
+    /*
+     * Copy the interrupt context to the bottom of the stack.
+     * Note that if IRET'ing to kernel mode, the bottom 8 bytes
+     * of the stack are wasted (they hold the unused ESP/SS).
+     */
+    int_regs_t *dest = kernel_stack;
+    memcpy(--dest, regs, sizeof(int_regs_t));
+
+    /* Unwind the stack starting from that point */
+    asm volatile(
+        "movl %0, %%esp;"
+        "jmp idt_unwind_stack;"
+        :
+        : "g"(dest));
+
+    panic("Should not return from process_iret()");
 }
 
 /*
@@ -334,113 +327,197 @@ process_alarm_callback(timer_t *timer)
 
 /*
  * Jumps into userspace and executes the specified process.
+ * This function does not return. The process must be in
+ * the NEW state.
  */
-__noinline static int
+void
 process_run(pcb_t *pcb)
 {
-    int ret;
-
     assert(pcb != NULL);
-    assert(pcb->pid > 0);
+    assert(pcb->pid >= 0);
+    assert(pcb->state == PROCESS_STATE_NEW);
 
     /* Mark process as initialized */
-    pcb->status = PROCESS_RUN;
-
-    /* Clear process's terminal input buffers */
-    terminal_clear_input(pcb->terminal);
+    pcb->state = PROCESS_STATE_RUNNING;
 
     /* Set the global execution context */
     process_set_context(pcb);
 
-    /* Start the SIGALARM timer for this process */
-    timer_setup(&pcb->alarm_timer, TIMER_HZ * SIG_ALARM_PERIOD, process_alarm_callback);
-
-    /*
-     * Save ESP and EBP of the current call frame so that we
-     * can safely return from halt() inside the child, then
-     * jump into userspace and execute.
-     *
-     * DO NOT MODIFY ANY CODE HERE UNLESS YOU ARE 100% SURE
-     * ABOUT WHAT YOU ARE DOING!
-     */
-    asm volatile(
-        /* Save ESP and EBP */
-        "movl %%esp, (%1);"
-        "movl %%ebp, (%2);"
-
-        /* Segment registers */
-        "movw %4, %%ax;"
-        "movw %%ax, %%ds;"
-        "movw %%ax, %%es;"
-        "movw %%ax, %%fs;"
-        "movw %%ax, %%gs;"
-
-        /* SS register */
-        "pushl %4;"
-
-        /* ESP */
-        "pushl %5;"
-
-        /* EFLAGS */
-        "pushfl;"
-        "popl %%eax;"
-        "orl $0x200, %%eax;" /* Set IF */
-        "pushl %%eax;"
-
-        /* CS register */
-        "pushl %6;"
-
-        /* EIP */
-        "pushl %3;"
-
-        /* Zero all general purpose registers for security */
-        "xorl %%eax, %%eax;"
-        "xorl %%ebx, %%ebx;"
-        "xorl %%ecx, %%ecx;"
-        "xorl %%edx, %%edx;"
-        "xorl %%esi, %%esi;"
-        "xorl %%edi, %%edi;"
-        "xorl %%ebp, %%ebp;"
-
-        /* GO! */
-        "iret;"
-
-        /* Get back here from halt */
-        "process_run_ret:"
-
-        : "=a"(ret)
-        : "b"(&pcb->parent_esp),
-          "c"(&pcb->parent_ebp),
-          "d"(pcb->entry_point),
-          "i"(USER_DS),
-          "i"(USER_PAGE_END),
-          "i"(USER_CS)
-        : "esi", "edi", "cc", "memory");
-
-    return ret;
+    /* Into userspace we go! */
+    process_iret(&pcb->regs, (void *)get_kernel_base_esp(pcb));
 }
 
 /*
- * Creates and initializes a new PCB for the given process.
- *
- * Implementation note: This is deliberately decoupled from
- * actually executing the process so it's easier to implement
- * context switching.
+ * Idle loop "process". Basically just handles interrupts
+ * endlessly. This is the only place in the kernel where
+ * interrupts are enabled.
+ */
+static void
+process_idle(void)
+{
+    /*
+     * Note that there is no race condition between sti and
+     * hlt here - sti only takes effect after the next instruction
+     * has executed. If an interrupt occurred between sti and hlt,
+     * it would be handled after hlt executes and hlt would
+     * return immediately.
+     */
+    while (1) {
+        sti();
+        hlt();
+        cli();
+    }
+}
+
+/*
+ * Initializes the given registers as appropriate for
+ * executing a userspace process.
+ */
+static void
+process_fill_user_regs(int_regs_t *regs, uint32_t entry_point)
+{
+    uint32_t eflags;
+    asm volatile("pushfl; popl %0" : "=g"(eflags));
+
+    regs->ds = USER_DS;
+    regs->es = USER_DS;
+    regs->fs = USER_DS;
+    regs->gs = USER_DS;
+    regs->eax = 0;
+    regs->ebx = 0;
+    regs->ecx = 0;
+    regs->edx = 0;
+    regs->esi = 0;
+    regs->edi = 0;
+    regs->ebp = 0;
+    regs->eip = entry_point;
+    regs->cs = USER_CS;
+    regs->eflags = (eflags & ~EFLAGS_USER) | EFLAGS_IF;
+    regs->esp = USER_PAGE_END;
+    regs->ss = USER_DS;
+}
+
+/*
+ * Initializes the registers used to schedule the idle task.
+ */
+static void
+process_fill_idle_regs(int_regs_t *regs)
+{
+    uint32_t eflags;
+    asm volatile("pushfl; popl %0" : "=g"(eflags));
+
+    regs->ds = KERNEL_DS;
+    regs->es = KERNEL_DS;
+    regs->fs = KERNEL_DS;
+    regs->gs = KERNEL_DS;
+    regs->eax = 0;
+    regs->ebx = 0;
+    regs->ecx = 0;
+    regs->edx = 0;
+    regs->esi = 0;
+    regs->edi = 0;
+    regs->ebp = 0;
+    regs->eip = (uint32_t)process_idle;
+    regs->cs = KERNEL_CS;
+    regs->eflags = eflags & ~EFLAGS_USER;
+}
+
+/*
+ * Releases all resources used by the given PCB, without
+ * freeing it. This will also remove it from the scheduler.
+ */
+static void
+process_close(pcb_t *pcb)
+{
+    file_deinit(pcb->files);
+    timer_cancel(&pcb->alarm_timer);
+    paging_heap_destroy(&pcb->heap);
+    paging_page_free(pcb->user_pfn);
+    scheduler_remove(pcb);
+}
+
+/*
+ * Creates the idle process state. This must be called
+ * before creating any other processes.
  */
 static pcb_t *
-process_create_child(const char *command, pcb_t *parent_pcb, int terminal)
+process_create_idle(void)
 {
-    int inode;
-    char args[MAX_ARGS_LEN];
+    pcb_t *pcb = process_alloc_pcb();
+    assert(pcb != NULL && pcb->pid == 0);
+    pcb->state = PROCESS_STATE_NEW;
+    process_fill_idle_regs(&pcb->regs);
+    scheduler_add(pcb);
+    return pcb;
+}
 
-    /* First make sure we have a valid executable... */
+/*
+ * Creates a process from scratch. This is used to spawn
+ * the initial shell processes. Warning: this will clobber
+ * the current paging context!
+ */
+static pcb_t *
+process_create_user(const char *command, int terminal)
+{
+    /* Parse command and find the executable inode */
+    uint32_t inode;
+    char args[MAX_ARGS_LEN];
     if (process_parse_cmd(command, &inode, args) != 0) {
         debugf("Invalid command/executable file\n");
         return NULL;
     }
 
     /* Try to allocate a new PCB */
-    pcb_t *child_pcb = process_new_pcb();
+    pcb_t *pcb = process_alloc_pcb();
+    if (pcb == NULL) {
+        debugf("Reached max number of processes\n");
+        return NULL;
+    }
+
+    /* Allocate physical memory to hold process */
+    int pfn = paging_page_alloc();
+    if (pfn < 0) {
+        debugf("Cannot allocate page for process\n");
+        process_free_pcb(pcb);
+        return NULL;
+    }
+
+    /* A bunch of initialization follows... */
+    pcb->state = PROCESS_STATE_NEW;
+    pcb->parent_pid = -1;
+    pcb->terminal = terminal;
+    pcb->user_pfn = pfn;
+    pcb->group = pcb->pid;
+    pcb->vidmap = false;
+    file_init(pcb->files);
+    terminal_open_streams(pcb->files);
+    signal_init(pcb->signals);
+    timer_init(&pcb->alarm_timer);
+    timer_setup(&pcb->alarm_timer, TIMER_HZ * SIG_ALARM_PERIOD, process_alarm_callback);
+    paging_heap_init(&pcb->heap);
+    strscpy(pcb->args, args, MAX_ARGS_LEN);
+
+    /* Set terminal foreground group since this is the only process */
+    terminal_tcsetpgrp_impl(terminal, pcb->group);
+
+    /* Copy our program into physical memory */
+    uint32_t entry_point = paging_load_exe(inode, pfn);
+    process_fill_user_regs(&pcb->regs, entry_point);
+
+    /* Finally, schedule this process for execution */
+    scheduler_add(pcb);
+    return pcb;
+}
+
+/*
+ * Clones the specified process. regs points to the original
+ * process's interrupt context on the stack.
+ */
+static pcb_t *
+process_clone(pcb_t *parent_pcb, int_regs_t *regs)
+{
+    /* Try to allocate a new PCB */
+    pcb_t *child_pcb = process_alloc_pcb();
     if (child_pcb == NULL) {
         debugf("Reached max number of processes\n");
         return NULL;
@@ -450,244 +527,129 @@ process_create_child(const char *command, pcb_t *parent_pcb, int terminal)
     int pfn = paging_page_alloc();
     if (pfn < 0) {
         debugf("Cannot allocate page for child process\n");
-        child_pcb->pid = -1;
+        process_free_pcb(child_pcb);
         return NULL;
     }
 
-    /* Initialize child PCB */
-    if (parent_pcb == NULL) {
-        /* This is the first process! */
-        assert(terminal >= 0);
-        child_pcb->parent_pid = -1;
-        child_pcb->terminal = terminal;
-        file_init(child_pcb->files);
-        terminal_open_streams(child_pcb->files);
-    } else {
-        /* Inherit values from parent process */
-        child_pcb->parent_pid = parent_pcb->pid;
-        child_pcb->terminal = parent_pcb->terminal;
-        file_clone(child_pcb->files, parent_pcb->files);
+    /* First try to clone the heap, since that can fail */
+    if (paging_heap_clone(&child_pcb->heap, &parent_pcb->heap) < 0) {
+        debugf("Cannot allocate heap for child process\n");
+        paging_page_free(pfn);
+        process_free_pcb(child_pcb);
+        return NULL;
     }
 
-    /* Common initialization */
-    child_pcb->pfn = pfn;
-    child_pcb->status = PROCESS_SCHED;
-    child_pcb->vidmap = false;
-    timer_init(&child_pcb->alarm_timer);
-    signal_init(child_pcb->signals);
-    paging_heap_init(&child_pcb->heap);
-    strncpy(child_pcb->args, args, MAX_ARGS_LEN);
+    /* Some state isn't cloned - set those here */
+    child_pcb->state = PROCESS_STATE_NEW;
+    child_pcb->parent_pid = parent_pcb->pid;
+    child_pcb->user_pfn = pfn;
 
-    /* Process group related stuff */
-    child_pcb->group = child_pcb->pid;
-    list_init(&child_pcb->group_list);
-    terminal_tcsetpgrp_impl(child_pcb->terminal, child_pcb->group);
+    /* Set "return" value to zero in child */
+    child_pcb->regs = *regs;
+    child_pcb->regs.eax = 0;
 
-    /* Update PCB pointer in the kernel data for this process */
-    process_data[child_pcb->pid - 1].pcb = child_pcb;
+    /* Clone the remaining state from the parent */
+    child_pcb->terminal = parent_pcb->terminal;
+    child_pcb->vidmap = parent_pcb->vidmap;
+    child_pcb->group = parent_pcb->group;
+    file_clone(child_pcb->files, parent_pcb->files);
+    signal_clone(child_pcb->signals, parent_pcb->signals);
+    timer_clone(&child_pcb->alarm_timer, &parent_pcb->alarm_timer);
+    strscpy(child_pcb->args, parent_pcb->args, MAX_ARGS_LEN);
 
-    /* Copy our program into physical memory */
-    paging_set_context(child_pcb->pfn, &child_pcb->heap);
-    child_pcb->entry_point = process_load_exe(inode);
+    /* Clone user page into child */
+    paging_page_clone(pfn, (void *)USER_PAGE_START);
+
+    /* Schedule child for execution */
+    scheduler_add(child_pcb);
 
     return child_pcb;
 }
 
 /*
- * Process execute implementation.
- *
- * The command buffer will not be checked for validity, so
- * this can be called from either userspace or kernelspace.
- *
- * The terminal argument specifies which terminal to spawn
- * the process on if there is no parent.
+ * Performs an exec() on behalf of the specified process.
+ * regs must point to the saved interrupt context on the
+ * stack if the process has already been into userspace
+ * (i.e. is calling exec()), or pcb->regs otherwise.
  */
 static int
-process_execute_impl(const char *command, pcb_t *parent_pcb, int terminal)
+process_exec_impl(pcb_t *pcb, int_regs_t *regs, const char *command)
 {
-    /* Create the child process */
-    pcb_t *child_pcb = process_create_child(command, parent_pcb, terminal);
-    if (child_pcb == NULL) {
-        debugf("Could not create child process\n");
-        return -1;
-    }
-
-    /* If there's a parent process, stop executing it */
-    if (parent_pcb != NULL) {
-        parent_pcb->status = PROCESS_SLEEP;
-    }
-
-    /* Jump into userspace and begin executing the program */
-    return process_run(child_pcb);
-}
-
-/* execute() syscall handler */
-__cdecl int
-process_execute(const char *command)
-{
-    char tmp[MAX_EXEC_LEN];
-    if (!strscpy_from_user(tmp, command, sizeof(tmp))) {
+    /* Copy command into kernel memory */
+    char cmd[MAX_EXEC_LEN];
+    if (!strscpy_from_user(cmd, command, sizeof(cmd))) {
         debugf("Executed string too long or invalid\n");
         return -1;
     }
 
-    /*
-     * This should never be called directly from the kernel, so
-     * there MUST be an executing process, so we can pass
-     * -1 as the terminal since it will never be used anyways
-     */
-    return process_execute_impl(tmp, get_executing_pcb(), -1);
+    /* Parse command and find the executable inode */
+    uint32_t inode;
+    char args[MAX_ARGS_LEN];
+    if (process_parse_cmd(cmd, &inode, args) != 0) {
+        debugf("Invalid command/executable file\n");
+        return -1;
+    }
+
+    /* Reset all signal state */
+    signal_init(pcb->signals);
+
+    /* Reset child process heap */
+    paging_heap_destroy(&pcb->heap);
+
+    /* Replace saved arguments */
+    strscpy(pcb->args, args, MAX_ARGS_LEN);
+
+    /* Copy our program into physical memory */
+    uint32_t entry_point = paging_load_exe(inode, pcb->user_pfn);
+
+    /* Replace interrupt context used to return into userspace */
+    process_fill_user_regs(regs, entry_point);
+
+    return 0;
 }
 
 /*
- * Process halt implementation.
- *
- * Unlike process_halt(), the status is not truncated to 1 byte.
+ * wait() implementation. Note that this is non-blocking,
+ * and will return -EAGAIN if no processes are ready to be
+ * reaped. To implement a blocking wait(), simply call this
+ * in a loop.
  */
-int
-process_halt_impl(int status)
+static int
+process_wait_impl(int parent_pid, int *pid)
 {
-    /* This is the PCB of the child (halting) process */
-    pcb_t *child_pcb = get_executing_pcb();
+    int kpid = *pid;
+    bool exists = false;
 
-    /* Find parent process */
-    pcb_t *parent_pcb = get_pcb_by_pid(child_pcb->parent_pid);
+    pcb_t *pcb;
+    process_for_each(pcb) {
+        /* Can't reap other people's children */
+        if (pcb->parent_pid != parent_pid) {
+            continue;
+        }
 
-    /* Close all open files */
-    file_deinit(child_pcb->files);
+        /* Check if PID matches our query */
+        if (pcb->pid != kpid && pcb->group != -kpid) {
+            continue;
+        }
 
-    /* Stop SIGALARM timer */
-    timer_cancel(&child_pcb->alarm_timer);
+        /* Okay, so at least one process matching pid exists */
+        exists = true;
 
-    /* Release physical page used by process */
-    paging_page_free(child_pcb->pfn);
-
-    /* Free all heap pages allocated by this process */
-    paging_heap_destroy(&child_pcb->heap);
-
-    /* Clear terminal input buffers */
-    terminal_clear_input(child_pcb->terminal);
-
-    /* Mark child PCB as free */
-    child_pcb->pid = -1;
-
-    /* If no parent process, just re-spawn a new shell in the same terminal */
-    if (parent_pcb == NULL) {
-        process_execute_impl("shell", NULL, child_pcb->terminal);
-
-        /* Should never get back to this point */
-        panic("Should not have returned from shell");
+        /* If it's dead, reap it and we're done! */
+        if (pcb->state == PROCESS_STATE_ZOMBIE) {
+            int exit_code = pcb->exit_code;
+            *pid = pcb->pid;
+            process_free_pcb(pcb);
+            return exit_code;
+        }
     }
 
-    /* Restore foreground group */
-    terminal_tcsetpgrp_impl(parent_pcb->terminal, parent_pcb->group);
-
-    /* Mark parent as runnable again */
-    parent_pcb->status = PROCESS_RUN;
-
-    /* Set the global execution context */
-    process_set_context(parent_pcb);
-
-    /*
-     * This returns back into the PARENT'S process_run call frame
-     * by restoring its esp/ebp and doing a cross-function JMP.
-     *
-     * DO NOT MODIFY ANY CODE HERE UNLESS YOU ARE 100% SURE
-     * ABOUT WHAT YOU ARE DOING!
-     */
-    asm volatile(
-        "movl %1, %%esp;"
-        "movl %2, %%ebp;"
-        "movl %0, %%eax;"
-        "jmp process_run_ret;"
-        :
-        : "r"(status),
-          "r"(child_pcb->parent_esp),
-          "r"(child_pcb->parent_ebp)
-        : "eax");
-
-    /* Should never get here! */
-    panic("Should not have returned from halt");
-    return -1;
-}
-
-/*
- * Switches execution to the next scheduled process.
- */
-__used __cdecl static void
-process_switch_impl(void)
-{
-    pcb_t *curr = get_executing_pcb();
-    pcb_t *next = get_next_pcb();
-    if (curr == next) {
-        return;
+    /* If the process doesn't exist, fail instead of retrying */
+    if (!exists) {
+        return -1;
+    } else {
+        return -EAGAIN;
     }
-
-    /*
-     * Save current stack pointer so we can "return" to this
-     * stack frame.
-     */
-    asm volatile(
-        "movl %%esp, %0;"
-        "movl %%ebp, %1;"
-        : "=g"(curr->kernel_esp),
-          "=g"(curr->kernel_ebp));
-
-    if (next->status == PROCESS_SCHED) {
-        /*
-         * If we're in this block, we're initializing
-         * one of the three initial shells. We don't set
-         * the stack pointer because:
-         *
-         * 1) It's never used
-         * 2) It's not initialized anyways
-         */
-        process_run(next);
-    } else if (next->status == PROCESS_RUN) {
-        /*
-         * If we're in this block, the next process must be
-         * in a process_switch_impl call too. We just switch
-         * into its stack and return.
-         */
-
-        /* Set global execution context */
-        process_set_context(next);
-
-        /* "Return" into the other process's process_switch_impl frame */
-        asm volatile(
-            "movl %0, %%esp;"
-            "movl %1, %%ebp;"
-            :
-            : "r"(next->kernel_esp),
-              "r"(next->kernel_ebp));
-    }
-}
-
-/*
- * Wrapper for process_switch_impl that clobbers the
- * appropriate registers.
- */
-void
-process_switch(void)
-{
-    asm volatile(
-        "call process_switch_impl;"
-        :
-        :
-        : "eax", "ebx", "ecx", "edx", "esi", "edi", "cc", "memory");
-}
-
-/* halt() syscall handler */
-__cdecl int
-process_halt(int status)
-{
-    /*
-     * Only the lowest byte is used, rest are reserved
-     * This only applies when this is called via syscall;
-     * the kernel must still be able to halt a process
-     * with a status > 255.
-     */
-    return process_halt_impl(status & 0xff);
 }
 
 /*
@@ -765,25 +727,96 @@ process_sbrk(int delta)
     return paging_heap_sbrk(&pcb->heap, delta);
 }
 
-/* fork() syscall handler */
+/*
+ * fork() syscall handler. Creates a clone of the current
+ * process. All state is preserved except for pending signals.
+ */
 __cdecl int
-process_fork(void)
+process_fork(
+    int unused1,
+    int unused2,
+    int unused3,
+    int unused4,
+    int unused5,
+    int_regs_t *regs)
 {
-    return -1;
+    /*
+     * All code below executes in the parent! The child
+     * begins execution in idt_unwind_stack (i.e. skips
+     * all normal C stack unwinding).
+     */
+    pcb_t *child_pcb = process_clone(get_executing_pcb(), regs);
+    if (child_pcb == NULL) {
+        return -1;
+    }
+    return child_pcb->pid;
 }
 
-/* exec() syscall handler */
+/*
+ * exec() syscall handler. Replaces the calling process
+ * by executing the specified command.
+ */
 __cdecl int
-process_exec(const char *command)
+process_exec(
+    const char *command,
+    int unused1,
+    int unused2,
+    int unused3,
+    int unused4,
+    int_regs_t *regs)
 {
-    return -1;
+    return process_exec_impl(get_executing_pcb(), regs, command);
 }
 
-/* wait() syscall handler */
+/*
+ * wait() syscall handler. Note that the API is a bit different
+ * from Linux: pid is an in-out pointer to a PID/PGID. If the
+ * wait completes successfully (i.e. is not interrupted by a
+ * signal), pid will point to the actual PID of the process that
+ * was reaped. The exit code of the process will be returned
+ * by this function.
+ *
+ * On input, if *pid > 0, waits for the process with the specified
+ * PID. If *pid < 0, waits for any process in the process group
+ * with pgid == -pid. If *pid == 0, waits for any process in the
+ * caller's process group.
+ */
 __cdecl int
-process_wait(int pid)
+process_wait(int *pid)
 {
-    return -1;
+    pcb_t *pcb = get_executing_pcb();
+
+    /* Read the actual pid from userspace */
+    int kpid;
+    if (!copy_from_user(&kpid, pid, sizeof(int))) {
+        return -1;
+    }
+
+    /* kpid == 0 means wait on our own group */
+    if (kpid == 0) {
+        kpid = -pcb->group;
+    }
+
+    while (1) {
+        /* Check if someone has died */
+        int ret = process_wait_impl(pcb->pid, &kpid);
+        if (ret >= 0) {
+            if (!copy_to_user(pid, &kpid, sizeof(int))) {
+                return -1;
+            }
+            return ret;
+        } else if (ret != -EAGAIN) {
+            return ret;
+        }
+
+        /* Check for pending signals */
+        if (signal_has_pending(pcb->signals)) {
+            return -EINTR;
+        }
+
+        /* Okay then, sleep until someone dies */
+        scheduler_sleep(&wait_queue);
+    }
 }
 
 /*
@@ -817,13 +850,17 @@ process_getpgrp(void)
 __cdecl int
 process_setpgrp(int pid, int pgrp)
 {
+    if (pid < 0 || pgrp < 0) {
+        return -1;
+    }
+
     /* If pid is zero, this refers to the calling process */
     pcb_t *pcb;
     if (pid == 0) {
         pcb = get_executing_pcb();
         pid = pcb->pid;
     } else {
-        pcb = get_pcb_by_pid(pid);
+        pcb = get_pcb(pid);
         if (pcb == NULL) {
             debugf("Invalid/nonexistent PID: %d\n", pid);
             return -1;
@@ -835,27 +872,150 @@ process_setpgrp(int pid, int pgrp)
         pgrp = pid;
     }
 
-    /*
-     * Lazy limitation: Only allow creation of new groups
-     * when PID == PGID. This way, we keep the invariant that
-     * if PID == PGID, the process is a head of a group, and
-     * if PID != PGID, the process is part of another group.
-     */
-    pcb_t *gpcb = get_pcb_by_pid(pgrp);
-    if (gpcb == NULL || (pcb != gpcb && gpcb->group != gpcb->pid)) {
-        debugf("Group ID must be PID of self or a group leader\n");
+    /* No checks here, just #YOLO it. Not POSIX compliant. */
+    pcb->group = pgrp;
+    return 0;
+}
+
+/*
+ * execute() syscall handler. This is provided for ABI
+ * compatibility with ECE 391 programs. It is identical
+ * to executing fork + exec/wait in userspace (with
+ * process groups set accordingly). Note that any signals
+ * received during execution are delayed until the child
+ * process halts (i.e. -EINTR is impossible).
+ */
+__cdecl int
+process_execute(
+    const char *command,
+    int unused1,
+    int unused2,
+    int unused3,
+    int unused4,
+    int_regs_t *regs)
+{
+    /* Start by cloning ourselves */
+    pcb_t *parent_pcb = get_executing_pcb();
+    pcb_t *child_pcb = process_clone(parent_pcb, regs);
+    if (child_pcb == NULL) {
         return -1;
     }
 
-    /* Remove from old group, add to new group */
-    list_del(&pcb->group_list);
-    pcb->group = pgrp;
-    if (pcb == gpcb) {
-        list_init(&pcb->group_list);
-    } else {
-        list_add(&pcb->group_list, &gpcb->group_list);
+    /* Next, perform exec() on behalf of the child process */
+    if (process_exec_impl(child_pcb, &child_pcb->regs, command) < 0) {
+        process_close(child_pcb);
+        process_free_pcb(child_pcb);
+        return -1;
     }
-    return 0;
+
+    /* Next, change the child's group and set it as the foreground */
+    child_pcb->group = child_pcb->pid;
+    terminal_tcsetpgrp(child_pcb->pid);
+
+    /*
+     * Wait for the child process to exit. We can't directly
+     * call process_wait() here, since that will abort early
+     * on signals, which we don't want. There's also a slight
+     * chance that someone will reap our child before us, so
+     * be prepared for that. Also since we know that the child
+     * hasn't executed yet, we can safely sleep before polling.
+     */
+    int ret;
+    do {
+        scheduler_sleep(&wait_queue);
+        ret = process_wait_impl(parent_pcb->pid, &child_pcb->pid);
+    } while (ret == -EAGAIN);
+
+    /* Finally, restore the original foreground group */
+    terminal_tcsetpgrp(parent_pcb->pid);
+
+    return ret;
+}
+
+/*
+ * Process halt implementation. Unlike process_halt(),
+ * the status is not truncated to 1 byte.
+ */
+void
+process_halt_impl(int status)
+{
+    /* This is the PCB of the child (halting) process */
+    pcb_t *child_pcb = get_executing_pcb();
+
+    /* Release process resources */
+    process_close(child_pcb);
+
+    /* Orphan any processes created by this process */
+    pcb_t *pcb;
+    process_for_each(pcb) {
+        if (pcb->parent_pid == child_pcb->pid) {
+            pcb->parent_pid = -1;
+        }
+    }
+
+    /*
+     * If our parent is dead, auto-reap this process,
+     * otherwise notify parent that child is dead.
+     */
+    if (child_pcb->parent_pid < 0) {
+        /* Save terminal across process destruction */
+        int terminal = child_pcb->terminal;
+
+        /* Destroy the child process */
+        process_free_pcb(child_pcb);
+
+        /*
+         * If that was the last process in its terminal, spawn
+         * another one in its place. This is for compatibility
+         * with the ECE 391 spec, and to account for that fact
+         * that we do not have an init process.
+         */
+        bool restart = true;
+        pcb_t *pcb;
+        process_for_each(pcb) {
+            if (pcb->terminal == terminal) {
+                restart = false;
+                break;
+            }
+        }
+
+        /*
+         * No processes left in this terminal, create a new one to
+         * be scheduled once we finish tearing down this stack.
+         */
+        if (restart) {
+            process_create_user(INIT_PROCESS, terminal);
+        }
+    } else {
+        /* Put child into zombie state */
+        child_pcb->exit_code = status;
+        child_pcb->state = PROCESS_STATE_ZOMBIE;
+
+        /* Wake parent to notify them that child is dead */
+        pcb_t *parent_pcb = get_pcb(child_pcb->parent_pid);
+        scheduler_wake(parent_pcb);
+    }
+
+    /* Switch away from this process for the last time */
+    scheduler_exit();
+}
+
+/*
+ * halt() syscall handler. Releases most process state and
+ * places it into a zombie state to be reaped by the parent.
+ * Unlike Linux, if the parent dies, the process will be
+ * reaped by the kernel. This never returns.
+ */
+__cdecl void
+process_halt(int status)
+{
+    /*
+     * Only the lowest byte is used, rest are reserved
+     * This only applies when this is called via syscall;
+     * the kernel must still be able to halt a process
+     * with a status > 255.
+     */
+    process_halt_impl(status & 0xff);
 }
 
 /* Initializes all process control related data */
@@ -874,9 +1034,10 @@ process_init(void)
 void
 process_start_shell(void)
 {
+    pcb_t *idle = process_create_idle();
     int i;
-    for (i = 1; i < NUM_TERMINALS; ++i) {
-        process_create_child("shell", NULL, i);
+    for (i = 0; i < NUM_TERMINALS; ++i) {
+        process_create_user(INIT_PROCESS, i);
     }
-    process_execute_impl("shell", NULL, 0);
+    process_run(idle);
 }

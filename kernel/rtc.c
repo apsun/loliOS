@@ -4,6 +4,7 @@
 #include "irq.h"
 #include "file.h"
 #include "paging.h"
+#include "scheduler.h"
 #include "signal.h"
 #include "timer.h"
 
@@ -63,6 +64,11 @@
 static volatile int rtc_counter;
 
 /*
+ * Scheduler queue for processes waiting for an RTC interrupt.
+ */
+static list_declare(rtc_sleep_queue);
+
+/*
  * Reads the value of a RTC register. The reg
  * param must be one of the RTC_REG_* constants.
  */
@@ -96,6 +102,9 @@ rtc_handle_irq(void)
 
     /* Update timers */
     timer_tick(new_counter);
+
+    /* Wake all processes waiting for an interrupt */
+    scheduler_wake_all(&rtc_sleep_queue);
 }
 
 /*
@@ -188,6 +197,8 @@ rtc_open(file_obj_t *file)
 static int
 rtc_read(file_obj_t *file, void *buf, int nbytes)
 {
+    pcb_t *pcb = get_executing_pcb();
+
     /* Max number of ticks we need to wait */
     int max_ticks = RTC_HZ / (int)file->private;
 
@@ -202,14 +213,12 @@ rtc_read(file_obj_t *file, void *buf, int nbytes)
         }
 
         /* Exit early if we have a pending signal */
-        if (signal_has_pending()) {
+        if (signal_has_pending(pcb->signals)) {
             return -EINTR;
         }
 
         /* Sleep and wait for a new interrupt */
-        sti();
-        hlt();
-        cli();
+        scheduler_sleep(&rtc_sleep_queue);
     }
 }
 

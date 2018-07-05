@@ -1,7 +1,7 @@
 #include "pit.h"
 #include "lib.h"
 #include "irq.h"
-#include "process.h"
+#include "scheduler.h"
 
 /* Min and max PIT frequencies in Hz */
 #define PIT_FREQ_MAX 1193182
@@ -63,7 +63,7 @@ pit_set_frequency(int freq)
 static void
 pit_handle_irq(void)
 {
-    process_switch();
+    scheduler_yield();
 }
 
 /* Initializes the PIT and enables interrupts */

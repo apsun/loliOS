@@ -12,7 +12,43 @@
 /* Maximum argument length, including the NUL terminator */
 #define MAX_ARGS_LEN 128
 
+/* User-modifiable bits in EFLAGS */
+#define EFLAGS_USER 0xDD5
+
+/* Interrupt flag */
+#define EFLAGS_IF (1 << 9)
+
+/* Direction flag */
+#define EFLAGS_DF (1 << 10)
+
 #ifndef ASM
+
+/* Execution state of the process. */
+typedef enum {
+    /*
+     * The process's state has been created, but has not
+     * yet been run yet (i.e. it does not have a scheduler
+     * call frame yet).
+     */
+    PROCESS_STATE_NEW,
+
+    /*
+     * The process is on the scheduler queue, as normal.
+     */
+    PROCESS_STATE_RUNNING,
+
+    /*
+     * The process is on a sleep queue, waiting for someone
+     * to wake it up.
+     */
+    PROCESS_STATE_SLEEPING,
+
+    /*
+     * The process is dead, waiting for someone to call
+     * wait() on it. It is not in any queues.
+     */
+    PROCESS_STATE_ZOMBIE,
+} process_state_t;
 
 /*
  * Process control block structure
@@ -20,41 +56,20 @@
 typedef struct {
     /*
      * PID of the this process. If the PCB is not valid, this will contain
-     * a nonpositive number.
+     * a negative number.
      */
     int pid;
 
     /*
-     * Allocated physical page frame number for this process's 128MB page.
+     * Execution state of the process.
      */
-    int pfn;
+    process_state_t state;
 
     /*
      * PID of the parent process that created this process. If
-     * there is no parent, this will be nonpositive.
+     * there is no parent, this will be negative.
      */
     int parent_pid;
-
-    /*
-     * Kernel ESP/EBP of the parent process. Used to return to the parent
-     * process's stack frame from halt inside the child process. This is
-     * only valid if there is a parent.
-     */
-    uint32_t parent_esp;
-    uint32_t parent_ebp;
-
-    /*
-     * Kernel ESP/EBP of the process, set inside process_switch so that
-     * we can return into different processes. This is only valid if
-     * status == PROCESS_RUN.
-     */
-    uint32_t kernel_esp;
-    uint32_t kernel_ebp;
-
-    /*
-     * Entry point of this process. Used for the initial jump into userspace.
-     */
-    uint32_t entry_point;
 
     /*
      * Which terminal the process is executing on. Inherited from
@@ -63,16 +78,40 @@ typedef struct {
     int terminal;
 
     /*
-     * Execution status of the process.
+     * Allocated physical page frame number for this process's 128MB page.
      */
-    int status;
+    int user_pfn;
 
     /*
-     * Process group ID that this process belongs to, and a list
-     * of processes in that group.
+     * Initial state used to run the process. For the initial
+     * processes spawned by the kernel, this will be initialized
+     * manually. For child processes spawned by fork(), this will
+     * be a copy of the parent's registers.
+     */
+    int_regs_t regs;
+
+    /*
+     * List for use by the scheduler. Every process is either in a
+     * scheduler queue or a sleep queue.
+     */
+    list_t scheduler_list;
+
+    /*
+     * Kernel ESP/EBP of the process inside the scheduler. Used to
+     * context switch between processes. Only valid if state == RUNNING.
+     */
+    uint32_t scheduler_esp;
+    uint32_t scheduler_ebp;
+
+    /*
+     * ID of the group that this process belongs to.
      */
     int group;
-    list_t group_list;
+
+    /*
+     * Exit status of the process.
+     */
+    int exit_code;
 
     /*
      * Whether the process has the virtual video memory page
@@ -82,9 +121,10 @@ typedef struct {
     bool vidmap;
 
     /*
-     * Timer for the SIGALARM signal.
+     * Array containing open file object pointers. The index in the
+     * array corresponds to the file descriptor.
      */
-    timer_t alarm_timer;
+    file_obj_t *files[MAX_FILES];
 
     /*
      * Signal handler and status array.
@@ -92,10 +132,9 @@ typedef struct {
     signal_info_t signals[NUM_SIGNALS];
 
     /*
-     * Array containing open file object pointers. The index in the
-     * array corresponds to the file descriptor.
+     * Timer for the SIGALARM signal.
      */
-    file_obj_t *files[MAX_FILES];
+    timer_t alarm_timer;
 
     /*
      * Heap metadata for this process.
@@ -109,39 +148,64 @@ typedef struct {
     char args[MAX_ARGS_LEN];
 } pcb_t;
 
+/* Iterator-like API for get_next_pcb() */
+#define process_for_each(pcb) \
+    for (pcb = NULL; (pcb = get_next_pcb(pcb)) != NULL;)
+
 /* Gets a PCB by its process ID */
-pcb_t *get_pcb_by_pid(int pid);
+pcb_t *get_pcb(int pid);
+
+/* Gets the next PCB after the specified one */
+pcb_t *get_next_pcb(pcb_t *pcb);
 
 /* Gets the PCB of the currently executing process */
 pcb_t *get_executing_pcb(void);
 
 /* Process syscall handlers */
-__cdecl int process_halt(int status);
-__cdecl int process_execute(const char *command);
 __cdecl int process_getargs(char *buf, int nbytes);
 __cdecl int process_vidmap(uint8_t **screen_start);
 __cdecl int process_sbrk(int delta);
-__cdecl int process_fork(void);
-__cdecl int process_exec(const char *command);
-__cdecl int process_wait(int pid);
+__cdecl int process_fork(
+    int unused1,
+    int unused2,
+    int unused3,
+    int unused4,
+    int unused5,
+    int_regs_t *regs);
+__cdecl int process_exec(
+    const char *command,
+    int unused1,
+    int unused2,
+    int unused3,
+    int unused4,
+    int_regs_t *regs);
+__cdecl int process_wait(int *pid);
 __cdecl int process_getpid(void);
 __cdecl int process_getpgrp(void);
 __cdecl int process_setpgrp(int pid, int pgrp);
+__cdecl int process_execute(
+    const char *command,
+    int unused1,
+    int unused2,
+    int unused3,
+    int unused4,
+    int_regs_t *regs);
+__cdecl void process_halt(int status);
 
-/* Initializes processes. */
-void process_init(void);
+/* Sets the global execution context for the specified process */
+void process_set_context(pcb_t *pcb);
 
-/* Switches to the next scheduled process */
-void process_switch(void);
+/* Runs the specified process by jumping into userspace */
+void process_run(pcb_t *pcb);
 
 /* Halts the executing process with the specified status code */
-int process_halt_impl(int status);
+void process_halt_impl(int status);
 
-/* Starts the shell. This must only be called after kernel initialization. */
+/* Initializes processes */
+void process_init(void);
+
+/* Starts the initial shells */
 void process_start_shell(void);
-
-/* Handles RTC updates and delivers SIG_ALARM when necessary */
-void process_update_clock(int rtc_counter);
 
 #endif /* ASM */
 

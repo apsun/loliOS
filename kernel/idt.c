@@ -151,7 +151,7 @@ idt_handle_interrupt(int_regs_t *regs)
      * the only place we can safely return to after sigreturn.
      */
     if (regs->cs == USER_CS) {
-        signal_handle_all(regs);
+        signal_handle_all(get_executing_pcb()->signals, regs);
     }
 }
 

@@ -2,6 +2,7 @@
 #define _TERMINAL_H
 
 #include "types.h"
+#include "list.h"
 #include "file.h"
 #include "keyboard.h"
 #include "mouse.h"
@@ -70,6 +71,11 @@ typedef struct {
      * this group.
      */
     int fg_group;
+
+    /*
+     * Queue for processes waiting on stdin input.
+     */
+    list_t sleep_queue;
 } terminal_state_t;
 
 /* Sets the currently displayed terminal */

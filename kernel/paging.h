@@ -27,6 +27,9 @@
 #define HEAP_PAGE_START     0x08400000
 #define HEAP_PAGE_END       0x10000000
 
+#define TEMP_PAGE_START     0x10000000
+#define TEMP_PAGE_END       0x10400000
+
 #define MAX_HEAP_SIZE (HEAP_PAGE_END - HEAP_PAGE_START)
 #define MAX_HEAP_PAGES (MAX_HEAP_SIZE / (MB(4)))
 
@@ -67,6 +70,15 @@ int paging_heap_sbrk(paging_heap_t *heap, int delta);
 
 /* Frees a process heap */
 void paging_heap_destroy(paging_heap_t *heap);
+
+/* Clones an existing process heap */
+int paging_heap_clone(paging_heap_t *dest, paging_heap_t *src);
+
+/* Clones an existing process page */
+void paging_page_clone(int dest_pfn, void *src_vaddr);
+
+/* Loads a program into memory */
+uint32_t paging_load_exe(uint32_t inode_idx, int pfn);
 
 /* Updates the process pages */
 void paging_set_context(int pfn, paging_heap_t *heap);
