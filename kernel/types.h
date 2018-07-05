@@ -12,7 +12,6 @@
 #define __unused __attribute__((unused))
 #define __noinline __attribute__((noinline))
 #define __packed __attribute__((packed))
-#define __noreturn __attribute__((noreturn))
 #define __aligned(x) __attribute__((aligned(x)))
 
 typedef long long int64_t;

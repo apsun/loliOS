@@ -76,7 +76,7 @@ scheduler_next_pcb(void)
  * directly as it does not obey the normal cdecl ABI;
  * use scheduler_yield() instead.
  */
-__cdecl static void
+__cdecl __noinline __used static void
 scheduler_yield_impl(pcb_t *curr)
 {
     pcb_t *next = scheduler_next_pcb();

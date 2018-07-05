@@ -32,9 +32,6 @@ static int display_terminal = 0;
 static terminal_state_t *
 get_terminal(int index)
 {
-    if (index < 0 || index >= NUM_TERMINALS) {
-        while (1);
-    }
     assert(index >= 0 && index < NUM_TERMINALS);
     return &terminal_states[index];
 }
