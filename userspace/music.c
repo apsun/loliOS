@@ -176,6 +176,8 @@ main(void)
             puts("Could not connect to music server");
             goto cleanup;
         }
+    } else if (filename[0] == '-') {
+        soundfd = 0;
     } else {
         soundfd = open(filename);
         if (soundfd < 0) {

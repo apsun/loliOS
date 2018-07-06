@@ -9,6 +9,9 @@
 #include "terminal.h"
 #include "loopback.h"
 
+/* Whether to display a BSOD on a userspace exception (for debugging) */
+#define USER_BSOD 0
+
 /* Convenience wrapper around SET_IDT_ENTRY */
 #define WRITE_IDT_ENTRY(i, name) do {       \
     extern void name(void);                 \
@@ -32,7 +35,7 @@ static const char *exception_names[NUM_EXC] = {
     "Stack fault exception",
     "General protection exception",
     "Page-fault exception",
-    "Entry reserved",
+    "Reserved exception",
     "Floating-point error",
     "Alignment check exception",
     "Machine-check exception",
@@ -43,27 +46,70 @@ static const char *exception_names[NUM_EXC] = {
 static void
 dump_registers(int_regs_t *regs)
 {
-    printf("error_code: 0x%08x\n", regs->error_code);
-    printf("eax:        0x%08x\n", regs->eax);
-    printf("ebx:        0x%08x\n", regs->ebx);
-    printf("ecx:        0x%08x\n", regs->ecx);
-    printf("edx:        0x%08x\n", regs->edx);
-    printf("esi:        0x%08x\n", regs->esi);
-    printf("edi:        0x%08x\n", regs->edi);
-    printf("ebp:        0x%08x\n", regs->ebp);
-    printf("esp:        0x%08x\n", regs->esp);
-    printf("eip:        0x%08x\n", regs->eip);
-    printf("eflags:     0x%08x\n", regs->eflags);
-    printf("cs:         0x%08x\n", regs->cs);
-    printf("ds:         0x%08x\n", regs->ds);
-    printf("es:         0x%08x\n", regs->es);
-    printf("fs:         0x%08x\n", regs->fs);
-    printf("gs:         0x%08x\n", regs->gs);
-    printf("ss:         0x%08x\n", regs->ss);
-    printf("cr0:        0x%08x\n", regs->cr0);
-    printf("cr2:        0x%08x\n", regs->cr2);
-    printf("cr3:        0x%08x\n", regs->cr3);
-    printf("cr4:        0x%08x\n", regs->cr4);
+    printf("eax: 0x%08x     ", regs->eax);
+    printf("ebx: 0x%08x     ", regs->ebx);
+    printf("ecx: 0x%08x     ", regs->ecx);
+    printf("edx: 0x%08x\n",    regs->edx);
+
+    printf("esi: 0x%08x     ", regs->esi);
+    printf("edi: 0x%08x     ", regs->edi);
+    printf("ebp: 0x%08x     ", regs->ebp);
+    printf("esp: 0x%08x\n",    regs->esp);
+
+    printf("cr0: 0x%08x     ", regs->cr0);
+    printf("cr2: 0x%08x     ", regs->cr2);
+    printf("cr3: 0x%08x     ", regs->cr3);
+    printf("cr4: 0x%08x\n",    regs->cr4);
+
+    printf("eip: 0x%08x  ",     regs->eip);
+    printf("eflags: 0x%08x   ", regs->eflags);
+    printf("error: 0x%08x\n",   regs->error_code);
+
+    printf("cs: 0x%04x   ", regs->cs);
+    printf("ds: 0x%04x   ", regs->ds);
+    printf("es: 0x%04x   ", regs->es);
+    printf("fs: 0x%04x   ", regs->fs);
+    printf("gs: 0x%04x   ", regs->gs);
+    printf("ss: 0x%04x\n",  regs->ss);
+}
+
+/*
+ * Reads a value off of the kernel stack and converts it into
+ * a string.
+ */
+static char *
+dump_callstack_utox(char buf[16], uint32_t *p)
+{
+    if ((uint32_t)p < KERNEL_PAGE_START ||
+        (uint32_t)p > KERNEL_PAGE_END - sizeof(uint32_t))
+    {
+        return "<overflow>";
+    }
+
+    snprintf(buf, 16, "0x%08x", *p);
+    return buf;
+}
+
+/*
+ * Dumps the call stack leading up to the specified location.
+ * This is a best-effort attempt, and can be unreliable.
+ * Notably, this does not work well in -O2 (due to inlining),
+ * or on static functions (since the compiler is free to change
+ * their calling conventions).
+ */
+static void
+dump_callstack(uint32_t eip, uint32_t ebp)
+{
+    while (ebp >= KERNEL_PAGE_START && ebp < KERNEL_PAGE_END) {
+        uint32_t *args = (uint32_t *)(ebp + 8);
+        char buf[5][16];
+#define ARG(n) (dump_callstack_utox(buf[n], &args[n]))
+        printf(" at 0x%08x (%s, %s, %s, %s, %s)\n",
+            eip, ARG(0), ARG(1), ARG(2), ARG(3), ARG(4));
+#undef ARG
+        eip = *(uint32_t *)(ebp + 4);
+        ebp = *(uint32_t *)ebp;
+    }
 }
 
 /*
@@ -71,12 +117,12 @@ dump_registers(int_regs_t *regs)
  * If a signal handler is available, will cause that to
  * be executed. Otherwise, kills the process.
  */
-static void
-handle_user_exception(int int_num)
+__used static void
+handle_user_exception(int_regs_t *regs)
 {
-    debugf("Userspace exception: %s\n", exception_names[int_num]);
+    debugf("%s in userspace at 0x%08x\n", exception_names[regs->int_num], regs->eip);
     pcb_t *pcb = get_executing_pcb();
-    if (int_num == EXC_DE) {
+    if (regs->int_num == EXC_DE) {
         signal_kill(pcb->pid, SIG_DIV_ZERO);
     } else {
         signal_kill(pcb->pid, SIG_SEGFAULT);
@@ -88,16 +134,19 @@ static void
 handle_exception(int_regs_t *regs)
 {
     /* If we were in userspace, run signal handler or kill the process */
+#if !USER_BSOD
     if (regs->cs == USER_CS) {
-        handle_user_exception(regs->int_num);
+        handle_user_exception(regs);
         return;
     }
+#endif
 
-    terminal_clear();
-    printf("****************************************\n");
-    printf("Exception: %s\n", exception_names[regs->int_num]);
-    printf("****************************************\n");
+    terminal_clear_bsod();
+    printf("Exception: %s (%d)\n", exception_names[regs->int_num], regs->int_num);
+    printf("\nRegisters:\n");
     dump_registers(regs);
+    printf("\nBacktrace:\n");
+    dump_callstack(regs->eip, regs->ebp);
     loop();
 }
 

@@ -8,9 +8,10 @@
 #include "scheduler.h"
 
 /* Terminal config */
-#define NUM_COLS  80
-#define NUM_ROWS  25
-#define ATTRIB    0x7
+#define NUM_COLS 80
+#define NUM_ROWS 25
+#define ATTRIB 0x07
+#define ATTRIB_BSOD 0x1F
 #define VIDEO_MEM ((uint8_t *)VIDEO_PAGE_START)
 #define VIDEO_MEM_SIZE (NUM_ROWS * NUM_COLS * 2)
 
@@ -73,13 +74,9 @@ vga_set_register(uint8_t index, uint8_t value)
 
 /* Clears out a region of VGA memory (overwrites it with spaces) */
 static void
-vga_clear_region(uint8_t *ptr, int num_chars)
+vga_clear_region(uint8_t *ptr, int num_chars, char attrib)
 {
-    /*
-     * Screen clear memset pattern, same as [0] = ' ', [1] = ATTRIB
-     * Why not a simple for loop? Because I can.
-     */
-    uint16_t pattern = (' ' << 0) | (ATTRIB << 8);
+    uint16_t pattern = (' ' << 0) | (attrib << 8);
     memset_word(ptr, pattern, num_chars);
 }
 
@@ -141,7 +138,7 @@ terminal_scroll_down(terminal_state_t *term)
     memmove(term->video_mem, term->video_mem + bytes_per_row, shift_count);
 
     /* Clear out last row */
-    vga_clear_region(term->video_mem + shift_count, bytes_per_row / 2);
+    vga_clear_region(term->video_mem + shift_count, bytes_per_row / 2, term->attrib);
 }
 
 /*
@@ -156,7 +153,6 @@ terminal_write_char(terminal_state_t *term, char c)
     int y = term->cursor.screen_y;
     int offset = (y * NUM_COLS + x) << 1;
     term->video_mem[offset] = c;
-    term->video_mem[offset + 1] = ATTRIB;
 }
 
 /*
@@ -224,7 +220,7 @@ static void
 terminal_clear_impl(terminal_state_t *term)
 {
     /* Clear screen */
-    vga_clear_region(term->video_mem, VIDEO_MEM_SIZE / 2);
+    vga_clear_region(term->video_mem, VIDEO_MEM_SIZE / 2, term->attrib);
 
     /* Reset cursor to top-left position */
     term->cursor.logical_x = 0;
@@ -315,6 +311,18 @@ terminal_clear_input(int terminal)
     term->kbd_input.count = 0;
     term->mouse_input.count = 0;
     scheduler_wake_all(&term->sleep_queue);
+}
+
+/*
+ * Clears the currently displayed terminal and puts
+ * it into a BSOD state.
+ */
+void
+terminal_clear_bsod(void)
+{
+    terminal_state_t *term = get_display_terminal();
+    term->attrib = ATTRIB_BSOD;
+    terminal_clear_impl(term);
 }
 
 /*
@@ -824,8 +832,11 @@ terminal_init(void)
         /* Active memory points to the backing memory */
         term->video_mem = term->backing_mem;
 
+        /* Default attribute byte */
+        term->attrib = ATTRIB;
+
         /* Initialize the terminal memory region */
-        vga_clear_region(term->backing_mem, VIDEO_MEM_SIZE / 2);
+        vga_clear_region(term->backing_mem, VIDEO_MEM_SIZE / 2, term->attrib);
 
         /* Initialize the stdin sleep queue */
         list_init(&term->sleep_queue);

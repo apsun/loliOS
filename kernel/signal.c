@@ -376,6 +376,7 @@ signal_has_pending(signal_info_t *signals)
     int i;
     for (i = 0; i < NUM_SIGNALS; ++i) {
         signal_info_t *sig = &signals[i];
+
         if (sig->pending) {
             /*
              * If user manually registered a handler and the

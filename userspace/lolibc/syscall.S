@@ -53,6 +53,7 @@ MAKE_SYS(getpgrp, SYS_GETPGRP)
 MAKE_SYS(setpgrp, SYS_SETPGRP)
 MAKE_SYS(tcgetpgrp, SYS_TCGETPGRP)
 MAKE_SYS(tcsetpgrp, SYS_TCSETPGRP)
+MAKE_SYS(pipe, SYS_PIPE)
 
 .globl _start
 _start:

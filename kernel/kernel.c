@@ -65,9 +65,11 @@ entry(unsigned long magic, unsigned long addr)
 
         /*
          * For now we can assume that we only have a single
-         * filesystem module loaded
+         * filesystem module loaded. Ensure that the entire
+         * filesystem lies within the kernel page.
          */
         assert(mbi->mods_count == 1);
+        assert(mod->mod_end <= KERNEL_PAGE_END);
         fs_start = mod->mod_start;
 
         while (mod_count < mbi->mods_count) {

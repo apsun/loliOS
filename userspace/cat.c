@@ -1,42 +1,84 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <syscall.h>
+#include <string.h>
+
+static int
+input(int fd, char *buf, int buf_size, int *offset)
+{
+    /* Check if we have space left to read */
+    int to_read = buf_size - *offset;
+    if (to_read == 0) {
+        return -EAGAIN;
+    }
+
+    /* Read data into buffer */
+    int ret = read(fd, &buf[*offset], to_read);
+    if (ret <= 0) {
+        return ret;
+    }
+
+    /* Advance offset */
+    *offset += ret;
+    return ret;
+}
+
+static int
+output(int fd, char *buf, int *count)
+{
+    /* Write out buffer contents */
+    int ret = write(fd, buf, *count);
+    if (ret <= 0) {
+        return ret;
+    }
+
+    /* Shift remaining bytes up */
+    memmove(&buf[0], &buf[ret], *count - ret);
+    *count -= ret;
+    return ret;
+}
 
 int
 main(void)
 {
-    int ret = 0;
-    int fd = -1;
-    char buf[1024];
+    int ret = 1;
+    int fd = 0;
 
-    /* Read file name */
-    if (getargs(buf, sizeof(buf)) < 0) {
-        puts("could not read arguments");
-        ret = 3;
-        goto exit;
-    }
-
-    /* Open file */
-    if ((fd = open(buf)) < 0) {
-        puts("file not found");
-        ret = 2;
-        goto exit;
-    }
-
-    /* Read from file, write to stdout */
-    int cnt;
-    while ((cnt = read(fd, buf, sizeof(buf))) != 0) {
-        if (cnt < 0) {
-            puts("file read failed");
-            ret = 3;
-            goto exit;
-        }
-
-        if (write(1, buf, cnt) < 0) {
-            ret = 3;
+    /*
+     * If file name is specified as an argument, read from it.
+     * Otherwise, read from stdin by default.
+     */
+    char filename[128];
+    if (getargs(filename, sizeof(filename)) >= 0) {
+        if ((fd = open(filename)) < 0) {
+            printf("%s: No such file or directory\n", filename);
             goto exit;
         }
     }
+
+    /*
+     * Buffer size of 8192 chosen because it happens to correlate
+     * with the TCP inbox size and the music buffer size.
+     */
+    char buf[8192];
+    int offset = 0;
+    int read_cnt;
+    int write_cnt;
+    do {
+        read_cnt = input(fd, buf, sizeof(buf), &offset);
+        if (read_cnt < 0 && read_cnt != -EINTR && read_cnt != -EAGAIN) {
+            printf("read() returned %d\n", read_cnt);
+            goto exit;
+        }
+
+        write_cnt = output(1, buf, &offset);
+        if (write_cnt < 0 && write_cnt != -EINTR && write_cnt != -EAGAIN) {
+            printf("write() returned %d\n", write_cnt);
+            goto exit;
+        }
+    } while (read_cnt != 0 || offset > 0);
+
+    ret = 0;
 
 exit:
     if (fd >= 0) close(fd);

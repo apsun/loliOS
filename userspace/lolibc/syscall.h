@@ -34,6 +34,7 @@
 #define SYS_SETPGRP     31
 #define SYS_TCGETPGRP   32
 #define SYS_TCSETPGRP   33
+#define SYS_PIPE        34
 
 /* syscall.h */
 #define EINTR  2
@@ -116,6 +117,7 @@ __cdecl int getpgrp(void);
 __cdecl int setpgrp(int pid, int pgrp);
 __cdecl int tcgetpgrp(void);
 __cdecl int tcsetpgrp(int pgrp);
+__cdecl int pipe(int *readfd, int *writefd);
 
 #endif /* ASM */
 

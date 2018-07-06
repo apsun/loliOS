@@ -28,22 +28,65 @@ puts(const char *s)
 }
 
 /*
- * Reads a single character from stdin.
+ * Reads a line from stdin. This performs internal buffering
+ * to prevent cases where more than one line is returned in
+ * a single read. This preserves the original \n in the string,
+ * and does NOT terminate it with a \0. Does not block; caller
+ * must check for -EAGAIN or -EINTR. Returns the number of
+ * characters read (including \n, without \0).
  */
-char
-getchar(void)
+static int
+read_line(char *buf, int buf_size)
 {
-    char c;
-    if (read(0, &c, 1) <= 0) {
-        return (char)-1;
-    } else {
-        return c;
+    /* Used to buffer data from stdin */
+    static int stdin_total = 0;
+    static char stdin_buf[128];
+
+    /* How much space do we have left? */
+    int remaining = sizeof(stdin_buf) - stdin_total;
+    if (remaining == 0) {
+        return -1;
     }
+
+    /* Look for a newline */
+    int lf;
+    for (lf = 0; lf < stdin_total; ++lf) {
+        if (stdin_buf[lf] == '\n') {
+            break;
+        }
+    }
+
+    /*
+     * If we don't already have a full line buffered,
+     * read some more data from stdin and retry.
+     */
+    if (lf == stdin_total) {
+        int ret = read(0, &stdin_buf[stdin_total], remaining);
+        if (ret <= 0) {
+            return ret;
+        }
+        stdin_total += ret;
+        return read_line(buf, buf_size);
+    }
+
+    /* Check if we have a full line but it won't fit in the buffer */
+    if (lf >= buf_size) {
+        return -1;
+    }
+
+    /* Copy up to and including newline */
+    int consumed = lf + 1;
+    memcpy(buf, stdin_buf, consumed);
+
+    /* Shift remaining chars over */
+    memmove(&stdin_buf[0], &stdin_buf[consumed], stdin_total - consumed);
+    stdin_total -= consumed;
+    return consumed;
 }
 
 /*
- * Reads a line from stdin. Returns NULL if stdin is
- * non-blocking. The returned string does not
+ * Reads a line from stdin. Blocks until a full
+ * line is received. The returned string does not
  * contain the newline character.
  */
 char *
@@ -52,14 +95,17 @@ gets(char *buf, int size)
     assert(buf != NULL);
     assert(size > 0);
 
-    int cnt = read(0, buf, size - 1);
-    if (cnt < 0) {
-        return NULL;
-    } else if (cnt > 0 && buf[cnt - 1] == '\n') {
-        cnt--;
+    while (1) {
+        int ret = read_line(buf, size);
+        if (ret == -EAGAIN || ret == -EINTR) {
+            continue;
+        } else if (ret <= 0) {
+            return NULL;
+        } else {
+            buf[ret - 1] = '\0';
+            return buf;
+        }
     }
-    buf[cnt] = '\0';
-    return buf;
 }
 
 /*
