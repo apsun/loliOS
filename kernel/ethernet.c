@@ -39,15 +39,15 @@ ethernet_handle_rx(net_dev_t *dev, skb_t *skb)
 int
 ethernet_send_mac(net_dev_t *dev, skb_t *skb, mac_addr_t mac, int ethertype)
 {
-    ethernet_hdr_t *hdr = skb_mac_header(skb);
-    if (hdr == NULL) {
-        hdr = skb_push(skb, sizeof(ethernet_hdr_t));
-        skb_reset_mac_header(skb);
-    }
+    assert(skb_mac_header(skb) == NULL);
+    ethernet_hdr_t *hdr = skb_push(skb, sizeof(ethernet_hdr_t));
     hdr->dest_addr = mac;
     hdr->src_addr = dev->mac_addr;
     hdr->be_ethertype = htons(ethertype);
-    return dev->send_mac_skb(dev, skb);
+
+    int ret = dev->send_mac_skb(dev, skb);
+    skb_pull(skb, sizeof(ethernet_hdr_t));
+    return ret;
 }
 
 /*

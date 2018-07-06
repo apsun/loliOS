@@ -800,6 +800,7 @@ tcp_send_syn(tcp_sock_t *tcp)
         return -1;
     }
     tcp_outbox_transmit(tcp, pkt);
+    skb_release(skb);
     return 0;
 }
 
@@ -831,6 +832,7 @@ tcp_send_fin(tcp_sock_t *tcp)
         return -1;
     }
     tcp_outbox_transmit(tcp, pkt);
+    skb_release(skb);
     return 0;
 }
 

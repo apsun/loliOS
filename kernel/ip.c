@@ -25,15 +25,19 @@ ip_checksum(uint32_t sum)
 static uint32_t
 ip_partial_checksum(const void *buf, int len)
 {
+    /*
+     * WARNING: Do not iterate the buffer in words, as it causes
+     * undefined behavior in -O2 when this function is inlined.
+     * Slow and steady wins the race here. See char aliasing rules.
+     */
+    const uint8_t *bufp = buf;
     uint32_t sum = 0;
-    const uint16_t *bufw = buf;
     int i;
-    for (i = 0; i < len / 2; ++i) {
-        sum += ntohs(bufw[i]);
+    for (i = 0; i < (len & ~1); i += 2) {
+        sum += bufp[i] << 8 | bufp[i + 1];
     }
     if (len & 1) {
-        const uint8_t *bufb = buf;
-        sum += ntohs(bufb[len - 1]);
+        sum += bufp[len - 1] << 8;
     }
     return sum;
 }
@@ -53,9 +57,9 @@ ip_pseudo_checksum(skb_t *skb, ip_addr_t src_ip, ip_addr_t dest_ip, int protocol
     phdr.zero = 0;
     phdr.protocol = protocol;
     phdr.be_length = htons(skb_len(skb));
-    uint16_t sum = ip_checksum(
-        ip_partial_checksum(&phdr, sizeof(phdr)) +
-        ip_partial_checksum(skb_data(skb), skb_len(skb)));
+    uint32_t phdr_sum = ip_partial_checksum(&phdr, sizeof(phdr));
+    uint32_t skb_sum = ip_partial_checksum(skb_data(skb), skb_len(skb));
+    uint16_t sum = ip_checksum(phdr_sum + skb_sum);
     if (sum == 0) {
         sum = 0xffff;
     }
@@ -141,11 +145,8 @@ int
 ip_send(net_iface_t *iface, ip_addr_t neigh_ip, skb_t *skb, ip_addr_t dest_ip, int protocol)
 {
     /* Push IP header if it doesn't already exist */
-    ip_hdr_t *hdr = skb_network_header(skb);
-    if (hdr == NULL) {
-        hdr = skb_push(skb, sizeof(ip_hdr_t));
-        skb_reset_network_header(skb);
-    }
+    assert(skb_network_header(skb) == NULL);
+    ip_hdr_t *hdr = skb_push(skb, sizeof(ip_hdr_t));
 
     /* Fill out IP header */
     hdr->ihl = sizeof(ip_hdr_t) / 4;
@@ -159,8 +160,11 @@ ip_send(net_iface_t *iface, ip_addr_t neigh_ip, skb_t *skb, ip_addr_t dest_ip, i
     hdr->be_checksum = htons(0);
     hdr->src_ip = iface->ip_addr;
     hdr->dest_ip = dest_ip;
+    hdr->be_checksum = htons(0);
     hdr->be_checksum = htons(ip_checksum(ip_partial_checksum(hdr, sizeof(ip_hdr_t))));
 
     /* Forward to interface's IP packet handler */
-    return iface->send_ip_skb(iface, skb, neigh_ip);
+    int ret = iface->send_ip_skb(iface, skb, neigh_ip);
+    skb_pull(skb, sizeof(ip_hdr_t));
+    return ret;
 }

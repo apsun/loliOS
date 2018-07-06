@@ -2,6 +2,10 @@
 #include "debug.h"
 #include "terminal.h"
 
+/* Whether to force rand() to always return zero */
+#define DETERMINISTIC_RAND 0
+
+/* PRNG state for rand() */
 static unsigned int rand_state = 1;
 
 /*
@@ -1132,11 +1136,15 @@ printf(const char *format, ...)
 int
 rand(void)
 {
+#if DETERMINISTIC_RAND
+    return 0;
+#else
     unsigned int tmp = rand_state;
     tmp *= 1103515245;
     tmp += 12345;
     tmp &= 0x7fffffff;
     return (int)(rand_state = tmp);
+#endif
 }
 
 /*

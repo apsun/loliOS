@@ -105,7 +105,7 @@ arp_queue_insert(net_dev_t *dev, skb_t *skb, ip_addr_t ip)
     }
 
     pkt->dev = dev;
-    pkt->skb = skb_retain(skb);
+    pkt->skb = skb_clone(skb);
     pkt->ip = ip;
     list_add_tail(&pkt->list, &packet_queue);
     return 0;
