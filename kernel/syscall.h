@@ -39,7 +39,8 @@
 #define SYS_TCSETPGRP   33
 #define SYS_PIPE        34
 #define SYS_CREATE      35
-#define NUM_SYSCALL     35
+#define SYS_FCNTL       36
+#define NUM_SYSCALL     36
 
 #define EINTR  2
 #define EAGAIN 3

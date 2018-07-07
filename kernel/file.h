@@ -23,6 +23,9 @@
 #define OPEN_WRITE (1 << 1)
 #define OPEN_ALL (OPEN_READ | OPEN_WRITE)
 
+/* Accepted fnctl() commands */
+#define FCNTL_NONBLOCK 1
+
 #ifndef ASM
 
 /* Forward declaration */
@@ -43,6 +46,9 @@ typedef struct {
 
     /* Read/write mode used to open the file. */
     int mode;
+
+    /* Whether the file is in nonblocking mode. */
+    bool nonblocking;
 
     /*
      * inode index of this file, unused if the file
@@ -96,6 +102,7 @@ __cdecl int file_write(int fd, const void *buf, int nbytes);
 __cdecl int file_close(int fd);
 __cdecl int file_ioctl(int fd, int req, int arg);
 __cdecl int file_dup(int srcfd, int destfd);
+__cdecl int file_fcntl(int fd, int req, int arg);
 
 #endif /* ASM */
 

@@ -80,6 +80,7 @@ file_obj_alloc(const file_ops_t *ops_table, int mode, bool open)
     file->ops_table = ops_table;
     file->refcnt = 0;
     file->mode = mode;
+    file->nonblocking = false;
     file->inode_idx = 0;
     file->private = NULL;
 
@@ -411,5 +412,27 @@ file_dup(int srcfd, int destfd)
         return file_desc_bind(files, -1, new_file);
     } else {
         return file_desc_rebind(files, destfd, new_file);
+    }
+}
+
+/*
+ * fnctl() syscall handler. Similar to ioctl(), but is standardized
+ * for all file objects. No more accidentally sending bogus ioctl()
+ * calls to unknown objects.
+ */
+__cdecl int
+file_fcntl(int fd, int req, int arg)
+{
+    file_obj_t *file = get_executing_file(fd);
+    if (file == NULL) {
+        return -1;
+    }
+
+    switch (req) {
+    case FCNTL_NONBLOCK:
+        file->nonblocking = !!arg;
+        return 0;
+    default:
+        return -1;
     }
 }

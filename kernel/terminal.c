@@ -385,8 +385,6 @@ terminal_wait_kbd_input(terminal_state_t *term, int nbytes, bool nonblocking)
 int
 terminal_tty_open(file_obj_t *file)
 {
-    /* Set to blocking mode by default */
-    file->private = (void *)false;
     return 0;
 }
 
@@ -410,7 +408,7 @@ terminal_tty_read(file_obj_t *file, void *buf, int nbytes)
      * have pending signals to handle
      */
     terminal_state_t *term = get_executing_terminal();
-    nbytes = terminal_wait_kbd_input(term, nbytes, (bool)file->private);
+    nbytes = terminal_wait_kbd_input(term, nbytes, file->nonblocking);
     if (nbytes < 0) {
         return nbytes;
     }
@@ -476,18 +474,12 @@ terminal_tty_close(file_obj_t *file)
 }
 
 /*
- * Ioctl syscall for stdin. Used to set the nonblocking flag.
+ * ioctl() syscall handler for stdin/stdout. Always fails.
  */
 int
 terminal_tty_ioctl(file_obj_t *file, int req, int arg)
 {
-    switch (req) {
-    case STDIN_NONBLOCK:
-        file->private = (void *)!!arg;
-        return 0;
-    default:
-        return -1;
-    }
+    return -1;
 }
 
 /*

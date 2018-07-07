@@ -206,7 +206,12 @@ rtc_read(file_obj_t *file, void *buf, int nbytes)
     int target_counter = (rtc_counter + max_ticks) & -max_ticks;
 
     /* Wait for enough RTC interrupts or a signal, whichever comes first */
-    while (true) {
+    while (1) {
+        /* Nonblocking flag makes no sense, so just always return 0 */
+        if (file->nonblocking) {
+            return 0;
+        }
+
         /* Check if we've received enough RTC interrupts */
         if (rtc_counter >= target_counter) {
             return 0;

@@ -33,8 +33,7 @@ main(void)
         printf("mash> ");
 
         if (gets(command, sizeof(command)) == NULL) {
-            puts("gets() failed");
-            return 1;
+            return 0;
         }
 
         if (command[0] == '\0') {

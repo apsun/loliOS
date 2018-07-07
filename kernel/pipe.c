@@ -5,15 +5,19 @@
 #include "paging.h"
 #include "file.h"
 
-/* How much storage to allocate for the kernel buffer */
-#define PIPE_SIZE 65536
+/*
+ * How much storage to allocate for the kernel buffer.
+ * This should be incremented by 1 to account for the
+ * fact that one byte cannot be used in the circular queue.
+ */
+#define PIPE_SIZE 8193
 
 /* Underlying pipe state */
 typedef struct {
     int head;
     int tail;
     uint8_t buf[PIPE_SIZE];
-    bool half_closed;
+    bool half_closed : 1;
 } pipe_state_t;
 
 /*
@@ -141,24 +145,6 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
 }
 
 /*
- * read() syscall handler for pipe write endpoint. Always fails.
- */
-static int
-pipe_read_fail(file_obj_t *file, void *buf, int nbytes)
-{
-    return -1;
-}
-
-/*
- * write() syscall handler for pipe read endpoint. Always fails.
- */
-static int
-pipe_write_fail(file_obj_t *file, const void *buf, int nbytes)
-{
-    return -1;
-}
-
-/*
  * close() syscall handler for pipes. If the file refers to
  * the read end of the pipe, all further writes to the pipe
  * will fail. If it refers to the write end of the pipe, future
@@ -192,19 +178,10 @@ pipe_ioctl(file_obj_t *file, int req, int arg)
     return -1;
 }
 
-/* File ops for the read end of the pipe */
-static const file_ops_t pipe_read_fops = {
+/* Combined read/write file ops for pipe files */
+static const file_ops_t pipe_fops = {
     .open = NULL,
     .read = pipe_read,
-    .write = pipe_write_fail,
-    .close = pipe_close,
-    .ioctl = pipe_ioctl,
-};
-
-/* File ops for the write end of the pipe */
-static const file_ops_t pipe_write_fops = {
-    .open = NULL,
-    .read = pipe_read_fail,
     .write = pipe_write,
     .close = pipe_close,
     .ioctl = pipe_ioctl,
@@ -226,7 +203,7 @@ pipe_pipe(int *readfd, int *writefd)
     }
 
     /* Create read endpoint */
-    file_obj_t *read_file = file_obj_alloc(&pipe_read_fops, OPEN_READ, false);
+    file_obj_t *read_file = file_obj_alloc(&pipe_fops, OPEN_READ, false);
     if (read_file == NULL) {
         debugf("Cannot allocate pipe read endpoint\n");
         free(pipe);
@@ -234,7 +211,7 @@ pipe_pipe(int *readfd, int *writefd)
     }
 
     /* Create write endpoint */
-    file_obj_t *write_file = file_obj_alloc(&pipe_write_fops, OPEN_WRITE, false);
+    file_obj_t *write_file = file_obj_alloc(&pipe_fops, OPEN_WRITE, false);
     if (write_file == NULL) {
         debugf("Cannot allocate pipe write endpoint\n");
         file_obj_free(read_file, false);

@@ -11,7 +11,7 @@
 #define MAX_EXEC_LEN 128
 
 /* Maximum number of processes, including idle process */
-#define MAX_PROCESSES 7
+#define MAX_PROCESSES 16
 
 /* Executable magic bytes ('\x7fELF') */
 #define EXE_MAGIC 0x464c457f

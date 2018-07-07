@@ -10,9 +10,6 @@
 /* Number of supported terminals */
 #define NUM_TERMINALS 3
 
-/* ioctl() commands */
-#define STDIN_NONBLOCK 1
-
 #ifndef ASM
 
 /* Cursor position information */

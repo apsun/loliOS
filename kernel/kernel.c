@@ -69,7 +69,9 @@ entry(unsigned long magic, unsigned long addr)
          * filesystem lies within the kernel page.
          */
         assert(mbi->mods_count == 1);
-        assert(mod->mod_end <= KERNEL_PAGE_END);
+        if (mod->mod_end > KERNEL_PAGE_END) {
+            panic("Total filesystem size is too large!");
+        }
         fs_start = mod->mod_start;
 
         while (mod_count < mbi->mods_count) {

@@ -36,6 +36,7 @@
 #define SYS_TCSETPGRP   33
 #define SYS_PIPE        34
 #define SYS_CREATE      35
+#define SYS_FCNTL       36
 
 /* syscall.h */
 #define EINTR  2
@@ -58,8 +59,8 @@
 #define SOCK_UDP 2
 #define SOCK_IP  3
 
-/* terminal.h */
-#define STDIN_NONBLOCK 1
+/* file.h */
+#define FCNTL_NONBLOCK 1
 
 /* sb16.h */
 #define SOUND_SET_BITS_PER_SAMPLE 1
@@ -126,6 +127,7 @@ __cdecl int tcgetpgrp(void);
 __cdecl int tcsetpgrp(int pgrp);
 __cdecl int pipe(int *readfd, int *writefd);
 __cdecl int create(const char *filename, int mode);
+__cdecl int fcntl(int fd, int req, int arg);
 
 #endif /* ASM */
 
