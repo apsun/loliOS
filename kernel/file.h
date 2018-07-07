@@ -14,7 +14,14 @@
 #define FILE_TYPE_MOUSE 3
 #define FILE_TYPE_TAUX 4
 #define FILE_TYPE_SOUND 5
-#define FILE_TYPE_COUNT 6
+#define FILE_TYPE_TTY 6
+#define FILE_TYPE_COUNT 7
+
+/* File open modes passed to create() */
+#define OPEN_NONE 0
+#define OPEN_READ (1 << 0)
+#define OPEN_WRITE (1 << 1)
+#define OPEN_ALL (OPEN_READ | OPEN_WRITE)
 
 #ifndef ASM
 
@@ -33,6 +40,9 @@ typedef struct {
      * the file object is released.
      */
     int refcnt;
+
+    /* Read/write mode used to open the file. */
+    int mode;
 
     /*
      * inode index of this file, unused if the file
@@ -63,7 +73,7 @@ file_obj_t **get_executing_files(void);
 file_obj_t *get_executing_file(int fd);
 
 /* File object alloc/free/retain/release functions */
-file_obj_t *file_obj_alloc(const file_ops_t *ops_table, bool open);
+file_obj_t *file_obj_alloc(const file_ops_t *ops_table, int mode, bool open);
 void file_obj_free(file_obj_t *file, bool close);
 file_obj_t *file_obj_retain(file_obj_t *file);
 void file_obj_release(file_obj_t *file);
@@ -79,6 +89,7 @@ void file_deinit(file_obj_t **files);
 void file_clone(file_obj_t **new_files, file_obj_t **old_files);
 
 /* Direct syscall handlers */
+__cdecl int file_create(const char *filename, int mode);
 __cdecl int file_open(const char *filename);
 __cdecl int file_read(int fd, void *buf, int nbytes);
 __cdecl int file_write(int fd, const void *buf, int nbytes);

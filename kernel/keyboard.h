@@ -52,10 +52,10 @@ typedef struct {
 /* Character input buffer */
 typedef struct {
     /* Buffer to hold the characters */
-    volatile char buf[KEYBOARD_BUF_SIZE];
+    char buf[KEYBOARD_BUF_SIZE];
 
     /* Number of characters in the buffer */
-    volatile int count;
+    int count;
 } kbd_input_buf_t;
 
 /* Handles keyboard interrupts */

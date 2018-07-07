@@ -226,7 +226,7 @@ pipe_pipe(int *readfd, int *writefd)
     }
 
     /* Create read endpoint */
-    file_obj_t *read_file = file_obj_alloc(&pipe_read_fops, false);
+    file_obj_t *read_file = file_obj_alloc(&pipe_read_fops, OPEN_READ, false);
     if (read_file == NULL) {
         debugf("Cannot allocate pipe read endpoint\n");
         free(pipe);
@@ -234,7 +234,7 @@ pipe_pipe(int *readfd, int *writefd)
     }
 
     /* Create write endpoint */
-    file_obj_t *write_file = file_obj_alloc(&pipe_write_fops, false);
+    file_obj_t *write_file = file_obj_alloc(&pipe_write_fops, OPEN_WRITE, false);
     if (write_file == NULL) {
         debugf("Cannot allocate pipe write endpoint\n");
         file_obj_free(read_file, false);

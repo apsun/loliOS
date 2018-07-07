@@ -1,7 +1,17 @@
+#include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <syscall.h>
 #include <string.h>
+#include <syscall.h>
+
+static void
+reset_stdout(void)
+{
+    int stdout = create("tty", OPEN_WRITE);
+    assert(stdout >= 0);
+    dup(stdout, 1);
+    close(stdout);
+}
 
 static int
 input(int fd, char *buf, int buf_size, int *offset)
@@ -51,8 +61,9 @@ main(void)
     char filename[128];
     if (getargs(filename, sizeof(filename)) >= 0) {
         if ((fd = open(filename)) < 0) {
+            reset_stdout();
             printf("%s: No such file or directory\n", filename);
-            goto exit;
+            goto cleanup;
         }
     }
 
@@ -64,23 +75,29 @@ main(void)
     int offset = 0;
     int read_cnt;
     int write_cnt;
-    do {
+    while (1) {
         read_cnt = input(fd, buf, sizeof(buf), &offset);
         if (read_cnt < 0 && read_cnt != -EINTR && read_cnt != -EAGAIN) {
+            reset_stdout();
             printf("read() returned %d\n", read_cnt);
-            goto exit;
+            goto cleanup;
+        }
+
+        if (read_cnt == 0 && offset == 0) {
+            break;
         }
 
         write_cnt = output(1, buf, &offset);
         if (write_cnt < 0 && write_cnt != -EINTR && write_cnt != -EAGAIN) {
+            reset_stdout();
             printf("write() returned %d\n", write_cnt);
-            goto exit;
+            goto cleanup;
         }
-    } while (read_cnt != 0 || offset > 0);
+    }
 
     ret = 0;
 
-exit:
+cleanup:
     if (fd >= 0) close(fd);
     return ret;
 }

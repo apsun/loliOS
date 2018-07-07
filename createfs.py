@@ -13,6 +13,7 @@ DEVICE_FILES = {
     'mouse': 3,
     'taux': 4,
     'sound': 5,
+    'tty': 6,
 }
 
 

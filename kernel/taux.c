@@ -363,13 +363,12 @@ taux_open(file_obj_t *file)
 }
 
 /*
- * Taux controller read syscall handler. Does nothing,
- * but always returns success (avoids grep failing).
+ * Taux controller read syscall handler. Always fails.
  */
 static int
 taux_read(file_obj_t *file, void *buf, int nbytes)
 {
-    return 0;
+    return -1;
 }
 
 /*

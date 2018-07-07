@@ -193,7 +193,7 @@ int
 socket_obj_bind_file(file_obj_t **files, net_sock_t *sock)
 {
     /* Allocate a file object */
-    file_obj_t *file = file_obj_alloc(&socket_fops, false);
+    file_obj_t *file = file_obj_alloc(&socket_fops, OPEN_ALL, false);
     if (file == NULL) {
         debugf("Failed to allocate file\n");
         return -1;

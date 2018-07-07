@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+shopt -s extglob
 mp3_dir=$(readlink -e "$(dirname "$0")")
 
 # Don't close on error (useful if running as a shortcut)
@@ -50,7 +51,7 @@ else
     # Compile userspace programs
     mkdir -p "${mp3_dir}/userspace/build"
     make -C "${mp3_dir}/userspace"
-    cp "${mp3_dir}/userspace/build/"* "${mp3_dir}/filesystem"
+    cp "${mp3_dir}/userspace/build/"!(*.elf) "${mp3_dir}/filesystem"
 
     # Generate new filesystem image
     rm -f "${mp3_dir}/kernel/filesys_img.new"

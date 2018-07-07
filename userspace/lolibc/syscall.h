@@ -35,6 +35,7 @@
 #define SYS_TCGETPGRP   32
 #define SYS_TCSETPGRP   33
 #define SYS_PIPE        34
+#define SYS_CREATE      35
 
 /* syscall.h */
 #define EINTR  2
@@ -64,6 +65,12 @@
 #define SOUND_SET_BITS_PER_SAMPLE 1
 #define SOUND_SET_NUM_CHANNELS 2
 #define SOUND_SET_SAMPLE_RATE 3
+
+/* file.h */
+#define OPEN_NONE 0
+#define OPEN_READ (1 << 0)
+#define OPEN_WRITE (1 << 1)
+#define OPEN_ALL (OPEN_READ | OPEN_WRITE)
 
 #ifndef ASM
 
@@ -118,6 +125,7 @@ __cdecl int setpgrp(int pid, int pgrp);
 __cdecl int tcgetpgrp(void);
 __cdecl int tcsetpgrp(int pgrp);
 __cdecl int pipe(int *readfd, int *writefd);
+__cdecl int create(const char *filename, int mode);
 
 #endif /* ASM */
 

@@ -12,9 +12,6 @@
 #define MOUSE_X_OVERFLOW (1 << 6)
 #define MOUSE_Y_OVERFLOW (1 << 7)
 
-/* Number of inputs in the mouse buffer */
-#define MOUSE_BUF_SIZE 64
-
 #ifndef ASM
 
 typedef struct {
@@ -44,13 +41,16 @@ typedef struct {
     uint8_t dy;
 } mouse_input_t;
 
+/* Maximum number of *bytes* in the mouse buffer */
+#define MOUSE_BUF_SIZE (64 * sizeof(mouse_input_t))
+
 /* Mouse file data */
 typedef struct {
     /* Mouse input buffer */
-    volatile mouse_input_t buf[MOUSE_BUF_SIZE];
+    uint8_t buf[MOUSE_BUF_SIZE];
 
-    /* Number of valid inputs in the buffer */
-    volatile int count;
+    /* Number of *bytes* in the buffer */
+    int count;
 } mouse_input_buf_t;
 
 /* Handles mouse interrupts */

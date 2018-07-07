@@ -152,11 +152,11 @@ sb16_open(file_obj_t *file)
     return 0;
 }
 
-/* SB16 read() syscall handler, does nothing */
+/* SB16 read() syscall handler, always fails */
 int
 sb16_read(file_obj_t *file, void *buf, int nbytes)
 {
-    return 0;
+    return -1;
 }
 
 /*

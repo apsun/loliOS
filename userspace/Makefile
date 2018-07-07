@@ -16,14 +16,15 @@ OUT_BIN += build/fish
 .PHONY: all
 all: $(OUT_BIN)
 
-.INTERMEDIATE: build/missiles.elf
+.PRECIOUS: build/missiles.elf
 build/missiles.elf: $(MISSILES_OBJ) $(LOLIBC_OBJ)
 	$(LD) $(LDFLAGS) -o $@ $^
 
-.INTERMEDIATE: build/fish.elf
+.PRECIOUS: build/fish.elf
 build/fish.elf: $(FISH_OBJ) $(LOLIBC_OBJ)
 	$(LD) $(LDFLAGS) -o $@ $^
 
+.PRECIOUS: build/%.elf
 build/%.elf: %.o $(LOLIBC_OBJ)
 	$(LD) $(LDFLAGS) -o $@ $^
 

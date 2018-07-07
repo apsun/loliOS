@@ -46,6 +46,7 @@ syscall_jump_table:
     .long terminal_tcgetpgrp
     .long terminal_tcsetpgrp
     .long pipe_pipe
+    .long file_create
 
 .text
 

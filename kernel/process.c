@@ -487,6 +487,7 @@ process_create_user(const char *command, int terminal)
     pcb->parent_pid = -1;
     pcb->terminal = terminal;
     pcb->user_pfn = pfn;
+    pcb->compat = false;
     pcb->group = pcb->pid;
     pcb->vidmap = false;
     file_init(pcb->files);
@@ -543,6 +544,7 @@ process_clone(pcb_t *parent_pcb, int_regs_t *regs)
     child_pcb->state = PROCESS_STATE_NEW;
     child_pcb->parent_pid = parent_pcb->pid;
     child_pcb->user_pfn = pfn;
+    child_pcb->compat = false;
 
     /* Set "return" value to zero in child */
     child_pcb->regs = *regs;
@@ -907,6 +909,9 @@ process_execute(
         process_free_pcb(child_pcb);
         return -1;
     }
+
+    /* Since child was run using execute(), enable compat mode */
+    child_pcb->compat = true;
 
     /* Next, change the child's group and set it as the foreground */
     child_pcb->group = child_pcb->pid;

@@ -334,13 +334,7 @@ static int
 terminal_wait_kbd_input(terminal_state_t *term, int nbytes, bool nonblocking)
 {
     pcb_t *pcb = get_executing_pcb();
-
-    /*
-     * If nbytes <= number of chars in the buffer, we just
-     * return as much as will fit.
-     */
-    int count;
-    while (nbytes > (count = term->kbd_input.count)) {
+    while (1) {
         /*
          * If the process is not in the foreground group, don't
          * allow the caller to read
@@ -351,12 +345,17 @@ terminal_wait_kbd_input(terminal_state_t *term, int nbytes, bool nonblocking)
 
         /*
          * Check if we have a newline character, if so, we should
-         * only read up to and including that character
+         * read up to and including that character (or as many chars
+         * as fits in the buffer)
          */
+        int count = term->kbd_input.count;
         int i;
         for (i = 0; i < count; ++i) {
             if (term->kbd_input.buf[i] == '\n') {
-                return i + 1;
+                if (nbytes > i + 1) {
+                    nbytes = i + 1;
+                }
+                return nbytes;
             }
         }
 
@@ -381,10 +380,10 @@ terminal_wait_kbd_input(terminal_state_t *term, int nbytes, bool nonblocking)
 }
 
 /*
- * Open syscall for stdin/stdout. Always succeeds.
+ * open() syscall handler for stdin/stdout. Always succeeds.
  */
 int
-terminal_kbd_open(file_obj_t *file)
+terminal_tty_open(file_obj_t *file)
 {
     /* Set to blocking mode by default */
     file->private = (void *)false;
@@ -392,35 +391,26 @@ terminal_kbd_open(file_obj_t *file)
 }
 
 /*
- * Read syscall for the terminal (stdin). Reads up to nbytes
+ * read() syscall handler for stdin. Reads up to nbytes
  * characters or the first line break, whichever occurs
  * first. Returns the number of characters read.
  * The output from this function is *NOT* NUL-terminated!
  *
- * This call will block until the requested number of
- * characters are available or a newline is encountered.
+ * This call will block until a newline is encountered.
  */
 int
-terminal_stdin_read(file_obj_t *file, void *buf, int nbytes)
+terminal_tty_read(file_obj_t *file, void *buf, int nbytes)
 {
     if (nbytes < 0) {
         return -1;
     }
-
-    /* Only allow reads up to the end of the buffer */
-    if (nbytes > KEYBOARD_BUF_SIZE) {
-        nbytes = KEYBOARD_BUF_SIZE;
-    }
     
     /*
-     * Wait until we can read everything in one go
-     * Interrupts must be disabled upon entry, and
-     * will be disabled upon return.
+     * Wait until there's a newline in the buffer or we
+     * have pending signals to handle
      */
     terminal_state_t *term = get_executing_terminal();
     nbytes = terminal_wait_kbd_input(term, nbytes, (bool)file->private);
-
-    /* Abort if we have pending signals or nothing to read */
     if (nbytes < 0) {
         return nbytes;
     }
@@ -433,8 +423,8 @@ terminal_stdin_read(file_obj_t *file, void *buf, int nbytes)
 
     /* Shift remaining characters to the front of the buffer */
     memmove(
-        (void *)&input_buf->buf[0],
-        (void *)&input_buf->buf[nbytes],
+        &input_buf->buf[0],
+        &input_buf->buf[nbytes],
         input_buf->count - nbytes);
     input_buf->count -= nbytes;
 
@@ -443,29 +433,11 @@ terminal_stdin_read(file_obj_t *file, void *buf, int nbytes)
 }
 
 /*
- * Write syscall for stdin. Always fails.
- */
-int
-terminal_stdin_write(file_obj_t *file, const void *buf, int nbytes)
-{
-    return -1;
-}
-
-/*
- * Read syscall for stdout. Always fails.
- */
-int
-terminal_stdout_read(file_obj_t *file, void *buf, int nbytes)
-{
-    return -1;
-}
-
-/*
- * Write syscall for the terminal (stdout). Echos the characters
+ * write() syscall handler for stdout. Echos the characters
  * in buf to the terminal. Returns the number of characters written.
  */
 int
-terminal_stdout_write(file_obj_t *file, const void *buf, int nbytes)
+terminal_tty_write(file_obj_t *file, const void *buf, int nbytes)
 {
     /* Cannot write if not in foreground group */
     terminal_state_t *term = get_executing_terminal();
@@ -493,10 +465,12 @@ terminal_stdout_write(file_obj_t *file, const void *buf, int nbytes)
 }
 
 /*
- * Close syscall for stdin/stdout. Always fails.
+ * close() syscall handler for stdin/stdout. Always fails.
+ * Note that in the new post-dup() API, the return value
+ * is not actually used.
  */
 int
-terminal_kbd_close(file_obj_t *file)
+terminal_tty_close(file_obj_t *file)
 {
     return -1;
 }
@@ -505,7 +479,7 @@ terminal_kbd_close(file_obj_t *file)
  * Ioctl syscall for stdin. Used to set the nonblocking flag.
  */
 int
-terminal_stdin_ioctl(file_obj_t *file, int req, int arg)
+terminal_tty_ioctl(file_obj_t *file, int req, int arg)
 {
     switch (req) {
     case STDIN_NONBLOCK:
@@ -517,16 +491,7 @@ terminal_stdin_ioctl(file_obj_t *file, int req, int arg)
 }
 
 /*
- * Ioctl syscall for stdout. Always fails.
- */
-int
-terminal_stdout_ioctl(file_obj_t *file, int req, int arg)
-{
-    return -1;
-}
-
-/*
- * Open syscall for the mouse. Always succeeds.
+ * open() syscall handler for the mouse. Always succeeds.
  */
 int
 terminal_mouse_open(file_obj_t *file)
@@ -535,11 +500,12 @@ terminal_mouse_open(file_obj_t *file)
 }
 
 /*
- * Read syscall for the mouse. This does NOT block if no
- * inputs are available. Copies at most nbytes / sizeof(mouse_input_t)
- * input events to buf. If no events are available, this
- * returns 0, not -EAGAIN (for grep compatibility). Note
- * that this ignores foreground process groups.
+ * read() syscall handler for the mouse. Copies at most
+ * nbytes worth of input events into buf (see mouse_input_t for
+ * the meaning of the event data). It is possible to read
+ * only part of an input event if nbytes is not a multiple
+ * of sizeof(mouse_input_t) - the next read() will return
+ * the remaining part of the event.
  */
 int
 terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
@@ -554,36 +520,34 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
 
     /* Check if there's any input to read */
     if (input_buf->count == 0) {
-        return 0;
+        return -EAGAIN;
     }
 
     /*
      * Return either the number of inputs in the buffer,
      * or the number of inputs the user requested, whichever
-     * one is smaller.
+     * one is smaller. Note that this may not fit an entire
+     * input, in which case we return a partial input instead
+     * of failing or blocking forever.
      */
-    int num_copy = nbytes / sizeof(mouse_input_t);
-    if (num_copy > input_buf->count) {
-        num_copy = input_buf->count;
+    if (nbytes > input_buf->count) {
+        nbytes = input_buf->count;
     }
 
-    /* Number of bytes we actually copy */
-    int num_bytes_copy = num_copy * sizeof(mouse_input_t);
-
     /* Copy input buffer to userspace */
-    if (!copy_to_user(buf, (void *)input_buf->buf, num_bytes_copy)) {
+    if (!copy_to_user(buf, (void *)input_buf->buf, nbytes)) {
         return -1;
     }
 
     /* Shift remaining inputs to the front */
     memmove(
-        (void *)&input_buf->buf[0],
-        (void *)&input_buf->buf[num_copy],
-        (input_buf->count - num_copy) * sizeof(mouse_input_t));
-    input_buf->count -= num_copy;
+        &input_buf->buf[0],
+        &input_buf->buf[nbytes],
+        input_buf->count - nbytes);
+    input_buf->count -= nbytes;
 
     /* Return the number of bytes copied into the buffer */
-    return num_bytes_copy;
+    return nbytes;
 }
 
 /*
@@ -697,8 +661,15 @@ terminal_handle_mouse_input(mouse_input_t input)
 {
     terminal_state_t *term = get_display_terminal();
     mouse_input_buf_t *input_buf = &term->mouse_input;
-    if (input_buf->count < MOUSE_BUF_SIZE) {
-        input_buf->buf[input_buf->count++] = input;
+
+    /*
+     * Only copy the input into the buffer if the entire
+     * event will fit. Otherwise, just discard it.
+     */
+    if (input_buf->count + sizeof(input) <= sizeof(input_buf->buf)) {
+        input_buf->buf[input_buf->count++] = input.flags;
+        input_buf->buf[input_buf->count++] = input.dx;
+        input_buf->buf[input_buf->count++] = input.dy;
     }
 }
 
@@ -715,22 +686,13 @@ terminal_update_vidmap(int term_index, bool present)
     term->vidmap = present;
 }
 
-/* Terminal stdin file ops */
-static const file_ops_t terminal_stdin_fops = {
-    .open = terminal_kbd_open,
-    .read = terminal_stdin_read,
-    .write = terminal_stdin_write,
-    .close = terminal_kbd_close,
-    .ioctl = terminal_stdin_ioctl,
-};
-
-/* Terminal stdout file ops */
-static const file_ops_t terminal_stdout_fops = {
-    .open = terminal_kbd_open,
-    .read = terminal_stdout_read,
-    .write = terminal_stdout_write,
-    .close = terminal_kbd_close,
-    .ioctl = terminal_stdout_ioctl,
+/* Combined file ops for the stdin/stdout streams */
+static const file_ops_t terminal_tty_fops = {
+    .open = terminal_tty_open,
+    .read = terminal_tty_read,
+    .write = terminal_tty_write,
+    .close = terminal_tty_close,
+    .ioctl = terminal_tty_ioctl,
 };
 
 /* Mouse file ops */
@@ -750,13 +712,13 @@ int
 terminal_open_streams(file_obj_t **files)
 {
     /* Create stdin stream */
-    file_obj_t *in = file_obj_alloc(&terminal_stdin_fops, true);
+    file_obj_t *in = file_obj_alloc(&terminal_tty_fops, OPEN_READ, true);
     if (in == NULL) {
         return -1;
     }
 
     /* Create stdout stream */
-    file_obj_t *out = file_obj_alloc(&terminal_stdout_fops, true);
+    file_obj_t *out = file_obj_alloc(&terminal_tty_fops, OPEN_WRITE, true);
     if (out == NULL) {
         file_obj_free(in, true);
         return -1;
@@ -782,6 +744,7 @@ terminal_tcsetpgrp_impl(int terminal, int pgrp)
 {
     terminal_state_t *term = get_terminal(terminal);
     term->fg_group = pgrp;
+    scheduler_wake_all(&term->sleep_queue);
 }
 
 /*
@@ -812,6 +775,7 @@ terminal_tcsetpgrp(int pgrp)
 
     terminal_state_t *term = get_executing_terminal();
     term->fg_group = pgrp;
+    scheduler_wake_all(&term->sleep_queue);
     return 0;
 }
 
@@ -847,4 +811,7 @@ terminal_init(void)
 
     /* Register mouse file ops (stdin/stdout handled specially) */
     file_register_type(FILE_TYPE_MOUSE, &terminal_mouse_fops);
+
+    /* Register tty file type so programs can recover stdin/stdout */
+    file_register_type(FILE_TYPE_TTY, &terminal_tty_fops);
 }

@@ -118,7 +118,14 @@ typedef struct {
      * mapped in memory, set after the process has called the
      * vidmap syscall.
      */
-    bool vidmap;
+    bool vidmap : 1;
+
+    /*
+     * Whether this process is being executed in compatibility mode -
+     * i.e. ECE 391 mode. Currently, the only effect that this has
+     * is that closing stdin/stdout will fail.
+     */
+    bool compat : 1;
 
     /*
      * Array containing open file object pointers. The index in the
