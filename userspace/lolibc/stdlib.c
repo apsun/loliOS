@@ -12,7 +12,7 @@ static unsigned int rand_state = 1;
  * Exits the program with the specified status code.
  * This will run any functions registered with atexit().
  */
-void
+__noreturn void
 exit(int status)
 {
     int i = atexit_count;
@@ -44,7 +44,7 @@ atexit(void (*fn)(void))
  * Aborts the program. This does not run any functions
  * registered with atexit().
  */
-void
+__noreturn void
 abort(void)
 {
     halt(1);

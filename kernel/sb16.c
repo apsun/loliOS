@@ -317,6 +317,7 @@ sb16_init(void)
         debugf("Sound Blaster 16 device installed, registering IRQ handler\n");
         irq_register_handler(IRQ_SB16, sb16_handle_irq);
         file_register_type(FILE_TYPE_SOUND, &sb16_fops);
+        sb16_write_sample_rate();
     } else {
         debugf("Sound Blaster 16 device not installed\n");
     }

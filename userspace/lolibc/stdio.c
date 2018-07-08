@@ -10,21 +10,43 @@
 /*
  * Prints a single character to the screen.
  */
-void
+int
 putchar(char c)
 {
-    write(1, &c, 1);
+    int ret;
+    do {
+        ret = write(1, &c, 1);
+    } while (ret == -EAGAIN || ret == -EINTR);
+
+    if (ret < 0) {
+        return -1;
+    } else {
+        return c;
+    }
 }
 
 /*
  * Prints a string followed by a newline to the screen.
  */
-void
+int
 puts(const char *s)
 {
     assert(s != NULL);
-    write(1, s, strlen(s));
-    putchar('\n');
+
+    int total = 0;
+    int len = strlen(s);
+    while (total < len) {
+        int ret = write(1, &s[total], len - total);
+        if (ret == -EAGAIN || ret == -EINTR) {
+            continue;
+        } else if (ret < 0) {
+            return ret;
+        } else {
+            total += ret;
+        }
+    }
+
+    return putchar('\n');
 }
 
 /*
@@ -40,7 +62,7 @@ read_line(char *buf, int buf_size)
 {
     /* Used to buffer data from stdin */
     static int stdin_total = 0;
-    static char stdin_buf[128];
+    static char stdin_buf[8192];
 
     /* How much space do we have left? */
     int remaining = sizeof(stdin_buf) - stdin_total;
@@ -136,7 +158,18 @@ typedef struct {
 static bool
 printf_write(const char *s, int len)
 {
-    return write(1, s, len) == len;
+    int total = 0;
+    while (total < len) {
+        int ret = write(1, &s[total], len - total);
+        if (ret == -EAGAIN || ret == -EINTR) {
+            continue;
+        } else if (ret < 0) {
+            return false;
+        } else {
+            total += ret;
+        }
+    }
+    return true;
 }
 
 /*

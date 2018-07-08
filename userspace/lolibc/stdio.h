@@ -3,8 +3,8 @@
 
 #include <stdarg.h>
 
-void putchar(char c);
-void puts(const char *s);
+int putchar(char c);
+int puts(const char *s);
 char getchar(void);
 char *gets(char *buf, int size);
 int vsnprintf(char *buf, int size, const char *format, va_list args);

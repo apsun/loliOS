@@ -305,7 +305,7 @@ signal_handle(signal_info_t *sig, int_regs_t *regs)
     /* CTRL-C halts with exit code 130 (SIGINT) */
     if (sig->signum == SIG_INTERRUPT) {
         debugf("Killing process due to CTRL-C\n");
-        process_halt_impl(130);
+        process_halt_impl(128 + sig->signum);
         return true;
     }
 

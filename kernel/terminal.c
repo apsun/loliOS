@@ -340,6 +340,8 @@ terminal_wait_kbd_input(terminal_state_t *term, int nbytes, bool nonblocking)
          * allow the caller to read
          */
         if (term->fg_group != pcb->group) {
+            debugf("Attempting to read from background group (fg=%d, curr=%d)\n",
+                term->fg_group, pcb->group);
             return -1;
         }
 
@@ -439,7 +441,10 @@ terminal_tty_write(file_obj_t *file, const void *buf, int nbytes)
 {
     /* Cannot write if not in foreground group */
     terminal_state_t *term = get_executing_terminal();
-    if (term->fg_group != get_executing_pcb()->group) {
+    pcb_t *pcb = get_executing_pcb();
+    if (term->fg_group != pcb->group) {
+        debugf("Attempting to print from background group (fg=%d, curr=%d)\n",
+            term->fg_group, pcb->group);
         return -1;
     }
 
@@ -760,6 +765,7 @@ __cdecl int
 terminal_tcsetpgrp(int pgrp)
 {
     if (pgrp < 0) {
+        debugf("Invalid pgrp: %d\n", pgrp);
         return -1;
     } else if (pgrp == 0) {
         pgrp = get_executing_pcb()->group;

@@ -950,11 +950,22 @@ process_halt_impl(int status)
     /* Release process resources */
     process_close(child_pcb);
 
-    /* Orphan any processes created by this process */
-    pcb_t *pcb;
-    process_for_each(pcb) {
-        if (pcb->parent_pid == child_pcb->pid) {
-            pcb->parent_pid = -1;
+    /*
+     * Orphan any processes created by this process,
+     * and reap the ones that have already exited.
+     *
+     * Warning: This is only safe because "freeing"
+     * a PCB just sets its PID to an invalid value.
+     * If one day we use malloc and free, this will
+     * cause a use-after-free.
+     */
+    pcb_t *other_pcb;
+    process_for_each(other_pcb) {
+        if (other_pcb->parent_pid == child_pcb->pid) {
+            other_pcb->parent_pid = -1;
+            if (other_pcb->state == PROCESS_STATE_ZOMBIE) {
+                process_free_pcb(other_pcb);
+            }
         }
     }
 
@@ -976,9 +987,8 @@ process_halt_impl(int status)
          * that we do not have an init process.
          */
         bool restart = true;
-        pcb_t *pcb;
-        process_for_each(pcb) {
-            if (pcb->terminal == terminal) {
+        process_for_each(other_pcb) {
+            if (other_pcb->terminal == terminal) {
                 restart = false;
                 break;
             }

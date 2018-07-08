@@ -5,15 +5,13 @@
 #include "types.h"
 #include "syscall.h"
 
-/* Number of supported signals */
-#define NUM_SIGNALS 5
-
 /* Signal numbers */
 #define SIG_DIV_ZERO  0
 #define SIG_SEGFAULT  1
 #define SIG_INTERRUPT 2
 #define SIG_ALARM     3
 #define SIG_USER1     4
+#define NUM_SIGNALS   5
 
 /* sigmask() actions and return values */
 #define SIGMASK_NONE    0

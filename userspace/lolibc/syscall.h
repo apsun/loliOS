@@ -92,7 +92,9 @@ typedef struct {
 #define IP(a, b, c, d) ((ip_addr_t){.bytes = {(a), (b), (c), (d)}})
 
 #define __cdecl __attribute__((cdecl))
-__cdecl int halt(int status);
+#define __noreturn __attribute__((noreturn))
+
+__cdecl __noreturn int halt(int status);
 __cdecl int execute(const char *command);
 __cdecl int read(int fd, void *buf, int nbytes);
 __cdecl int write(int fd, const void *buf, int nbytes);

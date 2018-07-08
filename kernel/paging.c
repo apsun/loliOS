@@ -459,9 +459,9 @@ paging_heap_clone(paging_heap_t *dest, paging_heap_t *src)
     int i;
     for (i = 0; i < dest->num_pages; ++i) {
         paging_page_map(TEMP_PAGE_START / MB(4), dest->pages[i], false);
-        memcpy((void *)TEMP_PAGE_START, (void *)(HEAP_PAGE_START / MB(4) + i), MB(4));
+        paging_page_map(TEMP_PAGE_2_START / MB(4), src->pages[i], false);
+        memcpy((void *)TEMP_PAGE_START, (void *)TEMP_PAGE_2_START, MB(4));
     }
-    paging_page_unmap(TEMP_PAGE_START / MB(4));
     return 0;
 }
 
@@ -474,7 +474,6 @@ paging_page_clone(int dest_pfn, void *src_vaddr)
 {
     paging_page_map(TEMP_PAGE_START / MB(4), dest_pfn, false);
     memcpy((void *)TEMP_PAGE_START, src_vaddr, MB(4));
-    paging_page_unmap(TEMP_PAGE_START / MB(4));
 }
 
 /*
@@ -505,9 +504,7 @@ paging_load_exe(uint32_t inode_idx, int pfn)
      * read garbage, which will cause the program to fault in userspace.
      * No need to handle it here.
      */
-    uint32_t entry_point = *(uint32_t *)(TEMP_PAGE_START + PROCESS_OFFSET + 24);
-    paging_page_unmap(TEMP_PAGE_START / MB(4));
-    return entry_point;
+    return *(uint32_t *)(TEMP_PAGE_START + PROCESS_OFFSET + 24);
 }
 
 /*

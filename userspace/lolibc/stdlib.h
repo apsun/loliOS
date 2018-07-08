@@ -3,9 +3,11 @@
 
 #include <myalloc.h>
 
-void exit(int status);
+#define __noreturn __attribute__((noreturn))
+
+__noreturn void exit(int status);
 int atexit(void (*fn)(void));
-void abort(void);
+__noreturn void abort(void);
 int rand(void);
 void srand(unsigned int seed);
 
