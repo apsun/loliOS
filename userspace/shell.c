@@ -69,7 +69,7 @@ parse_input(char *line)
     while ((cmd_s = strsep(&line, "|")) != NULL) {
         cmd_t *curr = malloc(sizeof(cmd_t));
         if (curr == NULL) {
-            printf("Out of memory, cannot allocate command info\n");
+            fprintf(stderr, "Out of memory, cannot allocate command info\n");
             goto cleanup;
         }
 
@@ -83,7 +83,7 @@ parse_input(char *line)
         /* TODO: Change this once redirection is implemented */
         curr->name = strdup(strtrim(cmd_s));
         if (curr->name == NULL) {
-            printf("Out of memory, cannot allocate command\n");
+            fprintf(stderr, "Out of memory, cannot allocate command\n");
             goto cleanup;
         }
     }
@@ -143,8 +143,8 @@ execute_command(cmd_t *cmd)
 
         /*
          * Check for "first > out | second" case. Note that normally
-         * 2>&1 would be a valid construct, but we don't have stderr,
-         * so let's just avoid redirection conflicts altogether.
+         * 2>&1 would be a valid construct, but we don't allow redirecting
+         * stderr, so let's just avoid redirection conflicts altogether.
          */
         if (cmd->out != NULL && cmd->next != NULL) {
             FAIL("Cannot redirect stdout in middle of pipe\n");
@@ -177,12 +177,12 @@ execute_command(cmd_t *cmd)
             if (cmd->in != NULL) {
                 next_in = create(cmd->in, OPEN_READ);
                 if (next_in < 0) {
-                    printf("Failed to open '%s' for reading\n", cmd->in);
+                    fprintf(stderr, "Failed to open '%s' for reading\n", cmd->in);
                     halt(127);
                 }
             }
             if (next_in >= 0) {
-                dup(next_in, 0);
+                dup(next_in, stdin);
                 close(next_in);
             }
 
@@ -190,21 +190,18 @@ execute_command(cmd_t *cmd)
             if (cmd->out != NULL) {
                 curr_out = create(cmd->out, OPEN_WRITE);
                 if (curr_out < 0) {
-                    printf("Failed to open '%s' for writing\n", cmd->out);
+                    fprintf(stderr, "Failed to open '%s' for writing\n", cmd->out);
                     halt(127);
                 }
             }
             if (curr_out >= 0) {
-                dup(curr_out, 1);
+                dup(curr_out, stdout);
                 close(curr_out);
             }
 
-            /*
-             * And finally, execute the command! Note that we cannot
-             * print anything after this point since stdout has already
-             * been redirected.
-             */
+            /* And finally, execute the command! */
             exec(cmd->name);
+            fprintf(stderr, "%s: command not found\n", root->cmd->name);
             halt(127);
         } else {
             curr->pid = pid;
@@ -273,12 +270,8 @@ cleanup:
         proc_t *next = root->next;
         if (root->pid >= 0) {
             exit_code = root->exit_code;
-
-            /* Since we can't print this from the child, do it here */
-            if (exit_code == 127) {
-                printf("%s: command not found\n", root->cmd->name);
-            } else if (exit_code != 0) {
-                printf("%s finished with exit code %d\n", root->cmd->name, exit_code);
+            if (exit_code != 0 && exit_code != 127) {
+                fprintf(stderr, "%s finished with exit code %d\n", root->cmd->name, exit_code);
             }
         }
 
@@ -288,7 +281,7 @@ cleanup:
 
     /* Print any delayed error messages */
     if (error[0] != '\0') {
-        printf("%s", error);
+        fprintf(stderr, "%s", error);
     }
 
     return exit_code;
@@ -299,7 +292,7 @@ main(void)
 {
     char line[128];
     while (1) {
-        printf("mash> ");
+        fprintf(stderr, "mash> ");
 
         if (gets(line, sizeof(line)) == NULL) {
             return 0;
@@ -313,14 +306,14 @@ main(void)
 
         cmd_t *cmd = parse_input(line);
         if (cmd == NULL) {
-            printf("Failed to parse command\n");
+            fprintf(stderr, "Failed to parse command\n");
             return 1;
         }
 
         int exit_code = execute_command(cmd);
         free_cmd(cmd);
         if (exit_code < 0) {
-            printf("Fatal error %d, exiting\n", exit_code);
+            fprintf(stderr, "Fatal error %d, exiting\n", exit_code);
             return exit_code;
         }
     }

@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -41,15 +40,6 @@ typedef struct {
 } args_t;
 
 static volatile bool stop = false;
-
-static void
-reset_stdout(void)
-{
-    int stdout = create("tty", OPEN_WRITE);
-    assert(stdout >= 0);
-    dup(stdout, 1);
-    close(stdout);
-}
 
 static inline uint16_t
 bswap16(uint16_t x)
@@ -325,13 +315,12 @@ nc_loop(ip_addr_t ip, uint16_t port, args_t *args)
     sock_addr_t local_addr;
     sock_addr_t remote_addr;
 
-#define CALL(expr) do {        \
-    ret = expr;                \
-    if (ret == -1) {           \
-        reset_stdout();        \
-        puts(#expr " failed"); \
-        goto cleanup;          \
-    }                          \
+#define CALL(expr) do {                     \
+    ret = expr;                             \
+    if (ret == -1) {                        \
+        fprintf(stderr, #expr " failed\n"); \
+        goto cleanup;                       \
+    }                                       \
 } while (0)
 
     if (args->listen) {
@@ -462,8 +451,7 @@ parse_args(args_t *args)
                     args->crlf = true;
                     break;
                 default:
-                    reset_stdout();
-                    printf("Unknown option: %c\n", c);
+                    fprintf(stderr, "Unknown option: %c\n", c);
                     return NULL;
                 }
             }
@@ -478,8 +466,7 @@ main(void)
 {
     /* Set signal handler */
     if (sigaction(SIG_INTERRUPT, sig_interrupt_handler) < 0) {
-        reset_stdout();
-        puts("Could not set interrupt handler");
+        fprintf(stderr, "Could not set interrupt handler\n");
         return 1;
     }
 
@@ -492,8 +479,7 @@ main(void)
     /* Find space between host and port */
     char *space = strchr(args.argv, ' ');
     if (space == NULL) {
-        reset_stdout();
-        puts("No port specified");
+        fprintf(stderr, "No port specified\n");
         return 1;
     }
     *space = '\0';
@@ -503,13 +489,11 @@ main(void)
     if (!ip_parse(args.argv, &ip)) {
         if (!args.listen) {
             if (!dns_resolve(args.argv, &ip)) {
-                reset_stdout();
-                puts("Could not resolve address");
+                fprintf(stderr, "Could not resolve address\n");
                 return 1;
             }
         } else {
-            reset_stdout();
-            puts("Invalid interface IP address");
+            fprintf(stderr, "Invalid interface IP address\n");
             return 1;
         }
     }
@@ -517,15 +501,13 @@ main(void)
     /* Parse port number */
     int port = atoi(space + 1);
     if (port <= 0 || port >= 65536) {
-        reset_stdout();
-        puts("Invalid port");
+        fprintf(stderr, "Invalid port\n");
         return 1;
     }
 
     /* Put stdin into nonblocking mode */
     if (fcntl(0, FCNTL_NONBLOCK, 1) < 0) {
-        reset_stdout();
-        puts("Failed to make stdin non-blocking");
+        fprintf(stderr, "Failed to make stdin non-blocking\n");
         return 1;
     }
 
@@ -534,8 +516,7 @@ main(void)
 
     /* Restore original blocking mode */
     if (fcntl(0, FCNTL_NONBLOCK, 0) < 0) {
-        reset_stdout();
-        puts("Failed to restore stdin blocking mode");
+        fprintf(stderr, "Failed to restore stdin blocking mode\n");
         return 1;
     }
 

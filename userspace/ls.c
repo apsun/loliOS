@@ -5,31 +5,31 @@
 int
 main(void)
 {
-    int ret = 0;
+    int ret = 1;
     int fd = -1;
     char fname[33];
 
     /* Open the directory */
-    if ((fd = open(".")) < 0) {
-        puts("directory open failed");
-        ret = 2;
-        goto exit;
+    if ((fd = create(".", OPEN_READ)) < 0) {
+        fprintf(stderr, "Cannot open directory for reading\n");
+        goto cleanup;
     }
 
     /* Read dir entries, print to stdout */
     int cnt;
     while ((cnt = read(fd, fname, sizeof(fname))) != 0) {
         if (cnt < 0) {
-            puts("directory entry read failed");
-            ret = 3;
-            goto exit;
+            fprintf(stderr, "Cannot read directory entry\n");
+            goto cleanup;
         }
 
         fname[cnt] = '\0';
         puts(fname);
     }
 
-exit:
+    ret = 0;
+
+cleanup:
     if (fd >= 0) close(fd);
     return ret;
 }

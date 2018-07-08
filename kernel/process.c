@@ -903,6 +903,12 @@ process_execute(
         return -1;
     }
 
+    /* Close everything except stdin and stdout */
+    int fd;
+    for (fd = 2; fd < MAX_FILES; ++fd) {
+        file_desc_unbind(child_pcb->files, fd);
+    }
+
     /* Next, perform exec() on behalf of the child process */
     if (process_exec_impl(child_pcb, &child_pcb->regs, command) < 0) {
         process_close(child_pcb);

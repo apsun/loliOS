@@ -4,15 +4,6 @@
 #include <string.h>
 #include <syscall.h>
 
-static void
-reset_stdout(void)
-{
-    int stdout = create("tty", OPEN_WRITE);
-    assert(stdout >= 0);
-    dup(stdout, 1);
-    close(stdout);
-}
-
 static int
 input(int fd, char *buf, int buf_size, int *offset)
 {
@@ -61,8 +52,7 @@ main(void)
     char filename[128];
     if (getargs(filename, sizeof(filename)) >= 0) {
         if ((fd = open(filename)) < 0) {
-            reset_stdout();
-            printf("%s: No such file or directory\n", filename);
+            fprintf(stderr, "%s: No such file or directory\n", filename);
             goto cleanup;
         }
     }
@@ -78,8 +68,7 @@ main(void)
     while (1) {
         read_cnt = input(fd, buf, sizeof(buf), &offset);
         if (read_cnt < 0 && read_cnt != -EINTR && read_cnt != -EAGAIN) {
-            reset_stdout();
-            printf("read() returned %d\n", read_cnt);
+            fprintf(stderr, "read() returned %d\n", read_cnt);
             goto cleanup;
         }
 
@@ -89,8 +78,7 @@ main(void)
 
         write_cnt = output(1, buf, &offset);
         if (write_cnt < 0 && write_cnt != -EINTR && write_cnt != -EAGAIN) {
-            reset_stdout();
-            printf("write() returned %d\n", write_cnt);
+            fprintf(stderr, "write() returned %d\n", write_cnt);
             goto cleanup;
         }
     }

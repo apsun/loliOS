@@ -8,14 +8,16 @@
 #include <syscall.h>
 
 /*
- * Prints a single character to the screen.
+ * Prints a single character to the specified file stream.
  */
 int
-putchar(char c)
+fputc(char c, int fd)
 {
+    assert(fd >= 0);
+
     int ret;
     do {
-        ret = write(1, &c, 1);
+        ret = write(fd, &c, 1);
     } while (ret == -EAGAIN || ret == -EINTR);
 
     if (ret < 0) {
@@ -26,17 +28,22 @@ putchar(char c)
 }
 
 /*
- * Prints a string followed by a newline to the screen.
+ * Writes the given data to the specified file stream.
+ * Returns the number of bytes written, or a negative value
+ * on error. Note that this does not conform to the normal
+ * libc fwrite() API.
  */
 int
-puts(const char *s)
+fwrite(const void *ptr, int n, int fd)
 {
-    assert(s != NULL);
+    assert(ptr != NULL);
+    assert(n >= 0);
+    assert(fd >= 0);
 
+    const char *buf = ptr;
     int total = 0;
-    int len = strlen(s);
-    while (total < len) {
-        int ret = write(1, &s[total], len - total);
+    while (total < n) {
+        int ret = write(fd, &buf[total], n - total);
         if (ret == -EAGAIN || ret == -EINTR) {
             continue;
         } else if (ret < 0) {
@@ -46,6 +53,38 @@ puts(const char *s)
         }
     }
 
+    return total;
+}
+
+/*
+ * Prints a string to the specified file stream. No newline
+ * is appended to the output.
+ */
+int
+fputs(const char *s, int fd)
+{
+    assert(s != NULL);
+    assert(fd >= 0);
+    return fwrite(s, strlen(s), fd);
+}
+
+/*
+ * Prints a single character to stdout.
+ */
+int
+putchar(char c)
+{
+    return fputc(c, stdout);
+}
+
+/*
+ * Prints a string followed by a newline to stdout.
+ */
+int
+puts(const char *s)
+{
+    assert(s != NULL);
+    fputs(s, stdout);
     return putchar('\n');
 }
 
@@ -83,7 +122,7 @@ read_line(char *buf, int buf_size)
      * read some more data from stdin and retry.
      */
     if (lf == stdin_total) {
-        int ret = read(0, &stdin_buf[stdin_total], remaining);
+        int ret = read(stdin, &stdin_buf[stdin_total], remaining);
         if (ret <= 0) {
             return ret;
         }
@@ -139,57 +178,33 @@ gets(char *buf, int size)
  * if it didn't fit in the buffer).
  */
 typedef struct {
+    /* Static state */
     char *buf;
     int capacity;
+    int fd;
+    bool (*write)(int fd, const char *s, int len);
+
+    /* Per-call dynamic state */
     int count;
     int true_len;
-    bool (*write)(const char *s, int len);
+    bool error;
+
+    /* Per-format dynamic state */
     int pad_width;
-    bool left_align;
-    bool positive_sign;
-    bool space_sign;
-    bool alternate_format;
-    bool pad_zeros;
+    bool left_align       : 1;
+    bool positive_sign    : 1;
+    bool space_sign       : 1;
+    bool alternate_format : 1;
+    bool pad_zeros        : 1;
 } printf_arg_t;
 
 /*
  * Userspace printf flush function: calls the write syscall.
  */
 static bool
-printf_write(const char *s, int len)
+printf_write(int fd, const char *s, int len)
 {
-    int total = 0;
-    while (total < len) {
-        int ret = write(1, &s[total], len - total);
-        if (ret == -EAGAIN || ret == -EINTR) {
-            continue;
-        } else if (ret < 0) {
-            return false;
-        } else {
-            total += ret;
-        }
-    }
-    return true;
-}
-
-/*
- * Flushes the printf buffer. Returns true if all chars
- * were successfully flushed.
- */
-static bool
-printf_flush(printf_arg_t *a)
-{
-    if (a->buf == NULL) {
-        return false;
-    }
-
-    bool ok = a->write(a->buf, a->count);
-    if (!ok) {
-        return false;
-    }
-
-    a->count = 0;
-    return true;
+    return fwrite(s, len, fd) == len;
 }
 
 /*
@@ -216,10 +231,12 @@ printf_append_string(printf_arg_t *a, const char *s)
 
     /* Try flushing buffer and restart */
     if (a->count > 0 && a->write != NULL) {
-        if (!printf_flush(a)) {
+        if (!a->write(a->fd, a->buf, a->count)) {
+            a->error = true;
             a->buf = NULL;
             return false;
         }
+        a->count = 0;
         return printf_append_string(a, s);
     }
 
@@ -227,7 +244,8 @@ printf_append_string(printf_arg_t *a, const char *s)
     if (a->count == 0 && a->write != NULL) {
         int len = strlen(s);
         a->true_len += len;
-        if (!a->write(s, len)) {
+        if (!a->write(a->fd, s, len)) {
+            a->error = true;
             a->buf = NULL;
             return false;
         }
@@ -262,14 +280,16 @@ printf_append_char(printf_arg_t *a, char c)
 
     /* Try flushing buffer and restart */
     if (a->count > 0 && a->write != NULL) {
-        if (!printf_flush(a)) {
+        if (!a->write(a->fd, a->buf, a->count)) {
+            a->error = true;
             a->buf = NULL;
             return false;
         }
+        a->count = 0;
         return printf_append_char(a, c);
     }
 
-    /* String too long and we have nowhere to flush it to */
+    /* Buffer is full and we have nowhere to flush it to */
     a->true_len++;
     a->buf = NULL;
     return false;
@@ -415,7 +435,8 @@ static int
 printf_impl(
     char *buf,
     int size,
-    bool (*write)(const char *s, int len),
+    int fd,
+    bool (*write)(int fd, const char *s, int len),
     const char *format,
     va_list args)
 {
@@ -429,9 +450,11 @@ printf_impl(
     printf_arg_t a;
     a.buf = buf;
     a.capacity = size;
+    a.fd = fd;
+    a.write = write;
     a.count = 0;
     a.true_len = 0;
-    a.write = write;
+    a.error = false;
 
     for (; *format != '\0'; format++) {
         if (*format != '%') {
@@ -547,13 +570,18 @@ consume_format:
             break;
         }
     }
-
+    
     /* Flush any remaining characters */
-    if (a.write != NULL) {
-        printf_flush(&a);
+    if (a.write != NULL && !a.write(a.fd, a.buf, a.count)) {
+        a.error = true;
     }
 
-    return a.true_len;
+    /* Return -1 if I/O error occurred, true length otherwise */
+    if (a.error) {
+        return -1;
+    } else {
+        return a.true_len;
+    }
 }
 
 /*
@@ -562,7 +590,7 @@ consume_format:
 int
 vsnprintf(char *buf, int size, const char *format, va_list args)
 {
-    return printf_impl(buf, size, NULL, format, args);
+    return printf_impl(buf, size, -1, NULL, format, args);
 }
 
 /*
@@ -579,13 +607,36 @@ snprintf(char *buf, int size, const char *format, ...)
 }
 
 /*
+ * Prints a string to the specified output stream,
+ * va_list version.
+ */
+int
+vfprintf(int fd, const char *format, va_list args)
+{
+    char buf[256];
+    return printf_impl(buf, sizeof(buf), fd, printf_write, format, args);
+}
+
+/*
+ * Prints a string to the specified output stream.
+ */
+int
+fprintf(int fd, const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    int ret = vfprintf(fd, format, args);
+    va_end(args);
+    return ret;
+}
+
+/*
  * Prints a string to stdout, va_list version.
  */
 int
 vprintf(const char *format, va_list args)
 {
-    char buf[256];
-    return printf_impl(buf, sizeof(buf), printf_write, format, args);
+    return vfprintf(stdout, format, args);
 }
 
 /*

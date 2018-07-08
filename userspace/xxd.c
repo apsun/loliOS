@@ -14,21 +14,12 @@ typedef struct {
 } args_t;
 
 static void
-reset_stdout(void)
-{
-    int stdout = create("tty", OPEN_WRITE);
-    assert(stdout >= 0);
-    dup(stdout, 1);
-    close(stdout);
-}
-
-static void
 reset_stdin(void)
 {
-    int stdin = create("tty", OPEN_READ);
-    assert(stdin >= 0);
-    dup(stdin, 0);
-    close(stdin);
+    int in = create("tty", OPEN_READ);
+    assert(in >= 0);
+    dup(in, stdin);
+    close(in);
 }
 
 static int
@@ -113,8 +104,7 @@ parse_args(args_t *args)
                     args->interactive = true;
                     break;
                 default:
-                    reset_stdout();
-                    printf("Unknown option: %c\n", c);
+                    fprintf(stderr, "Unknown option: %c\n", c);
                     return NULL;
                 }
             }
@@ -150,14 +140,12 @@ main(void)
     if (args.interactive) {
         fd = dup(0, -1);
         reset_stdin();
-        reset_stdout();
     }
 
     /* If file is specified, use that as input */
     if (*args.argv) {
         if ((fd = open(args.argv)) < 0) {
-            reset_stdout();
-            printf("%s: No such file or directory\n", args.argv);
+            fprintf(stderr, "%s: No such file or directory\n", args.argv);
             goto cleanup;
         }
     }
@@ -168,14 +156,13 @@ main(void)
     char buf[128];
     while ((status = print_screen(fd, &off)) > 0) {
         if (args.interactive) {
-            printf("--More--");
+            fprintf(stderr, "--More--");
             gets(buf, sizeof(buf));
         }
     }
 
     if (status < 0) {
-        reset_stdout();
-        printf("Failed to read from file\n");
+        fprintf(stderr, "Failed to read from file\n");
         goto cleanup;
     }
 

@@ -721,12 +721,22 @@ terminal_open_streams(file_obj_t **files)
         return -1;
     }
 
+    /* Create stderr stream */
+    file_obj_t *err = file_obj_alloc(&terminal_tty_fops, OPEN_WRITE, true);
+    if (err == NULL) {
+        file_obj_free(in, true);
+        file_obj_free(out, true);
+        return -1;
+    }
+
     /* Bind to file descriptors */
     int ret;
     ret = file_desc_bind(files, 0, in);
     assert(ret == 0);
     ret = file_desc_bind(files, 1, out);
     assert(ret == 1);
+    ret = file_desc_bind(files, 2, err);
+    assert(ret == 2);
 
     return 0;
 }

@@ -360,7 +360,7 @@ __cdecl int
 file_close(int fd)
 {
     /* Used to pass the dumb test that tries to close stdin and stdout */
-    if (fd >= 0 && fd <= 1) {
+    if (fd == 0 || fd == 1) {
         pcb_t *pcb = get_executing_pcb();
         if (pcb->compat) {
             debugf("Compatibility mode: cannot close fd %d\n", fd);
