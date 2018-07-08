@@ -10,9 +10,9 @@ strlen(const char *s)
 {
     assert(s != NULL);
 
-    const char *end = s;
-    while (*end) end++;
-    return end - s;
+    int len;
+    for (len = 0; s[len]; ++len);
+    return len;
 }
 
 /*
@@ -67,8 +67,25 @@ strcpy(char *dest, const char *src)
     assert(dest != NULL);
     assert(src != NULL);
 
-    char *new_dest = dest;
-    while ((*new_dest++ = *src++));
+    char *destp = dest;
+    while ((*destp++ = *src++));
+    return dest;
+}
+
+/*
+ * Copies a string from src to dest. Returns a pointer
+ * to the NUL terminator in dest.
+ */
+char *
+stpcpy(char *dest, const char *src)
+{
+    assert(dest != NULL);
+    assert(src != NULL);
+
+    while ((*dest = *src)) {
+        dest++;
+        src++;
+    }
     return dest;
 }
 
@@ -85,8 +102,8 @@ strncpy(char *dest, const char *src, int n)
     assert(src != NULL);
     assert(n >= 0);
 
-    char *new_dest = dest;
-    while (n-- && (*new_dest++ = *src++));
+    char *destp = dest;
+    while (n-- && (*destp++ = *src++));
     return dest;
 }
 
@@ -124,9 +141,8 @@ strcat(char *dest, const char *src)
     assert(dest != NULL);
     assert(src != NULL);
 
-    char *new_dest = dest;
-    while (*new_dest) new_dest++;
-    while ((*new_dest++ = *src++));
+    char *destp = dest + strlen(dest);
+    while ((*destp++ = *src++));
     return dest;
 }
 
@@ -141,14 +157,13 @@ strncat(char *dest, const char *src, int n)
     assert(src != NULL);
     assert(n > 0);
 
-    char *new_dest = dest;
-    while (*new_dest) new_dest++;
-    while ((*new_dest++ = *src++)) {
-        if (--n == 0) {
-            *new_dest = '\0';
-            break;
-        }
+    char *destp = dest + strlen(dest);
+    while (n && (*destp = *src)) {
+        destp++;
+        src++;
+        n--;
     }
+    *destp = '\0';
     return dest;
 }
 
@@ -223,13 +238,130 @@ strstr(const char *haystack, const char *needle)
     assert(needle != NULL);
 
     int len = strlen(needle);
-    while (*haystack) {
+    for (; *haystack; ++haystack) {
         if (memcmp(haystack, needle, len) == 0) {
             return (char *)haystack;
         }
-        haystack++;
     }
     return NULL;
+}
+
+/*
+ * Returns the number of characters in s before
+ * the first occurrence of any character not in needle.
+ */
+int
+strspn(const char *s, const char *needle)
+{
+    assert(s != NULL);
+    assert(needle != NULL);
+
+    int i, j;
+    for (i = 0; s[i]; ++i) {
+        for (j = 0; needle[j]; ++j) {
+            if (s[i] == needle[j]) {
+                goto next;
+            }
+        }
+        break;
+next:;
+    }
+    return i;
+}
+
+/*
+ * Returns the number of characters in s before
+ * the first occurrence of any character in needle.
+ */
+int
+strcspn(const char *s, const char *needle)
+{
+    assert(s != NULL);
+    assert(needle != NULL);
+
+    int i, j;
+    for (i = 0; s[i]; ++i) {
+        for (j = 0; needle[j]; ++j) {
+            if (s[i] == needle[j]) {
+                goto done;
+            }
+        }
+    }
+done:
+    return i;
+}
+
+/*
+ * Finds the first occurrence of any characters
+ * from the second string (needle) in the first (s).
+ * Returns null if no characters were found.
+ */
+char *
+strpbrk(const char *s, const char *needle)
+{
+    assert(s != NULL);
+    assert(needle != NULL);
+
+    s += strcspn(s, needle);
+    return *s ? (char *)s : NULL;
+}
+
+/*
+ * Finds the next occurrence of any character from delim
+ * in s, and replaces it with a NUL character. Subsequent
+ * calls to strtok() with s == NULL will start after the
+ * the end of the string from the previous call. This will
+ * skip consecutive delimiters.
+ */
+char *
+strtok(char *s, const char *delim)
+{
+    assert(delim != NULL);
+
+    static char *end;
+    if (s == NULL) {
+        s = end;
+    }
+
+    s += strspn(s, delim);
+    if (!*s) {
+        return NULL;
+    }
+
+    end = s + strcspn(s, delim);
+    if (*end) {
+        *end++ = '\0';
+    }
+
+    return s;
+}
+
+/*
+ * Finds the next occurrence of any character from delim
+ * in *sp, replaces it with a NUL character, and sets
+ * *sp to the next character to search from. Unlike strok(),
+ * this does not skip consecutive delimiters.
+ */
+char *
+strsep(char **sp, const char *delim)
+{
+    assert(sp != NULL);
+    assert(delim != NULL);
+
+    char *s = *sp;
+    if (s == NULL) {
+        return NULL;
+    }
+
+    char *end = s + strcspn(s, delim);
+    if (*end) {
+        *end++ = '\0';
+        *sp = end;
+    } else {
+        *sp = NULL;
+    }
+
+    return s;
 }
 
 /*
@@ -243,34 +375,13 @@ utoa(unsigned int value, char *buf, int radix)
     assert(buf != NULL);
     assert(radix >= 2 && radix <= 36);
 
-    const char *lookup = "0123456789abcdefghijklmnopqrstuvwxyz";
-    char *newbuf = buf;
-    unsigned int newval = value;
-
-    /* Special case for zero */
-    if (value == 0) {
-        buf[0] = '0';
-        buf[1] = '\0';
-        return buf;
-    }
-
-    /*
-     * Go through the number one place value at a time, and add the
-     * correct digit to "newbuf".  We actually add characters to the
-     * ASCII string from lowest place value to highest, which is the
-     * opposite of how the number should be printed.  We'll reverse the
-     * characters later.
-     */
-    while (newval > 0) {
-        *newbuf = lookup[newval % radix];
-        newbuf++;
-        newval /= radix;
-    }
-
-    /* Add a terminating NULL */
-    *newbuf = '\0';
-
-    /* Reverse the string and return */
+    static const char *lookup = "0123456789abcdefghijklmnopqrstuvwxyz";
+    char *bufp = buf;
+    do {
+        *bufp++ = lookup[value % radix];
+        value /= radix;
+    } while (value != 0);
+    *bufp = '\0';
     return strrev(buf);
 }
 
@@ -285,12 +396,10 @@ itoa(int value, char *buf, int radix)
     assert(buf != NULL);
     assert(radix >= 2 && radix <= 36);
 
-    /* If it's already positive, no problem */
     if (value >= 0) {
         return utoa((unsigned int)value, buf, radix);
     }
 
-    /* Okay, handle the sign separately */
     buf[0] = '-';
     utoa((unsigned int)-value, &buf[1], radix);
     return buf;
@@ -309,18 +418,16 @@ atoi(const char *str)
     int res = 0;
     int sign = 1;
 
-    /* Negative sign check */
     if (*str == '-') {
         sign = -1;
         str++;
     }
 
-    char c;
-    while ((c = *str++)) {
-        if (c < '0' || c > '9') {
+    for (; *str; ++str) {
+        if (*str < '0' || *str > '9') {
             return 0;
         }
-        res = res * 10 + (c - '0');
+        res = res * 10 + (*str - '0');
     }
     return res * sign;
 }
@@ -363,11 +470,10 @@ memchr(const void *s, unsigned char c, int n)
     assert(n >= 0);
 
     const unsigned char *p = s;
-    while (n--) {
+    for (; n--; ++p) {
         if (*p == c) {
             return (void *)p;
         }
-        p++;
     }
     return NULL;
 }
@@ -419,14 +525,16 @@ memmove(void *dest, const void *src, int n)
     assert(src != NULL);
     assert(n >= 0);
 
-    if (dest < src) {
-        return memcpy(dest, src, n);
-    }
-
     unsigned char *d = dest;
     const unsigned char *s = src;
-    while (n--) {
-        d[n] = s[n];
+    if (d < s) {
+        while (n--) {
+            *d++ = *s++;
+        }
+    } else {
+        while (n--) {
+            d[n] = s[n];
+        }
     }
     return dest;
 }

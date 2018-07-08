@@ -46,6 +46,15 @@ test_strcpy(void)
 }
 
 void
+test_stpcpy(void)
+{
+    char buf[64];
+    assert(stpcpy(buf, "Hello world!") == &buf[strlen("Hello world!")]);
+    assert(strcmp(buf, "Hello world!") == 0);
+    assert(buf[strlen(buf)] == '\0');
+}
+
+void
 test_strncpy(void)
 {
     char buf[5];
@@ -75,12 +84,15 @@ test_strcat(void)
 void
 test_strncat(void)
 {
-    char buf[8] = {0};
+    char buf[11] = {0};
+    buf[10] = 0xff;
     assert(strncat(buf, "foo", 3) == buf);
     assert(strncat(buf, "bar", 3) == buf);
     assert(strcmp(buf, "foobar") == 0);
     assert(strncat(buf, "long", 3) == buf);
-    assert(strncmp(buf, "foobarlo", sizeof(buf)) == 0);
+    assert(memcmp(buf, "foobarlon\0\xff", sizeof(buf)) == 0);
+    assert(strncat(buf, "a", 3) == buf);
+    assert(memcmp(buf, "foobarlona\0", sizeof(buf)) == 0);
 }
 
 void
@@ -115,6 +127,85 @@ test_strstr(void)
     char buf[] = "cyka blyat";
     assert(strstr(buf, "blyat") == &buf[5]);
     assert(strstr(buf, "z") == NULL);
+}
+
+void
+test_strspn(void)
+{
+    char buf[] = "abcdefg1234567";
+    assert(strspn(buf, "gfedcba") == 7);
+    assert(strspn(buf, buf) == strlen(buf));
+    assert(strspn(buf, "") == 0);
+    assert(strspn(buf, "1234567") == 0);
+}
+
+void
+test_strcspn(void)
+{
+    char buf[] = "foo:bar;baz";
+    assert(strcspn(buf, "@") == strlen(buf));
+    assert(strcspn(buf, "") == strlen(buf));
+    assert(strcspn(buf, ":") == 3);
+    assert(strcspn(buf, ";-@") == 7);
+    assert(strcspn(buf, ";:") == 3);
+}
+
+void
+test_strpbrk(void)
+{
+    char buf[] = "foo:bar;baz";
+    assert(strpbrk(buf, "@") == NULL);
+    assert(strpbrk(buf, "") == NULL);
+    assert(strpbrk(buf, ":") == &buf[3]);
+    assert(strpbrk(buf, ";-@") == &buf[7]);
+    assert(strpbrk(buf, ";:") == &buf[3]);
+}
+
+void
+test_strtok(void)
+{
+    char buf[] = "foo:bar;baz@@blah-";
+    assert(strcmp(strtok(buf, ""), "foo:bar;baz@@blah-") == 0);
+    assert(strtok(NULL, "") == NULL);
+    assert(strcmp(strtok(buf, "#"), "foo:bar;baz@@blah-") == 0);
+    assert(strtok(NULL, "#") == NULL);
+    assert(strcmp(strtok(buf, ":;@-"), "foo") == 0);
+    assert(strcmp(strtok(NULL, ":;@-"), "bar") == 0);
+    assert(strcmp(strtok(NULL, ":;@-"), "baz") == 0);
+    assert(strcmp(strtok(NULL, ":;@-"), "blah") == 0);
+    assert(strtok(NULL, ":;@-") == NULL);
+
+    char buf2[] = "";
+    assert(strtok(buf2, "") == NULL);
+    assert(strtok(buf2, "abc") == NULL);
+}
+
+void
+test_strsep(void)
+{
+    char buf[] = "foo:bar;baz@@blah-";
+    char *p = buf;
+    assert(strcmp(strsep(&p, ""), "foo:bar;baz@@blah-") == 0);
+    assert(strsep(&p, "") == NULL);
+    p = buf;
+    assert(strcmp(strsep(&p, "#"), "foo:bar;baz@@blah-") == 0);
+    assert(strsep(&p, "#") == NULL);
+    p = buf;
+    assert(strcmp(strsep(&p, ":;@-"), "foo") == 0);
+    assert(strcmp(strsep(&p, ":;@-"), "bar") == 0);
+    assert(strcmp(strsep(&p, ":;@-"), "baz") == 0);
+    assert(strcmp(strsep(&p, ":;@-"), "") == 0);
+    assert(strcmp(strsep(&p, ":;@-"), "blah") == 0);
+    assert(strcmp(strsep(&p, ":;@-"), "") == 0);
+    assert(strsep(&p, ":;@-") == NULL);
+
+    char buf2[] = "";
+    char *p2 = buf2;
+    assert(strsep(&p2, "") == buf2);
+    assert(strsep(&p2, "") == NULL);
+    p2 = buf2;
+    assert(strsep(&p2, "abc") == buf2);
+    assert(strsep(&p2, "abc") == NULL);
 }
 
 void
@@ -259,6 +350,7 @@ main(void)
     test_strcmp();
     test_strncmp();
     test_strcpy();
+    test_stpcpy();
     test_strncpy();
     test_strscpy();
     test_strcat();
@@ -267,6 +359,11 @@ main(void)
     test_strchr();
     test_strrchr();
     test_strstr();
+    test_strspn();
+    test_strcspn();
+    test_strpbrk();
+    test_strtok();
+    test_strsep();
     test_utoa();
     test_itoa();
     test_memcmp();
