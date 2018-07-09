@@ -42,6 +42,7 @@ MAKE_SYS(listen, SYS_LISTEN)
 MAKE_SYS(accept, SYS_ACCEPT)
 MAKE_SYS(recvfrom, SYS_RECVFROM)
 MAKE_SYS(sendto, SYS_SENDTO)
+MAKE_SYS(shutdown, SYS_SHUTDOWN)
 MAKE_SYS(getsockname, SYS_GETSOCKNAME)
 MAKE_SYS(getpeername, SYS_GETPEERNAME)
 MAKE_SYS(dup, SYS_DUP)
@@ -56,6 +57,7 @@ MAKE_SYS(tcsetpgrp, SYS_TCSETPGRP)
 MAKE_SYS(pipe, SYS_PIPE)
 MAKE_SYS(create, SYS_CREATE)
 MAKE_SYS(fcntl, SYS_FCNTL)
+MAKE_SYS(yield, SYS_YIELD)
 
 .globl _start
 _start:

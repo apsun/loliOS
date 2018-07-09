@@ -416,10 +416,21 @@ file_dup(int srcfd, int destfd)
 }
 
 /*
- * fnctl() syscall handler. Similar to ioctl(), but is standardized
- * for all file objects. No more accidentally sending bogus ioctl()
- * calls to unknown objects.
+ * Handles the FCNTL_NONBLOCK fnctl() call.
  */
+static int
+file_fcntl_nonblock(file_obj_t *file, int req, int arg)
+{
+    bool orig_nonblocking = file->nonblocking;
+    file->nonblocking = !!arg;
+    return orig_nonblocking;
+}
+
+/*
+* fnctl() syscall handler. Similar to ioctl(), but is standardized
+* for all file objects. No more accidentally sending bogus ioctl()
+* calls to unknown objects.
+*/
 __cdecl int
 file_fcntl(int fd, int req, int arg)
 {
@@ -430,8 +441,7 @@ file_fcntl(int fd, int req, int arg)
 
     switch (req) {
     case FCNTL_NONBLOCK:
-        file->nonblocking = !!arg;
-        return 0;
+        return file_fcntl_nonblock(file, req, arg);
     default:
         return -1;
     }

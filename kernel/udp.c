@@ -49,15 +49,6 @@ udp_handle_rx(net_iface_t *iface, skb_t *skb)
         return -1;
     }
 
-    /* If the socket is connected, filter out packets from other endpoints */
-    if (sock->connected) {
-        if (!ip_equals(sock->remote.ip, ip_hdr->src_ip)) {
-            return -1;
-        } else if (sock->remote.port != ntohs(hdr->be_src_port)) {
-            return -1;
-        }
-    }
-
     /* Append SKB to inbox queue */
     udp_sock_t *udp = udp_sock(sock);
     list_add_tail(&skb_retain(skb)->list, &udp->inbox);
@@ -90,6 +81,23 @@ udp_send(net_sock_t *sock, skb_t *skb, ip_addr_t ip, int port)
     hdr->be_checksum = htons(0); /* First set to zero to compute checksum */
     hdr->be_checksum = htons(ip_pseudo_checksum(skb, iface->ip_addr, ip, IPPROTO_UDP));
     return ip_send(iface, neigh_ip, skb, ip, IPPROTO_UDP);
+}
+
+static bool
+udp_can_recv(net_sock_t *sock, skb_t *skb)
+{
+    if (sock->connected) {
+        ip_hdr_t *ip_hdr = skb_network_header(skb);
+        if (!ip_equals(sock->remote.ip, ip_hdr->src_ip)) {
+            return false;
+        }
+
+        udp_hdr_t *udp_hdr = skb_transport_header(skb);
+        if (sock->remote.port != ntohs(udp_hdr->be_src_port)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /* UDP socket constructor */
@@ -158,14 +166,23 @@ udp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
         return -1;
     }
 
-    /* Do we have any queued packets? */
+    /* Find a packet that we can accept */
     udp_sock_t *udp = udp_sock(sock);
-    if (list_empty(&udp->inbox)) {
-        return -EAGAIN;
+    skb_t *skb;
+    while (1) {
+        if (list_empty(&udp->inbox)) {
+            return -EAGAIN;
+        }
+
+        skb = list_first_entry(&udp->inbox, skb_t, list);
+        if (udp_can_recv(sock, skb)) {
+            break;
+        }
+
+        list_del(&skb->list);
+        skb_release(skb);
     }
 
-    /* Get first packet in the inbox queue */
-    skb_t *skb = list_first_entry(&udp->inbox, skb_t, list);
     int len = skb_len(skb);
     if (nbytes > len) {
         nbytes = len;

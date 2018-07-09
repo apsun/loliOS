@@ -50,6 +50,7 @@ static const sock_ops_t sops_tcp = {
     .accept = tcp_accept,
     .recvfrom = tcp_recvfrom,
     .sendto = tcp_sendto,
+    .shutdown = tcp_shutdown,
     .close = tcp_close,
 };
 
@@ -287,7 +288,7 @@ socket_socket(int type)
         debugf("Socket: %s() not implemented\n", #fn); \
         return -1;                                     \
     }                                                  \
-    return sock->ops_table->fn(sock, __VA_ARGS__);     \
+    return sock->ops_table->fn(sock, ##__VA_ARGS__);   \
 } while (0)
 
 /*
@@ -356,6 +357,16 @@ __cdecl int
 socket_sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr)
 {
     FORWARD_SOCKETCALL(get_executing_sock(fd), sendto, buf, nbytes, addr);
+}
+
+/*
+ * shutdown() syscall handler. Closes the writing end of the
+ * socket. Only valid on connected TCP sockets.
+ */
+__cdecl int
+socket_shutdown(int fd)
+{
+    FORWARD_SOCKETCALL(get_executing_sock(fd), shutdown);
 }
 
 /*

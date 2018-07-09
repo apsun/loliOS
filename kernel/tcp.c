@@ -138,6 +138,9 @@ typedef struct {
     /* Duplicate ACK counter for fast retransmission */
     uint8_t num_duplicate_acks : 2;
 
+    /* Whether the connection has been reset and cannot be read from */
+    bool reset : 1;
+
     /* RTT measurement for timeouts */
     int estimated_rtt;
     int variance_rtt;
@@ -594,6 +597,7 @@ tcp_on_retransmit_timeout(timer_t *timer)
     /* If we've tried too many times, give up and kill the connection */
     if (pkt->num_transmissions > TCP_MAX_RETRANSMISSIONS) {
         tcp_debugf("Too many retransmissions, giving up\n");
+        tcp->reset = true;
         tcp_set_state(tcp, CLOSED);
         tcp_release(tcp);
         return;
@@ -761,15 +765,6 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
             }
         }
     }
-
-    /*
-     * If we're in any of these states, the user has closed
-     * the connection, so pretend they're reading from
-     * the socket here to free up space.
-     */
-    if (tcp_in_state(tcp, FIN_WAIT_1 | FIN_WAIT_2 | CLOSING | TIME_WAIT | LAST_ACK)) {
-        tcp_inbox_drain(tcp);
-    }
 }
 
 /*
@@ -900,6 +895,36 @@ tcp_reply_rst(net_iface_t *iface, skb_t *orig_skb)
     tcp_send_raw(iface, orig_iphdr->src_ip, skb);
     skb_release(skb);
     return 0;
+}
+
+/*
+ * Closes the write end of a full-duplex socket.
+ */
+static void
+tcp_close_write(tcp_sock_t *tcp)
+{
+    if (tcp_in_state(tcp, LISTEN | SYN_SENT)) {
+        tcp_set_state(tcp, CLOSED);
+        tcp_release(tcp);
+    } else if (tcp_in_state(tcp, SYN_RECEIVED | ESTABLISHED)) {
+        tcp_set_state(tcp, FIN_WAIT_1);
+        if (tcp_send_fin(tcp) < 0) {
+            tcp->reset = true;
+            tcp_set_state(tcp, CLOSED);
+            tcp_release(tcp);
+        }
+    } else if (tcp_in_state(tcp, CLOSE_WAIT)) {
+        tcp_set_state(tcp, LAST_ACK);
+        if (tcp_send_fin(tcp) < 0) {
+            /*
+             * Since we were in close-wait state, we know there's no
+             * more data from the remote peer, so this is fine. No
+             * need to set the reset flag.
+             */
+            tcp_set_state(tcp, CLOSED);
+            tcp_release(tcp);
+        }
+    }
 }
 
 /*
@@ -1036,6 +1061,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
             if (!hdr->rst) {
                 tcp_reply_rst(net_sock(tcp)->iface, skb);
             }
+            tcp->reset = true;
             tcp_set_state(tcp, CLOSED);
             tcp_release(tcp);
             return 0;
@@ -1048,6 +1074,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
         if (hdr->rst) {
             tcp_debugf("Received RST in SYN_SENT state\n");
             if (hdr->ack && tcp_is_ack_current(tcp, hdr)) {
+                tcp->reset = true;
                 tcp_set_state(tcp, CLOSED);
                 tcp_release(tcp);
             }
@@ -1109,6 +1136,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
          */
         if (hdr->rst) {
             tcp_debugf("Received RST in middle of connection\n");
+            tcp->reset = true;
             tcp_set_state(tcp, CLOSED);
             tcp_release(tcp);
             return 0;
@@ -1120,6 +1148,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
          */
         if (hdr->syn) {
             tcp_debugf("Received SYN in middle of connection\n");
+            tcp->reset = true;
             tcp_reply_rst(net_sock(tcp)->iface, skb);
             tcp_set_state(tcp, CLOSED);
             tcp_release(tcp);
@@ -1205,6 +1234,7 @@ tcp_handle_rx_listening(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
 
     /* ACK to a LISTEN socket -> reply with RST */
     if (hdr->ack) {
+        tcp_debugf("Received ACK to listening socket\n");
         return tcp_reply_rst(iface, skb);
     }
 
@@ -1335,6 +1365,7 @@ tcp_ctor(net_sock_t *sock)
     tcp->seq_num = rand();
     tcp->unack_num = tcp->seq_num;
     tcp->num_duplicate_acks = 0;
+    tcp->reset = false;
     tcp->estimated_rtt = -1;
     tcp->variance_rtt = -1;
     sock->private = tcp;
@@ -1482,8 +1513,11 @@ tcp_accept(net_sock_t *sock, sock_addr_t *addr)
         return -1;
     }
 
+    /* Check that socket is still open */
     tcp_sock_t *tcp = tcp_sock(sock);
-    assert(tcp_in_state(tcp, LISTEN));
+    if (!tcp_in_state(tcp, LISTEN)) {
+        return -1;
+    }
 
     /* Check if we have anything in the backlog */
     if (list_empty(&tcp->backlog)) {
@@ -1520,12 +1554,14 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
     }
 
     /*
-     * If the socket is closed, it must have been reset,
-     * so reading from it is a failure. Reading before the
-     * 3-way handshake is fine, however.
+     * If the socket is closed due to an error (reset),
+     * reading from it is a failure. If it's closed but under
+     * normal conditions, let the user keep reading from the
+     * socket (this can occur if user calls shutdown() followed
+     * by read()).
      */
     tcp_sock_t *tcp = tcp_sock(sock);
-    if (tcp_in_state(tcp, CLOSED)) {
+    if (tcp_in_state(tcp, CLOSED) && tcp->reset) {
         return -1;
     } else if (tcp_in_state(tcp, SYN_SENT | SYN_RECEIVED)) {
         return -EAGAIN;
@@ -1596,7 +1632,9 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
      * ignoring our window update.
      */
     if (original_rwnd < TCP_MAX_LEN && tcp_rwnd_size(tcp) >= TCP_MAX_LEN) {
-        tcp_send_ack(tcp);
+        if (!tcp_in_state(tcp, TIME_WAIT | CLOSE_WAIT | LAST_ACK | CLOSED)) {
+            tcp_send_ack(tcp);
+        }
     }
 
     /*
@@ -1605,7 +1643,7 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
      * we didn't get any data yet, so return -EAGAIN.
      */
     if (copied == 0) {
-        if (tcp_in_state(tcp, CLOSE_WAIT)) {
+        if (tcp_in_state(tcp, TIME_WAIT | CLOSE_WAIT | LAST_ACK | CLOSED)) {
             return 0;
         } else {
             return -EAGAIN;
@@ -1624,10 +1662,12 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
         return -1;
     }
 
-    /* Check that socket is still open */
+    /* Check that socket write end is still open */
     tcp_sock_t *tcp = tcp_sock(sock);
-    if (tcp_in_state(tcp, CLOSED)) {
+    if (tcp_in_state(tcp, CLOSED | FIN_WAIT_1 | FIN_WAIT_2 | CLOSING | TIME_WAIT)) {
         return -1;
+    } else if (tcp_in_state(tcp, SYN_SENT | SYN_RECEIVED)) {
+        return -EAGAIN;
     }
 
     /* Don't return -1 if nothing to copy */
@@ -1671,10 +1711,12 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
             break;
         }
 
-        /* If the 3-way handshake is complete, send the packet immediately */
-        if (!tcp_in_state(tcp, SYN_SENT | SYN_RECEIVED)) {
-            tcp_outbox_transmit(tcp, pkt);
-        }
+        /*
+         * Transmit packet immediately (remember, we have
+         * no regard for the receiver's rwnd or our cwnd,
+         * because we're lazy ;-)
+         */
+        tcp_outbox_transmit(tcp, pkt);
         skb_release(skb);
         sent += body_len;
     }
@@ -1690,6 +1732,23 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
     }
 }
 
+/* shutdown() socketcall handler */
+int
+tcp_shutdown(net_sock_t *sock)
+{
+    tcp_sock_t *tcp = tcp_sock(sock);
+
+    if (!sock->connected) {
+        tcp_debugf("shutdown() called on an unconnected socket\n");
+        return -1;
+    }
+
+    /* Close write end of socket */
+    tcp_close_write(tcp);
+
+    return 0;
+}
+
 /* close() socketcall handler */
 int
 tcp_close(net_sock_t *sock)
@@ -1699,25 +1758,8 @@ tcp_close(net_sock_t *sock)
     /* Flush inbox immediately */
     tcp_inbox_drain(tcp);
 
-    /* Perform state transition */
-    if (tcp_in_state(tcp, LISTEN | SYN_SENT)) {
-        tcp_set_state(tcp, CLOSED);
-        tcp_release(tcp);
-    } else if (tcp_in_state(tcp, SYN_RECEIVED | ESTABLISHED)) {
-        tcp_set_state(tcp, FIN_WAIT_1);
-        if (tcp_send_fin(tcp) < 0) {
-            tcp_set_state(tcp, CLOSED);
-            tcp_release(tcp);
-        }
-    } else if (tcp_in_state(tcp, CLOSE_WAIT)) {
-        tcp_set_state(tcp, LAST_ACK);
-        if (tcp_send_fin(tcp) < 0) {
-            tcp_set_state(tcp, CLOSED);
-            tcp_release(tcp);
-        }
-    } else {
-        tcp_debugf("close() called in state %s\n", tcp_get_state_str(tcp->state));
-    }
+    /* Close write end of socket */
+    tcp_close_write(tcp);
 
     return 0;
 }

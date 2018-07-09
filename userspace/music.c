@@ -9,6 +9,8 @@
 #define SERVER_IP IP(10, 0, 2, 2)
 #define SERVER_PORT 7878
 
+#define CHUNK_SIZE 8192
+
 #define RIFF_MAGIC 0x46464952
 #define WAVE_MAGIC 0x45564157
 #define FMT_MAGIC 0x20746d66
@@ -41,7 +43,7 @@ typedef struct {
     chunk_hdr_t data_hdr;
 } wave_info_t;
 
-int
+static int
 read_all(int fd, void *buf, int nbytes)
 {
     int total = 0;
@@ -63,7 +65,7 @@ read_all(int fd, void *buf, int nbytes)
     }
 }
 
-int
+static int
 eat_all(int fd, int nbytes)
 {
     char buf[1024];
@@ -89,7 +91,7 @@ eat_all(int fd, int nbytes)
     }
 }
 
-int
+static int
 read_wave_info(int soundfd, wave_info_t *info)
 {
     if (read_all(soundfd, &info->wave_hdr, sizeof(info->wave_hdr)) < 0) {
@@ -177,9 +179,9 @@ main(void)
             goto cleanup;
         }
     } else if (filename[0] == '-') {
-        soundfd = 0;
+        soundfd = stdin;
     } else {
-        soundfd = open(filename);
+        soundfd = create(filename, OPEN_READ);
         if (soundfd < 0) {
             printf("Could not open '%s'\n", filename);
             goto cleanup;
@@ -187,7 +189,7 @@ main(void)
     }
 
     /* Open and initialize sound device */
-    devfd = open("sound");
+    devfd = create("sound", OPEN_WRITE);
     if (devfd < 0) {
         puts("Could not open sound device -- busy?");
         goto cleanup;
@@ -237,8 +239,8 @@ main(void)
             /* Pull bytes from the file into the buffer */
             if (read_offset < data_size) {
                 int to_read = data_size - read_offset;
-                if (to_read > 8192) {
-                    to_read = 8192;
+                if (to_read > CHUNK_SIZE) {
+                    to_read = CHUNK_SIZE;
                 }
                 int cnt = read(soundfd, &audio_data[read_offset], to_read);
                 if (cnt == 0) {
@@ -255,8 +257,8 @@ main(void)
 
             /* Push bytes from the buffer to the sound driver */
             int to_write = read_offset - write_offset;
-            if (to_write > 8192) {
-                to_write = 8192;
+            if (to_write > CHUNK_SIZE) {
+                to_write = CHUNK_SIZE;
             }
             int cnt = write(devfd, &audio_data[write_offset], to_write);
             if (cnt == -EINTR || cnt == -EAGAIN) {

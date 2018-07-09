@@ -408,6 +408,56 @@ test_tcp_segmentation(void)
     close(a);
 }
 
+void
+test_tcp_shutdown(void)
+{
+    int ret;
+    int a = socket(SOCK_TCP);
+    int b = socket(SOCK_TCP);
+    char buf[64], tmp[1500];
+    fill_buffer(buf, sizeof(buf));
+
+    /* Create a listening socket */
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    ret = bind2(a, &a_addr);
+    assert(ret == 0);
+    ret = listen(a, 64);
+    assert(ret == 0);
+
+    /* Connect to listening socket */
+    sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    ret = bind2(b, &b_addr);
+    assert(ret == 0);
+    ret = connect(b, &a_addr);
+    assert(ret == 0);
+
+    /* Accept incoming connection */
+    sock_addr_t tmp_addr;
+    int a_conn = accept(a, &tmp_addr);
+    assert(a_conn >= 0);
+
+    /* Shutdown socket b */
+    ret = shutdown(b);
+    assert(ret >= 0);
+
+    /* Send data a -> b */
+    ret = write(a_conn, buf, sizeof(buf));
+    assert(ret == sizeof(buf));
+
+    /* Receive data */
+    ret = read(b, tmp, sizeof(tmp));
+    assert(ret == sizeof(buf));
+    assert(memcmp(buf, tmp, sizeof(buf)) == 0);
+
+    /* Send data b -> a fail */
+    ret = write(b, buf, sizeof(buf));
+    assert(ret < 0);
+
+    close(a_conn);
+    close(a);
+    close(b);
+}
+
 int
 main(void)
 {
@@ -422,6 +472,7 @@ main(void)
     test_tcp_close_early();
     test_tcp_multi_accept();
     test_tcp_segmentation();
+    test_tcp_shutdown();
     printf("All tests passed!\n");
     return 0;
 }

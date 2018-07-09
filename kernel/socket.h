@@ -63,6 +63,7 @@ struct sock_ops {
     int (*accept)(net_sock_t *sock, sock_addr_t *addr);
     int (*recvfrom)(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr);
     int (*sendto)(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *addr);
+    int (*shutdown)(net_sock_t *sock);
     int (*ioctl)(net_sock_t *sock, int req, int arg);
     int (*close)(net_sock_t *sock);
 };
@@ -75,6 +76,7 @@ __cdecl int socket_listen(int fd, int backlog);
 __cdecl int socket_accept(int fd, sock_addr_t *addr);
 __cdecl int socket_recvfrom(int fd, void *buf, int nbytes, sock_addr_t *addr);
 __cdecl int socket_sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr);
+__cdecl int socket_shutdown(int fd);
 __cdecl int socket_getsockname(int fd, sock_addr_t *addr);
 __cdecl int socket_getpeername(int fd, sock_addr_t *addr);
 

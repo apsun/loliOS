@@ -34,6 +34,7 @@ syscall_jump_table:
     .long socket_accept
     .long socket_recvfrom
     .long socket_sendto
+    .long socket_shutdown
     .long socket_getsockname
     .long socket_getpeername
     .long file_dup
@@ -48,6 +49,7 @@ syscall_jump_table:
     .long pipe_pipe
     .long file_create
     .long file_fcntl
+    .long scheduler_yield
 
 .text
 

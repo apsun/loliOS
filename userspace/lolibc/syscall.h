@@ -23,20 +23,22 @@
 #define SYS_ACCEPT      20
 #define SYS_RECVFROM    21
 #define SYS_SENDTO      22
-#define SYS_GETSOCKNAME 23
-#define SYS_GETPEERNAME 24
-#define SYS_DUP         25
-#define SYS_FORK        26
-#define SYS_EXEC        27
-#define SYS_WAIT        28
-#define SYS_GETPID      29
-#define SYS_GETPGRP     30
-#define SYS_SETPGRP     31
-#define SYS_TCGETPGRP   32
-#define SYS_TCSETPGRP   33
-#define SYS_PIPE        34
-#define SYS_CREATE      35
-#define SYS_FCNTL       36
+#define SYS_SHUTDOWN    23
+#define SYS_GETSOCKNAME 24
+#define SYS_GETPEERNAME 25
+#define SYS_DUP         26
+#define SYS_FORK        27
+#define SYS_EXEC        28
+#define SYS_WAIT        29
+#define SYS_GETPID      30
+#define SYS_GETPGRP     31
+#define SYS_SETPGRP     32
+#define SYS_TCGETPGRP   33
+#define SYS_TCSETPGRP   34
+#define SYS_PIPE        35
+#define SYS_CREATE      36
+#define SYS_FCNTL       37
+#define SYS_YIELD       38
 
 /* syscall.h */
 #define EINTR  2
@@ -116,6 +118,7 @@ __cdecl int listen(int fd, int backlog);
 __cdecl int accept(int fd, sock_addr_t *addr);
 __cdecl int recvfrom(int fd, void *buf, int nbytes, sock_addr_t *addr);
 __cdecl int sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr);
+__cdecl int shutdown(int fd);
 __cdecl int getsockname(int fd, sock_addr_t *addr);
 __cdecl int getpeername(int fd, sock_addr_t *addr);
 __cdecl int dup(int srcfd, int destfd);
@@ -130,6 +133,7 @@ __cdecl int tcsetpgrp(int pgrp);
 __cdecl int pipe(int *readfd, int *writefd);
 __cdecl int create(const char *filename, int mode);
 __cdecl int fcntl(int fd, int req, int arg);
+__cdecl int yield(void);
 
 #endif /* ASM */
 

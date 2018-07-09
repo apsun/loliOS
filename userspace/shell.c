@@ -175,6 +175,7 @@ execute_command(cmd_t *cmd)
              * used by other child processes in each child.
              */
             if (cmd->in != NULL) {
+                assert(next_in < 0);
                 next_in = create(cmd->in, OPEN_READ);
                 if (next_in < 0) {
                     fprintf(stderr, "Failed to open '%s' for reading\n", cmd->in);
@@ -188,6 +189,7 @@ execute_command(cmd_t *cmd)
 
             /* Do the same, this time for stdout */
             if (cmd->out != NULL) {
+                assert(curr_out < 0);
                 curr_out = create(cmd->out, OPEN_WRITE);
                 if (curr_out < 0) {
                     fprintf(stderr, "Failed to open '%s' for writing\n", cmd->out);
@@ -239,15 +241,19 @@ execute_command(cmd_t *cmd)
 
 cleanup:
 
-    /* Close the pipe output from the last iteration */
+    /* Close all open pipe endpoints */
     if (next_in >= 0) {
         close(next_in);
         next_in = -1;
     }
-
-    /* These should not be possible */
-    assert(curr_in == -1);
-    assert(curr_out == -1);
+    if (curr_in >= 0) {
+        close(curr_in);
+        curr_in = -1;
+    }
+    if (curr_out >= 0) {
+        close(curr_out);
+        curr_out = -1;
+    }
 
     /*
      * Wait for all children to exit. As on Linux, final

@@ -295,6 +295,134 @@ ip_parse(const char *str, ip_addr_t *ip)
     return true;
 }
 
+static int
+lf_to_crlf(char *buf, int start, int count)
+{
+    /*
+     * First count the number of LFs so we know how much
+     * we have to shift by, so we can have a O(n) algorithm
+     * instead of O(n^2)
+     */
+    int i;
+    int num_lf = 0;
+    for (i = 0; i < count; ++i) {
+        if (buf[start + i] == '\n') {
+            num_lf++;
+        }
+    }
+
+    /*
+     * Now go from the end, replacing \n with \r\n
+     */
+    int j;
+    for (i = count - 1, j = count + num_lf - 1; i >= 0; --i) {
+        if (buf[i] == '\n') {
+            buf[j--] = '\n';
+            buf[j--] = '\r';
+        } else {
+            buf[j--] = buf[i];
+        }
+    }
+
+    return num_lf;
+}
+
+static int
+input(int fd, char *buf, int buf_size, int *offset, bool crlf)
+{
+    int to_read = buf_size - *offset;
+
+    /*
+     * Worst cast scenario: ALL the characters are \n,
+     * so we reserve half the buffer for the extra \r chars.
+     * Note that we want truncating division here.
+     */
+    if (crlf) {
+        to_read /= 2;
+    }
+
+    /* Check if we have space left to read */
+    if (to_read == 0) {
+        return -EAGAIN;
+    }
+
+    /* Read data into buffer */
+    int ret = read(fd, &buf[*offset], to_read);
+    if (ret <= 0) {
+        return ret;
+    }
+
+    /* Translate LF to CRLF */
+    if (crlf) {
+        ret += lf_to_crlf(buf, *offset, ret);
+    }
+
+    /* Advance offset */
+    *offset += ret;
+    return ret;
+}
+
+static int
+output(int fd, char *buf, int *count)
+{
+    /* Check if we have anything to write */
+    if (*count == 0) {
+        return -EAGAIN;
+    }
+
+    /* Write out buffer contents */
+    int ret = write(fd, buf, *count);
+    if (ret <= 0) {
+        return ret;
+    }
+
+    /* Shift remaining bytes up */
+    memmove(&buf[0], &buf[ret], *count - ret);
+    *count -= ret;
+    return ret;
+}
+
+static int
+sock_input(int sockfd, char *buf, int buf_size, int *offset, sock_addr_t *addr)
+{
+    /* Check if we have space left to read */
+    int to_read = buf_size - *offset;
+    if (to_read == 0) {
+        return -EAGAIN;
+    }
+
+    /* Read data into buffer */
+    int ret = recvfrom(sockfd, &buf[*offset], to_read, addr);
+    if (ret <= 0) {
+        return ret;
+    }
+
+    /* Advance offset */
+    *offset += ret;
+    return ret;
+}
+
+static int
+sock_output(int sockfd, char *buf, int *count, sock_addr_t *addr)
+{
+    /* Check if we have anything to write */
+    if (*count == 0) {
+        return -EAGAIN;
+    }
+
+    /* Write out buffer contents */
+    int ret = sendto(sockfd, buf, *count, addr);
+    if (ret <= 0) {
+        return ret;
+    }
+
+    /* Shift remaining bytes up */
+    memmove(&buf[0], &buf[ret], *count - ret);
+    *count -= ret;
+    return ret;
+}
+
+
 static void
 sig_interrupt_handler(int signum)
 {
@@ -307,9 +435,12 @@ nc_loop(ip_addr_t ip, uint16_t port, args_t *args)
     int ret;
     int sockfd = -1;
     int listenfd = -1;
-    char recv_buf[8192];
     char send_buf[8192];
-    int send_buf_count = 0;
+    char recv_buf[8192];
+    int send_offset = 0;
+    int recv_offset = 0;
+    bool send_done = false;
+    bool recv_done = false;
     bool bound = false;
     bool connected = false;
     sock_addr_t local_addr;
@@ -352,7 +483,7 @@ nc_loop(ip_addr_t ip, uint16_t port, args_t *args)
     }
 
     stop = false;
-    while (!stop) {
+    while (!stop && (!send_done || !recv_done)) {
         /* If passive TCP socket, wait for a connection */
         if (sockfd < 0) {
             CALL(sockfd = accept(listenfd, &remote_addr));
@@ -363,55 +494,41 @@ nc_loop(ip_addr_t ip, uint16_t port, args_t *args)
             bound = true;
         }
 
-        /* Read data from stdin */
-        CALL(read(0, &send_buf[send_buf_count], sizeof(send_buf) - 1 - send_buf_count));
-        if (ret == 0 && send_buf_count == 0) {
-            break;
-        } else if (ret == -EINTR || ret == -EAGAIN) {
-            ret = 0;
+        /* Read outbound data from stdin */
+        CALL(input(stdin, send_buf, sizeof(send_buf), &send_offset, args->crlf));
+
+        /* If done reading from stdin, send a FIN */
+        if (ret == 0 && send_offset == 0) {
+            CALL(shutdown(sockfd));
+            send_done = true;
         }
 
-        /* Convert LF to CRLF */
-        if (ret > 0 && args->crlf) {
-            send_buf[ret - 1] = '\r';
-            send_buf[ret] = '\n';
-            ret++;
-        }
-
-        send_buf_count += ret;
-
-        /* Scan for a newline in the buffer */
-        int line_len = 0;
-        int i;
-        for (i = 0; i < send_buf_count; ++i) {
-            if (send_buf[i] == '\n') {
-                line_len = i + 1;
-                break;
-            }
-        }
-
-        /* If we found an entire line, send it */
-        if (connected && line_len > 0) {
-            CALL(write(sockfd, send_buf, line_len));
-            memmove(&send_buf[0], &send_buf[line_len], send_buf_count - line_len);
-            send_buf_count -= line_len;
+        /* If we know the peer and have data to send, do it now! */
+        if (connected && send_offset > 0) {
+            CALL(sock_output(sockfd, send_buf, &send_offset, &remote_addr));
             bound = true;
         }
 
-        /* Read data from socket */
+        /*
+         * If we're bound (UDP active mode is unbound until first
+         * sent packet), try to receive some data. Also make sure
+         * the socket is connected for UDP, so we don't get packets
+         * from other senders.
+         */
         if (bound) {
-            CALL(recvfrom(sockfd, recv_buf, sizeof(recv_buf), &remote_addr));
-            if (ret == -EINTR || ret == -EAGAIN) {
-                continue;
-            } else if (ret == 0) {
-                break;
+            CALL(sock_input(sockfd, recv_buf, sizeof(recv_buf), &recv_offset, &remote_addr));
+            if (ret == 0 && recv_offset == 0) {
+                recv_done = true;
             }
-            CALL(write(1, recv_buf, ret));
+
             if (!connected) {
                 CALL(connect(sockfd, &remote_addr));
                 connected = true;
             }
         }
+
+        /* Write inbound data to stdout */
+        CALL(output(stdout, recv_buf, &recv_offset));
     }
 
 #undef CALL
@@ -506,7 +623,8 @@ main(void)
     }
 
     /* Put stdin into nonblocking mode */
-    if (fcntl(0, FCNTL_NONBLOCK, 1) < 0) {
+    int orig_nonblock = fcntl(0, FCNTL_NONBLOCK, 1);
+    if (orig_nonblock < 0) {
         fprintf(stderr, "Failed to make stdin non-blocking\n");
         return 1;
     }
@@ -515,7 +633,7 @@ main(void)
     int ret = nc_loop(ip, port, &args);
 
     /* Restore original blocking mode */
-    if (fcntl(0, FCNTL_NONBLOCK, 0) < 0) {
+    if (fcntl(0, FCNTL_NONBLOCK, orig_nonblock) < 0) {
         fprintf(stderr, "Failed to restore stdin blocking mode\n");
         return 1;
     }
