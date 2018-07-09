@@ -33,7 +33,7 @@ test_udp_loopback(void)
     sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
     char buf[64], tmp[1500];
     fill_buffer(buf, sizeof(buf));
-    
+
     ret = bind2(a, &a_addr);
     assert(ret == 0);
     ret = bind2(b, &b_addr);
@@ -67,7 +67,7 @@ test_udp_huge(void)
     sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
     char buf[2000], tmp[2000];
     fill_buffer(buf, sizeof(buf));
-    
+
     ret = bind2(a, &a_addr);
     assert(ret == 0);
     ret = bind2(b, &b_addr);

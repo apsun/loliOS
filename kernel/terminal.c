@@ -404,7 +404,7 @@ terminal_tty_read(file_obj_t *file, void *buf, int nbytes)
     if (nbytes < 0) {
         return -1;
     }
-    
+
     /*
      * Wait until there's a newline in the buffer or we
      * have pending signals to handle

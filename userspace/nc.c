@@ -422,7 +422,6 @@ sock_output(int sockfd, char *buf, int *count, sock_addr_t *addr)
     return ret;
 }
 
-
 static void
 sig_interrupt_handler(int signum)
 {
@@ -432,7 +431,7 @@ sig_interrupt_handler(int signum)
 static int
 nc_loop(ip_addr_t ip, uint16_t port, args_t *args)
 {
-    int ret;
+    int ret = 1;
     int sockfd = -1;
     int listenfd = -1;
     char send_buf[8192];
@@ -450,6 +449,7 @@ nc_loop(ip_addr_t ip, uint16_t port, args_t *args)
     ret = expr;                             \
     if (ret == -1) {                        \
         fprintf(stderr, #expr " failed\n"); \
+        ret = 1;                            \
         goto cleanup;                       \
     }                                       \
 } while (0)

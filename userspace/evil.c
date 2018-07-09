@@ -10,7 +10,7 @@
  *
  * ...evil|XXXXXX
  *        ^
- *  end of user page 
+ *  end of user page
  */
 int
 open_invalid_string(void)

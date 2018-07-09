@@ -264,7 +264,7 @@ mp1_notify_user(void)
 
     score = status & 0xffff;
     bases_left =
-        ((status >> 16) & 1) + 
+        ((status >> 16) & 1) +
         ((status >> 17) & 1) +
         ((status >> 18) & 1);
 }

@@ -782,12 +782,18 @@ memmove(void *dest, const void *src, int n)
  * is the "actual" length that the string would be (even
  * if it didn't fit in the buffer).
  */
-typedef struct {
+typedef struct printf_arg {
+    /* Static state */
     char *buf;
     int capacity;
+    bool (*write)(struct printf_arg *a, const char *s, int len);
+
+    /* Per-call dynamic state */
     int count;
     int true_len;
-    bool (*write)(const char *s, int len);
+    bool error;
+
+    /* Per-format dynamic state */
     int pad_width;
     bool left_align       : 1;
     bool positive_sign    : 1;
@@ -801,29 +807,9 @@ typedef struct {
  * terminal.
  */
 static bool
-printf_write(const char *s, int len)
+printf_write(printf_arg_t *a, const char *s, int len)
 {
     terminal_puts(s);
-    return true;
-}
-
-/*
- * Flushes the printf buffer. Returns true if all chars
- * were successfully flushed.
- */
-static bool
-printf_flush(printf_arg_t *a)
-{
-    if (a->buf == NULL) {
-        return false;
-    }
-
-    bool ok = a->write(a->buf, a->count);
-    if (!ok) {
-        return false;
-    }
-
-    a->count = 0;
     return true;
 }
 
@@ -851,10 +837,12 @@ printf_append_string(printf_arg_t *a, const char *s)
 
     /* Try flushing buffer and restart */
     if (a->count > 0 && a->write != NULL) {
-        if (!printf_flush(a)) {
+        if (!a->write(a, a->buf, a->count)) {
+            a->error = true;
             a->buf = NULL;
             return false;
         }
+        a->count = 0;
         return printf_append_string(a, s);
     }
 
@@ -862,7 +850,8 @@ printf_append_string(printf_arg_t *a, const char *s)
     if (a->count == 0 && a->write != NULL) {
         int len = strlen(s);
         a->true_len += len;
-        if (!a->write(s, len)) {
+        if (!a->write(a, s, len)) {
+            a->error = true;
             a->buf = NULL;
             return false;
         }
@@ -897,14 +886,16 @@ printf_append_char(printf_arg_t *a, char c)
 
     /* Try flushing buffer and restart */
     if (a->count > 0 && a->write != NULL) {
-        if (!printf_flush(a)) {
+        if (!a->write(a, a->buf, a->count)) {
+            a->error = true;
             a->buf = NULL;
             return false;
         }
+        a->count = 0;
         return printf_append_char(a, c);
     }
 
-    /* String too long and we have nowhere to flush it to */
+    /* Buffer is full and we have nowhere to flush it to */
     a->true_len++;
     a->buf = NULL;
     return false;
@@ -1050,7 +1041,7 @@ static int
 printf_impl(
     char *buf,
     int size,
-    bool (*write)(const char *s, int len),
+    bool (*write)(printf_arg_t *a, const char *s, int len),
     const char *format,
     va_list args)
 {
@@ -1064,9 +1055,10 @@ printf_impl(
     printf_arg_t a;
     a.buf = buf;
     a.capacity = size;
+    a.write = write;
     a.count = 0;
     a.true_len = 0;
-    a.write = write;
+    a.error = false;
 
     for (; *format != '\0'; format++) {
         if (*format != '%') {
@@ -1184,11 +1176,16 @@ consume_format:
     }
 
     /* Flush any remaining characters */
-    if (a.write != NULL) {
-        printf_flush(&a);
+    if (a.write != NULL && !a.write(&a, a.buf, a.count)) {
+        a.error = true;
     }
 
-    return a.true_len;
+    /* Return -1 if I/O error occurred, true length otherwise */
+    if (a.error) {
+        return -1;
+    } else {
+        return a.true_len;
+    }
 }
 
 /*

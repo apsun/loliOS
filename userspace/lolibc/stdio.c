@@ -28,22 +28,19 @@ fputc(char c, int fd)
 }
 
 /*
- * Writes the given data to the specified file stream.
- * Returns the number of bytes written, or a negative value
- * on error. Note that this does not conform to the normal
- * libc fwrite() API.
+ * Prints a string to the specified file stream. No newline
+ * is appended to the output.
  */
 int
-fwrite(const void *ptr, int n, int fd)
+fputs(const char *s, int fd)
 {
-    assert(ptr != NULL);
-    assert(n >= 0);
+    assert(s != NULL);
     assert(fd >= 0);
 
-    const char *buf = ptr;
+    int len = strlen(s);
     int total = 0;
-    while (total < n) {
-        int ret = write(fd, &buf[total], n - total);
+    while (total < len) {
+        int ret = write(fd, &s[total], len - total);
         if (ret == -EAGAIN || ret == -EINTR) {
             continue;
         } else if (ret < 0) {
@@ -54,18 +51,6 @@ fwrite(const void *ptr, int n, int fd)
     }
 
     return total;
-}
-
-/*
- * Prints a string to the specified file stream. No newline
- * is appended to the output.
- */
-int
-fputs(const char *s, int fd)
-{
-    assert(s != NULL);
-    assert(fd >= 0);
-    return fwrite(s, strlen(s), fd);
 }
 
 /*
@@ -177,12 +162,12 @@ gets(char *buf, int size)
  * is the "actual" length that the string would be (even
  * if it didn't fit in the buffer).
  */
-typedef struct {
+typedef struct printf_arg {
     /* Static state */
     char *buf;
     int capacity;
     int fd;
-    bool (*write)(int fd, const char *s, int len);
+    bool (*write)(struct printf_arg *a, const char *s, int len);
 
     /* Per-call dynamic state */
     int count;
@@ -199,12 +184,12 @@ typedef struct {
 } printf_arg_t;
 
 /*
- * Userspace printf flush function: calls the write syscall.
+ * Userspace printf flush function: calls fputs().
  */
 static bool
-printf_write(int fd, const char *s, int len)
+printf_write(printf_arg_t *a, const char *s, int len)
 {
-    return fwrite(s, len, fd) == len;
+    return fputs(s, a->fd) >= 0;
 }
 
 /*
@@ -231,7 +216,7 @@ printf_append_string(printf_arg_t *a, const char *s)
 
     /* Try flushing buffer and restart */
     if (a->count > 0 && a->write != NULL) {
-        if (!a->write(a->fd, a->buf, a->count)) {
+        if (!a->write(a, a->buf, a->count)) {
             a->error = true;
             a->buf = NULL;
             return false;
@@ -244,7 +229,7 @@ printf_append_string(printf_arg_t *a, const char *s)
     if (a->count == 0 && a->write != NULL) {
         int len = strlen(s);
         a->true_len += len;
-        if (!a->write(a->fd, s, len)) {
+        if (!a->write(a, s, len)) {
             a->error = true;
             a->buf = NULL;
             return false;
@@ -280,7 +265,7 @@ printf_append_char(printf_arg_t *a, char c)
 
     /* Try flushing buffer and restart */
     if (a->count > 0 && a->write != NULL) {
-        if (!a->write(a->fd, a->buf, a->count)) {
+        if (!a->write(a, a->buf, a->count)) {
             a->error = true;
             a->buf = NULL;
             return false;
@@ -436,7 +421,7 @@ printf_impl(
     char *buf,
     int size,
     int fd,
-    bool (*write)(int fd, const char *s, int len),
+    bool (*write)(printf_arg_t *a, const char *s, int len),
     const char *format,
     va_list args)
 {
@@ -570,9 +555,9 @@ consume_format:
             break;
         }
     }
-    
+
     /* Flush any remaining characters */
-    if (a.write != NULL && !a.write(a.fd, a.buf, a.count)) {
+    if (a.write != NULL && !a.write(&a, a.buf, a.count)) {
         a.error = true;
     }
 
