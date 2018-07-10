@@ -95,35 +95,35 @@ static int
 read_wave_info(int soundfd, wave_info_t *info)
 {
     if (read_all(soundfd, &info->wave_hdr, sizeof(info->wave_hdr)) < 0) {
-        puts("Could not read WAVE header");
+        fprintf(stderr, "Could not read WAVE header\n");
         return -1;
     }
 
     /* Validate WAVE header */
     if (info->wave_hdr.riff_magic != RIFF_MAGIC) {
-        puts("RIFF magic mismatch");
+        fprintf(stderr, "RIFF magic mismatch\n");
         return -1;
     } else if (info->wave_hdr.wave_magic != WAVE_MAGIC) {
-        puts("WAVE magic mismatch");
+        fprintf(stderr, "WAVE magic mismatch\n");
         return -1;
     }
 
     /* Find the format chunk */
     while (1) {
         if (read_all(soundfd, &info->fmt_hdr, sizeof(info->fmt_hdr)) < 0) {
-            puts("Could not read chunk header");
+            fprintf(stderr, "Could not read chunk header\n");
             return -1;
         }
 
         if (info->fmt_hdr.magic == FMT_MAGIC && info->fmt_hdr.size == 16) {
             if (read_all(soundfd, &info->fmt, sizeof(info->fmt)) < 0) {
-                puts("Could not read format body");
+                fprintf(stderr, "Could not read format body\n");
                 return -1;
             }
             break;
         } else {
             if (eat_all(soundfd, info->fmt_hdr.size) < 0) {
-                puts("Could not read chunk body");
+                fprintf(stderr, "Could not read chunk body\n");
                 return -1;
             }
         }
@@ -132,7 +132,7 @@ read_wave_info(int soundfd, wave_info_t *info)
     /* Find the data chunk */
     while (1) {
         if (read_all(soundfd, &info->data_hdr, sizeof(info->data_hdr)) < 0) {
-            puts("Could not read chunk header");
+            fprintf(stderr, "Could not read chunk header\n");
             return -1;
         }
 
@@ -140,7 +140,7 @@ read_wave_info(int soundfd, wave_info_t *info)
             return 0;
         } else {
             if (eat_all(soundfd, info->data_hdr.size) < 0) {
-                puts("Could not read chunk body");
+                fprintf(stderr, "Could not read chunk body\n");
                 return -1;
             }
         }
@@ -159,7 +159,7 @@ main(void)
     /* Read filename as an argument */
     char filename_buf[128];
     if (getargs(filename_buf, sizeof(filename_buf)) < 0) {
-        puts("usage: music <filename>");
+        fprintf(stderr, "usage: music <filename|->\n");
         goto cleanup;
     }
 
@@ -170,20 +170,13 @@ main(void)
         loop = true;
     }
 
-    /* If filename starts with @, do socket mode */
-    if (filename[0] == '@') {
-        soundfd = socket(SOCK_TCP);
-        sock_addr_t addr = {.ip = SERVER_IP, .port = SERVER_PORT};
-        if (connect(soundfd, &addr) < 0) {
-            puts("Could not connect to music server");
-            goto cleanup;
-        }
-    } else if (filename[0] == '-') {
+    /* If filename is -, read audio data from stdin */
+    if (strcmp(filename, "-") == 0) {
         soundfd = STDIN_FILENO;
     } else {
         soundfd = create(filename, OPEN_READ);
         if (soundfd < 0) {
-            printf("Could not open '%s'\n", filename);
+            fprintf(stderr, "Could not open '%s'\n", filename);
             goto cleanup;
         }
     }
@@ -191,7 +184,7 @@ main(void)
     /* Open and initialize sound device */
     devfd = create("sound", OPEN_WRITE);
     if (devfd < 0) {
-        puts("Could not open sound device -- busy?");
+        fprintf(stderr, "Could not open sound device\n");
         goto cleanup;
     }
 
@@ -220,7 +213,7 @@ main(void)
     if (ioctl(devfd, SOUND_SET_BITS_PER_SAMPLE, wave_info.fmt.bits_per_sample) < 0 ||
         ioctl(devfd, SOUND_SET_NUM_CHANNELS, wave_info.fmt.num_channels) < 0 ||
         ioctl(devfd, SOUND_SET_SAMPLE_RATE, wave_info.fmt.sample_rate) < 0) {
-        puts("Could not set sound device parameters");
+        fprintf(stderr, "Could not set sound device parameters\n");
         goto cleanup;
     }
 
@@ -228,7 +221,7 @@ main(void)
     audio_data = malloc(data_size);
     int read_offset = 0;
     if (audio_data == NULL) {
-        puts("Could not allocate space for audio data");
+        fprintf(stderr, "Could not allocate space for audio data\n");
         goto cleanup;
     }
 
@@ -244,12 +237,12 @@ main(void)
                 }
                 int cnt = read(soundfd, &audio_data[read_offset], to_read);
                 if (cnt == 0) {
-                    puts("File is truncated");
+                    fprintf(stderr, "File is truncated\n");
                     goto cleanup;
                 } else if (cnt == -EINTR || cnt == -EAGAIN) {
                     cnt = 0;
                 } else if (cnt < 0) {
-                    puts("Failed to read file");
+                    fprintf(stderr, "Failed to read file\n");
                     goto cleanup;
                 }
                 read_offset += cnt;
@@ -264,7 +257,7 @@ main(void)
             if (cnt == -EINTR || cnt == -EAGAIN) {
                 cnt = 0;
             } else if (cnt <= 0) {
-                puts("Failed to write sample data");
+                fprintf(stderr, "Failed to write sample data\n");
                 goto cleanup;
             }
             write_offset += cnt;

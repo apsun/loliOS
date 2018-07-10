@@ -203,7 +203,7 @@ execute_command(cmd_t *cmd)
 
             /* And finally, execute the command! */
             exec(cmd->name);
-            fprintf(stderr, "%s: command not found\n", root->cmd->name);
+            fprintf(stderr, "%s: command not found\n", cmd->name);
             halt(127);
         } else {
             curr->pid = pid;

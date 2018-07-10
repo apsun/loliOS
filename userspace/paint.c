@@ -257,28 +257,25 @@ sig_interrupt_handler(int signum)
 int
 main(void)
 {
-    int ret = 0;
+    int ret = 1;
     int mouse_fd = -1;
 
     /* Set signal handler */
     if (sigaction(SIG_INTERRUPT, sig_interrupt_handler) < 0) {
-        puts("Could not set interrupt handler");
-        ret = 3;
+        fprintf(stderr, "Could not set interrupt handler\n");
         goto exit;
     }
 
     /* Open mouse file */
     if ((mouse_fd = open("mouse")) < 0) {
-        puts("Could not open mouse file");
-        ret = 2;
+        fprintf(stderr, "Could not open mouse file\n");
         goto exit;
     }
 
     /* Create vidmap page */
     uint8_t *video_mem;
     if (vidmap(&video_mem) < 0) {
-        puts("Could not create vidmap page");
-        ret = 3;
+        fprintf(stderr, "Could not create vidmap page\n");
         goto exit;
     }
 
@@ -339,6 +336,8 @@ main(void)
             prev_cy = new_cy;
         }
     }
+
+    ret = 0;
 
 exit:
     if (mouse_fd >= 0) close(mouse_fd);

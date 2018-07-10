@@ -7,9 +7,14 @@
 int
 main(void)
 {
-    int fd = open("taux");
+    int fd = create("taux", OPEN_READ);
+    if (fd < 0) {
+        fprintf(stderr, "Failed to open taux file\n");
+        return 1;
+    }
+
     while (1) {
-        printf("tauxprint> ");
+        fprintf(stderr, "tauxprint> ");
 
         char buf[128];
         if (gets(buf, sizeof(buf)) == NULL) {
@@ -17,9 +22,10 @@ main(void)
         }
 
         if (ioctl(fd, TUX_SET_LED_STR, (int)buf) < 0) {
-            puts("Cannot display that string!");
+            fprintf(stderr, "Cannot display that string!\n");
         }
     }
+
     close(fd);
     return 0;
 }

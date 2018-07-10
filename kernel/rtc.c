@@ -158,6 +158,7 @@ rtc_set_frequency(int freq)
     /* Convert the integer to an enum value */
     uint8_t rs = rtc_freq_to_rs(freq);
     if (rs == RTC_A_RS_NONE) {
+        debugf("Invalid RTC frequency: %d\n", freq);
         return -1;
     }
 
@@ -234,7 +235,7 @@ rtc_read(file_obj_t *file, void *buf, int nbytes)
  *
  * buf must point to a int containing the desired frequency,
  * nbytes must equal sizeof(int). The frequency must be a
- * power of 2 between 2 and 1024. file is ignored.
+ * power of 2 between 2 and 1024.
  */
 static int
 rtc_write(file_obj_t *file, const void *buf, int nbytes)
@@ -258,7 +259,7 @@ rtc_write(file_obj_t *file, const void *buf, int nbytes)
     /* Save desired interrupt frequency in file */
     file->private = (void *)freq;
 
-    return 0;
+    return nbytes;
 }
 
 /*
