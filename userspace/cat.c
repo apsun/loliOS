@@ -95,7 +95,7 @@ int
 main(void)
 {
     int ret = 1;
-    int fd = stdin;
+    int fd = STDIN_FILENO;
 
     /*
      * If file name is specified as an argument, read from it.
@@ -109,7 +109,7 @@ main(void)
         }
     }
 
-    if (copy_stream(stdout, fd) < 0) {
+    if (copy_stream(STDOUT_FILENO, fd) < 0) {
         goto cleanup;
     }
 

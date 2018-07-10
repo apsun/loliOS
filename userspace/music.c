@@ -179,7 +179,7 @@ main(void)
             goto cleanup;
         }
     } else if (filename[0] == '-') {
-        soundfd = stdin;
+        soundfd = STDIN_FILENO;
     } else {
         soundfd = create(filename, OPEN_READ);
         if (soundfd < 0) {

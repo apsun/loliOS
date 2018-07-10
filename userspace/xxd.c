@@ -18,7 +18,7 @@ reset_stdin(void)
 {
     int in = create("tty", OPEN_READ);
     assert(in >= 0);
-    dup(in, stdin);
+    dup(in, STDIN_FILENO);
     close(in);
 }
 

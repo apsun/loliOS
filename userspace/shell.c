@@ -25,7 +25,7 @@ strtrim(char *s)
     for (; isspace(*s); ++s);
     char *e = s;
     for (; *e; ++e);
-    for (; e > s && isspace(*--e);) {
+    while (e > s && isspace(*--e)) {
         *e = '\0';
     }
     return s;
@@ -183,7 +183,7 @@ execute_command(cmd_t *cmd)
                 }
             }
             if (next_in >= 0) {
-                dup(next_in, stdin);
+                dup(next_in, STDIN_FILENO);
                 close(next_in);
             }
 
@@ -197,7 +197,7 @@ execute_command(cmd_t *cmd)
                 }
             }
             if (curr_out >= 0) {
-                dup(curr_out, stdout);
+                dup(curr_out, STDOUT_FILENO);
                 close(curr_out);
             }
 

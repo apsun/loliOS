@@ -1,110 +1,155 @@
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <syscall.h>
 
-#define BUFSIZE 1024
+/*
+ * Ugly hack: avoid reading these files since they can
+ * block indefinitely waiting for data to arrive. In the
+ * future we can add a stat syscall to determine the file
+ * type for a given file descriptor which is what GNU grep
+ * does, but for now we'll just take the lazy way out.
+ */
+static const char *special[] = {
+    ".",
+    "rtc",
+    "mouse",
+    "taux",
+    "sound",
+    "tty",
+};
 
-int
-do_one_file(const char *s, const char *fname)
+static bool
+is_regular_file(const char *fname)
 {
-    int ret = 0;
-    int fd = -1;
-    int s_len = strlen(s);
-    char data[BUFSIZE + 1];
-
-    if ((fd = open(fname)) < 0) {
-        printf("file open failed: %s\n", fname);
-        ret = -1;
-        goto exit;
+    int i;
+    for (i = 0; i < (int)(sizeof(special) / sizeof(special[0])); ++i) {
+        if (strcmp(fname, special[i]) == 0) {
+            return false;
+        }
     }
-
-    int last = 0;
-    int cnt;
-    do {
-        if ((cnt = read(fd, &data[last], BUFSIZE - last)) < 0) {
-            printf("file read filed: %s\n", fname);
-            ret = -1;
-            goto exit;
-        }
-
-        last += cnt;
-        int line_start = 0;
-        while (1) {
-            int line_end = line_start;
-            while (line_end < last && data[line_end] != '\n') {
-                line_end++;
-            }
-
-            if (data[line_end] != '\n' && cnt > 0 && line_start != 0) {
-                data[line_end] = '\0';
-                strcpy(data, &data[line_start]);
-                last -= line_start;
-                break;
-            }
-
-            data[line_end] = '\0';
-            int check;
-            for (check = line_start; check < line_end; check++) {
-                if (strncmp(&data[check], s, s_len) == 0) {
-                    printf("%s:%s\n", fname, &data[line_start]);
-                    break;
-                }
-            }
-
-            line_start = line_end + 1;
-            if (line_start >= last) {
-                last = 0;
-                break;
-            }
-        }
-    } while (cnt > 0);
-
-exit:
-    if (fd >= 0) close(fd);
-    return ret;
+    return true;
 }
 
-int
-main(void)
+static int
+grep_file(const char *needle, const char *fname, int fd)
 {
-    int ret = 0;
-    int fd = -1;
-
-    char args[BUFSIZE];
-    if (getargs(args, sizeof(args)) < 0) {
-        puts("could not read argument");
-        ret = 3;
-        goto exit;
+    FILE *fp = (fd >= 0) ? fdopen(fd) : fopen(fname, "r");
+    if (fp == NULL) {
+        fprintf(stderr, "%s: could not open file\n", fname);
+        if (fd >= 0) close(fd);
+        return -1;
     }
 
-    if ((fd = open(".")) < 0) {
-        puts("directory open failed");
-        ret = 2;
-        goto exit;
+    char line[1024];
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        /*
+         * Chop off \n if it exists. We can't just preserve
+         * it since in binary mode fgets will stop on \0 too,
+         * and then we have no idea whether there's a newline
+         * or not.
+         */
+        int len = strlen(line);
+        if (len > 0 && line[len - 1] == '\n') {
+            line[len - 1] = '\0';
+        }
+
+        if (strstr(line, needle) != NULL) {
+            if (fname != NULL) {
+                printf("%s:%s\n", fname, line);
+            } else {
+                printf("%s\n", line);
+            }
+        }
+    }
+
+    fclose(fp);
+    return 0;
+}
+
+static int
+grep_all(const char *needle)
+{
+    int ret = 1;
+    int fd = create(".", OPEN_READ);
+    if (fd < 0) {
+        fprintf(stderr, "Could not open directory for reading\n");
+        goto cleanup;
     }
 
     char fname[33];
     int cnt;
     while ((cnt = read(fd, fname, sizeof(fname) - 1)) != 0) {
-        if (cnt < 0) {
-            puts("directory entry read failed");
-            ret = 3;
-            goto exit;
+        if (ret < 0) {
+            fprintf(stderr, "Failed to read file name\n");
+            goto cleanup;
         }
+
         fname[cnt] = '\0';
-
-        if (fname[0] == '.') {
-            continue;
-        }
-
-        if (do_one_file(args, fname) != 0) {
-            ret = 3;
-            goto exit;
+        if (is_regular_file(fname)) {
+            if (grep_file(needle, fname, -1) < 0) {
+                goto cleanup;
+            }
         }
     }
 
-exit:
+    ret = 0;
+
+cleanup:
     if (fd >= 0) close(fd);
     return ret;
+}
+
+static int
+grep_one(const char *needle, const char *fname)
+{
+    int fd;
+    if (strcmp(fname, "-") == 0) {
+        fd = STDIN_FILENO;
+    } else {
+        fd = create(fname, OPEN_READ);
+        if (fd < 0) {
+            fprintf(stderr, "%s: Failed to open file for reading\n", fname);
+            return 1;
+        }
+    }
+
+    /* grep_file() will close fd for us */
+    if (grep_file(needle, NULL, fd) < 0) {
+        return 1;
+    }
+
+    return 0;
+}
+
+int
+main(void)
+{
+    /* Get the arguments */
+    char args[128];
+    if (getargs(args, sizeof(args)) < 0) {
+        fprintf(stderr, "usage: grep <needle> [file|-|.]\n");
+        return 1;
+    }
+
+    /*
+     * First argument is what to search for, second
+     * is the file to search (if none specified,
+     * defaults to every file in the directory).
+     */
+    char *space = strchr(args, ' ');
+    char *fname;
+    if (space == NULL) {
+        fname = "-";
+    } else {
+        *space = '\0';
+        fname = space + 1;
+    }
+
+    if (strcmp(fname, ".") == 0) {
+        return grep_all(args);
+    } else {
+        return grep_one(args, fname);
+    }
 }

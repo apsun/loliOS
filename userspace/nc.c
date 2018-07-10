@@ -495,7 +495,7 @@ nc_loop(ip_addr_t ip, uint16_t port, args_t *args)
         }
 
         /* Read outbound data from stdin */
-        CALL(input(stdin, send_buf, sizeof(send_buf), &send_offset, args->crlf));
+        CALL(input(STDIN_FILENO, send_buf, sizeof(send_buf), &send_offset, args->crlf));
 
         /* If done reading from stdin, send a FIN */
         if (ret == 0 && send_offset == 0) {
@@ -528,7 +528,7 @@ nc_loop(ip_addr_t ip, uint16_t port, args_t *args)
         }
 
         /* Write inbound data to stdout */
-        CALL(output(stdout, recv_buf, &recv_offset));
+        CALL(output(STDOUT_FILENO, recv_buf, &recv_offset));
     }
 
 #undef CALL
@@ -623,7 +623,7 @@ main(void)
     }
 
     /* Put stdin into nonblocking mode */
-    int orig_nonblock = fcntl(0, FCNTL_NONBLOCK, 1);
+    int orig_nonblock = fcntl(STDIN_FILENO, FCNTL_NONBLOCK, 1);
     if (orig_nonblock < 0) {
         fprintf(stderr, "Failed to make stdin non-blocking\n");
         return 1;
@@ -633,7 +633,7 @@ main(void)
     int ret = nc_loop(ip, port, &args);
 
     /* Restore original blocking mode */
-    if (fcntl(0, FCNTL_NONBLOCK, orig_nonblock) < 0) {
+    if (fcntl(STDIN_FILENO, FCNTL_NONBLOCK, orig_nonblock) < 0) {
         fprintf(stderr, "Failed to restore stdin blocking mode\n");
         return 1;
     }

@@ -360,12 +360,12 @@ process_idle(void)
      * hlt here - sti only takes effect after the next instruction
      * has executed. If an interrupt occurred between sti and hlt,
      * it would be handled after hlt executes and hlt would
-     * return immediately.
+     * return immediately. Also use a single asm block, or else
+     * the compiler might insert extra instructions between sti
+     * and hlt.
      */
     while (1) {
-        sti();
-        hlt();
-        cli();
+        asm volatile("sti; hlt; cli" ::: "memory");
     }
 }
 

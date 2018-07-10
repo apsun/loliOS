@@ -8,39 +8,165 @@
 #include <syscall.h>
 
 /*
- * Prints a single character to the specified file stream.
+ * Size of buffer allocated for readahead. This is allocated
+ * separately from the file object itself, since not all files
+ * need to be read from (and hence a read buffer is useless).
+ */
+#define FILE_BUFSIZE 1024
+
+/* FILE wrapper for the standard streams */
+FILE __stdin = {.fd = STDIN_FILENO};
+FILE __stdout = {.fd = STDOUT_FILENO};
+FILE __stderr = {.fd = STDERR_FILENO};
+
+/*
+ * Wraps an existing file descriptor into a FILE. When the
+ * FILE is closed, the descriptor will also be closed.
+ */
+FILE *
+fdopen(int fd)
+{
+    FILE *fp = malloc(sizeof(FILE));
+    if (fp == NULL) {
+        return NULL;
+    }
+
+    fp->fd = fd;
+    fp->buf = NULL;
+    fp->offset = 0;
+    fp->count = 0;
+    return fp;
+}
+
+/*
+ * Opens a file with the specified mode. The only
+ * supported modes are r, w, and rw. Binary and append
+ * modes are not supported.
+ */
+FILE *
+fopen(const char *name, const char *mode)
+{
+    assert(name != NULL);
+    assert(mode != NULL);
+    assert(*mode != '\0');
+
+    int flags = 0;
+    do {
+        switch (*mode) {
+        case 'r':
+            flags |= OPEN_READ;
+            break;
+        case 'w':
+            flags |= OPEN_WRITE;
+            break;
+        default:
+            return NULL;
+        }
+    } while (*++mode != '\0');
+
+    int fd = create(name, flags);
+    if (fd < 0) {
+        return NULL;
+    }
+
+    FILE *fp = fdopen(fd);
+    if (fp == NULL) {
+        close(fd);
+        return NULL;
+    }
+    return fp;
+}
+
+/*
+ * Wrapper around read() syscall. WARNING: This API is
+ * intentionally incompatible with the libc API.
  */
 int
-fputc(char c, int fd)
+fread(FILE *fp, void *buf, int size)
 {
-    assert(fd >= 0);
+    assert(fp != NULL);
+    assert(buf != NULL);
+    assert(size >= 0);
+
+    /* If we have buffered data, return that first */
+    if (fp->offset < fp->count) {
+        if (size > fp->count - fp->offset) {
+            size = fp->count - fp->offset;
+        }
+
+        memcpy(buf, &fp->buf[fp->offset], size);
+        fp->offset += size;
+        return size;
+    }
+
+    return read(fp->fd, buf, size);
+}
+
+/*
+ * Wrapper around write() syscall. WARNING: this API is
+ * intentionally incompatible with the libc API.
+ */
+int
+fwrite(FILE *fp, const void *buf, int size)
+{
+    assert(fp != NULL);
+    assert(buf != NULL);
+    assert(size >= 0);
+
+    return write(fp->fd, buf, size);
+}
+
+/*
+ * Closes an open file, releasing the underlying file
+ * descriptor.
+ */
+int
+fclose(FILE *fp)
+{
+    assert(fp != NULL);
+
+    int ret = close(fp->fd);
+    free(fp->buf);
+    free(fp);
+    return ret;
+}
+
+/*
+ * Prints a single character to the specified file stream.
+ * Returns < 0 on error, c on success.
+ */
+int
+fputc(char c, FILE *fp)
+{
+    assert(fp != NULL);
 
     int ret;
     do {
-        ret = write(fd, &c, 1);
+        ret = fwrite(fp, &c, 1);
     } while (ret == -EAGAIN || ret == -EINTR);
 
     if (ret < 0) {
         return -1;
     } else {
-        return c;
+        return (unsigned char)c;
     }
 }
 
 /*
  * Prints a string to the specified file stream. No newline
- * is appended to the output.
+ * is appended to the output. Returns the number of characters
+ * written on success, < 0 on error.
  */
 int
-fputs(const char *s, int fd)
+fputs(const char *s, FILE *fp)
 {
     assert(s != NULL);
-    assert(fd >= 0);
+    assert(fp != NULL);
 
     int len = strlen(s);
     int total = 0;
     while (total < len) {
-        int ret = write(fd, &s[total], len - total);
+        int ret = fwrite(fp, &s[total], len - total);
         if (ret == -EAGAIN || ret == -EINTR) {
             continue;
         } else if (ret < 0) {
@@ -54,7 +180,8 @@ fputs(const char *s, int fd)
 }
 
 /*
- * Prints a single character to stdout.
+ * Prints a single character to stdout. Returns < 0 on
+ * error, c on success.
  */
 int
 putchar(char c)
@@ -63,77 +190,160 @@ putchar(char c)
 }
 
 /*
- * Prints a string followed by a newline to stdout.
+ * Prints a string followed by a newline to stdout. Returns
+ * the number of characters written (including the newline)
+ * on success, < 0 on error.
  */
 int
 puts(const char *s)
 {
     assert(s != NULL);
-    fputs(s, stdout);
-    return putchar('\n');
+    int len = fputs(s, stdout);
+    if (len >= 0) {
+        if (putchar('\n') >= 0) {
+            return len + 1;
+        }
+    }
+    return len;
 }
 
 /*
- * Reads a line from stdin. This performs internal buffering
- * to prevent cases where more than one line is returned in
- * a single read. This preserves the original \n in the string,
- * and does NOT terminate it with a \0. Does not block; caller
- * must check for -EAGAIN or -EINTR. Returns the number of
- * characters read (including \n, without \0).
+ * Fills the readahead buffer with more data. Blocks until
+ * data is available. This will reset the offset and count
+ * values to zero if they are equal.
  */
 static int
-read_line(char *buf, int buf_size)
+fget_readahead(FILE *fp)
 {
-    /* Used to buffer data from stdin */
-    static int stdin_total = 0;
-    static char stdin_buf[8192];
-
-    /* How much space do we have left? */
-    int remaining = sizeof(stdin_buf) - stdin_total;
-    if (remaining == 0) {
-        return -1;
+    /* Allocate buffer if not already done */
+    if (fp->buf == NULL) {
+        fp->buf = malloc(FILE_BUFSIZE);
+        if (fp->buf == NULL) {
+            return -1;
+        }
     }
 
-    /* Look for a newline */
-    int lf;
-    for (lf = 0; lf < stdin_total; ++lf) {
-        if (stdin_buf[lf] == '\n') {
-            break;
+    /* Compress buffer if possible */
+    if (fp->offset == fp->count) {
+        fp->offset = 0;
+        fp->count = 0;
+    }
+
+    /* Read more data into the buffer */
+    int ret;
+    do {
+        ret = read(fp->fd, &fp->buf[fp->count], FILE_BUFSIZE - fp->count);
+    } while (ret == -EINTR || ret == -EAGAIN);
+
+    /* Advance head pointer */
+    if (ret > 0) {
+        fp->count += ret;
+    }
+
+    return ret;
+}
+
+/*
+ * Reads a single character from the specified file stream.
+ * Returns the character on success, < 0 on error or EOF.
+ */
+int
+fgetc(FILE *fp)
+{
+    assert(fp != NULL);
+
+    /* If readahead buffer is empty, read some more data */
+    if (fp->offset == fp->count) {
+        if (fget_readahead(fp) <= 0) {
+            return -1;
         }
     }
 
     /*
-     * If we don't already have a full line buffered,
-     * read some more data from stdin and retry.
+     * Pop first character from buf. Make sure that character
+     * is promoted as unsigned instead of char, in case
+     * char is signed and the character is < 0.
      */
-    if (lf == stdin_total) {
-        int ret = read(stdin, &stdin_buf[stdin_total], remaining);
-        if (ret <= 0) {
-            return ret;
+    return (unsigned char)fp->buf[fp->offset++];
+}
+
+/*
+ * Reads a string from the specified file stream, until
+ * a newline or NUL is found, or the buffer is full. The
+ * string is always NUL-terminated. Examples of valid outputs:
+ *
+ * abc\n\0 (if size > 4)
+ * abc\0 (if size >= 4)
+ *
+ * Returns buf on success, NULL on EOF or I/O error.
+ */
+char *
+fgets(char *buf, int size, FILE *fp)
+{
+    assert(buf != NULL);
+    assert(size > 0);
+    assert(fp != NULL);
+
+    bool read_lf = false;
+    int total_read = 0;
+    do {
+        /*
+         * If the internal buffer is empty, read some more data
+         * from the file.
+         */
+        if (fp->offset == fp->count) {
+            int ret = fget_readahead(fp);
+            if (ret <= 0) {
+                return (total_read == 0) ? NULL : buf;
+            }
         }
-        stdin_total += ret;
-        return read_line(buf, buf_size);
-    }
 
-    /* Check if we have a full line but it won't fit in the buffer */
-    if (lf >= buf_size) {
-        return -1;
-    }
+        /*
+         * Clamp number of bytes read to actual output size. The
+         * - 1 is to compensate for the fact that we must always
+         *  NUL-terminate the output buffer.
+         */
+        int max_size = fp->count - fp->offset;
+        if (max_size > size - 1 - total_read) {
+            max_size = size - 1 - total_read;
+        }
 
-    /* Copy up to and including newline */
-    int consumed = lf + 1;
-    memcpy(buf, stdin_buf, consumed);
+        /* Find a newline in the internal buffer (or \0) */
+        int len;
+        for (len = 0; len < max_size; ++len) {
+            char c = fp->buf[fp->offset + len];
+            if (c == '\0' || c == '\n') {
+                read_lf = true;
+                len++;
+                break;
+            }
+        }
 
-    /* Shift remaining chars over */
-    memmove(&stdin_buf[0], &stdin_buf[consumed], stdin_total - consumed);
-    stdin_total -= consumed;
-    return consumed;
+        /* Copy from internal buffer to output buffer */
+        memcpy(&buf[total_read], &fp->buf[fp->offset], len);
+        buf[total_read + len] = '\0';
+        fp->offset += len;
+        total_read += len;
+    } while (!read_lf && total_read < size - 1);
+
+    return buf;
+}
+
+/*
+ * Reads a single character from stdin. Returns the
+ * character read on success, < 0 on error or EOF.
+ */
+int
+getchar(void)
+{
+    return fgetc(stdin);
 }
 
 /*
  * Reads a line from stdin. Blocks until a full
  * line is received. The returned string does not
- * contain the newline character.
+ * contain the newline character. Returns buf on
+ * success, NULL on EOF or I/O error.
  */
 char *
 gets(char *buf, int size)
@@ -141,17 +351,19 @@ gets(char *buf, int size)
     assert(buf != NULL);
     assert(size > 0);
 
-    while (1) {
-        int ret = read_line(buf, size);
-        if (ret == -EAGAIN || ret == -EINTR) {
-            continue;
-        } else if (ret <= 0) {
-            return NULL;
-        } else {
-            buf[ret - 1] = '\0';
-            return buf;
-        }
+    /* Read from stdin */
+    char *ret = fgets(buf, size, stdin);
+    if (ret == NULL) {
+        return NULL;
     }
+
+    /* Chop off trailing newline if present */
+    int len = strlen(ret);
+    if (len > 0 && buf[len - 1] == '\n') {
+        buf[len - 1] = '\0';
+    }
+
+    return ret;
 }
 
 /*
@@ -166,7 +378,7 @@ typedef struct printf_arg {
     /* Static state */
     char *buf;
     int capacity;
-    int fd;
+    FILE *fp;
     bool (*write)(struct printf_arg *a, const char *s, int len);
 
     /* Per-call dynamic state */
@@ -189,7 +401,7 @@ typedef struct printf_arg {
 static bool
 printf_write(printf_arg_t *a, const char *s, int len)
 {
-    return fputs(s, a->fd) >= 0;
+    return fputs(s, a->fp) >= 0;
 }
 
 /*
@@ -420,7 +632,7 @@ static int
 printf_impl(
     char *buf,
     int size,
-    int fd,
+    FILE *fp,
     bool (*write)(printf_arg_t *a, const char *s, int len),
     const char *format,
     va_list args)
@@ -435,7 +647,7 @@ printf_impl(
     printf_arg_t a;
     a.buf = buf;
     a.capacity = size;
-    a.fd = fd;
+    a.fp = fp;
     a.write = write;
     a.count = 0;
     a.true_len = 0;
@@ -575,7 +787,7 @@ consume_format:
 int
 vsnprintf(char *buf, int size, const char *format, va_list args)
 {
-    return printf_impl(buf, size, -1, NULL, format, args);
+    return printf_impl(buf, size, NULL, NULL, format, args);
 }
 
 /*
@@ -596,21 +808,21 @@ snprintf(char *buf, int size, const char *format, ...)
  * va_list version.
  */
 int
-vfprintf(int fd, const char *format, va_list args)
+vfprintf(FILE *fp, const char *format, va_list args)
 {
     char buf[256];
-    return printf_impl(buf, sizeof(buf), fd, printf_write, format, args);
+    return printf_impl(buf, sizeof(buf), fp, printf_write, format, args);
 }
 
 /*
  * Prints a string to the specified output stream.
  */
 int
-fprintf(int fd, const char *format, ...)
+fprintf(FILE *fp, const char *format, ...)
 {
     va_list args;
     va_start(args, format);
-    int ret = vfprintf(fd, format, args);
+    int ret = vfprintf(fp, format, args);
     va_end(args);
     return ret;
 }
