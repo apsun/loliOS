@@ -512,10 +512,12 @@ process_create_user(const char *command, int terminal)
 
 /*
  * Clones the specified process. regs points to the original
- * process's interrupt context on the stack.
+ * process's interrupt context on the stack. If clone_pages is
+ * false, the user and heap pages will NOT be cloned, which is
+ * useful if this is immediately followed by exec().
  */
 static pcb_t *
-process_clone(pcb_t *parent_pcb, int_regs_t *regs)
+process_clone(pcb_t *parent_pcb, int_regs_t *regs, bool clone_pages)
 {
     /* Try to allocate a new PCB */
     pcb_t *child_pcb = process_alloc_pcb();
@@ -533,11 +535,15 @@ process_clone(pcb_t *parent_pcb, int_regs_t *regs)
     }
 
     /* First try to clone the heap, since that can fail */
-    if (paging_heap_clone(&child_pcb->heap, &parent_pcb->heap) < 0) {
-        debugf("Cannot allocate heap for child process\n");
-        paging_page_free(pfn);
-        process_free_pcb(child_pcb);
-        return NULL;
+    if (clone_pages) {
+        if (paging_heap_clone(&child_pcb->heap, &parent_pcb->heap) < 0) {
+            debugf("Cannot allocate heap for child process\n");
+            paging_page_free(pfn);
+            process_free_pcb(child_pcb);
+            return NULL;
+        }
+    } else {
+        paging_heap_init(&child_pcb->heap);
     }
 
     /* Some state isn't cloned - set those here */
@@ -560,7 +566,9 @@ process_clone(pcb_t *parent_pcb, int_regs_t *regs)
     strscpy(child_pcb->args, parent_pcb->args, MAX_ARGS_LEN);
 
     /* Clone user page into child */
-    paging_page_clone(pfn, (void *)USER_PAGE_START);
+    if (clone_pages) {
+        paging_page_clone(pfn, (void *)USER_PAGE_START);
+    }
 
     /* Schedule child for execution */
     scheduler_add(child_pcb);
@@ -747,7 +755,7 @@ process_fork(
      * begins execution in idt_unwind_stack (i.e. skips
      * all normal C stack unwinding).
      */
-    pcb_t *child_pcb = process_clone(get_executing_pcb(), regs);
+    pcb_t *child_pcb = process_clone(get_executing_pcb(), regs, true);
     if (child_pcb == NULL) {
         return -1;
     }
@@ -898,7 +906,7 @@ process_execute(
 {
     /* Start by cloning ourselves */
     pcb_t *parent_pcb = get_executing_pcb();
-    pcb_t *child_pcb = process_clone(parent_pcb, regs);
+    pcb_t *child_pcb = process_clone(parent_pcb, regs, false);
     if (child_pcb == NULL) {
         return -1;
     }
