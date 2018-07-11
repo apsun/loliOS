@@ -343,6 +343,9 @@ process_run(pcb_t *pcb)
     /* Set the global execution context */
     process_set_context(pcb);
 
+    /* Start SIGALARM timer */
+    timer_setup(&pcb->alarm_timer, TIMER_HZ * SIG_ALARM_PERIOD, process_alarm_callback);
+
     /* Into userspace we go! */
     process_iret(&pcb->regs, (void *)get_kernel_base_esp(pcb));
 }
@@ -494,7 +497,6 @@ process_create_user(const char *command, int terminal)
     terminal_open_streams(pcb->files);
     signal_init(pcb->signals);
     timer_init(&pcb->alarm_timer);
-    timer_setup(&pcb->alarm_timer, TIMER_HZ * SIG_ALARM_PERIOD, process_alarm_callback);
     paging_heap_init(&pcb->heap);
     strscpy(pcb->args, args, MAX_ARGS_LEN);
 
@@ -605,6 +607,9 @@ process_exec_impl(pcb_t *pcb, int_regs_t *regs, const char *command)
 
     /* Reset child process heap */
     paging_heap_destroy(&pcb->heap);
+
+    /* Restart SIGALARM timer */
+    timer_setup(&pcb->alarm_timer, TIMER_HZ * SIG_ALARM_PERIOD, process_alarm_callback);
 
     /* Replace saved arguments */
     strscpy(pcb->args, args, MAX_ARGS_LEN);
@@ -934,10 +939,7 @@ process_execute(
     /*
      * Wait for the child process to exit. We can't directly
      * call process_wait() here, since that will abort early
-     * on signals, which we don't want. There's also a slight
-     * chance that someone will reap our child before us, so
-     * be prepared for that. Also since we know that the child
-     * hasn't executed yet, we can safely sleep before polling.
+     * on signals, which we don't want.
      */
     int ret;
     do {
@@ -971,7 +973,7 @@ process_halt_impl(int status)
      * Warning: This is only safe because "freeing"
      * a PCB just sets its PID to an invalid value.
      * If one day we use malloc and free, this will
-     * cause a use-after-free.
+     * cause a use-after-free when moving to the next PCB.
      */
     pcb_t *other_pcb;
     process_for_each(other_pcb) {
