@@ -42,6 +42,23 @@ strdup(const char *s)
     return d;
 }
 
+static char *
+pop_redirect(char *s)
+{
+    char *fname = s + 1 + strspn(s + 1, " ");
+    char *end = strchr(fname, ' ');
+    if (end != NULL) {
+        *end++ = '\0';
+    }
+    char *word = strdup(fname);
+    if (end != NULL) {
+        strcpy(s, end);
+    } else {
+        *s = '\0';
+    }
+    return word;
+}
+
 static void
 free_cmd(cmd_t *cmd)
 {
@@ -80,7 +97,24 @@ parse_input(char *line)
         curr->in = NULL;
         curr->out = NULL;
 
-        /* TODO: Change this once redirection is implemented */
+        char *lt = strchr(cmd_s, '<');
+        if (lt != NULL) {
+            curr->in = pop_redirect(lt);
+            if (curr->in == NULL) {
+                fprintf(stderr, "Out of memory, cannot allocate command\n");
+                goto cleanup;
+            }
+        }
+
+        char *gt = strchr(cmd_s, '>');
+        if (gt != NULL) {
+            curr->out = pop_redirect(gt);
+            if (curr->out == NULL) {
+                fprintf(stderr, "Out of memory, cannot allocate command\n");
+                goto cleanup;
+            }
+        }
+
         curr->name = strdup(strtrim(cmd_s));
         if (curr->name == NULL) {
             fprintf(stderr, "Out of memory, cannot allocate command\n");
@@ -125,6 +159,8 @@ execute_command(cmd_t *cmd)
             FAIL("Out of memory, cannot allocate process info\n");
         }
 
+        bool is_root = (root == NULL);
+
         /* Immediately initialize so we can properly clean up in case of error */
         *pproc = curr;
         pproc = &curr->next;
@@ -137,7 +173,7 @@ execute_command(cmd_t *cmd)
          * Check for "first | second < in" case. This is
          * never a valid combination.
          */
-        if (cmd->in != NULL && root != NULL) {
+        if (cmd->in != NULL && !is_root) {
             FAIL("Cannot redirect stdin in middle of pipe\n");
         }
 
