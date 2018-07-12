@@ -730,14 +730,9 @@ terminal_open_streams(file_obj_t **files)
     }
 
     /* Bind to file descriptors */
-    int ret;
-    ret = file_desc_bind(files, 0, in);
-    assert(ret == 0);
-    ret = file_desc_bind(files, 1, out);
-    assert(ret == 1);
-    ret = file_desc_bind(files, 2, err);
-    assert(ret == 2);
-
+    file_desc_bind(files, 0, in);
+    file_desc_bind(files, 1, out);
+    file_desc_bind(files, 2, err);
     return 0;
 }
 
