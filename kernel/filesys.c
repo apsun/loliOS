@@ -5,8 +5,12 @@
 #include "paging.h"
 
 /* Macros to access inode/data blocks */
-#define FS_INODE(idx) ((inode_t *)(fs_boot_block + 1 + (idx)))
-#define FS_DATA(idx) ((uint8_t *)(fs_boot_block + 1 + fs_boot_block->stat.inode_count + (idx)))
+#define fs_inode(idx) ((inode_t *)(fs_boot_block + 1 + (idx)))
+#define fs_data(idx) ((uint8_t *)(fs_boot_block + 1 + fs_boot_block->stat.inode_count + (idx)))
+
+/* Helpers for casting to/from file private data */
+#define get_off(f) ((uint32_t)(f)->private)
+#define set_off(f, x) ((f)->private = (void *)(uint32_t)(x))
 
 /* Holds the address of the boot block */
 static boot_block_t *fs_boot_block = NULL;
@@ -17,7 +21,7 @@ static boot_block_t *fs_boot_block = NULL;
  * the same as strcmp(), but limited to at most 32 chars.
  */
 static int
-fs_namecmp(const char *search_name, const char *file_name)
+fs_namecmp(const char *search_name, const char file_name[MAX_FILENAME_LEN])
 {
     int i;
     for (i = 0; i < MAX_FILENAME_LEN; i++) {
@@ -39,7 +43,7 @@ fs_namecmp(const char *search_name, const char *file_name)
  * strlen, but will return 32 if no NUL terminator is hit.
  */
 static int
-fs_namelen(const char *file_name)
+fs_namelen(const char file_name[MAX_FILENAME_LEN])
 {
     int i;
     for (i = 0; i < MAX_FILENAME_LEN; ++i) {
@@ -60,9 +64,9 @@ read_dentry_by_name(const char *fname, dentry_t *dentry)
 {
     uint32_t i;
     for (i = 0; i < fs_boot_block->stat.dentry_count; ++i) {
-        dentry_t* curr_dentry = &fs_boot_block->dir_entries[i];
-        if (fs_namecmp(fname, curr_dentry->name) == 0) {
-            *dentry = *curr_dentry;
+        dentry_t *curr = &fs_boot_block->dir_entries[i];
+        if (fs_namecmp(fname, curr->name) == 0) {
+            *dentry = *curr;
             return 0;
         }
     }
@@ -75,9 +79,9 @@ read_dentry_by_name(const char *fname, dentry_t *dentry)
  * -1 is returned.
  */
 int
-read_dentry_by_index(int index, dentry_t *dentry)
+read_dentry_by_index(uint32_t index, dentry_t *dentry)
 {
-    if ((uint32_t)index >= fs_boot_block->stat.dentry_count) {
+    if (index >= fs_boot_block->stat.dentry_count) {
         return -1;
     }
 
@@ -92,10 +96,13 @@ read_dentry_by_index(int index, dentry_t *dentry)
  * of bytes read, or -1 on error.
  */
 int
-read_data(uint32_t inode, int offset, uint8_t *buf, int length)
+read_data(uint32_t inode, uint32_t offset, uint8_t *buf, uint32_t length)
 {
-    /* Check offset and length bounds */
-    if (length < 0 || offset < 0) {
+    /*
+     * Ensure we don't read more than INT_MAX bytes, or else
+     * we won't be able to represent it in the return value.
+     */
+    if ((int)length < 0) {
         return -1;
     }
 
@@ -104,43 +111,46 @@ read_data(uint32_t inode, int offset, uint8_t *buf, int length)
         return -1;
     }
 
-    inode_t *inode_p = FS_INODE(inode);
+    inode_t *inode_p = fs_inode(inode);
 
     /* Reading past EOF is an error */
-    if ((uint32_t)offset > inode_p->size) {
+    if (offset > inode_p->size) {
         return -1;
     }
 
     /* Clamp read length to end of file */
-    if ((uint32_t)length > inode_p->size - offset) {
+    if (length > inode_p->size - offset) {
         length = inode_p->size - offset;
     }
 
     /* Compute intra-block offsets */
-    int first_block = offset / FS_BLOCK_SIZE;
-    int first_offset = offset % FS_BLOCK_SIZE;
-    int last_block = (offset + length) / FS_BLOCK_SIZE;
-    int last_offset = (offset + length) % FS_BLOCK_SIZE;
+    uint32_t first_block = offset / FS_BLOCK_SIZE;
+    uint32_t first_offset = offset % FS_BLOCK_SIZE;
+    uint32_t last_block = (offset + length) / FS_BLOCK_SIZE;
+    uint32_t last_offset = (offset + length) % FS_BLOCK_SIZE;
 
     /* Now copy the data! */
-    int i;
+    uint32_t i;
     for (i = first_block; i <= last_block; ++i) {
         /* Adjust start offset */
-        int start_offset = 0;
+        uint32_t start_offset = 0;
         if (i == first_block) {
             start_offset = first_offset;
         }
 
         /* Adjust end offset */
-        int end_offset = FS_BLOCK_SIZE;
+        uint32_t end_offset = FS_BLOCK_SIZE;
         if (i == last_block) {
             end_offset = last_offset;
         }
 
-        /* Check 0-sized copy to avoid out-of-bound read */
-        int copy_len = end_offset - start_offset;
+        /*
+         * Check 0-sized copy to avoid out-of-bounds read on
+         * data_blocks[i].
+         */
+        uint32_t copy_len = end_offset - start_offset;
         if (copy_len > 0) {
-            uint8_t *data = FS_DATA(inode_p->data_blocks[i]);
+            uint8_t *data = fs_data(inode_p->data_blocks[i]);
             memcpy(buf, data + start_offset, copy_len);
             buf += copy_len;
         }
@@ -150,19 +160,19 @@ read_data(uint32_t inode, int offset, uint8_t *buf, int length)
 }
 
 /*
- * Open syscall for files/directories. Always succeeds.
+ * open() syscall handler for files/directories. Always succeeds.
  */
 static int
 fs_open(file_obj_t *file)
 {
-    file->private = (void *)0;
+    set_off(file, 0);
     return 0;
 }
 
 /*
- * Read syscall for directories. Writes the name of the next
- * entry in the directory to the buffer, NOT including the
- * NUL terminator. Returns the number of characters written.
+ * read() syscall handler for directories. Writes the name of the
+ * next entry in the directory to the buffer, NOT including the
+ * NUL terminator. Returns the number of characters read.
  */
 static int
 fs_dir_read(file_obj_t *file, void *buf, int nbytes)
@@ -173,7 +183,7 @@ fs_dir_read(file_obj_t *file, void *buf, int nbytes)
 
     /* Read next file dentry, return 0 if no more entries */
     dentry_t dentry;
-    if (read_dentry_by_index((int)file->private, &dentry) != 0) {
+    if (read_dentry_by_index(get_off(file), &dentry) != 0) {
         return 0;
     }
 
@@ -189,16 +199,16 @@ fs_dir_read(file_obj_t *file, void *buf, int nbytes)
     }
 
     /* Increment offset for next read */
-    file->private++;
+    set_off(file, get_off(file) + 1);
 
     /* Return number of chars read, excluding NUL terminator */
     return nbytes;
 }
 
 /*
- * Read syscall for files. Writes the contents of the file
- * to the buffer, starting from where the previous call to read
- * left off. Returns the number of bytes written.
+ * read() syscall handler for files. Writes the contents of the
+ * file to the buffer, starting from where the previous call to
+ * read left off. Returns the number of bytes read.
  */
 static int
 fs_file_read(file_obj_t *file, void *buf, int nbytes)
@@ -209,20 +219,19 @@ fs_file_read(file_obj_t *file, void *buf, int nbytes)
     }
 
     /* Read directly into userspace buffer */
-    int count = read_data(file->inode_idx, (int)file->private, buf, nbytes);
-    if (count <= 0) {
-        return count;
-    }
+    int count = read_data(file->inode_idx, get_off(file), buf, nbytes);
 
     /* Increment byte offset for next read */
-    file->private += count;
+    if (count > 0) {
+        set_off(file, get_off(file) + count);
+    }
 
     /* Return how many bytes we read */
     return count;
 }
 
 /*
- * Write syscall for files/directories. Always fails.
+ * write() syscall handler for files/directories. Always fails.
  */
 static int
 fs_write(file_obj_t *file, const void *buf, int nbytes)
@@ -231,7 +240,7 @@ fs_write(file_obj_t *file, const void *buf, int nbytes)
 }
 
 /*
- * Close syscall for files/directories. Always succeeds.
+ * close() syscall handler for files/directories. Always succeeds.
  */
 static int
 fs_close(file_obj_t *file)
@@ -240,7 +249,7 @@ fs_close(file_obj_t *file)
 }
 
 /*
- * Ioctl syscall for files/directories. Always fails.
+ * ioctl() syscall handler for files/directories. Always fails.
  */
 static int
 fs_ioctl(file_obj_t *file, int req, int arg)
