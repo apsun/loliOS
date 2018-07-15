@@ -332,14 +332,15 @@ cleanup:
 int
 main(void)
 {
-    char line[128];
+    char buf[128];
     while (1) {
         fprintf(stderr, "mash> ");
 
-        if (gets(line, sizeof(line)) == NULL) {
+        if (gets(buf, sizeof(buf)) == NULL) {
             return 0;
         }
 
+        char *line = strtrim(buf);
         if (line[0] == '\0') {
             continue;
         } else if (strcmp(line, "exit") == 0) {
