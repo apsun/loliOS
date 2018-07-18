@@ -96,6 +96,7 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
 
     /* If the reader is gone, writes should fail */
     if (pipe->half_closed) {
+        debugf("Writing to half-duplex pipe\n");
         return -1;
     }
 

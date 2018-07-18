@@ -341,6 +341,13 @@ void
 test_atexit(void)
 {
     puts("All tests passed!");
+    halt(0);
+}
+
+void
+test_atexit_2(void)
+{
+    assert(false);
 }
 
 int
@@ -372,6 +379,7 @@ main(void)
     test_memmove();
     test_snprintf();
     test_longjmp();
+    atexit(test_atexit_2);
     atexit(test_atexit);
-    return 0;
+    return 1;
 }
