@@ -16,8 +16,9 @@
 #include "file.h"
 #include "taux.h"
 #include "sb16.h"
-#include "ne2k.h"
 #include "loopback.h"
+#include "ne2k.h"
+#include "null.h"
 
 /* Check if the bit BIT in FLAGS is set. */
 #define CHECK_FLAG(flags, bit) ((flags) & (1 << (bit)))
@@ -202,6 +203,9 @@ entry(unsigned long magic, unsigned long addr)
 
     printf("Initializing NE2000 driver...\n");
     ne2k_init();
+
+    printf("Initializing null file driver...\n");
+    null_init();
 
     /* We made it! */
     printf("Boot successful!\n");

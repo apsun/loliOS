@@ -176,7 +176,7 @@ rtc_set_frequency(int freq)
 }
 
 /*
- * Open syscall for RTC. Frequency is set to 2Hz by default.
+ * open() syscall handler for RTC. Frequency is set to 2Hz by default.
  */
 static int
 rtc_open(file_obj_t *file)
@@ -190,7 +190,7 @@ rtc_open(file_obj_t *file)
 }
 
 /*
- * Read syscall for RTC. Waits for the next (virtual)
+ * read() syscall handler for RTC. Waits for the next (virtual)
  * periodic interrupt to occur, then returns success.
  * If a signal is delivered during the read, the read
  * will be prematurely aborted and -1 will be returned.
@@ -229,7 +229,7 @@ rtc_read(file_obj_t *file, void *buf, int nbytes)
 }
 
 /*
- * Write syscall for RTC. Sets the virtual periodic interrupt
+ * write() syscall handler for RTC. Sets the virtual periodic interrupt
  * frequency for this RTC file. Changes will only be visible when
  * calling read() on this file.
  *
@@ -263,7 +263,7 @@ rtc_write(file_obj_t *file, const void *buf, int nbytes)
 }
 
 /*
- * Close syscall for RTC. Does nothing.
+ * close() syscall handler for RTC. Does nothing.
  */
 static int
 rtc_close(file_obj_t *file)
@@ -272,7 +272,7 @@ rtc_close(file_obj_t *file)
 }
 
 /*
- * Ioctl syscall for RTC. Always fails.
+ * ioctl() syscall handler for RTC. Always fails.
  */
 static int
 rtc_ioctl(file_obj_t *file, int req, int arg)

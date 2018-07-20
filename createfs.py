@@ -14,6 +14,7 @@ DEVICE_FILES = {
     'taux': 4,
     'sound': 5,
     'tty': 6,
+    'null': 7,
 }
 
 

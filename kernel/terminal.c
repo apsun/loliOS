@@ -548,7 +548,7 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
 }
 
 /*
- * Write syscall for the mouse. Always fails.
+ * write() syscall handler for the mouse. Always fails.
  */
 int
 terminal_mouse_write(file_obj_t *file, const void *buf, int nbytes)
@@ -557,7 +557,7 @@ terminal_mouse_write(file_obj_t *file, const void *buf, int nbytes)
 }
 
 /*
- * Close syscall for the mouse. Always succeeds.
+ * close() syscall handler for the mouse. Always succeeds.
  */
 int
 terminal_mouse_close(file_obj_t *file)
@@ -566,7 +566,7 @@ terminal_mouse_close(file_obj_t *file)
 }
 
 /*
- * Ioctl syscall for the mouse. Always fails.
+ * ioctl() syscall handler for the mouse. Always fails.
  */
 int
 terminal_mouse_ioctl(file_obj_t *file, int req, int arg)
