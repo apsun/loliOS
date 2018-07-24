@@ -3,6 +3,7 @@
 
 #ifndef ASM
 
+/* Initializes the PIT */
 void pit_init(void);
 
 #endif /* ASM */

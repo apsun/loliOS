@@ -144,7 +144,6 @@ ip_handle_rx(net_iface_t *iface, skb_t *skb)
 int
 ip_send(net_iface_t *iface, ip_addr_t neigh_ip, skb_t *skb, ip_addr_t dest_ip, int protocol)
 {
-    /* Push IP header if it doesn't already exist */
     assert(skb_network_header(skb) == NULL);
     ip_hdr_t *hdr = skb_push(skb, sizeof(ip_hdr_t));
 

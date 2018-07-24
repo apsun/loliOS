@@ -203,9 +203,8 @@ tcp_body_len(skb_t *skb)
 
     /*
      * We need to handle both outgoing and incoming packets.
-     * Since some packets may be lost and retransmitted, they
-     * may or may not have the IP/Ethernet headers prepended
-     * to them.
+     * Incoming packets have an IP header and maybe an Ethernet
+     * header; outgoing packets only have a TCP header.
      */
     ip_hdr_t *iphdr = skb_network_header(skb);
     if (iphdr == NULL) {

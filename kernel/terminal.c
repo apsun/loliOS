@@ -28,7 +28,7 @@ static terminal_state_t terminal_states[NUM_TERMINALS];
 static int display_terminal = 0;
 
 /*
- * Returns the specified terminal.
+ * Returns a terminal given its index number.
  */
 static terminal_state_t *
 get_terminal(int index)
@@ -62,8 +62,6 @@ get_display_terminal(void)
 
 /*
  * Sets the contents of a VGA register.
- * index - the register index
- * value - the new contents of the register
  */
 static void
 vga_set_register(uint8_t index, uint8_t value)

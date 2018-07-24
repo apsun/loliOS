@@ -133,8 +133,8 @@ handle_user_exception(int_regs_t *regs)
 static void
 handle_exception(int_regs_t *regs)
 {
-    /* If we were in userspace, run signal handler or kill the process */
 #if !USER_BSOD
+    /* If we were in userspace, run signal handler or kill the process */
     if (regs->cs == USER_CS) {
         handle_user_exception(regs);
         return;

@@ -11,19 +11,17 @@
  * Socket kernel buffer structure, kind of like the one in Linux.
  * This version doesn't support dynamic reallocation/linearization;
  * you must know the maximum size at allocation time.
+ *
+ * Since this type is mutable, the following conventions are established
+ * for its use: when delivering an incoming packet up the stack, each
+ * callee takes ownership of the data. When transmitting an outgoing
+ * packet down the stack, each callee takes an immutable (from the
+ * perspective of the caller) reference of the data. In other words, when
+ * transmitting a packet, if the SKB is modified, it must either be
+ * returned to its original state before returning, or cloned by the callee.
  */
 typedef struct {
-    /*
-     * This field is a bit weird, and is a compromise between good code
-     * design and having a ton of boilerplate. Generally, if you want
-     * to use this field, you should clone the SKB first so you do not
-     * break another layer's list. The exception to this is when receiving
-     * packets, since those are delivered in a strictly bottom-up fashion,
-     * so once it leaves that layer it will never return, and hence no
-     * cloning is necessary.
-     */
     list_t list;
-
     int head;
     int data;
     int tail;

@@ -59,14 +59,20 @@ pit_set_frequency(int freq)
     outb((divisor >> 8) & 0xff, PIT_PORT_DATA_0);
 }
 
-/* PIT IRQ handler callback */
+/*
+ * PIT IRQ handler. Yields the current process's timeslice
+ * and performs a context switch.
+ */
 static void
 pit_handle_irq(void)
 {
     scheduler_yield();
 }
 
-/* Initializes the PIT and enables interrupts */
+/*
+ * Initializes the PIT. Sets the frequency and registers
+ * the IRQ handler.
+ */
 void
 pit_init(void)
 {
