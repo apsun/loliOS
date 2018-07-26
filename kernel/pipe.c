@@ -1,9 +1,11 @@
 #include "pipe.h"
 #include "lib.h"
 #include "debug.h"
+#include "list.h"
 #include "myalloc.h"
 #include "paging.h"
 #include "file.h"
+#include "scheduler.h"
 
 /*
  * How much storage to allocate for the kernel buffer.
@@ -18,6 +20,8 @@ typedef struct {
     int tail;
     uint8_t buf[PIPE_SIZE];
     bool half_closed : 1;
+    list_t read_queue;
+    list_t write_queue;
 } pipe_state_t;
 
 /*
@@ -29,25 +33,37 @@ pipe_read(file_obj_t *file, void *buf, int nbytes)
 {
     pipe_state_t *pipe = file->private;
 
-    /* If the head comes before the tail, it must wrap around */
-    int head = pipe->head;
-    if (head < pipe->tail) {
-        head += PIPE_SIZE;
-    }
+    int to_read;
+    while (1) {
+        /* If the head comes before the tail, it must wrap around */
+        int head = pipe->head;
+        if (head < pipe->tail) {
+            head += PIPE_SIZE;
+        }
 
-    /* Compute number of bytes left in the buffer */
-    int to_read = nbytes;
-    if (to_read > head - pipe->tail) {
-        to_read = head - pipe->tail;
-    }
+        /* Compute number of bytes left in the buffer */
+        to_read = nbytes;
+        if (to_read > head - pipe->tail) {
+            to_read = head - pipe->tail;
+        }
 
-    /* No bytes to read. If write end is closed, treat as EOF. */
-    if (to_read == 0) {
+        /* Have something to read immediately? */
+        if (to_read > 0) {
+            break;
+        }
+
+        /* If write end is closed, treat as EOF */
         if (pipe->half_closed) {
             return 0;
-        } else {
+        }
+
+        /* Don't retry if file in nonblocking mode */
+        if (file->nonblocking) {
             return -EAGAIN;
         }
+
+        /* Wait for some more data */
+        scheduler_sleep(&pipe->read_queue);
     }
 
     /*
@@ -77,6 +93,9 @@ pipe_read(file_obj_t *file, void *buf, int nbytes)
         pipe->tail = (pipe->tail + this_read) % PIPE_SIZE;
     } while (to_read > 0);
 
+    /* Buffer should have some space now, wake writers */
+    scheduler_wake_all(&pipe->write_queue);
+
     /* Return number of bytes read (unless no copies succeeded) */
     if (total_read == 0) {
         return -1;
@@ -94,27 +113,38 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
 {
     pipe_state_t *pipe = file->private;
 
-    /* If the reader is gone, writes should fail */
-    if (pipe->half_closed) {
-        debugf("Writing to half-duplex pipe\n");
-        return -1;
-    }
+    int to_write;
+    while (1) {
+        /* If the reader is gone, writes should fail */
+        if (pipe->half_closed) {
+            debugf("Writing to half-duplex pipe\n");
+            return -1;
+        }
 
-    /* If the head comes before the tail, it must wrap around */
-    int tail = pipe->tail;
-    if (tail <= pipe->head) {
-        tail += PIPE_SIZE;
-    }
+        /* If the head comes before the tail, it must wrap around */
+        int tail = pipe->tail;
+        if (tail <= pipe->head) {
+            tail += PIPE_SIZE;
+        }
 
-    /* Compute number of free bytes left in the buffer */
-    int to_write = nbytes;
-    if (to_write > tail - 1 - pipe->head) {
-        to_write = tail - 1 - pipe->head;
-    }
+        /* Compute number of free bytes left in the buffer */
+        to_write = nbytes;
+        if (to_write > tail - 1 - pipe->head) {
+            to_write = tail - 1 - pipe->head;
+        }
 
-    /* If no more room in the buffer, fail fast */
-    if (to_write == 0) {
-        return -EAGAIN;
+        /* Have some space to write? */
+        if (to_write > 0) {
+            break;
+        }
+
+        /* Don't retry if file in nonblocking mode */
+        if (file->nonblocking) {
+            return -EAGAIN;
+        }
+
+        /* Wait for reader to drain some data */
+        scheduler_sleep(&pipe->write_queue);
     }
 
     int total_write = 0;
@@ -137,6 +167,9 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
         to_write -= this_write;
         pipe->head = (pipe->head + this_write) % PIPE_SIZE;
     } while (to_write > 0);
+
+    /* Now that we have some data in the pipe, wake up readers */
+    scheduler_wake_all(&pipe->read_queue);
 
     if (total_write == 0) {
         return -1;
@@ -166,6 +199,8 @@ pipe_close(file_obj_t *file)
         free(pipe);
     } else {
         pipe->half_closed = true;
+        scheduler_wake_all(&pipe->read_queue);
+        scheduler_wake_all(&pipe->write_queue);
     }
     return 0;
 }
@@ -224,6 +259,8 @@ pipe_pipe(int *readfd, int *writefd)
     pipe->head = 0;
     pipe->tail = 0;
     pipe->half_closed = false;
+    list_init(&pipe->read_queue);
+    list_init(&pipe->write_queue);
     read_file->private = pipe;
     write_file->private = pipe;
 
