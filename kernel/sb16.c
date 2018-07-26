@@ -1,10 +1,13 @@
 #include "sb16.h"
 #include "lib.h"
 #include "debug.h"
+#include "list.h"
 #include "file.h"
 #include "paging.h"
 #include "irq.h"
 #include "dma.h"
+#include "scheduler.h"
+#include "signal.h"
 
 /* DMA channels */
 #define SB16_DMA8_CHANNEL 1
@@ -45,6 +48,9 @@ static int bits_per_sample = 8;
 
 /* Whether there is currently audio being played */
 static bool is_playing = false;
+
+/* Sleep queue for audio playback */
+static list_declare(sleep_queue);
 
 /* Writes a single byte to the SB16 DSP */
 static void
@@ -167,26 +173,54 @@ sb16_read(file_obj_t *file, void *buf, int nbytes)
 int
 sb16_write(file_obj_t *file, const void *buf, int nbytes)
 {
-    /* Limit writable bytes to one region */
-    if (nbytes > SB16_HALF_BUFFER_SIZE - audio_buf_count) {
-        nbytes = SB16_HALF_BUFFER_SIZE - audio_buf_count;
+    if (nbytes < 0) {
+        return -1;
+    } else if (nbytes == 0) {
+        return 0;
     }
 
-    /* If we're using the 16-bit DMA channel, nbytes must be even */
-    if (bits_per_sample != 8) {
-        nbytes &= ~1;
-    }
+    pcb_t *pcb = get_executing_pcb();
+    int to_write;
+    while (1) {
+        to_write = nbytes;
 
-    /* If can't write anything, notify caller that buffer is full */
-    if (nbytes == 0) {
-        return -EAGAIN;
+        /* Limit writable bytes to one region */
+        if (to_write > SB16_HALF_BUFFER_SIZE - audio_buf_count) {
+            to_write = SB16_HALF_BUFFER_SIZE - audio_buf_count;
+        }
+
+        /* If we're using the 16-bit DMA channel, nbytes must be even */
+        if (bits_per_sample != 8) {
+            to_write &= ~1;
+        }
+
+        /* Do we have anything to write? */
+        if (to_write > 0) {
+            break;
+        }
+
+        /* If we can't write anything, the device must be busy */
+        assert(is_playing);
+
+        /* Check if file is in nonblocking mode */
+        if (file->nonblocking) {
+            return -EAGAIN;
+        }
+
+        /* Check for pending signals */
+        if (signal_has_pending(pcb->signals)) {
+            return -EINTR;
+        }
+
+        /* Wait for previous playback to complete */
+        scheduler_sleep(&sleep_queue);
     }
 
     /* Copy sample data into the audio buffer */
-    if (!copy_from_user(&audio_buf[audio_buf_count], buf, nbytes)) {
+    if (!copy_from_user(&audio_buf[audio_buf_count], buf, to_write)) {
         return -1;
     }
-    audio_buf_count += nbytes;
+    audio_buf_count += to_write;
 
     /* Start playback immediately if not already playing */
     if (!is_playing) {
@@ -194,7 +228,7 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
         sb16_swap_buffers();
     }
 
-    return nbytes;
+    return to_write;
 }
 
 /* Releases exclusive access to the Sound Blaster 16 device */
@@ -295,6 +329,7 @@ sb16_handle_irq(void)
     if (audio_buf_count > 0) {
         sb16_start_playback();
         sb16_swap_buffers();
+        scheduler_wake_all(&sleep_queue);
     } else {
         is_playing = false;
     }

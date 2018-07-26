@@ -6,6 +6,7 @@
 #include "paging.h"
 #include "file.h"
 #include "scheduler.h"
+#include "signal.h"
 
 /*
  * How much storage to allocate for the kernel buffer.
@@ -31,6 +32,12 @@ typedef struct {
 static int
 pipe_read(file_obj_t *file, void *buf, int nbytes)
 {
+    if (nbytes < 0) {
+        return -1;
+    } else if (nbytes == 0) {
+        return 0;
+    }
+
     pcb_t *pcb = get_executing_pcb();
     pipe_state_t *pipe = file->private;
 
@@ -117,6 +124,12 @@ pipe_read(file_obj_t *file, void *buf, int nbytes)
 static int
 pipe_write(file_obj_t *file, const void *buf, int nbytes)
 {
+    if (nbytes < 0) {
+        return -1;
+    } else if (nbytes == 0) {
+        return 0;
+    }
+
     pcb_t *pcb = get_executing_pcb();
     pipe_state_t *pipe = file->private;
 

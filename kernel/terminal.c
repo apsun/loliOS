@@ -6,6 +6,7 @@
 #include "paging.h"
 #include "signal.h"
 #include "scheduler.h"
+#include "signal.h"
 
 /* Terminal config */
 #define NUM_COLS 80
@@ -401,6 +402,8 @@ terminal_tty_read(file_obj_t *file, void *buf, int nbytes)
 {
     if (nbytes < 0) {
         return -1;
+    } else if (nbytes == 0) {
+        return 0;
     }
 
     /*
@@ -507,6 +510,8 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
 {
     if (nbytes < 0) {
         return -1;
+    } else if (nbytes == 0) {
+        return 0;
     }
 
     /* Check that caller is in the foreground group */
