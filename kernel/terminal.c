@@ -298,7 +298,6 @@ terminal_clear(void)
     terminal_clear_impl(term);
     term->kbd_input.count = 0;
     term->mouse_input.count = 0;
-    scheduler_wake_all(&term->sleep_queue);
 }
 
 /* Clears the specified terminal's input buffers */
@@ -308,7 +307,6 @@ terminal_clear_input(int terminal)
     terminal_state_t *term = get_terminal(terminal);
     term->kbd_input.count = 0;
     term->mouse_input.count = 0;
-    scheduler_wake_all(&term->sleep_queue);
 }
 
 /*
@@ -332,6 +330,8 @@ static int
 terminal_wait_kbd_input(terminal_state_t *term, int nbytes, bool nonblocking)
 {
     pcb_t *pcb = get_executing_pcb();
+    kbd_input_buf_t *input_buf = &term->kbd_input;
+
     while (1) {
         /*
          * If the process is not in the foreground group, don't
@@ -348,10 +348,10 @@ terminal_wait_kbd_input(terminal_state_t *term, int nbytes, bool nonblocking)
          * read up to and including that character (or as many chars
          * as fits in the buffer)
          */
-        int count = term->kbd_input.count;
+        int count = input_buf->count;
         int i;
         for (i = 0; i < count; ++i) {
-            if (term->kbd_input.buf[i] == '\n') {
+            if (input_buf->buf[i] == '\n') {
                 if (nbytes > i + 1) {
                     nbytes = i + 1;
                 }
@@ -373,7 +373,7 @@ terminal_wait_kbd_input(terminal_state_t *term, int nbytes, bool nonblocking)
         }
 
         /* Wait for some more input */
-        scheduler_sleep(&term->sleep_queue);
+        scheduler_sleep(&input_buf->sleep_queue);
     }
 
     return nbytes;
@@ -509,13 +509,41 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
         return -1;
     }
 
-    /* Get the mouse buffer for the executing terminal */
+    /* Check that caller is in the foreground group */
     terminal_state_t *term = get_executing_terminal();
-    mouse_input_buf_t *input_buf = &term->mouse_input;
+    pcb_t *pcb = get_executing_pcb();
+    if (term->fg_group != pcb->group) {
+        debugf("Attempting to read mouse from background group (fg=%d, curr=%d)\n",
+            term->fg_group, pcb->group);
+        return -1;
+    }
 
     /* Check if there's any input to read */
-    if (input_buf->count == 0) {
-        return -EAGAIN;
+    mouse_input_buf_t *input_buf = &term->mouse_input;
+    while (input_buf->count == 0) {
+        /* Exit early if file is in nonblocking mode */
+        if (file->nonblocking) {
+            return -EAGAIN;
+        }
+
+        /* Exit early if we have a pending signal */
+        if (signal_has_pending(pcb->signals)) {
+            return -EINTR;
+        }
+
+        scheduler_sleep(&input_buf->sleep_queue);
+    }
+
+    /*
+     * If previous read was partial, next read shall return only
+     * the remainder of the partially read input. This is to allow
+     * callers to "align" their read offsets. In other words, if
+     * read() ever returns 1 or 2, either the buffer is too small
+     * or the previous read was partial.
+     */
+    int max_read = input_buf->count;
+    if (max_read % 3 != 0) {
+        max_read = max_read % 3;
     }
 
     /*
@@ -525,8 +553,8 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
      * input, in which case we return a partial input instead
      * of failing or blocking forever.
      */
-    if (nbytes > input_buf->count) {
-        nbytes = input_buf->count;
+    if (nbytes > max_read) {
+        nbytes = max_read;
     }
 
     /* Copy input buffer to userspace */
@@ -628,7 +656,7 @@ handle_char_input(char c)
     }
 
     /* Wake all processes waiting on input to this terminal */
-    scheduler_wake_all(&term->sleep_queue);
+    scheduler_wake_all(&input_buf->sleep_queue);
 }
 
 /* Handles input from the keyboard */
@@ -665,6 +693,7 @@ terminal_handle_mouse_input(mouse_input_t input)
         input_buf->buf[input_buf->count++] = input.flags;
         input_buf->buf[input_buf->count++] = input.dx;
         input_buf->buf[input_buf->count++] = input.dy;
+        scheduler_wake_all(&input_buf->sleep_queue);
     }
 }
 
@@ -744,7 +773,7 @@ terminal_tcsetpgrp_impl(int terminal, int pgrp)
 {
     terminal_state_t *term = get_terminal(terminal);
     term->fg_group = pgrp;
-    scheduler_wake_all(&term->sleep_queue);
+    scheduler_wake_all(&term->kbd_input.sleep_queue);
 }
 
 /*
@@ -776,7 +805,7 @@ terminal_tcsetpgrp(int pgrp)
 
     terminal_state_t *term = get_executing_terminal();
     term->fg_group = pgrp;
-    scheduler_wake_all(&term->sleep_queue);
+    scheduler_wake_all(&term->kbd_input.sleep_queue);
     return 0;
 }
 
@@ -797,14 +826,19 @@ terminal_init(void)
         /* Active memory points to the backing memory */
         term->video_mem = term->backing_mem;
 
-        /* Default attribute byte */
+        /* Set terminal text and background color */
         term->attrib = ATTRIB;
 
         /* Initialize the terminal memory region */
         vga_clear_region(term->backing_mem, VIDEO_MEM_SIZE / 2, term->attrib);
 
-        /* Initialize the stdin sleep queue */
-        list_init(&term->sleep_queue);
+        /* Initialize other fields */
+        term->vidmap = false;
+        term->fg_group = -1;
+        term->kbd_input.count = 0;
+        term->mouse_input.count = 0;
+        list_init(&term->kbd_input.sleep_queue);
+        list_init(&term->mouse_input.sleep_queue);
     }
 
     /* First terminal's active video memory points to global VGA memory */

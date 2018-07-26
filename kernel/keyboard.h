@@ -3,9 +3,6 @@
 
 #include "types.h"
 
-/* Size of the keyboard buffer */
-#define KEYBOARD_BUF_SIZE 128
-
 #ifndef ASM
 
 /* Modifier key enum */
@@ -48,15 +45,6 @@ typedef struct {
         kbd_input_ctrl_t control;
     };
 } kbd_input_t;
-
-/* Character input buffer */
-typedef struct {
-    /* Buffer to hold the characters */
-    char buf[KEYBOARD_BUF_SIZE];
-
-    /* Number of characters in the buffer */
-    int count;
-} kbd_input_buf_t;
 
 /* Handles keyboard interrupts */
 void keyboard_handle_irq(void);

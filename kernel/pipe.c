@@ -31,6 +31,7 @@ typedef struct {
 static int
 pipe_read(file_obj_t *file, void *buf, int nbytes)
 {
+    pcb_t *pcb = get_executing_pcb();
     pipe_state_t *pipe = file->private;
 
     int to_read;
@@ -60,6 +61,11 @@ pipe_read(file_obj_t *file, void *buf, int nbytes)
         /* Don't retry if file in nonblocking mode */
         if (file->nonblocking) {
             return -EAGAIN;
+        }
+
+        /* Exit early if we have a pending signal */
+        if (signal_has_pending(pcb->signals)) {
+            return -EINTR;
         }
 
         /* Wait for some more data */
@@ -111,6 +117,7 @@ pipe_read(file_obj_t *file, void *buf, int nbytes)
 static int
 pipe_write(file_obj_t *file, const void *buf, int nbytes)
 {
+    pcb_t *pcb = get_executing_pcb();
     pipe_state_t *pipe = file->private;
 
     int to_write;
@@ -141,6 +148,11 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
         /* Don't retry if file in nonblocking mode */
         if (file->nonblocking) {
             return -EAGAIN;
+        }
+
+        /* Exit early if we have a pending signal */
+        if (signal_has_pending(pcb->signals)) {
+            return -EINTR;
         }
 
         /* Wait for reader to drain some data */

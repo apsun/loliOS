@@ -41,18 +41,6 @@ typedef struct {
     uint8_t dy;
 } mouse_input_t;
 
-/* Maximum number of *bytes* in the mouse buffer */
-#define MOUSE_BUF_SIZE (64 * sizeof(mouse_input_t))
-
-/* Mouse file data */
-typedef struct {
-    /* Mouse input buffer */
-    uint8_t buf[MOUSE_BUF_SIZE];
-
-    /* Number of *bytes* in the buffer */
-    int count;
-} mouse_input_buf_t;
-
 /* Handles mouse interrupts */
 void mouse_handle_irq(void);
 

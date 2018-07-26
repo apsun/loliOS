@@ -135,7 +135,7 @@ read_mouse_inputs(int fd, mouse_input_t out[MOUSE_BUF_SIZE])
     raw_mouse_input_t raw[MOUSE_BUF_SIZE];
     int ret = read(fd, raw, sizeof(raw));
     if (ret < 0) {
-        return 0;
+        return ret;
     }
 
     return parse_mouse_inputs(ret / sizeof(raw_mouse_input_t), raw, out);
@@ -298,7 +298,7 @@ main(void)
 
         /* Read some more mouse inputs */
         int num_inputs = read_mouse_inputs(mouse_fd, inputs);
-        if (num_inputs == 0) {
+        if (num_inputs == -EAGAIN || num_inputs == 0) {
             continue;
         }
 
