@@ -82,7 +82,7 @@ static pte_t page_table[1024];
  * in our page allocator. Just use a single flat bitmap with
  * one bit representing one 4MB page in the system.
  */
-static bitmap_declare(allocated_pages, int, MAX_PAGES);
+static bitmap_declare(allocated_pages, MAX_PAGES);
 
 /*
  * Helpful macros to access page table stuff. Conventions:
@@ -249,8 +249,7 @@ int
 paging_page_alloc(void)
 {
     /* Find a free page... */
-    int pfn;
-    bitmap_find_zero(allocated_pages, pfn);
+    int pfn = bitmap_find_zero(allocated_pages, MAX_PAGES);
     if (pfn >= MAX_PAGES) {
         return -1;
     }

@@ -117,6 +117,22 @@ inl(uint16_t port)
 }
 
 /*
+ * Finds the index of the first set bit in value.
+ * Behavior is undefined if value is all zero bits.
+ */
+static inline int
+bsfl(uint32_t value)
+{
+    int32_t i;
+    asm volatile(
+        "bsfl %1, %0;"
+        : "=g"(i)
+        : "g"(value)
+        : "cc");
+    return i;
+}
+
+/*
  * Swaps the endianness of a 16-bit value.
  */
 static inline uint16_t

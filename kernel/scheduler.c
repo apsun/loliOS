@@ -176,7 +176,8 @@ scheduler_remove(pcb_t *pcb)
  * the scheduler_wake functions. The process must be in the
  * RUNNING state.
  */
-void scheduler_sleep(list_t *queue)
+void
+scheduler_sleep(list_t *queue)
 {
     pcb_t *pcb = get_executing_pcb();
     assert(pcb->state == PROCESS_STATE_RUNNING);
@@ -191,7 +192,8 @@ void scheduler_sleep(list_t *queue)
  * currently in and adds it to the scheduler queue again. If the
  * process is not sleeping, this is a no-op.
  */
-void scheduler_wake(pcb_t *pcb)
+void
+scheduler_wake(pcb_t *pcb)
 {
     if (pcb->state == PROCESS_STATE_SLEEPING) {
         list_del(&pcb->scheduler_list);
@@ -203,7 +205,8 @@ void scheduler_wake(pcb_t *pcb)
 /*
  * Wakes all processes in the specified sleep queue.
  */
-void scheduler_wake_all(list_t *queue)
+void
+scheduler_wake_all(list_t *queue)
 {
     list_t *pos, *next;
     list_for_each_safe(pos, next, queue) {
@@ -215,7 +218,8 @@ void scheduler_wake_all(list_t *queue)
 /*
  * Initializes the scheduler.
  */
-void scheduler_init(void)
+void
+scheduler_init(void)
 {
     list_init(&scheduler_queues[0]);
     list_init(&scheduler_queues[1]);

@@ -35,25 +35,23 @@ typedef struct x86_desc {
 } x86_desc_t;
 
 /* This is a segment descriptor.  It goes in the GDT. */
-typedef struct seg_desc {
-    union {
-        uint32_t val[2];
-        struct {
-            uint16_t seg_lim_15_00;
-            uint16_t base_15_00;
-            uint8_t base_23_16;
-            uint16_t type          : 4;
-            uint16_t sys           : 1;
-            uint16_t dpl           : 2;
-            uint16_t present       : 1;
-            uint16_t seg_lim_19_16 : 4;
-            uint16_t avail         : 1;
-            uint16_t reserved      : 1;
-            uint16_t opsize        : 1;
-            uint16_t granularity   : 1;
-            uint8_t base_31_24;
-        } __packed;
-    };
+typedef union seg_desc {
+    uint32_t val[2];
+    struct {
+        uint16_t seg_lim_15_00;
+        uint16_t base_15_00;
+        uint8_t base_23_16;
+        uint16_t type          : 4;
+        uint16_t sys           : 1;
+        uint16_t dpl           : 2;
+        uint16_t present       : 1;
+        uint16_t seg_lim_19_16 : 4;
+        uint16_t avail         : 1;
+        uint16_t reserved      : 1;
+        uint16_t opsize        : 1;
+        uint16_t granularity   : 1;
+        uint8_t base_31_24;
+    } __packed;
 } seg_desc_t;
 
 /* TSS structure */
@@ -127,23 +125,21 @@ extern seg_desc_t tss_desc_ptr;
 extern tss_t tss;
 
 /* Sets runtime-settable parameters in the GDT entry for the LDT */
-#define SET_LDT_PARAMS(str, addr, lim) \
-do { \
+#define SET_LDT_PARAMS(str, addr, lim) do {                 \
     str.base_31_24 = ((uint32_t)(addr) & 0xFF000000) >> 24; \
     str.base_23_16 = ((uint32_t)(addr) & 0x00FF0000) >> 16; \
-    str.base_15_00 = (uint32_t)(addr) & 0x0000FFFF; \
-    str.seg_lim_19_16 = ((lim) & 0x000F0000) >> 16; \
-    str.seg_lim_15_00 = (lim) & 0x0000FFFF; \
+    str.base_15_00 = (uint32_t)(addr) & 0x0000FFFF;         \
+    str.seg_lim_19_16 = ((lim) & 0x000F0000) >> 16;         \
+    str.seg_lim_15_00 = (lim) & 0x0000FFFF;                 \
 } while(0)
 
 /* Sets runtime parameters for the TSS */
-#define SET_TSS_PARAMS(str, addr, lim) \
-do { \
+#define SET_TSS_PARAMS(str, addr, lim) do {                 \
     str.base_31_24 = ((uint32_t)(addr) & 0xFF000000) >> 24; \
     str.base_23_16 = ((uint32_t)(addr) & 0x00FF0000) >> 16; \
-    str.base_15_00 = (uint32_t)(addr) & 0x0000FFFF; \
-    str.seg_lim_19_16 = ((lim) & 0x000F0000) >> 16; \
-    str.seg_lim_15_00 = (lim) & 0x0000FFFF; \
+    str.base_15_00 = (uint32_t)(addr) & 0x0000FFFF;         \
+    str.seg_lim_19_16 = ((lim) & 0x000F0000) >> 16;         \
+    str.seg_lim_15_00 = (lim) & 0x0000FFFF;                 \
 } while(0)
 
 /* An interrupt descriptor entry (goes into the IDT) */
@@ -163,12 +159,12 @@ typedef union idt_desc_t {
 
 /* The IDT itself (declared in x86_desc.S */
 extern idt_desc_t idt[NUM_VEC];
+
 /* The descriptor used to load the IDTR */
 extern x86_desc_t idt_desc_ptr;
 
 /* Sets runtime parameters for an IDT entry */
-#define SET_IDT_ENTRY(str, handler)                              \
-do {                                                             \
+#define SET_IDT_ENTRY(str, handler) do {                         \
     str.offset_31_16 = ((uint32_t)(handler) & 0xFFFF0000) >> 16; \
     str.offset_15_00 = ((uint32_t)(handler) & 0xFFFF);           \
 } while(0)
@@ -177,12 +173,11 @@ do {                                                             \
  * which points to the TSS entry.  x86 then reads the GDT's TSS
  * descriptor and loads the base address specified in that descriptor
  * into the task register */
-#define ltr(desc)                       \
-do {                                    \
+#define ltr(desc) do {                  \
     asm volatile("ltr %w0"              \
-            :                           \
-            : "r" (desc)                \
-            : "memory", "cc" );         \
+        :                               \
+        : "r"(desc)                     \
+        : "memory");                    \
 } while(0)
 
 /* Load the interrupt descriptor table (IDT).  This macro takes a 32-bit
@@ -190,24 +185,22 @@ do {                                    \
  * (defined as "struct x86_desc" above) contains a 2-byte size field
  * specifying the size of the IDT, and a 4-byte address field specifying
  * the base address of the IDT. */
-#define lidt(desc)                      \
-do {                                    \
+#define lidt(desc) do {                 \
     asm volatile("lidt %0"              \
-            :                           \
-            : "m" (desc)                \
-            : "memory");                \
+        :                               \
+        : "m"(desc)                     \
+        : "memory");                    \
 } while(0)
 
 /* Load the local descriptor table (LDT) register.  This macro takes a
  * 16-bit index into the GDT, which points to the LDT entry.  x86 then
  * reads the GDT's LDT descriptor and loads the base address specified
  * in that descriptor into the LDT register */
-#define lldt(desc)                      \
-do {                                    \
+#define lldt(desc) do {                 \
     asm volatile("lldt %%ax"            \
-            :                           \
-            : "a" (desc)                \
-            : "memory" );               \
+        :                               \
+        : "a"(desc)                     \
+        : "memory");                    \
 } while(0)
 
 #endif /* ASM */

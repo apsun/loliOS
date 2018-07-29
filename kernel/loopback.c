@@ -5,7 +5,7 @@
 #include "ip.h"
 
 /* Packets that are waiting to be sent */
-static list_declare(queue);
+static list_declare(loopback_queue);
 
 /* Forward declaration */
 static int loopback_send(net_iface_t *iface, skb_t *skb, ip_addr_t ip);
@@ -29,7 +29,7 @@ static int
 loopback_send(net_iface_t *iface, skb_t *skb, ip_addr_t ip)
 {
     skb_t *clone = skb_clone(skb);
-    list_add_tail(&clone->list, &queue);
+    list_add_tail(&clone->list, &loopback_queue);
     return 0;
 }
 
@@ -40,8 +40,8 @@ loopback_send(net_iface_t *iface, skb_t *skb, ip_addr_t ip)
 void
 loopback_deliver(void)
 {
-    while (!list_empty(&queue)) {
-        skb_t *pending = list_first_entry(&queue, skb_t, list);
+    while (!list_empty(&loopback_queue)) {
+        skb_t *pending = list_first_entry(&loopback_queue, skb_t, list);
         list_del(&pending->list);
         ip_handle_rx(&lo, pending);
         skb_release(pending);
