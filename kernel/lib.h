@@ -126,7 +126,7 @@ bsfl(uint32_t value)
     int32_t i;
     asm volatile(
         "bsfl %1, %0;"
-        : "=g"(i)
+        : "=r"(i)
         : "g"(value)
         : "cc");
     return i;
