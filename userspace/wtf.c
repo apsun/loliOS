@@ -42,10 +42,9 @@ kernel_clear(uint8_t attrib)
 }
 
 static void
-kernel_draw(const char *art)
+kernel_draw(const char *s)
 {
     char *screen = (char *)0xB8000;
-    const char *s = art;
     int x = 0;
     int y = 0;
     for (; *s; ++s) {

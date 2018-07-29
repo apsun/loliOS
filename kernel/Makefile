@@ -1,7 +1,8 @@
 # Flags to use when compiling, preprocessing, assembling, and linking
-CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter -fno-builtin \
-	-fno-stack-protector -fno-omit-frame-pointer -ffreestanding \
-	-O0 -m32 -mno-sse
+CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter \
+	-Wshadow -Wpointer-arith \
+	-fno-builtin -fno-stack-protector -fno-omit-frame-pointer \
+	-ffreestanding -O0 -m32 -mno-sse
 ASFLAGS += -Wall -Wextra -m32
 LDFLAGS += -nostdlib -static -melf_i386
 

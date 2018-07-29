@@ -64,19 +64,19 @@ net_route(net_iface_t *iface, ip_addr_t ip, ip_addr_t *neigh_ip)
     /* Find an interface with subnet matching specified IP address */
     int i;
     for (i = 0; i < iface_count; ++i) {
-        net_iface_t *iface = iface_list[i];
-        if (net_in_subnet(iface, ip)) {
+        net_iface_t *tmp = iface_list[i];
+        if (net_in_subnet(tmp, ip)) {
             *neigh_ip = ip;
-            return iface;
+            return tmp;
         }
     }
 
     /* No matching subnets? Okay, then route it through a gateway */
     for (i = 0; i < iface_count; ++i) {
-        net_iface_t *iface = iface_list[i];
-        if (!ip_equals(iface->gateway_addr, INVALID_IP)) {
-            *neigh_ip = iface->gateway_addr;
-            return iface;
+        net_iface_t *tmp = iface_list[i];
+        if (!ip_equals(tmp->gateway_addr, INVALID_IP)) {
+            *neigh_ip = tmp->gateway_addr;
+            return tmp;
         }
     }
 

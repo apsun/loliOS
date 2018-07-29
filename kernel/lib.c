@@ -1041,7 +1041,7 @@ static int
 printf_impl(
     char *buf,
     int size,
-    bool (*write)(printf_arg_t *a, const char *s, int len),
+    bool (*wr)(printf_arg_t *a, const char *s, int len),
     const char *format,
     va_list args)
 {
@@ -1055,7 +1055,7 @@ printf_impl(
     printf_arg_t a;
     a.buf = buf;
     a.capacity = size;
-    a.write = write;
+    a.write = wr;
     a.count = 0;
     a.true_len = 0;
     a.error = false;

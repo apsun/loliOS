@@ -383,7 +383,7 @@ terminal_wait_kbd_input(terminal_state_t *term, int nbytes, bool nonblocking)
 /*
  * open() syscall handler for stdin/stdout. Always succeeds.
  */
-int
+static int
 terminal_tty_open(file_obj_t *file)
 {
     return 0;
@@ -397,7 +397,7 @@ terminal_tty_open(file_obj_t *file)
  *
  * This call will block until a newline is encountered.
  */
-int
+static int
 terminal_tty_read(file_obj_t *file, void *buf, int nbytes)
 {
     if (nbytes < 0) {
@@ -437,7 +437,7 @@ terminal_tty_read(file_obj_t *file, void *buf, int nbytes)
  * write() syscall handler for stdout. Echos the characters
  * in buf to the terminal. Returns the number of characters written.
  */
-int
+static int
 terminal_tty_write(file_obj_t *file, const void *buf, int nbytes)
 {
     /* Cannot write if not in foreground group */
@@ -473,7 +473,7 @@ terminal_tty_write(file_obj_t *file, const void *buf, int nbytes)
  * Note that in the new post-dup() API, the return value
  * is not actually used.
  */
-int
+static int
 terminal_tty_close(file_obj_t *file)
 {
     return -1;
@@ -482,7 +482,7 @@ terminal_tty_close(file_obj_t *file)
 /*
  * ioctl() syscall handler for stdin/stdout. Always fails.
  */
-int
+static int
 terminal_tty_ioctl(file_obj_t *file, int req, int arg)
 {
     return -1;
@@ -491,7 +491,7 @@ terminal_tty_ioctl(file_obj_t *file, int req, int arg)
 /*
  * open() syscall handler for the mouse. Always succeeds.
  */
-int
+static int
 terminal_mouse_open(file_obj_t *file)
 {
     return 0;
@@ -505,7 +505,7 @@ terminal_mouse_open(file_obj_t *file)
  * of sizeof(mouse_input_t) - the next read() will return
  * the remaining part of the event.
  */
-int
+static int
 terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
 {
     if (nbytes < 0) {
@@ -581,7 +581,7 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
 /*
  * write() syscall handler for the mouse. Always fails.
  */
-int
+static int
 terminal_mouse_write(file_obj_t *file, const void *buf, int nbytes)
 {
     return -1;
@@ -590,7 +590,7 @@ terminal_mouse_write(file_obj_t *file, const void *buf, int nbytes)
 /*
  * close() syscall handler for the mouse. Always succeeds.
  */
-int
+static int
 terminal_mouse_close(file_obj_t *file)
 {
     return 0;
@@ -599,7 +599,7 @@ terminal_mouse_close(file_obj_t *file)
 /*
  * ioctl() syscall handler for the mouse. Always fails.
  */
-int
+static int
 terminal_mouse_ioctl(file_obj_t *file, int req, int arg)
 {
     return -1;

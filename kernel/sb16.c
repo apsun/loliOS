@@ -145,7 +145,7 @@ sb16_swap_buffers(void)
 }
 
 /* Acquires exclusive access to the Sound Blaster 16 device */
-int
+static int
 sb16_open(file_obj_t *file)
 {
     /* Only allow one open sound file at a time, since no mixer support */
@@ -159,7 +159,7 @@ sb16_open(file_obj_t *file)
 }
 
 /* SB16 read() syscall handler, always fails */
-int
+static int
 sb16_read(file_obj_t *file, void *buf, int nbytes)
 {
     return -1;
@@ -170,7 +170,7 @@ sb16_read(file_obj_t *file, void *buf, int nbytes)
  * playing, this will begin playback. To set playback
  * parameters, use ioctl().
  */
-int
+static int
 sb16_write(file_obj_t *file, const void *buf, int nbytes)
 {
     if (nbytes < 0) {
@@ -232,7 +232,7 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
 }
 
 /* Releases exclusive access to the Sound Blaster 16 device */
-int
+static int
 sb16_close(file_obj_t *file)
 {
     assert(file == open_device);
@@ -294,7 +294,7 @@ sb16_ioctl_set_sample_rate(int arg)
  * SOUND_SET_NUM_CHANNELS: arg = 1 (mono) or 2 (stereo)
  * SOUND_SET_SAMPLE_RATE: arg = 8000, 11025, etc., 44100
  */
-int
+static int
 sb16_ioctl(file_obj_t *file, int req, int arg)
 {
     if (is_playing) {

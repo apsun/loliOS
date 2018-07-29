@@ -333,7 +333,7 @@ input(int fd, char *buf, int buf_size, int *offset, bool crlf)
     int to_read = buf_size - *offset;
 
     /*
-     * Worst cast scenario: ALL the characters are \n,
+     * Worst case scenario: ALL the characters are \n,
      * so we reserve half the buffer for the extra \r chars.
      * Note that we want truncating division here.
      */

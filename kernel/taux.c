@@ -184,7 +184,7 @@ taux_send_cmd(uint8_t cmd)
  * the SET_LED pending flag.
  */
 static void
-taux_send_cmd_set_led(uint8_t led_segments[4])
+taux_send_cmd_set_led(uint8_t segs[4])
 {
     uint8_t buf[6];
     buf[0] = MTCP_LED_SET;
@@ -193,7 +193,7 @@ taux_send_cmd_set_led(uint8_t led_segments[4])
     buf[1] = 0xf;
 
     /* Copy in the segment data */
-    memcpy(&buf[2], led_segments, 4);
+    memcpy(&buf[2], segs, 4);
 
     int i;
     for (i = 0; i < 6; ++i) {
