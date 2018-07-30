@@ -74,9 +74,8 @@ get_next_pcb(pcb_t *pcb)
         pcb = &process_info[0];
     }
 
-    int pid;
-    for (pid = pcb->pid + 1; pid < MAX_PROCESSES; ++pid) {
-        pcb_t *next = &process_info[pid];
+    pcb_t *next;
+    for (next = pcb + 1; next < &process_info[MAX_PROCESSES]; ++next) {
         if (next->pid > 0) {
             return next;
         }
