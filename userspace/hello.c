@@ -2,8 +2,6 @@
 #include <stdio.h>
 #include <syscall.h>
 
-#define BUFSIZE 1024
-
 int
 main(void)
 {

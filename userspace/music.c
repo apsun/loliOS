@@ -6,9 +6,6 @@
 #include <string.h>
 #include <syscall.h>
 
-#define SERVER_IP IP(10, 0, 2, 2)
-#define SERVER_PORT 7878
-
 #define CHUNK_SIZE 8192
 
 #define RIFF_MAGIC 0x46464952
