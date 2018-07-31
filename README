@@ -6,17 +6,26 @@
 A small + lightweight OS
 
 This is a Linux-like x86 operating system built from scratch. It was
-started as a class project for the ECE 391 course at the University of
-Illinois at Urbana-Champaign. Since then, support for the following features
-has been added (on top of the baseline assignment requirements):
+originally a project for the ECE 391 course at the University of Illinois
+at Urbana-Champaign. The original project included support for:
+
+- virtual memory
+- PS/2 keyboard
+- real-time clock
+- basic filesystem
+- terminal I/O
+- userspace execution
+- preemptive multitasking
+
+Since then, the following additional features have been added:
 
 - signals
 - PS/2 mouse
-- Tux controller (it's a ECE 391 thing)
-- libc
+- Tux controller (serial device from ECE 391)
+- userspace libc
 - audio playback (Sound Blaster 16)
-- (k)malloc
-- networking (NE2000)
+- malloc (both kernel and userspace)
+- networking (NE2000 + ARP + IP + UDP + TCP + DNS)
 - fork, exec, wait
 - pipes
 
@@ -37,15 +46,14 @@ To compile the OS, Linux is required. It compiles on both the ECE 391 VM
 and on modern Linux systems - just run the build.sh script in the root
 directory. GCC or Clang, -O0 through -O2, pick your poison! To add new
 userspace programs to the filesystem, add the source code to the userspace
-directory and they will automatically be compiled into the filesystem. For
-static (non-code) files, just add them directly to the filesystem directory.
-Note that the total size of this directory should not exceed ~3MB, or else
-the OS will fail to boot.
+directory and they will automatically be compiled into the filesystem.
+For static (non-code) files, just add them directly to the filesystem
+directory. Note that the total size of this directory should not exceed
+~3MB, or else the OS will fail to boot.
 
 Do not attempt to boot this OS on real hardware - it will almost certainly
 not work, and might even set your computer on fire. QEMU is required to
-boot the operating system - bochs has been tested to be working at one point
-but is not officially supported.
+boot the operating system.
 
 Below is a short description of the source tree contents:
 
@@ -58,7 +66,7 @@ kernel/
 
 userspace/
     This directory contains the source code for the userspace programs.
-    The lolibc subdirectory contains a custom libc implementation.
+    The lolibc subdirectory contains the userspace libc implementation.
 
 build.sh
     This script builds the entire project, including the kernel and all
@@ -70,5 +78,6 @@ build.sh
 server.sh
     This script runs a TCP music streaming server. It takes the path to
     an audio file as an argument, converts it into WAV format, and serves
-    it at port 7878 on the host. To download this within the VM, connect
-    to 10.0.2.2:7878. ffmpeg is required to convert the file to WAV.
+    it at port 7878 on the host. To play the music within the VM, connect
+    to 10.0.2.2:7878 using the nc program and pipe the output to the music
+    program.

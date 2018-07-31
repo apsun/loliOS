@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 shopt -s extglob
-mp3_dir=$(readlink -e "$(dirname "$0")")
+mp3_dir="$(readlink -e "$(dirname "$0")")"
 
 # Don't close on error (useful if running as a shortcut)
 # trap "read -p 'Press ENTER to continue...'" ERR
