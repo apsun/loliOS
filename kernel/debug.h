@@ -15,15 +15,26 @@
 #define DEBUG_PRINT 1
 #endif
 
-/* Unreachable panic macro */
-#define unreachable() panic("Reached 'unreachable' code")
+/* Whether to BSOD on a panic */
+#ifndef DEBUG_PANIC_BSOD
+#define DEBUG_PANIC_BSOD 1
+#endif
 
-/* Always-enabled panic macro */
+#if DEBUG_PANIC_BSOD
+
+#define panic(msg) do {  \
+    asm volatile("ud2"); \
+} while (0)
+
+#else /* DEBUG_PANIC_BSOD */
+
 #define panic(msg) do {                                    \
     cli();                                                 \
     printf("%s:%d: Panic: %s\n", __FILE__, __LINE__, msg); \
     loop();                                                \
 } while (0)
+
+#endif /* DEBUG_PANIC_BSOD */
 
 #if DEBUG_ASSERT
 

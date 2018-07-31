@@ -515,7 +515,11 @@ void
 paging_set_context(int pfn, paging_heap_t *heap)
 {
     /* Point the user page to the corresponding physical address */
-    paging_page_map(USER_PAGE_START / MB(4), pfn, true);
+    if (pfn >= 0) {
+        paging_page_map(USER_PAGE_START / MB(4), pfn, true);
+    } else {
+        paging_page_unmap(USER_PAGE_START / MB(4));
+    }
 
     /* Replace heap page directory entries */
     int i;

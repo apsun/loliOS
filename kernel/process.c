@@ -121,10 +121,11 @@ process_alloc_pcb(void)
     /* Look for an empty process slot we can fill */
     int i;
     for (i = 0; i < MAX_PROCESSES; ++i) {
-        if (process_info[i].pid < 0) {
-            process_info[i].pid = i;
-            process_data[i].pcb = &process_info[i];
-            return &process_info[i];
+        pcb_t *pcb = &process_info[i];
+        if (pcb->pid < 0) {
+            pcb->pid = i;
+            process_data[i].pcb = pcb;
+            return pcb;
         }
     }
 
@@ -325,9 +326,9 @@ process_alarm_callback(timer_t *timer)
 }
 
 /*
- * Jumps into userspace and executes the specified process.
- * This function does not return. The process must be in
- * the NEW state.
+ * Executes the specified process for the first time. This
+ * function does not return. The process must be in the NEW
+ * state.
  */
 void
 process_run(pcb_t *pcb)
@@ -342,10 +343,7 @@ process_run(pcb_t *pcb)
     /* Set the global execution context */
     process_set_context(pcb);
 
-    /* Start SIGALARM timer */
-    timer_setup(&pcb->alarm_timer, TIMER_HZ * SIG_ALARM_PERIOD, process_alarm_callback);
-
-    /* Into userspace we go! */
+    /* Perform a fake IRET on behalf of the process */
     process_iret(&pcb->regs, (void *)get_kernel_base_esp(pcb));
 }
 
@@ -447,7 +445,19 @@ process_create_idle(void)
 {
     pcb_t *pcb = process_alloc_pcb();
     assert(pcb != NULL && pcb->pid == 0);
+
     pcb->state = PROCESS_STATE_NEW;
+    pcb->parent_pid = -1;
+    pcb->terminal = 0;
+    pcb->user_pfn = -1;
+    pcb->compat = false;
+    pcb->group = pcb->pid;
+    pcb->vidmap = false;
+    file_init(pcb->files);
+    signal_init(pcb->signals);
+    timer_init(&pcb->alarm_timer);
+    paging_heap_init(&pcb->heap);
+
     process_fill_idle_regs(&pcb->regs);
     scheduler_add(pcb);
     return pcb;
@@ -496,6 +506,7 @@ process_create_user(const char *command, int terminal)
     terminal_open_streams(pcb->files);
     signal_init(pcb->signals);
     timer_init(&pcb->alarm_timer);
+    timer_setup(&pcb->alarm_timer, TIMER_HZ * SIG_ALARM_PERIOD, process_alarm_callback);
     paging_heap_init(&pcb->heap);
     strscpy(pcb->args, args, MAX_ARGS_LEN);
 
