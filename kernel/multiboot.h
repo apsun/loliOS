@@ -1,7 +1,3 @@
-/* multiboot.h - Defines used in working with Multiboot-compliant
- * bootloaders (such as GRUB)
- */
-
 #ifndef _MULTIBOOT_H
 #define _MULTIBOOT_H
 
@@ -11,7 +7,6 @@
 
 #ifndef ASM
 
-/* Types */
 #include "types.h"
 
 /* The Multiboot header. */

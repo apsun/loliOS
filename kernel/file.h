@@ -24,7 +24,7 @@
 #define OPEN_WRITE (1 << 1)
 #define OPEN_ALL (OPEN_READ | OPEN_WRITE)
 
-/* Accepted fnctl() commands */
+/* Accepted fcntl() commands */
 #define FCNTL_NONBLOCK 1
 
 #ifndef ASM
