@@ -68,7 +68,7 @@ ethernet_send_ip(net_iface_t *iface, skb_t *skb, ip_addr_t ip)
         }
         /* Fallthrough */
     case ARP_WAITING:
-        return arp_queue_insert(dev, skb, ip);
+        return arp_queue_insert(dev, ip, skb);
     case ARP_UNREACHABLE:
         debugf("Destination unreachable, dropping packet\n");
         return -1;

@@ -41,6 +41,7 @@ typedef struct {
 /* ARP cache entry */
 typedef struct {
     list_t list;
+    list_t packet_queue;
     net_dev_t *dev;
     ip_addr_t ip_addr;
     mac_addr_t mac_addr;
@@ -62,53 +63,23 @@ typedef struct {
 /* ARP entry cache, in no particular order */
 static list_declare(arp_cache);
 
-/* Queue for packets waiting for an ARP reply */
-static list_declare(packet_queue);
-
 /*
- * Flushes all packets waiting for an ARP reply from the
- * specified IP address. If mac is not null, the packets
- * are sent. If it is null, they are dropped.
+ * Flushes all packets waiting for an ARP reply. If mac is
+ * not null, the packets are sent. If it is null, they are dropped.
  */
 static void
-arp_queue_flush(ip_addr_t ip, const mac_addr_t *mac)
+arp_queue_flush(arp_entry_t *entry, const mac_addr_t *mac)
 {
     list_t *pos, *next;
-    list_for_each_safe(pos, next, &packet_queue) {
+    list_for_each_safe(pos, next, &entry->packet_queue) {
         queue_pkt_t *pkt = list_entry(pos, queue_pkt_t, list);
-        if (ip_equals(pkt->ip, ip)) {
-            if (mac != NULL) {
-                ethernet_send_mac(pkt->dev, pkt->skb, *mac, ETHERTYPE_IPV4);
-            }
-            skb_release(pkt->skb);
-            list_del(&pkt->list);
-            free(pkt);
+        if (mac != NULL) {
+            ethernet_send_mac(pkt->dev, pkt->skb, *mac, ETHERTYPE_IPV4);
         }
+        skb_release(pkt->skb);
+        list_del(&pkt->list);
+        free(pkt);
     }
-}
-
-/*
- * Enqueues an IP packet to be sent when the corresponding MAC
- * address is known. This will return 0 if an ARP packet
- * was sent but the result is not yet known. This does not
- * indicate that the packet will actually be successfully
- * transmitted - if no reply is received, the packet will
- * be dropped.
- */
-int
-arp_queue_insert(net_dev_t *dev, skb_t *skb, ip_addr_t ip)
-{
-    queue_pkt_t *pkt = malloc(sizeof(queue_pkt_t));
-    if (pkt == NULL) {
-        debugf("Cannot allocate space for packet\n");
-        return -1;
-    }
-
-    pkt->dev = dev;
-    pkt->skb = skb_clone(skb);
-    pkt->ip = ip;
-    list_add_tail(&pkt->list, &packet_queue);
-    return 0;
 }
 
 /*
@@ -119,6 +90,7 @@ static void
 arp_on_cache_timeout(timer_t *timer)
 {
     arp_entry_t *entry = timer_entry(timer, arp_entry_t, timeout);
+    assert(list_empty(&entry->packet_queue));
     list_del(&entry->list);
     free(entry);
 }
@@ -135,7 +107,7 @@ arp_on_resolve_timeout(timer_t *timer)
     arp_entry_t *entry = timer_entry(timer, arp_entry_t, timeout);
     entry->state = ARP_UNREACHABLE;
     timer_setup(&entry->timeout, ARP_CACHE_TIMEOUT, arp_on_cache_timeout);
-    arp_queue_flush(entry->ip_addr, NULL);
+    arp_queue_flush(entry, NULL);
 }
 
 /*
@@ -159,10 +131,10 @@ arp_cache_find(net_dev_t *dev, ip_addr_t ip)
  * Inserts an entry into the ARP cache. If there is an
  * existing entry with the given IP address, this will
  * overwrite it. The MAC address may be null to indicate
- * that we do not know the mapping result. Returns 0 on
- * success, < 0 on failure (cache is full).
+ * that we do not know the mapping result. Returns the
+ * entry on success, NULL on failure.
  */
-static int
+static arp_entry_t *
 arp_cache_insert(net_dev_t *dev, ip_addr_t ip, const mac_addr_t *mac)
 {
     /* Find existing entry, or allocate a new one */
@@ -170,11 +142,13 @@ arp_cache_insert(net_dev_t *dev, ip_addr_t ip, const mac_addr_t *mac)
     if (entry == NULL) {
         entry = malloc(sizeof(arp_entry_t));
         if (entry == NULL) {
-            return -1;
+            return NULL;
         }
+
         entry->dev = dev;
         entry->ip_addr = ip;
         list_add_tail(&entry->list, &arp_cache);
+        list_init(&entry->packet_queue);
         timer_init(&entry->timeout);
     }
 
@@ -187,6 +161,36 @@ arp_cache_insert(net_dev_t *dev, ip_addr_t ip, const mac_addr_t *mac)
         entry->state = ARP_WAITING;
         timer_setup(&entry->timeout, ARP_RESOLVE_TIMEOUT, arp_on_resolve_timeout);
     }
+    return entry;
+}
+
+/*
+ * Enqueues an IP packet to be sent when the corresponding MAC
+ * address is known. This will return 0 if an ARP packet
+ * was sent but the result is not yet known. This does not
+ * indicate that the packet will actually be successfully
+ * transmitted - if no reply is received, the packet will
+ * be dropped.
+ */
+int
+arp_queue_insert(net_dev_t *dev, ip_addr_t ip, skb_t *skb)
+{
+    arp_entry_t *entry = arp_cache_find(dev, ip);
+    if (entry == NULL) {
+        debugf("Enqueuing packet for nonexistent entry\n");
+        return -1;
+    }
+
+    queue_pkt_t *pkt = malloc(sizeof(queue_pkt_t));
+    if (pkt == NULL) {
+        debugf("Cannot allocate space for packet\n");
+        return -1;
+    }
+
+    pkt->dev = dev;
+    pkt->skb = skb_clone(skb);
+    pkt->ip = ip;
+    list_add_tail(&pkt->list, &entry->packet_queue);
     return 0;
 }
 
@@ -256,7 +260,7 @@ int
 arp_send_request(net_iface_t *iface, ip_addr_t ip)
 {
     /* Insert pending entry into ARP cache */
-    if (arp_cache_insert(iface->dev, ip, NULL) < 0) {
+    if (arp_cache_insert(iface->dev, ip, NULL) == NULL) {
         return -1;
     }
 
@@ -286,9 +290,13 @@ static int
 arp_handle_reply(net_dev_t *dev, skb_t *skb)
 {
     arp_body_t *body = skb_data(skb);
-    int ret = arp_cache_insert(dev, body->src_proto_addr, &body->src_hw_addr);
-    arp_queue_flush(body->src_proto_addr, &body->src_hw_addr);
-    return ret;
+    arp_entry_t *entry = arp_cache_insert(dev, body->src_proto_addr, &body->src_hw_addr);
+    if (entry != NULL) {
+        arp_queue_flush(entry, &body->src_hw_addr);
+        return 0;
+    } else {
+        return -1;
+    }
 }
 
 /*

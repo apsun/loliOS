@@ -21,7 +21,7 @@ arp_state_t arp_get_state(net_dev_t *dev, ip_addr_t ip, mac_addr_t *mac);
 int arp_send_request(net_iface_t *iface, ip_addr_t ip);
 
 /* Enqueues an Ethernet frame for transmission once ip is resolved */
-int arp_queue_insert(net_dev_t *dev, skb_t *skb, ip_addr_t ip);
+int arp_queue_insert(net_dev_t *dev, ip_addr_t ip, skb_t *skb);
 
 /* Handles an ARP packet */
 int arp_handle_rx(net_dev_t *dev, skb_t *skb);
