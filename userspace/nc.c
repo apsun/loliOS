@@ -445,13 +445,13 @@ nc_loop(ip_addr_t ip, uint16_t port, args_t *args)
     sock_addr_t local_addr;
     sock_addr_t remote_addr;
 
-#define CALL(expr) do {                     \
-    ret = expr;                             \
-    if (ret == -1) {                        \
-        fprintf(stderr, #expr " failed\n"); \
-        ret = 1;                            \
-        goto cleanup;                       \
-    }                                       \
+#define CALL(expr) do {                                     \
+    ret = expr;                                             \
+    if (ret == -1) {                                        \
+        fprintf(stderr, #expr " failed at %d\n", __LINE__); \
+        ret = 1;                                            \
+        goto cleanup;                                       \
+    }                                                       \
 } while (0)
 
     if (args->listen) {
@@ -521,7 +521,7 @@ nc_loop(ip_addr_t ip, uint16_t port, args_t *args)
                 recv_done = true;
             }
 
-            if (!connected) {
+            if (!connected && ret > 0) {
                 CALL(connect(sockfd, &remote_addr));
                 connected = true;
             }

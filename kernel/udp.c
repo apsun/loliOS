@@ -83,20 +83,29 @@ udp_send(net_sock_t *sock, skb_t *skb, ip_addr_t ip, int port)
     return ip_send(iface, neigh_ip, skb, ip, IPPROTO_UDP);
 }
 
+/*
+ * Checks whether the specified packet should be passed to
+ * the user when calling recvfrom(). As per the spec, if
+ * the socket is connected, only packets from the connected
+ * peer will be accepted.
+ */
 static bool
 udp_can_recv(net_sock_t *sock, skb_t *skb)
 {
-    if (sock->connected) {
-        ip_hdr_t *ip_hdr = skb_network_header(skb);
-        if (!ip_equals(sock->remote.ip, ip_hdr->src_ip)) {
-            return false;
-        }
-
-        udp_hdr_t *udp_hdr = skb_transport_header(skb);
-        if (sock->remote.port != ntohs(udp_hdr->be_src_port)) {
-            return false;
-        }
+    if (!sock->connected) {
+        return true;
     }
+
+    ip_hdr_t *ip_hdr = skb_network_header(skb);
+    if (!ip_equals(sock->remote.ip, ip_hdr->src_ip)) {
+        return false;
+    }
+
+    udp_hdr_t *udp_hdr = skb_transport_header(skb);
+    if (sock->remote.port != ntohs(udp_hdr->be_src_port)) {
+        return false;
+    }
+
     return true;
 }
 
