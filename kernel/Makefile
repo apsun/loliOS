@@ -17,15 +17,19 @@ OBJS = boot.o
 OBJS += $(filter-out boot.o,$(patsubst %.S,%.o,$(filter %.S,$(SRC))))
 OBJS += $(patsubst %.c,%.o,$(filter %.c,$(SRC)))
 
+mp3.img: bootimg filesys_img.new
+	cp orig.img mp3.img
+	sudo ./debug.sh
+
 bootimg: Makefile $(OBJS)
 	rm -f bootimg
 	$(LD) $(LDFLAGS) $(OBJS) -Ttext=0x400000 -o bootimg
-	sudo ./debug.sh
-
-dep: Makefile.dep
 
 Makefile.dep: $(SRC)
 	$(CC) -MM $(CPPFLAGS) $(SRC) > $@
+
+.PHONY: dep
+dep: Makefile.dep
 
 .PHONY: clean
 clean:

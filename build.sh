@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 shopt -s extglob
 mp3_dir="$(readlink -e "$(dirname "$0")")"
 
@@ -34,7 +34,7 @@ done
 shift $((OPTIND-1))
 
 # If command is "clean", run make clean and git clean
-if [ "$1" = "clean" ]; then
+if [ "$#" -gt 0 ] && [ "$1" = "clean" ]; then
     command -v git >/dev/null && git clean -fx "${mp3_dir}/filesystem"
     make -C "${mp3_dir}/userspace" clean
     make -C "${mp3_dir}/kernel" clean
@@ -60,10 +60,9 @@ fi
 
 # Build OS image
 make -C "${mp3_dir}/kernel"
-(cd "${mp3_dir}/kernel" && sudo "./debug.sh")
 
 # If command is "run", boot the VM
-if [ "$1" = "run" ]; then
+if [ "$#" -gt 0 ] && [ "$1" = "run" ]; then
     qemu-system-i386 -hda "${mp3_dir}/kernel/mp3.img" -m 256 \
         -gdb tcp:127.0.0.1:1234 \
         -soundhw sb16 \
