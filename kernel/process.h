@@ -2,8 +2,8 @@
 #define _PROCESS_H
 
 #include "types.h"
+#include "list.h"
 #include "file.h"
-#include "syscall.h"
 #include "idt.h"
 #include "signal.h"
 #include "paging.h"

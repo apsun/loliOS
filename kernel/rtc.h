@@ -2,8 +2,6 @@
 #define _RTC_H
 
 #include "types.h"
-#include "syscall.h"
-#include "file.h"
 
 /*
  * Highest possible value for RTC virtual interrupt

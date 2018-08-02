@@ -2,7 +2,6 @@
 #define _FILE_H
 
 #include "types.h"
-#include "syscall.h"
 
 /* Maximum number of open files per process */
 #define MAX_FILES 8
@@ -30,7 +29,7 @@
 #ifndef ASM
 
 /* Forward declaration */
-typedef struct file_ops_t file_ops_t;
+typedef struct file_ops file_ops_t;
 
 /* File object structure */
 typedef struct {
@@ -64,7 +63,7 @@ typedef struct {
 } file_obj_t;
 
 /* File operations table */
-struct file_ops_t {
+struct file_ops {
     int (*open)(file_obj_t *file);
     int (*read)(file_obj_t *file, void *buf, int nbytes);
     int (*write)(file_obj_t *file, const void *buf, int nbytes);

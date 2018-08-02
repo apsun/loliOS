@@ -2,6 +2,7 @@
 #define _BITMAP_H
 
 #include "types.h"
+#include "lib.h"
 
 #ifndef ASM
 

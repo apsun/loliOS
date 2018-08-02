@@ -3,8 +3,7 @@
 #include "lib.h"
 #include "irq.h"
 #include "list.h"
-#include "myalloc.h"
-#include "paging.h"
+#include "skb.h"
 #include "net.h"
 #include "ethernet.h"
 

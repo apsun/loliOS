@@ -1,6 +1,7 @@
 #ifndef _NET_H
 #define _NET_H
 
+#include "types.h"
 #include "lib.h"
 #include "skb.h"
 

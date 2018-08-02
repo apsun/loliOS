@@ -10,6 +10,8 @@
 #include "tcp.h"
 #include "lib.h"
 #include "debug.h"
+#include "list.h"
+#include "file.h"
 #include "timer.h"
 #include "syscall.h"
 #include "myalloc.h"

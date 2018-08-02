@@ -1,8 +1,10 @@
 #include "loopback.h"
 #include "lib.h"
 #include "debug.h"
+#include "list.h"
 #include "net.h"
 #include "ip.h"
+#include "skb.h"
 
 /* Packets that are waiting to be sent */
 static list_declare(loopback_queue);

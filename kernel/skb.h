@@ -2,7 +2,6 @@
 #define _SKB_H
 
 #include "types.h"
-#include "lib.h"
 #include "list.h"
 
 #ifndef ASM

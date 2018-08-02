@@ -2,7 +2,6 @@
 #define _FILESYS_H
 
 #include "types.h"
-#include "file.h"
 
 /* Size of a single filesystem block, in bytes */
 #define FS_BLOCK_SIZE 4096

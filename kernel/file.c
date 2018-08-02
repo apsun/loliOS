@@ -2,12 +2,9 @@
 #include "lib.h"
 #include "debug.h"
 #include "myalloc.h"
-#include "rtc.h"
+#include "paging.h"
 #include "filesys.h"
-#include "terminal.h"
 #include "process.h"
-#include "taux.h"
-#include "sb16.h"
 
 /* File type to ops table mapping */
 static const file_ops_t *file_ops_tables[FILE_TYPE_COUNT];

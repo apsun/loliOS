@@ -2,8 +2,6 @@
 #define _SB16_H
 
 #include "types.h"
-#include "syscall.h"
-#include "file.h"
 
 /* ioctl() commands */
 #define SOUND_SET_BITS_PER_SAMPLE 1

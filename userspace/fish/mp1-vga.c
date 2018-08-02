@@ -1,7 +1,6 @@
 #include "mp1-vga.h"
 #include <assert.h>
 #include <stddef.h>
-#include <string.h>
 #include <syscall.h>
 
 /* Needs to be visible to mp1.S, so not static */

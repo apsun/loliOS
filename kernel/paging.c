@@ -1,8 +1,8 @@
 #include "paging.h"
+#include "lib.h"
 #include "debug.h"
 #include "terminal.h"
 #include "bitmap.h"
-#include "list.h"
 #include "filesys.h"
 
 /* PDE size field values */

@@ -3,8 +3,6 @@
 
 #include "types.h"
 
-/* Externally-visible functions */
-
 #ifndef ASM
 
 /* Initialize both PICs */

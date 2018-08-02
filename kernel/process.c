@@ -6,6 +6,7 @@
 #include "terminal.h"
 #include "x86_desc.h"
 #include "scheduler.h"
+#include "syscall.h"
 
 /* Maximum length of string passed to execute()/exec() */
 #define MAX_EXEC_LEN 128

@@ -3,7 +3,6 @@
 
 #include "idt.h"
 #include "types.h"
-#include "syscall.h"
 
 /* Signal numbers */
 #define SIG_DIV_ZERO  0

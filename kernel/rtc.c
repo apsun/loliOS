@@ -1,12 +1,15 @@
 #include "rtc.h"
 #include "lib.h"
 #include "debug.h"
+#include "list.h"
 #include "irq.h"
 #include "file.h"
 #include "paging.h"
+#include "process.h"
 #include "scheduler.h"
 #include "signal.h"
 #include "timer.h"
+#include "syscall.h"
 
 /* RTC IO ports */
 #define RTC_PORT_INDEX 0x70

@@ -3,6 +3,7 @@
 #include "debug.h"
 #include "x86_desc.h"
 #include "irq.h"
+#include "paging.h"
 #include "syscall.h"
 #include "process.h"
 #include "signal.h"

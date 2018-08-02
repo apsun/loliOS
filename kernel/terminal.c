@@ -1,12 +1,11 @@
 #include "terminal.h"
-#include "types.h"
 #include "lib.h"
 #include "debug.h"
 #include "process.h"
 #include "paging.h"
 #include "signal.h"
 #include "scheduler.h"
-#include "signal.h"
+#include "syscall.h"
 
 /* Terminal config */
 #define NUM_COLS 80

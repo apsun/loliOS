@@ -6,8 +6,10 @@
 #include "paging.h"
 #include "irq.h"
 #include "dma.h"
+#include "process.h"
 #include "scheduler.h"
 #include "signal.h"
+#include "syscall.h"
 
 /* DMA channels */
 #define SB16_DMA8_CHANNEL 1

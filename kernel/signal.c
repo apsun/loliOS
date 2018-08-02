@@ -2,8 +2,10 @@
 #include "lib.h"
 #include "debug.h"
 #include "process.h"
+#include "paging.h"
 #include "scheduler.h"
 #include "x86_desc.h"
+#include "syscall.h"
 
 /*
  * Pushes the signal handler context onto the user stack

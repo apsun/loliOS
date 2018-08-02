@@ -1,9 +1,10 @@
 #ifndef _DEBUG_H
 #define _DEBUG_H
 
-#ifndef ASM
-
+#include "types.h"
 #include "lib.h"
+
+#ifndef ASM
 
 /* Whether to enable assertions */
 #ifndef DEBUG_ASSERT

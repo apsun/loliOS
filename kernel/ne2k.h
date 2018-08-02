@@ -1,7 +1,7 @@
 #ifndef _NE2K_H
 #define _NE2K_H
 
-#include "skb.h"
+#include "types.h"
 
 #ifndef ASM
 

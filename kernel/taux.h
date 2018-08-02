@@ -2,8 +2,6 @@
 #define _TAUX_H
 
 #include "types.h"
-#include "file.h"
-#include "serial.h"
 
 /*
  * Accepted ioctl() request values.
