@@ -14,6 +14,7 @@
 #define KC_RALT      0x64
 #define KC_CAPS_LOCK 0x3A
 #define KC_C         0x2E
+#define KC_D         0x20
 #define KC_L         0x26
 #define KC_F1        0x3B
 #define KC_F2        0x3C
@@ -153,6 +154,8 @@ keycode_to_ctrl(uint8_t keycode)
             return KCTL_CLEAR;
         case KC_C: /* CTRL-C */
             return KCTL_INTERRUPT;
+        case KC_D: /* CTRL-D */
+            return KCTL_EOF;
         }
         break;
     case KMOD_ALT:

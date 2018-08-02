@@ -7,6 +7,9 @@
 #include "scheduler.h"
 #include "syscall.h"
 
+/* EOT (CTRL-D) character */
+#define EOT '\x04'
+
 /* Terminal config */
 #define NUM_COLS 80
 #define NUM_ROWS 25
@@ -344,14 +347,14 @@ terminal_wait_kbd_input(terminal_state_t *term, int nbytes, bool nonblocking)
         }
 
         /*
-         * Check if we have a newline character, if so, we should
+         * Check if we have a newline or EOT character. If so, we should
          * read up to and including that character (or as many chars
          * as fits in the buffer)
          */
         int count = input_buf->count;
         int i;
         for (i = 0; i < count; ++i) {
-            if (input_buf->buf[i] == '\n') {
+            if (input_buf->buf[i] == '\n' || input_buf->buf[i] == EOT) {
                 if (nbytes > i + 1) {
                     nbytes = i + 1;
                 }
@@ -390,11 +393,11 @@ terminal_tty_open(file_obj_t *file)
 
 /*
  * read() syscall handler for stdin. Reads up to nbytes
- * characters or the first line break, whichever occurs
+ * characters or the first line break or EOT, whichever occurs
  * first. Returns the number of characters read.
  * The output from this function is *NOT* NUL-terminated!
  *
- * This call will block until a newline is encountered.
+ * This call will block until a newline or EOT is encountered.
  */
 static int
 terminal_tty_read(file_obj_t *file, void *buf, int nbytes)
@@ -406,7 +409,7 @@ terminal_tty_read(file_obj_t *file, void *buf, int nbytes)
     }
 
     /*
-     * Wait until there's a newline in the buffer or we
+     * Wait until there's a newline/EOT in the buffer or we
      * have pending signals to handle
      */
     terminal_state_t *term = get_executing_terminal();
@@ -415,9 +418,16 @@ terminal_tty_read(file_obj_t *file, void *buf, int nbytes)
         return nbytes;
     }
 
-    /* Copy input buffer to userspace */
     kbd_input_buf_t *input_buf = &term->kbd_input;
-    if (!copy_to_user(buf, (void *)input_buf->buf, nbytes)) {
+
+    /* Don't actually copy the EOT character */
+    int ncopy = nbytes;
+    if (input_buf->buf[ncopy - 1] == EOT) {
+        ncopy--;
+    }
+
+    /* Copy input buffer to userspace */
+    if (!copy_to_user(buf, (void *)input_buf->buf, ncopy)) {
         return -1;
     }
 
@@ -428,8 +438,8 @@ terminal_tty_read(file_obj_t *file, void *buf, int nbytes)
         input_buf->count - nbytes);
     input_buf->count -= nbytes;
 
-    /* nbytes holds the number of characters read */
-    return nbytes;
+    /* ncopy holds the number of characters copied */
+    return ncopy;
 }
 
 /*
@@ -606,7 +616,7 @@ terminal_mouse_ioctl(file_obj_t *file, int req, int arg)
 
 /*
  * Handles CTRL-C input by sending an interrupt signal
- * to the foreground process group in the current terminal.
+ * to the foreground process group in the displayed terminal.
  */
 static void
 terminal_interrupt(void)
@@ -620,6 +630,21 @@ terminal_interrupt(void)
     signal_kill(-pgrp, SIG_INTERRUPT);
 }
 
+/*
+ * Handles CTRL-D input by injecting a EOT character into
+ * the displayed terminal's input buffer.
+ */
+static void
+terminal_eof(void)
+{
+    terminal_state_t *term = get_display_terminal();
+    kbd_input_buf_t *input_buf = &term->kbd_input;
+    if (input_buf->count < KEYBOARD_BUF_SIZE) {
+        input_buf->buf[input_buf->count++] = EOT;
+        scheduler_wake_all(&input_buf->sleep_queue);
+    }
+}
+
 /* Handles a keyboard control sequence */
 static void
 handle_ctrl_input(kbd_input_ctrl_t ctrl)
@@ -630,6 +655,9 @@ handle_ctrl_input(kbd_input_ctrl_t ctrl)
         break;
     case KCTL_INTERRUPT:
         terminal_interrupt();
+        break;
+    case KCTL_EOF:
+        terminal_eof();
         break;
     case KCTL_TERM1:
     case KCTL_TERM2:
@@ -733,8 +761,8 @@ static const file_ops_t terminal_mouse_fops = {
 };
 
 /*
- * Opens stdin and stdout as fd 0 and 1 respectively
- * for a given process.
+ * Opens stdin, stdout, and stderr as fds 0, 1, and 2
+ * respectively for a given process.
  */
 int
 terminal_open_streams(file_obj_t **files)
