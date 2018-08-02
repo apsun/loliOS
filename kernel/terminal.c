@@ -556,8 +556,8 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
      * or the previous read was partial.
      */
     int max_read = input_buf->count;
-    if (max_read % 3 != 0) {
-        max_read = max_read % 3;
+    if (max_read % sizeof(mouse_input_t) != 0) {
+        max_read = max_read % sizeof(mouse_input_t);
     }
 
     /*
