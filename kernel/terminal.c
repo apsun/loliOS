@@ -427,7 +427,7 @@ terminal_tty_read(file_obj_t *file, void *buf, int nbytes)
     }
 
     /* Copy input buffer to userspace */
-    if (!copy_to_user(buf, (void *)input_buf->buf, ncopy)) {
+    if (!copy_to_user(buf, input_buf->buf, ncopy)) {
         return -1;
     }
 
@@ -464,7 +464,7 @@ terminal_tty_write(file_obj_t *file, const void *buf, int nbytes)
     }
 
     /* Print characters to the terminal (don't update cursor) */
-    const char *src = (const char *)buf;
+    const char *src = buf;
     int i;
     for (i = 0; i < nbytes; ++i) {
         terminal_putc_impl(term, src[i]);
@@ -572,7 +572,7 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
     }
 
     /* Copy input buffer to userspace */
-    if (!copy_to_user(buf, (void *)input_buf->buf, nbytes)) {
+    if (!copy_to_user(buf, input_buf->buf, nbytes)) {
         return -1;
     }
 
