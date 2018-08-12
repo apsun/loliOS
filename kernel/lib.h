@@ -298,7 +298,7 @@ bswap32(uint32_t x)
  * specified structure pointer.
  */
 #define container_of(ptr, type, member) \
-    ((type *)((char *)ptr - offsetof(type, member)))
+    ((type *)((char *)(ptr) - offsetof(type, member)))
 
 #endif /* ASM */
 
