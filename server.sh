@@ -1,15 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 port=7878
-mp3file="$1"
-if [ "$mp3file" == "" ]; then
+if [ "$#" -ne 1 ]; then
     echo "usage: $0 input.mp3"
     exit 1
 fi
+mp3file="$1"
 
 # Convert audio to WAV
 wavfile="$(mktemp -u)"
-trap "rm -f \"$wavfile\"" EXIT
+trap 'rm -f "$wavfile"' EXIT
 ffmpeg -i "$mp3file" -f wav "$wavfile"
 
 # Serve music using netcat
