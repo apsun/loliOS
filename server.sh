@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 port=7878
 mp3file="$1"
 if [ "$mp3file" == "" ]; then

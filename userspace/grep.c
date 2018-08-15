@@ -18,6 +18,7 @@ static const char *special[] = {
     "taux",
     "sound",
     "tty",
+    "null",
 };
 
 static bool

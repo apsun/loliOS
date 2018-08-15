@@ -47,6 +47,7 @@ if [ "$compat" = "true" ]; then
 else
     # Make binaries executable
     chmod +x "${mp3_dir}/elfconvert"
+    chmod +x "${mp3_dir}/createfs.py"
 
     # Compile userspace programs
     mkdir -p "${mp3_dir}/userspace/build"
