@@ -885,11 +885,10 @@ tcp_reply_rst(net_iface_t *iface, skb_t *orig_skb)
     hdr->be_dest_port = orig_hdr->be_src_port;
     hdr->rst = 1;
     if (orig_hdr->ack) {
-        hdr->be_seq_num = ack(orig_hdr);
+        hdr->be_seq_num = orig_hdr->be_ack_num;
     } else {
-        hdr->be_seq_num = 0;
-        hdr->be_ack_num = seq(orig_hdr) + tcp_seg_len(orig_skb);
         hdr->ack = 1;
+        hdr->be_ack_num = htonl(seq(orig_hdr) + tcp_seg_len(orig_skb));
     }
 
     ip_hdr_t *orig_iphdr = skb_network_header(orig_skb);

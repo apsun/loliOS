@@ -18,7 +18,7 @@
 
 /* Whether to BSOD on a panic */
 #ifndef DEBUG_PANIC_BSOD
-#define DEBUG_PANIC_BSOD 1
+#define DEBUG_PANIC_BSOD 0
 #endif
 
 #if DEBUG_PANIC_BSOD
