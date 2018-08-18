@@ -12,18 +12,16 @@ if [ "$EUID" -eq 0 ]; then
     exit 1
 fi
 
-# Add extra flags if running outside the VM
-if [ "$(uname -r)" != "2.6.22.5" ]; then
-    export CFLAGS="-Wno-implicit-fallthrough"
-    export LDFLAGS="--build-id=none"
-fi
-
-# Read compat flag (used to boot the original filesys_img)
+# Parse flag options
+nobuild="false"
 compat="false"
-while getopts ":c" opt; do
+while getopts ":cn" opt; do
     case "$opt" in
     c)
         compat="true"
+        ;;
+    n)
+        nobuild="true"
         ;;
     *)
         echo "Invalid option: -$OPTARG"
@@ -41,26 +39,28 @@ if [ "$#" -gt 0 ] && [ "$1" = "clean" ]; then
     exit 0
 fi
 
-if [ "$compat" = "true" ]; then
-    # Copy filesys_img.new from original version
-    cp "${mp3_dir}/kernel/filesys_img" "${mp3_dir}/kernel/filesys_img.new"
-else
-    # Make binaries executable
-    chmod +x "${mp3_dir}/elfconvert"
-    chmod +x "${mp3_dir}/createfs.py"
+if [ "$nobuild" != "true" ]; then
+    if [ "$compat" = "true" ]; then
+        # Copy filesys_img.new from original version
+        cp "${mp3_dir}/kernel/filesys_img" "${mp3_dir}/kernel/filesys_img.new"
+    else
+        # Make binaries executable
+        chmod +x "${mp3_dir}/elfconvert"
+        chmod +x "${mp3_dir}/createfs.py"
 
-    # Compile userspace programs
-    mkdir -p "${mp3_dir}/userspace/build"
-    make -C "${mp3_dir}/userspace"
-    cp "${mp3_dir}/userspace/build/"!(*.elf) "${mp3_dir}/filesystem"
+        # Compile userspace programs
+        mkdir -p "${mp3_dir}/userspace/build"
+        make -C "${mp3_dir}/userspace"
+        cp "${mp3_dir}/userspace/build/"!(*.elf) "${mp3_dir}/filesystem"
 
-    # Generate new filesystem image
-    rm -f "${mp3_dir}/kernel/filesys_img.new"
-    "${mp3_dir}/createfs.py" -i "${mp3_dir}/filesystem" -o "${mp3_dir}/kernel/filesys_img.new"
+        # Generate new filesystem image
+        rm -f "${mp3_dir}/kernel/filesys_img.new"
+        "${mp3_dir}/createfs.py" -i "${mp3_dir}/filesystem" -o "${mp3_dir}/kernel/filesys_img.new"
+    fi
+
+    # Build OS image
+    make -C "${mp3_dir}/kernel"
 fi
-
-# Build OS image
-make -C "${mp3_dir}/kernel"
 
 # If command is "run", boot the VM
 if [ "$#" -gt 0 ] && [ "$1" = "run" ]; then

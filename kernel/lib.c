@@ -1113,7 +1113,7 @@ consume_format:
                 goto consume_format;
             }
 
-            /* Otherwise, fallthrough as a normal digit */
+            /* Fallthrough */
         case '1':
         case '2':
         case '3':

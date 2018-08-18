@@ -2,6 +2,7 @@
 CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter \
 	-Wshadow -Wpointer-arith \
 	-fno-builtin -fno-stack-protector -fno-omit-frame-pointer \
+	-fno-asynchronous-unwind-tables \
 	-ffreestanding -O0 -m32 -mno-sse
 ASFLAGS += -Wall -Wextra -m32
 LDFLAGS += -nostdlib -static -melf_i386
@@ -19,11 +20,11 @@ OBJS += $(patsubst %.c,%.o,$(filter %.c,$(SRC)))
 
 mp3.img: bootimg filesys_img.new
 	cp orig.img mp3.img
-	sudo ./debug.sh
+	sudo ./mkimg.sh
 
 bootimg: Makefile $(OBJS)
 	rm -f bootimg
-	$(LD) $(LDFLAGS) $(OBJS) -Ttext=0x400000 -o bootimg
+	$(LD) $(LDFLAGS) $(OBJS) -Tmemory.lds -o bootimg
 
 Makefile.dep: $(SRC)
 	$(CC) -MM $(CPPFLAGS) $(SRC) > $@
