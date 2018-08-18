@@ -82,7 +82,7 @@ grep_all(const char *needle)
     char fname[33];
     int cnt;
     while ((cnt = read(fd, fname, sizeof(fname) - 1)) != 0) {
-        if (ret < 0) {
+        if (cnt < 0) {
             fprintf(stderr, "Failed to read file name\n");
             goto cleanup;
         }
