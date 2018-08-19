@@ -164,6 +164,7 @@ main(void)
     char *filename = filename_buf;
     if (strncmp("--loop ", filename, strlen("--loop ")) == 0) {
         filename += strlen("--loop ");
+        filename += strspn(filename, " ");
         loop = true;
     }
 

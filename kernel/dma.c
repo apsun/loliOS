@@ -105,4 +105,3 @@ dma_start(
             (nbytes >> 1) - 1);
     }
 }
-

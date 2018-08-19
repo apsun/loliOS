@@ -137,7 +137,7 @@ main(void)
     /*
      * First argument is what to search for, second
      * is the file to search (if none specified,
-     * defaults to every file in the directory).
+     * defaults to stdin).
      */
     char *space = strchr(args, ' ');
     char *fname;
