@@ -1242,11 +1242,8 @@ rand(void)
 #if DETERMINISTIC_RAND
     return 0;
 #else
-    unsigned int tmp = rand_state;
-    tmp *= 1103515245;
-    tmp += 12345;
-    tmp &= 0x7fffffff;
-    return (int)(rand_state = tmp);
+    rand_state = rand_state * 1103515245 + 12345;
+    return (rand_state >> 16) & 0x7fff;
 #endif
 }
 
