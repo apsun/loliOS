@@ -2,7 +2,7 @@ CFLAGS += -Ilolibc -Wall -Wextra -Werror -Wno-unused-parameter \
 	-Wshadow -Wpointer-arith \
 	-fno-builtin -fno-stack-protector -fno-omit-frame-pointer \
 	-fno-asynchronous-unwind-tables -ffreestanding \
-	-O0 -m32 -mno-sse
+	-O2 -m32 -mno-sse
 ASFLAGS += -Ilolibc -Wall -Wextra -m32
 LDFLAGS += -nostdlib -static -melf_i386
 
@@ -18,23 +18,30 @@ OUT_BIN += build/fish
 .PHONY: all
 all: $(OUT_BIN)
 
-.PRECIOUS: build/missiles.elf
-build/missiles.elf: $(MISSILES_OBJ) $(LOLIBC_OBJ)
+elf:
+	mkdir -p elf
+
+build:
+	mkdir -p build
+
+.PRECIOUS: elf/missiles.elf
+elf/missiles.elf: $(MISSILES_OBJ) $(LOLIBC_OBJ) | elf
 	$(LD) $(LDFLAGS) -o $@ $^
 
-.PRECIOUS: build/fish.elf
-build/fish.elf: $(FISH_OBJ) $(LOLIBC_OBJ)
+.PRECIOUS: elf/fish.elf
+elf/fish.elf: $(FISH_OBJ) $(LOLIBC_OBJ) | elf
 	$(LD) $(LDFLAGS) -o $@ $^
 
-.PRECIOUS: build/%.elf
-build/%.elf: %.o $(LOLIBC_OBJ)
+.PRECIOUS: elf/%.elf
+elf/%.elf: %.o $(LOLIBC_OBJ) | elf
 	$(LD) $(LDFLAGS) -o $@ $^
 
-build/%: build/%.elf
+build/%: elf/%.elf | build
 	../elfconvert $<
 	mv $<.converted $@
 
 .PHONY: clean
 clean:
 	$(RM) *.o */*.o
-	$(RM) build/*
+	$(RM) -r build
+	$(RM) -r elf

@@ -1,7 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-shopt -s extglob
-mp3_dir="$(readlink -e "$(dirname "$0")")"
+root_dir="$(readlink -e "$(dirname "$0")")"
 
 # Don't close on error (useful if running as a shortcut)
 # trap "read -p 'Press ENTER to continue...'" ERR
@@ -33,38 +32,43 @@ shift $((OPTIND-1))
 
 # If command is "clean", run make clean and git clean
 if [ "$#" -gt 0 ] && [ "$1" = "clean" ]; then
-    command -v git >/dev/null && git clean -fx "${mp3_dir}/filesystem"
-    make -C "${mp3_dir}/userspace" clean
-    make -C "${mp3_dir}/kernel" clean
+    command -v git >/dev/null && git clean -fx "${root_dir}/filesystem"
+    make -C "${root_dir}/userspace" clean
+    make -C "${root_dir}/kernel" clean
+    rm -f "${root_dir}/filesys_img.new"
+    rm -f "${root_dir}/disk.img"
     exit 0
 fi
 
 if [ "$nobuild" != "true" ]; then
     if [ "$compat" = "true" ]; then
         # Copy filesys_img.new from original version
-        cp "${mp3_dir}/kernel/filesys_img" "${mp3_dir}/kernel/filesys_img.new"
+        cp "${root_dir}/filesys_img" "${root_dir}/filesys_img.new"
     else
         # Make binaries executable
-        chmod +x "${mp3_dir}/elfconvert"
-        chmod +x "${mp3_dir}/createfs.py"
+        chmod +x "${root_dir}/elfconvert"
+        chmod +x "${root_dir}/createfs.py"
 
         # Compile userspace programs
-        mkdir -p "${mp3_dir}/userspace/build"
-        make -C "${mp3_dir}/userspace"
-        cp "${mp3_dir}/userspace/build/"!(*.elf) "${mp3_dir}/filesystem"
+        make -C "${root_dir}/userspace"
+        cp "${root_dir}/userspace/build/"* "${root_dir}/filesystem/"
 
-        # Generate new filesystem image
-        rm -f "${mp3_dir}/kernel/filesys_img.new"
-        "${mp3_dir}/createfs.py" -i "${mp3_dir}/filesystem" -o "${mp3_dir}/kernel/filesys_img.new"
+        # Build filesystem image
+        rm -f "${root_dir}/filesys_img.new"
+        "${root_dir}/createfs.py" -i "${root_dir}/filesystem" -o "${root_dir}/filesys_img.new"
     fi
 
-    # Build OS image
-    make -C "${mp3_dir}/kernel"
+    # Build kernel executable
+    make -C "${root_dir}/kernel"
+
+    # Generate disk image
+    cp "${root_dir}/orig.img" "${root_dir}/disk.img"
+    sudo "${root_dir}/mkimg.sh"
 fi
 
 # If command is "run", boot the VM
 if [ "$#" -gt 0 ] && [ "$1" = "run" ]; then
-    qemu-system-i386 -hda "${mp3_dir}/kernel/mp3.img" -m 256 \
+    qemu-system-i386 -hda "${root_dir}/disk.img" -m 256 \
         -gdb tcp:127.0.0.1:1234 \
         -soundhw sb16 \
         -device ne2k_isa,netdev=ne2k \
