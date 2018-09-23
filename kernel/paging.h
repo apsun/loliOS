@@ -90,10 +90,9 @@ void paging_set_context(int pfn, paging_heap_t *heap);
 void paging_update_vidmap_page(uint8_t *video_mem, bool present);
 
 /* User-kernel copy functions */
-bool is_user_accessible(const void *addr, int nbytes, bool write);
-bool strscpy_from_user(char *dest, const char *src, int n);
-bool copy_from_user(void *dest, const void *src, int n);
-bool copy_to_user(void *dest, const void *src, int n);
+int strscpy_from_user(char *dest, const char *src, int n);
+void *copy_from_user(void *dest, const void *src, int n);
+void *copy_to_user(void *dest, const void *src, int n);
 
 #endif /* ASM */
 

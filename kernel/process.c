@@ -231,7 +231,7 @@ process_parse_cmd(const char *command, uint32_t *out_inode_idx, char *out_args)
 
     /* Read the magic bytes from the file */
     uint32_t magic;
-    if (read_data(dentry.inode_idx, 0, (uint8_t *)&magic, sizeof(magic)) != sizeof(magic)) {
+    if (read_data(dentry.inode_idx, 0, &magic, sizeof(magic), memcpy) != sizeof(magic)) {
         debugf("Could not read magic\n");
         return -1;
     }
@@ -600,7 +600,7 @@ process_exec_impl(pcb_t *pcb, int_regs_t *regs, const char *command)
 {
     /* Copy command into kernel memory */
     char cmd[MAX_EXEC_LEN];
-    if (!strscpy_from_user(cmd, command, sizeof(cmd))) {
+    if (strscpy_from_user(cmd, command, sizeof(cmd)) < 0) {
         debugf("Executed string too long or invalid\n");
         return -1;
     }

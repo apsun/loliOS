@@ -493,7 +493,7 @@ paging_load_exe(uint32_t inode_idx, int pfn)
     int offset = 0;
     do {
         uint8_t *vaddr = (uint8_t *)TEMP_PAGE_START + PROCESS_OFFSET + offset;
-        count = read_data(inode_idx, offset, vaddr, MB(4));
+        count = read_data(inode_idx, offset, vaddr, MB(4), memcpy);
         offset += count;
     } while (count > 0);
 
@@ -586,7 +586,7 @@ is_page_user_accessible(uint32_t *addr, bool write)
  * That is, this function will return true iff accessing
  * the same address in ring 3 would not cause a page fault.
  */
-bool
+static bool
 is_user_accessible(const void *start, int nbytes, bool write)
 {
     /* Negative accesses are obviously impossible */
@@ -613,11 +613,11 @@ is_user_accessible(const void *start, int nbytes, bool write)
 
 /*
  * Copies a string from userspace, with page boundary checking.
- * Returns true if the buffer was big enough and the source string
- * could be fully copied to the buffer. Returns false otherwise.
- * This does NOT pad excess chars in dest with zeros!
+ * Returns the length of the string if the buffer was big enough
+ * and the source string could be fully copied to the buffer.
+ * Returns -1 otherwise.
  */
-bool
+int
 strscpy_from_user(char *dest, const char *src, int n)
 {
     int i = 0;
@@ -625,43 +625,43 @@ strscpy_from_user(char *dest, const char *src, int n)
     while (i < n && is_page_user_accessible(&limit, false)) {
         for (; i < n && (uint32_t)&src[i] < limit; ++i) {
             if ((dest[i] = src[i]) == '\0') {
-                return true;
+                return i;
             }
         }
     }
 
     /* Didn't reach the terminator before n characters */
-    return false;
+    return -1;
 }
 
 /*
  * Copies a buffer from userspace to kernelspace, checking
  * that the source buffer is a valid userspace buffer. Returns
- * true if the entire buffer could be copied, and false otherwise.
+ * dest if the entire buffer could be copied, and null otherwise.
  */
-bool
+void *
 copy_from_user(void *dest, const void *src, int n)
 {
     if (!is_user_accessible(src, n, false)) {
-        return false;
+        return NULL;
     }
 
     memcpy(dest, src, n);
-    return true;
+    return dest;
 }
 
 /*
  * Copies a buffer from kernelspace to userspace, checking
  * that the destination buffer is a valid userspace buffer. Returns
- * true if the entire buffer could be copied, and false otherwise.
+ * dest if the entire buffer could be copied, and null otherwise.
  */
-bool
+void *
 copy_to_user(void *dest, const void *src, int n)
 {
     if (!is_user_accessible(dest, n, true)) {
-        return false;
+        return NULL;
     }
 
     memcpy(dest, src, n);
-    return true;
+    return dest;
 }

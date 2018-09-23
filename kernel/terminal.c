@@ -449,6 +449,12 @@ terminal_tty_read(file_obj_t *file, void *buf, int nbytes)
 static int
 terminal_tty_write(file_obj_t *file, const void *buf, int nbytes)
 {
+    if (nbytes < 0) {
+        return -1;
+    } else if (nbytes == 0) {
+        return 0;
+    }
+
     /* Cannot write if not in foreground group */
     terminal_state_t *term = get_executing_terminal();
     pcb_t *pcb = get_executing_pcb();
@@ -458,23 +464,36 @@ terminal_tty_write(file_obj_t *file, const void *buf, int nbytes)
         return -1;
     }
 
-    /* Ensure entire buffer is readable */
-    if (!is_user_accessible(buf, nbytes, false)) {
+    /* Copy and print in chunks */
+    const char *bufp = buf;
+    char tmp[4096];
+    int copied = 0;
+    while (copied < nbytes) {
+        int to_copy = sizeof(tmp);
+        if (to_copy > nbytes - copied) {
+            to_copy = nbytes - copied;
+        }
+
+        /* Copy some characters from userspace */
+        if (!copy_from_user(tmp, &bufp[copied], to_copy)) {
+            break;
+        }
+        copied += to_copy;
+
+        /* Print characters to the terminal (don't update cursor) */
+        int i;
+        for (i = 0; i < to_copy; ++i) {
+            terminal_putc_impl(term, tmp[i]);
+        }
+    }
+
+    /* If no chars copied, buf must be invalid, no need to update cursor */
+    if (copied == 0) {
         return -1;
+    } else {
+        terminal_update_cursor(term);
+        return copied;
     }
-
-    /* Print characters to the terminal (don't update cursor) */
-    const char *src = buf;
-    int i;
-    for (i = 0; i < nbytes; ++i) {
-        terminal_putc_impl(term, src[i]);
-    }
-
-    /* Update cursor position */
-    terminal_update_cursor(term);
-
-    /* Return number of characters successfully written */
-    return i;
 }
 
 /*

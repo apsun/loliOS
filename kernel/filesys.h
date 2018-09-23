@@ -66,7 +66,10 @@ int read_dentry_by_name(const char *fname, dentry_t *dentry);
 int read_dentry_by_index(uint32_t index, dentry_t* dentry);
 
 /* Reads some data from a file with the specified inode index */
-int read_data(uint32_t inode, uint32_t offset, uint8_t *buf, uint32_t length);
+int read_data(
+    uint32_t inode, uint32_t offset,
+    void *buf, uint32_t length,
+    void *(*copy)(void *, const void *, int));
 
 /* Initializes the filesystem */
 void fs_init(uint32_t fs_start);

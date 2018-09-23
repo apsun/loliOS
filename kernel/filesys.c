@@ -96,7 +96,10 @@ read_dentry_by_index(uint32_t index, dentry_t *dentry)
  * of bytes read, or -1 on error.
  */
 int
-read_data(uint32_t inode, uint32_t offset, uint8_t *buf, uint32_t length)
+read_data(
+    uint32_t inode, uint32_t offset,
+    void *buf, uint32_t length,
+    void *(*copy)(void *, const void *, int))
 {
     /*
      * Ensure we don't read more than INT_MAX bytes, or else
@@ -123,6 +126,11 @@ read_data(uint32_t inode, uint32_t offset, uint8_t *buf, uint32_t length)
         length = inode_p->size - offset;
     }
 
+    /* If nothing left to read, we're done */
+    if (length == 0) {
+        return 0;
+    }
+
     /* Compute intra-block offsets */
     uint32_t first_block = offset / FS_BLOCK_SIZE;
     uint32_t first_offset = offset % FS_BLOCK_SIZE;
@@ -130,6 +138,8 @@ read_data(uint32_t inode, uint32_t offset, uint8_t *buf, uint32_t length)
     uint32_t last_offset = (offset + length) % FS_BLOCK_SIZE;
 
     /* Now copy the data! */
+    uint8_t *bufp = buf;
+    uint32_t total_read = 0;
     uint32_t i;
     for (i = first_block; i <= last_block; ++i) {
         /* Adjust start offset */
@@ -151,12 +161,19 @@ read_data(uint32_t inode, uint32_t offset, uint8_t *buf, uint32_t length)
         uint32_t copy_len = end_offset - start_offset;
         if (copy_len > 0) {
             uint8_t *data = fs_data(inode_p->data_blocks[i]);
-            memcpy(buf, data + start_offset, copy_len);
-            buf += copy_len;
+            if (!copy(&bufp[total_read], data + start_offset, copy_len)) {
+                break;
+            }
+            total_read += copy_len;
         }
     }
 
-    return length;
+    /* We should have read *something*; it not, copy must have failed */
+    if (total_read == 0) {
+        return -1;
+    } else {
+        return (int)total_read;
+    }
 }
 
 /*
@@ -213,13 +230,8 @@ fs_dir_read(file_obj_t *file, void *buf, int nbytes)
 static int
 fs_file_read(file_obj_t *file, void *buf, int nbytes)
 {
-    /* Check that the buffer is valid */
-    if (!is_user_accessible(buf, nbytes, true)) {
-        return -1;
-    }
-
-    /* Read directly into userspace buffer */
-    int count = read_data(file->inode_idx, get_off(file), buf, nbytes);
+    /* Read bytes into userspace buffer */
+    int count = read_data(file->inode_idx, get_off(file), buf, nbytes, copy_to_user);
 
     /* Increment byte offset for next read */
     if (count > 0) {

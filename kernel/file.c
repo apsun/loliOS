@@ -267,7 +267,7 @@ file_create(const char *filename, int mode)
 {
     /* Copy filename into kernel memory */
     char tmp[MAX_FILENAME_LEN + 1];
-    if (!strscpy_from_user(tmp, filename, sizeof(tmp))) {
+    if (strscpy_from_user(tmp, filename, sizeof(tmp)) < 0) {
         debugf("Invalid string passed to open()\n");
         return -1;
     }

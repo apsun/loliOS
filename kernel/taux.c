@@ -253,7 +253,7 @@ taux_ioctl_set_led_str(int arg)
 {
     /* Copy string to kernel (max length = 8 chars + NUL) */
     char str[8 + 1];
-    if (!strscpy_from_user(str, (const char *)arg, sizeof(str))) {
+    if (strscpy_from_user(str, (const char *)arg, sizeof(str)) < 0) {
         debugf("String too long or invalid\n");
         return -1;
     }
