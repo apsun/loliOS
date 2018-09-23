@@ -858,8 +858,8 @@ process_setpgrp(int pid, int pgrp)
 
 /*
  * execute() syscall handler. This is provided for ABI
- * compatibility with ECE 391 programs. It is identical
- * to executing fork + exec/wait in userspace (with
+ * compatibility with the original fs programs. It is identical
+ * to executing fork + exec + wait in userspace (with
  * process groups set accordingly). Note that any signals
  * received during execution are delayed until the child
  * process halts (i.e. -EINTR is impossible).
@@ -962,9 +962,8 @@ process_halt_impl(int status)
 
         /*
          * If that was the last process in its terminal, spawn
-         * another one in its place. This is for compatibility
-         * with the ECE 391 spec, and to account for that fact
-         * that we do not have an init process.
+         * another one in its place. This is to account for
+         * the fact that we do not have an init process.
          */
         bool restart = true;
         process_for_each(other_pcb) {

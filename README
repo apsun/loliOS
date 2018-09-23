@@ -5,9 +5,9 @@
 /_/\____/_/_/\____//____/
 A small + lightweight OS
 
-This is a Linux-like x86 operating system built from scratch. It was
-originally a project for the ECE 391 course at the University of Illinois
-at Urbana-Champaign. The original project included support for:
+This is a Linux-like x86 operating system built from scratch.
+It was originally a course project at the University of Illinois
+at Urbana-Champaign. The original release included support for:
 
 - virtual memory
 - PS/2 keyboard
@@ -21,7 +21,7 @@ Since then, the following additional features have been added:
 
 - signals
 - PS/2 mouse
-- Tux controller (serial device from ECE 391)
+- serial I/O (Taux controller)
 - userspace libc
 - audio playback (Sound Blaster 16)
 - malloc (both kernel and userspace)
@@ -29,31 +29,28 @@ Since then, the following additional features have been added:
 - fork, exec, wait
 - pipes
 
-Features that are NOT supported (but may be added in the future):
-
-- GUI (or really, any graphics)
-- ext2 filesystem
-- ELF loader
-
 Note that this is a Linux-like operating system, not a Linux-compatible
 operating system. It is neither API nor ABI compatible with Linux, and
-the userspace libc is obviously not standards-compliant either. It is,
-however, ABI compatible with the ECE 391 specification, and can even boot
-the original MP3 filesystem and pass all tests... well, maybe except for
-style ;-)
+the userspace libc is obviously not standards-compliant either. Notable
+differences from Linux are:
 
-To compile the OS, Linux is required. It compiles on both the ECE 391 VM
-and on modern Linux systems - just run the build.sh script in the root
-directory. GCC or Clang, -O0 through -O2, pick your poison! To add new
+- minimal filesystem (no directories, permissions, attributes, etc.)
+- no users or groups (essentially, everyone is root)
+- some APIs take different arguments (e.g. gets takes a buffer size)
+- floating point is not supported by the ABI
+- math.h, wchar.h, time.h, and a few other libraries are not implemented
+- socket APIs are non-blocking (must check for -EAGAIN)
+
+To compile the OS, boot a Linux system and run the build.sh script. To add
 userspace programs to the filesystem, add the source code to the userspace
-directory and they will automatically be compiled into the filesystem.
+directory and they will automatically be compiled into the filesystem image.
 For static (non-code) files, just add them directly to the filesystem
 directory. Note that the total size of this directory should not exceed
 ~3MB, or else the OS will fail to boot.
 
-Do not attempt to boot this OS on real hardware - it will almost certainly
-not work, and might even set your computer on fire. QEMU is required to
-boot the operating system.
+Do not attempt to boot the OS on real hardware - it will almost certainly
+not work, and might even set your computer on fire. It has only been tested
+in QEMU.
 
 Below is a short description of the source tree contents:
 
@@ -73,7 +70,8 @@ build.sh
     userspace programs. Run it with the optional "clean" argument to
     delete all object files. Run it with "run" to also boot QEMU after a
     successful build. The "-c" (compat) flag can be used to boot the
-    original ECE 391 filesystem.
+    original filesystem image (filesys_img). The "-n" (nobuild) flag
+    can be used to prevent the script from recompiling the OS.
 
 server.sh
     This script runs a TCP music streaming server. It takes the path to
