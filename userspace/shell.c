@@ -23,10 +23,15 @@ static char *
 strtrim(char *s)
 {
     for (; isspace(*s); ++s);
-    char *e = s;
-    for (; *e; ++e);
-    while (e > s && isspace(*--e)) {
-        *e = '\0';
+    char *end = s;
+    char *last = s;
+    for (; *end; ++end) {
+        if (!isspace(*end)) {
+            last = end;
+        }
+    }
+    if (*last) {
+        *(last + 1) = '\0';
     }
     return s;
 }
