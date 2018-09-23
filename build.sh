@@ -63,7 +63,7 @@ if [ "$nobuild" != "true" ]; then
 
     # Generate disk image
     cp "${root_dir}/orig.img" "${root_dir}/disk.img"
-    sudo "${root_dir}/mkimg.sh"
+    sudo "${root_dir}/diskgen.sh"
 fi
 
 # If command is "run", boot the VM

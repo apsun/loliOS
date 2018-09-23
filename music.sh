@@ -9,12 +9,12 @@ mp3file="$1"
 
 # Convert audio to WAV
 wavfile="$(mktemp -u)"
-trap 'rm -f "$wavfile"' EXIT
-ffmpeg -i "$mp3file" -f wav "$wavfile"
+ffmpeg -i "${mp3file}" -f wav "${wavfile}"
+trap 'rm -f "${wavfile}"' EXIT
 
 # Serve music using netcat
-echo "Serving '$mp3file' at port $port..."
+echo "Serving '${mp3file}' at port ${port}..."
 trap "exit 0" INT
 while :; do
-    nc -lp "$port" < "$wavfile" || true
+    nc -lp "${port}" < "${wavfile}" || true
 done

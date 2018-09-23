@@ -73,7 +73,7 @@ build.sh
     original filesystem image (filesys_img). The "-n" (nobuild) flag
     can be used to prevent the script from recompiling the OS.
 
-server.sh
+music.sh
     This script runs a TCP music streaming server. It takes the path to
     an audio file as an argument, converts it into WAV format, and serves
     it at port 7878 on the host. To play the music within the VM, connect
