@@ -15,7 +15,7 @@
  * so there is always _something_ to run.
  */
 static list_t scheduler_queues[2];
-static int scheduler_active;
+static int scheduler_active = 0;
 
 /*
  * Returns the currently active scheduler queue.

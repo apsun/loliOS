@@ -83,15 +83,6 @@ timer_clone(timer_t *dest, timer_t *src)
 }
 
 /*
- * Returns whether the timer is currently active.
- */
-bool
-timer_is_active(timer_t *timer)
-{
-    return timer->callback != NULL;
-}
-
-/*
  * Activates a timer to expire after the specified delay.
  * Note that the delay is relative to the current time,
  * and is in timer tick units (i.e. for a 3 second timeout,

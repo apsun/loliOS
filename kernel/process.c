@@ -533,7 +533,7 @@ process_clone(pcb_t *parent_pcb, int_regs_t *regs, bool clone_pages)
     file_clone(child_pcb->files, parent_pcb->files);
     signal_clone(child_pcb->signals, parent_pcb->signals);
     timer_clone(&child_pcb->alarm_timer, &parent_pcb->alarm_timer);
-    strscpy(child_pcb->args, parent_pcb->args, MAX_ARGS_LEN);
+    strcpy(child_pcb->args, parent_pcb->args);
 
     /* Clone user page into child */
     if (clone_pages) {

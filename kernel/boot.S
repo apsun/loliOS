@@ -1,8 +1,6 @@
 #define ASM 1
-
 #include "multiboot.h"
 #include "x86_desc.h"
-
 
 .text
 
@@ -53,4 +51,3 @@ keep_going:
 halt:
     hlt
     jmp     halt
-

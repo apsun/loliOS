@@ -1737,15 +1737,12 @@ int
 tcp_shutdown(net_sock_t *sock)
 {
     tcp_sock_t *tcp = tcp_sock(sock);
-
     if (!sock->connected) {
         tcp_debugf("shutdown() called on an unconnected socket\n");
         return -1;
     }
 
-    /* Close write end of socket */
     tcp_close_write(tcp);
-
     return 0;
 }
 
@@ -1754,12 +1751,7 @@ int
 tcp_close(net_sock_t *sock)
 {
     tcp_sock_t *tcp = tcp_sock(sock);
-
-    /* Flush inbox immediately */
     tcp_inbox_drain(tcp);
-
-    /* Close write end of socket */
     tcp_close_write(tcp);
-
     return 0;
 }

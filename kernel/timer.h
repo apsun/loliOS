@@ -41,9 +41,6 @@ void timer_init(timer_t *timer);
 /* Clones an existing timer object */
 void timer_clone(timer_t *dest, timer_t *src);
 
-/* Returns whether the timer is currently active */
-bool timer_is_active(timer_t *timer);
-
 /* Starts a new timer with the specified delay and callback */
 void timer_setup(timer_t *timer, int delay, void (*callback)(timer_t *));
 

@@ -121,15 +121,6 @@ list_empty(const list_t *head)
     return head->next == head;
 }
 
-/*
- * Checks whether the list contains exactly one entry.
- */
-static inline bool
-list_is_singular(const list_t *head)
-{
-    return !list_empty(head) && (head->next == head->prev);
-}
-
 #endif /* ASM */
 
 #endif /* _LIST_H */
