@@ -440,7 +440,7 @@ tcp_alloc_skb(size_t body_len)
     hdr->cwr = 0;
     hdr->be_window_size = htons(0);
     hdr->be_checksum = htons(0);
-    hdr->be_urg_ptr = 0;
+    hdr->be_urg_ptr = htons(0);
     return skb;
 }
 

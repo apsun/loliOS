@@ -34,7 +34,7 @@ udp_handle_rx(net_iface_t *iface, skb_t *skb)
     /* Pop UDP header */
     ip_hdr_t *ip_hdr = skb_network_header(skb);
     udp_hdr_t *hdr = skb_reset_transport_header(skb);
-    if (htons(hdr->be_length) != skb_len(skb)) {
+    if (ntohs(hdr->be_length) != skb_len(skb)) {
         debugf("UDP datagram size mismatch\n");
         return -1;
     }

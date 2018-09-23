@@ -17,7 +17,7 @@
 typedef struct {
     mac_addr_t dest_addr;
     mac_addr_t src_addr;
-    uint16_t be_ethertype;
+    be16_t be_ethertype;
 } __packed ethernet_hdr_t;
 
 /* Handles reception of an Ethernet frame */

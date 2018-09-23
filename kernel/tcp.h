@@ -10,10 +10,10 @@
 
 /* TCP header structure */
 typedef struct {
-    uint16_t be_src_port;
-    uint16_t be_dest_port;
-    uint32_t be_seq_num;
-    uint32_t be_ack_num;
+    be16_t be_src_port;
+    be16_t be_dest_port;
+    be32_t be_seq_num;
+    be32_t be_ack_num;
     uint16_t ns : 1;
     uint16_t reserved : 3;
     uint16_t data_offset : 4;
@@ -25,9 +25,9 @@ typedef struct {
     uint16_t urg : 1;
     uint16_t ece : 1;
     uint16_t cwr : 1;
-    uint16_t be_window_size;
-    uint16_t be_checksum;
-    uint16_t be_urg_ptr;
+    be16_t be_window_size;
+    be16_t be_checksum;
+    be16_t be_urg_ptr;
 } tcp_hdr_t;
 
 /* Handles reception of a TCP packet */

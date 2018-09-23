@@ -10,10 +10,10 @@
 
 /* UDP header structure */
 typedef struct {
-    uint16_t be_src_port;
-    uint16_t be_dest_port;
-    uint16_t be_length;
-    uint16_t be_checksum;
+    be16_t be_src_port;
+    be16_t be_dest_port;
+    be16_t be_length;
+    be16_t be_checksum;
 } udp_hdr_t;
 
 /* Handles reception of a UDP datagram */

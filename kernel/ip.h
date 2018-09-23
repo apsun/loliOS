@@ -16,12 +16,12 @@ typedef struct {
     uint8_t ihl : 4;
     uint8_t version : 4;
     uint8_t tos;
-    uint16_t be_total_length;
-    uint16_t be_identification;
-    uint16_t be_flags;
+    be16_t be_total_length;
+    be16_t be_identification;
+    be16_t be_flags;
     uint8_t ttl;
     uint8_t protocol;
-    uint16_t be_checksum;
+    be16_t be_checksum;
     ip_addr_t src_ip;
     ip_addr_t dest_ip;
 } ip_hdr_t;
@@ -32,7 +32,7 @@ typedef struct {
     ip_addr_t dest_ip;
     uint8_t zero;
     uint8_t protocol;
-    uint16_t be_length;
+    be16_t be_length;
 } ip_pseudo_hdr_t;
 
 /* Computes a TCP or UDP checksum */

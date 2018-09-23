@@ -23,11 +23,11 @@
 
 /* ARP packet header */
 typedef struct {
-    uint16_t be_hw_type;
-    uint16_t be_proto_type;
+    be16_t be_hw_type;
+    be16_t be_proto_type;
     uint8_t hw_len;
     uint8_t proto_len;
-    uint16_t be_op;
+    be16_t be_op;
 } __packed arp_hdr_t;
 
 /* ARP IPv4 <-> Ethernet packet body */

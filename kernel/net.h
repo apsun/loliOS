@@ -7,11 +7,15 @@
 
 #ifndef ASM
 
+/* Type-safe network endianness wrappers */
+typedef struct { uint32_t raw; } be32_t;
+typedef struct { uint16_t raw; } be16_t;
+
 /* Network endianness swapping macros */
-#define ntohs(x) bswap16(x)
-#define htons(x) bswap16(x)
-#define ntohl(x) bswap32(x)
-#define htonl(x) bswap32(x)
+#define ntohs(x) bswap16((x).raw)
+#define htons(x) ((be16_t){.raw = bswap16(x)})
+#define ntohl(x) bswap32((x).raw)
+#define htonl(x) ((be32_t){.raw = bswap32(x)})
 
 /* Addresses and address accessories */
 typedef struct { uint8_t bytes[4]; } ip_addr_t;
