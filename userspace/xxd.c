@@ -153,7 +153,7 @@ main(void)
     /* Print file, one screen at a time */
     int off = 0;
     int status;
-    char buf[128];
+    char buf[129];
     while ((status = print_screen(fd, &off)) > 0) {
         if (args.interactive) {
             fprintf(stderr, "--More--");

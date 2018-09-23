@@ -145,76 +145,21 @@ process_free_pcb(pcb_t *pcb)
 }
 
 /*
- * Ensures that the given file is a valid executable file.
+ * Parses a command in the format "(space*)<cmd>[(space+)<args>]".
+ * The input command must be a string in kernel memory, and may be
+ * modified by this function.
+ *
  * On success, writes the inode index of the file to out_inode_idx,
  * the arguments to out_args, and returns 0. Otherwise, returns -1.
  */
 static int
-process_parse_cmd(const char *command, uint32_t *out_inode_idx, char *out_args)
+process_parse_cmd(char *command, uint32_t *out_inode_idx, char *out_args)
 {
-    /*
-     * Scan for the end of the exe filename
-     * (@ == \0 in this diagram)
-     *
-     * Valid case:
-     * cat    myfile.txt@
-     *    |___|__________ i = 3 after loop terminates
-     *        |__________ out_args
-     *
-     * Valid case:
-     * ls@
-     *   |___ i = 2
-     *   |___ out_args
-     *
-     * Invalid case:
-     * ccccccccccccaaaaaaaaaaaattttttttt myfile.txt@
-     *                                  |___________ i = MAX_FILENAME_LEN + 1
-     */
-
-    /* Command index */
-    int i = 0;
-
     /* Strip leading whitespace */
-    while (command[i] == ' ') {
-        i++;
-    }
+    command += strspn(command, " ");
 
-    /* Read the filename (up to 33 chars with NUL terminator) */
-    char filename[MAX_FILENAME_LEN + 1];
-    int fname_i;
-    for (fname_i = 0; fname_i < MAX_FILENAME_LEN + 1; ++fname_i, ++i) {
-        char c = command[i];
-        if (c == ' ' || c == '\0') {
-            filename[fname_i] = '\0';
-            break;
-        }
-        filename[fname_i] = c;
-    }
-
-    /* If we didn't break out of the loop, the filename is too long */
-    if (fname_i == MAX_FILENAME_LEN + 1) {
-        debugf("Filename too long\n");
-        return -1;
-    }
-
-    /* Strip leading whitespace */
-    while (command[i] == ' ') {
-        i++;
-    }
-
-    /* Now copy the arguments to the arg buffer */
-    int args_i;
-    for (args_i = 0; args_i < MAX_ARGS_LEN; ++args_i, ++i) {
-        if ((out_args[args_i] = command[i]) == '\0') {
-            break;
-        }
-    }
-
-    /* Args are too long */
-    if (args_i == MAX_ARGS_LEN) {
-        debugf("Args too long\n");
-        return -1;
-    }
+    /* Filename is everything up to the first space */
+    char *filename = strsep(&command, " ");
 
     /* Read dentry for the file */
     dentry_t dentry;
@@ -242,9 +187,22 @@ process_parse_cmd(const char *command, uint32_t *out_inode_idx, char *out_args)
         return -1;
     }
 
-    /* Write inode index */
-    *out_inode_idx = dentry.inode_idx;
+    /* Remainder of the command becomes the arguments */
+    if (command != NULL) {
+        command += strspn(command, " ");
 
+        /* Don't clobber out_args unless successful */
+        if (strlen(command) >= MAX_ARGS_LEN) {
+            debugf("Arguments too long\n");
+            return -1;
+        }
+
+        strcpy(out_args, command);
+    } else {
+        *out_args = '\0';
+    }
+
+    *out_inode_idx = dentry.inode_idx;
     return 0;
 }
 
@@ -470,20 +428,20 @@ process_create_idle(void)
  * the current paging context!
  */
 static pcb_t *
-process_create_user(const char *command, int terminal)
+process_create_user(char *command, int terminal)
 {
-    /* Parse command and find the executable inode */
-    uint32_t inode;
-    char args[MAX_ARGS_LEN];
-    if (process_parse_cmd(command, &inode, args) != 0) {
-        debugf("Invalid command/executable file\n");
-        return NULL;
-    }
-
     /* Try to allocate a new PCB */
     pcb_t *pcb = process_alloc_pcb();
     if (pcb == NULL) {
         debugf("Reached max number of processes\n");
+        return NULL;
+    }
+
+    /* Parse command and find the executable inode */
+    uint32_t inode;
+    if (process_parse_cmd(command, &inode, pcb->args) != 0) {
+        debugf("Invalid command/executable file\n");
+        process_free_pcb(pcb);
         return NULL;
     }
 
@@ -509,7 +467,6 @@ process_create_user(const char *command, int terminal)
     timer_init(&pcb->alarm_timer);
     timer_setup(&pcb->alarm_timer, TIMER_HZ * SIG_ALARM_PERIOD, process_alarm_callback);
     paging_heap_init(&pcb->heap);
-    strscpy(pcb->args, args, MAX_ARGS_LEN);
 
     /* Set terminal foreground group since this is the only process */
     terminal_tcsetpgrp_impl(terminal, pcb->group);
@@ -607,8 +564,7 @@ process_exec_impl(pcb_t *pcb, int_regs_t *regs, const char *command)
 
     /* Parse command and find the executable inode */
     uint32_t inode;
-    char args[MAX_ARGS_LEN];
-    if (process_parse_cmd(cmd, &inode, args) != 0) {
+    if (process_parse_cmd(cmd, &inode, pcb->args) != 0) {
         debugf("Invalid command/executable file\n");
         return -1;
     }
@@ -621,9 +577,6 @@ process_exec_impl(pcb_t *pcb, int_regs_t *regs, const char *command)
 
     /* Restart SIGALARM timer */
     timer_setup(&pcb->alarm_timer, TIMER_HZ * SIG_ALARM_PERIOD, process_alarm_callback);
-
-    /* Replace saved arguments */
-    strscpy(pcb->args, args, MAX_ARGS_LEN);
 
     /* Copy our program into physical memory */
     uint32_t entry_point = paging_load_exe(inode, pcb->user_pfn);
@@ -1026,7 +979,8 @@ process_halt_impl(int status)
          * be scheduled once we finish tearing down this stack.
          */
         if (restart) {
-            process_create_user(INIT_PROCESS, terminal);
+            char cmd[] = INIT_PROCESS;
+            process_create_user(cmd, terminal);
         }
     } else {
         /* Put child into zombie state */
@@ -1079,7 +1033,8 @@ process_start_shell(void)
     pcb_t *idle = process_create_idle();
     int i;
     for (i = 0; i < NUM_TERMINALS; ++i) {
-        process_create_user(INIT_PROCESS, i);
+        char cmd[] = INIT_PROCESS;
+        process_create_user(cmd, i);
     }
     process_run(idle);
 }

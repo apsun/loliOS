@@ -16,7 +16,7 @@ main(void)
     while (1) {
         fprintf(stderr, "tauxprint> ");
 
-        char buf[128];
+        char buf[129];
         if (gets(buf, sizeof(buf)) == NULL) {
             break;
         }

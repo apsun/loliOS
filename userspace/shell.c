@@ -332,7 +332,7 @@ cleanup:
 int
 main(void)
 {
-    char buf[128];
+    char buf[129];
     while (1) {
         fprintf(stderr, "mash> ");
 
