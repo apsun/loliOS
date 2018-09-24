@@ -279,7 +279,8 @@ socket_socket(int type)
  * is not implemented; otherwise will delegate
  * to it.
  */
-#define FORWARD_SOCKETCALL(sock, fn, ...) do {         \
+#define FORWARD_SOCKETCALL(sk, fn, ...) do {           \
+    net_sock_t *sock = (sk);                           \
     if (sock == NULL) {                                \
         debugf("Not a socket file\n");                 \
         return -1;                                     \
