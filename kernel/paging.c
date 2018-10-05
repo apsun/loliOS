@@ -572,7 +572,7 @@ is_page_user_accessible(uint32_t *addr, bool write)
     }
 
     /* It's a 4KB page, access info through the table */
-    pte_t *pte = PDE_TO_PTE(pde, addr);
+    pte_t *pte = PDE_TO_PTE(pde, *addr);
     if (!pte->present || !pte->user || (!pte->write && write)) {
         return false;
     }
