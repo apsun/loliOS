@@ -465,17 +465,17 @@ terminal_tty_write(file_obj_t *file, const void *buf, int nbytes)
     }
 
     /* Copy and print in chunks */
-    const char *bufp = buf;
-    char tmp[4096];
     int copied = 0;
+    char block[256];
+    const char *bufp = buf;
     while (copied < nbytes) {
-        int to_copy = sizeof(tmp);
+        int to_copy = sizeof(block);
         if (to_copy > nbytes - copied) {
             to_copy = nbytes - copied;
         }
 
         /* Copy some characters from userspace */
-        if (!copy_from_user(tmp, &bufp[copied], to_copy)) {
+        if (!copy_from_user(block, &bufp[copied], to_copy)) {
             break;
         }
         copied += to_copy;
@@ -483,7 +483,7 @@ terminal_tty_write(file_obj_t *file, const void *buf, int nbytes)
         /* Print characters to the terminal (don't update cursor) */
         int i;
         for (i = 0; i < to_copy; ++i) {
-            terminal_putc_impl(term, tmp[i]);
+            terminal_putc_impl(term, block[i]);
         }
     }
 

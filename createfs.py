@@ -15,6 +15,8 @@ DEVICE_FILES = {
     'sound': 5,
     'tty': 6,
     'null': 7,
+    'zero': 8,
+    'random': 9,
 }
 
 

@@ -15,7 +15,9 @@
 #define FILE_TYPE_SOUND 5
 #define FILE_TYPE_TTY 6
 #define FILE_TYPE_NULL 7
-#define FILE_TYPE_COUNT 8
+#define FILE_TYPE_ZERO 8
+#define FILE_TYPE_RANDOM 9
+#define FILE_TYPE_COUNT 10
 
 /* File open modes passed to create() */
 #define OPEN_NONE 0

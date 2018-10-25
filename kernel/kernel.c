@@ -17,6 +17,8 @@
 #include "loopback.h"
 #include "ne2k.h"
 #include "null.h"
+#include "zero.h"
+#include "random.h"
 
 /* Check if the bit BIT in FLAGS is set. */
 #define CHECK_FLAG(flags, bit) ((flags) & (1 << (bit)))
@@ -204,6 +206,12 @@ entry(unsigned long magic, unsigned long addr)
 
     printf("Initializing null file driver...\n");
     null_init();
+
+    printf("Initializing zero file driver...\n");
+    zero_init();
+
+    printf("Initializing random file driver...\n");
+    random_init();
 
     /* We made it! */
     printf("Boot successful!\n");

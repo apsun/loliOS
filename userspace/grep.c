@@ -19,6 +19,8 @@ static const char *special[] = {
     "sound",
     "tty",
     "null",
+    "zero",
+    "random",
 };
 
 static bool
