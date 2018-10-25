@@ -1598,6 +1598,11 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
             break;
         }
 
+        /* Consume SYN flag */
+        if (hdr->syn && tcp->read_num == pkt_seq_num) {
+            tcp->read_num++;
+        }
+
         /*
          * Find starting byte, based on how much we've already read
          * and whether this segment contains a SYN (SYNs take up
