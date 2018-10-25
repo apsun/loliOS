@@ -10,6 +10,9 @@
 #define DNS_PORT 53
 #define DNS_TIMEOUT 1 /* Sadly seconds is the best resolution we have */
 
+/* Maximum number of bytes to send at once */
+#define MSS 1460
+
 typedef struct {
     uint16_t be_id;
     uint16_t be_flags;
@@ -434,7 +437,7 @@ nc_loop(ip_addr_t ip, uint16_t port, args_t *args)
     int ret = 1;
     int sockfd = -1;
     int listenfd = -1;
-    char send_buf[8192];
+    char send_buf[MSS];
     char recv_buf[8192];
     int send_offset = 0;
     int recv_offset = 0;
@@ -497,8 +500,8 @@ nc_loop(ip_addr_t ip, uint16_t port, args_t *args)
         /* Read outbound data from stdin */
         CALL(input(STDIN_FILENO, send_buf, sizeof(send_buf), &send_offset, args->crlf));
 
-        /* If done reading from stdin, send a FIN */
-        if (ret == 0 && send_offset == 0) {
+        /* If done reading from stdin, send a FIN in TCP mode */
+        if (ret == 0 && send_offset == 0 && !args->udp) {
             CALL(shutdown(sockfd));
             send_done = true;
         }
