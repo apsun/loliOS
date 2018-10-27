@@ -274,7 +274,7 @@ file_create(const char *filename, int mode)
 
     /* Try to read filesystem entry */
     dentry_t dentry;
-    if (read_dentry_by_name(tmp, &dentry) != 0) {
+    if (fs_dentry_by_name(tmp, &dentry) != 0) {
         debugf("File not found\n");
         return -1;
     }

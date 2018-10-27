@@ -163,7 +163,7 @@ process_parse_cmd(char *command, uint32_t *out_inode_idx, char *out_args)
 
     /* Read dentry for the file */
     dentry_t dentry;
-    if (read_dentry_by_name(filename, &dentry) != 0) {
+    if (fs_dentry_by_name(filename, &dentry) != 0) {
         debugf("Cannot find dentry\n");
         return -1;
     }
@@ -176,7 +176,7 @@ process_parse_cmd(char *command, uint32_t *out_inode_idx, char *out_args)
 
     /* Read the magic bytes from the file */
     uint32_t magic;
-    if (read_data(dentry.inode_idx, 0, &magic, sizeof(magic), memcpy) != sizeof(magic)) {
+    if (fs_read_data(dentry.inode_idx, 0, &magic, sizeof(magic), memcpy) != sizeof(magic)) {
         debugf("Could not read magic\n");
         return -1;
     }

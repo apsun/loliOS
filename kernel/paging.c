@@ -493,7 +493,7 @@ paging_load_exe(uint32_t inode_idx, int pfn)
     int offset = 0;
     do {
         uint8_t *vaddr = (uint8_t *)TEMP_PAGE_START + PROCESS_OFFSET + offset;
-        count = read_data(inode_idx, offset, vaddr, MB(4), memcpy);
+        count = fs_read_data(inode_idx, offset, vaddr, MB(4), memcpy);
         offset += count;
     } while (count > 0);
 

@@ -60,7 +60,7 @@ fs_namelen(const char file_name[MAX_FILENAME_LEN])
  * -1 is returned.
  */
 int
-read_dentry_by_name(const char *fname, dentry_t *dentry)
+fs_dentry_by_name(const char *fname, dentry_t *dentry)
 {
     uint32_t i;
     for (i = 0; i < fs_boot_block->stat.dentry_count; ++i) {
@@ -79,7 +79,7 @@ read_dentry_by_name(const char *fname, dentry_t *dentry)
  * -1 is returned.
  */
 int
-read_dentry_by_index(uint32_t index, dentry_t *dentry)
+fs_dentry_by_index(uint32_t index, dentry_t *dentry)
 {
     if (index >= fs_boot_block->stat.dentry_count) {
         return -1;
@@ -96,7 +96,7 @@ read_dentry_by_index(uint32_t index, dentry_t *dentry)
  * of bytes read, or -1 on error.
  */
 int
-read_data(
+fs_read_data(
     uint32_t inode, uint32_t offset,
     void *buf, uint32_t length,
     void *(*copy)(void *, const void *, int))
@@ -200,7 +200,7 @@ fs_dir_read(file_obj_t *file, void *buf, int nbytes)
 
     /* Read next file dentry, return 0 if no more entries */
     dentry_t dentry;
-    if (read_dentry_by_index(get_off(file), &dentry) != 0) {
+    if (fs_dentry_by_index(get_off(file), &dentry) != 0) {
         return 0;
     }
 
@@ -231,7 +231,7 @@ static int
 fs_file_read(file_obj_t *file, void *buf, int nbytes)
 {
     /* Read bytes into userspace buffer */
-    int count = read_data(file->inode_idx, get_off(file), buf, nbytes, copy_to_user);
+    int count = fs_read_data(file->inode_idx, get_off(file), buf, nbytes, copy_to_user);
 
     /* Increment byte offset for next read */
     if (count > 0) {
