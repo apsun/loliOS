@@ -62,9 +62,6 @@ typedef struct {
 /* Finds a dentry by its name */
 int fs_dentry_by_name(const char *fname, dentry_t *dentry);
 
-/* Finds a dentry by its index */
-int fs_dentry_by_index(uint32_t index, dentry_t* dentry);
-
 /* Reads some data from a file with the specified inode index */
 int fs_read_data(
     uint32_t inode, uint32_t offset,

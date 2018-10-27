@@ -55,6 +55,22 @@ fs_namelen(const char file_name[MAX_FILENAME_LEN])
 }
 
 /*
+ * Gets a directory entry by its index. If the entry exists,
+ * it is copied to dentry and 0 is returned; otherwise,
+ * -1 is returned.
+ */
+static int
+fs_dentry_by_index(uint32_t index, dentry_t *dentry)
+{
+    if (index >= fs_boot_block->stat.dentry_count) {
+        return -1;
+    }
+
+    *dentry = fs_boot_block->dir_entries[index];
+    return 0;
+}
+
+/*
  * Finds a directory entry by name. If the entry is found,
  * it is copied to dentry and 0 is returned; otherwise,
  * -1 is returned.
@@ -71,22 +87,6 @@ fs_dentry_by_name(const char *fname, dentry_t *dentry)
         }
     }
     return -1;
-}
-
-/*
- * Gets a directory entry by its index. If the entry exists,
- * it is copied to dentry and 0 is returned; otherwise,
- * -1 is returned.
- */
-int
-fs_dentry_by_index(uint32_t index, dentry_t *dentry)
-{
-    if (index >= fs_boot_block->stat.dentry_count) {
-        return -1;
-    }
-
-    *dentry = fs_boot_block->dir_entries[index];
-    return 0;
 }
 
 /*
