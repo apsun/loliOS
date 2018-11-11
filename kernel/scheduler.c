@@ -69,7 +69,6 @@ scheduler_next_pcb(void)
     return pcb;
 }
 
-
 /*
  * Yields the current process's execution and schedules
  * the next process to run. This should never be called

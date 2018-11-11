@@ -18,25 +18,22 @@ OUT_BIN += build/fish
 .PHONY: all
 all: $(OUT_BIN)
 
-elf:
-	mkdir -p elf
+elf build:
+	mkdir -p $@
 
-build:
-	mkdir -p build
-
-.PRECIOUS: elf/missiles.elf
-elf/missiles.elf: $(MISSILES_OBJ) $(LOLIBC_OBJ) | elf
+.PRECIOUS: elf/missiles
+elf/missiles: $(MISSILES_OBJ) $(LOLIBC_OBJ) | elf
 	$(LD) $(LDFLAGS) -o $@ $^
 
-.PRECIOUS: elf/fish.elf
-elf/fish.elf: $(FISH_OBJ) $(LOLIBC_OBJ) | elf
+.PRECIOUS: elf/fish
+elf/fish: $(FISH_OBJ) $(LOLIBC_OBJ) | elf
 	$(LD) $(LDFLAGS) -o $@ $^
 
-.PRECIOUS: elf/%.elf
-elf/%.elf: %.o $(LOLIBC_OBJ) | elf
+.PRECIOUS: elf/%
+elf/%: %.o $(LOLIBC_OBJ) | elf
 	$(LD) $(LDFLAGS) -o $@ $^
 
-build/%: elf/%.elf | build
+build/%: elf/% | build
 	../elfconvert $<
 	mv $<.converted $@
 
