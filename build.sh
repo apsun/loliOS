@@ -46,7 +46,7 @@ fi
 
 # If debug mode is set, compile in -O0 with debug info
 if [ "$debug" = "true" ]; then
-    export CFLAGS="${CFLAGS-} -O0 -g"
+    export CFLAGS="${CFLAGS-} -O0 -g -DDEBUG_PRINT=1"
 else
     export CFLAGS="${CFLAGS-} -O2"
 fi
