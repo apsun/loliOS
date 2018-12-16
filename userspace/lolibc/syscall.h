@@ -65,21 +65,10 @@
 #define SOCK_UDP 2
 #define SOCK_IP  3
 
-/* file.h */
-#define FCNTL_NONBLOCK 1
-
 /* sb16.h */
 #define SOUND_SET_BITS_PER_SAMPLE 1
 #define SOUND_SET_NUM_CHANNELS 2
 #define SOUND_SET_SAMPLE_RATE 3
-
-/* file.h */
-#define OPEN_NONE 0
-#define OPEN_READ (1 << 0)
-#define OPEN_WRITE (1 << 1)
-#define OPEN_RDWR (OPEN_READ | OPEN_WRITE)
-#define OPEN_CREATE (1 << 2)
-#define OPEN_TRUNC (1 << 3)
 
 /* file.h */
 #define FILE_TYPE_RTC 0
@@ -92,6 +81,23 @@
 #define FILE_TYPE_NULL 7
 #define FILE_TYPE_ZERO 8
 #define FILE_TYPE_RANDOM 9
+
+/* file.h */
+#define OPEN_NONE 0
+#define OPEN_READ (1 << 0)
+#define OPEN_WRITE (1 << 1)
+#define OPEN_RDWR (OPEN_READ | OPEN_WRITE)
+#define OPEN_CREATE (1 << 2)
+#define OPEN_TRUNC (1 << 3)
+#define OPEN_APPEND (1 << 4)
+
+/* file.h */
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
+
+/* file.h */
+#define FCNTL_NONBLOCK 1
 
 #ifndef ASM
 

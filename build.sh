@@ -14,8 +14,12 @@ fi
 # Parse flag options
 nobuild="false"
 compat="false"
-while getopts ":cn" opt; do
+debug="false"
+while getopts ":dcn" opt; do
     case "$opt" in
+    d)
+        debug="true"
+        ;;
     c)
         compat="true"
         ;;
@@ -38,6 +42,13 @@ if [ "$#" -gt 0 ] && [ "$1" = "clean" ]; then
     rm -f "${root_dir}/filesys_img.new"
     rm -f "${root_dir}/disk.img"
     exit 0
+fi
+
+# If debug mode is set, compile in -O0 with debug info
+if [ "$debug" = "true" ]; then
+    export CFLAGS="${CFLAGS-} -O0 -g"
+else
+    export CFLAGS="${CFLAGS-} -O2"
 fi
 
 if [ "$nobuild" != "true" ]; then

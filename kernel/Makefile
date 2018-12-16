@@ -3,7 +3,7 @@ CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter \
 	-Wshadow -Wpointer-arith \
 	-fno-builtin -fno-stack-protector -fno-omit-frame-pointer \
 	-fno-asynchronous-unwind-tables -ffreestanding \
-	-O2 -m32 -mno-sse
+	-m32 -mno-sse
 ASFLAGS += -Wall -Wextra -m32
 LDFLAGS += -nostdlib -static -melf_i386
 

@@ -16,6 +16,7 @@
 static list_declare(socket_list);
 
 /* File operations syscall forward declarations */
+static int socket_open(file_obj_t *file);
 static int socket_read(file_obj_t *file, void *buf, int nbytes);
 static int socket_write(file_obj_t *file, const void *buf, int nbytes);
 static int socket_close(file_obj_t *file);
@@ -23,7 +24,7 @@ static int socket_ioctl(file_obj_t *file, int req, int arg);
 
 /* Network socket file ops */
 static const file_ops_t socket_fops = {
-    .open = NULL, /* Can never be reached */
+    .open = socket_open,
     .read = socket_read,
     .write = socket_write,
     .close = socket_close,
@@ -210,6 +211,16 @@ socket_obj_bind_file(file_obj_t **files, net_sock_t *sock)
 
     file->private = socket_obj_retain(sock);
     return fd;
+}
+
+/*
+ * open() syscall for socket files. Always fails, since users
+ * should never be able to open a socket the normal way.
+ */
+static int
+socket_open(file_obj_t *file)
+{
+    return -1;
 }
 
 /*

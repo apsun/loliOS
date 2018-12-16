@@ -165,6 +165,12 @@ entry(unsigned long magic, unsigned long addr)
     printf("Initializing IDT...\n");
     idt_init();
 
+    printf("Initializing paging...\n");
+    paging_init();
+
+    printf("Initializing filesystem...\n");
+    fs_init((void *)fs_start);
+
     printf("Initializing PIC...\n");
     i8259_init();
 
@@ -177,17 +183,11 @@ entry(unsigned long magic, unsigned long addr)
     printf("Initializing RTC...\n");
     rtc_init();
 
-    printf("Enabling paging...\n");
-    paging_enable();
-
-    printf("Initializing filesystem...\n");
-    fs_init(fs_start);
+    printf("Initializing scheduler...\n");
+    scheduler_init();
 
     printf("Initializing processes...\n");
     process_init();
-
-    printf("Initializing scheduler...\n");
-    scheduler_init();
 
     printf("Seeding random number generator...\n");
     srand(rtc_time());

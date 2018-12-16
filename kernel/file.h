@@ -26,6 +26,12 @@
 #define OPEN_RDWR (OPEN_READ | OPEN_WRITE)
 #define OPEN_CREATE (1 << 2)
 #define OPEN_TRUNC (1 << 3)
+#define OPEN_APPEND (1 << 4)
+
+/* Modes passed to seek() */
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
 
 /* Accepted fcntl() commands */
 #define FCNTL_NONBLOCK 1

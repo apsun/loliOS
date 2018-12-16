@@ -219,9 +219,9 @@ paging_flush_tlb(void)
         : "eax");
 }
 
-/* Enables paging. */
+/* Initializes all initial page tables and enables paging. */
 void
-paging_enable(void)
+paging_init(void)
 {
     /* Ensure page table arrays are 4096-byte aligned */
     assert(((uint32_t)page_dir   & 0xfff) == 0);

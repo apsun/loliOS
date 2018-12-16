@@ -50,8 +50,8 @@ typedef struct {
     int pages[MAX_HEAP_PAGES];
 } paging_heap_t;
 
-/* Enables paging */
-void paging_enable(void);
+/* Initializes paging */
+void paging_init(void);
 
 /* Allocates a physical 4MB page */
 int paging_page_alloc(void);

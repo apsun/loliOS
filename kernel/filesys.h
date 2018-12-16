@@ -49,6 +49,18 @@ typedef struct {
 
 /* inode block structure */
 typedef struct {
+    /*
+     * Since the maximum size of a file is 4096 * 1023 bytes,
+     * we have 10 free upper bits in each inode's length field.
+     * We use that to store the inode refcount and a pending deletion
+     * flag, for a maximum of 512 open copies of a single file.
+     * Also note that dup'd file descriptors do not count toward
+     * this limit, since the refcount is per file object.
+     *
+     * This obviously isn't a good idea for disk-based filesystems,
+     * but since our fs is loaded into memory this is a reasonable
+     * alternative to maintaining a list of open inodes.
+     */
     struct {
         /* Size of the file in bytes */
         uint32_t size : 22;
@@ -81,12 +93,12 @@ int fs_dentry_by_name(const char *fname, dentry_t **dentry);
 
 /* Reads some data from a file with the specified inode index */
 int fs_read_data(
-    int inode, uint32_t offset,
-    void *buf, uint32_t length,
-    void *(*copy)(void *, const void *, int));
+    int inode_idx, int offset,
+    void *buf, int length,
+    void *(*copy)(void *dest, const void *src, int nbytes));
 
 /* Initializes the filesystem */
-void fs_init(uint32_t fs_start);
+void fs_init(void *fs_start);
 
 #endif /* ASM */
 

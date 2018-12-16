@@ -10,6 +10,7 @@ typedef struct cmd {
     char *name;       /* Program name to run */
     char *in;         /* Name of file to redirect stdin from */
     char *out;        /* Name of file to redirect stdout to */
+    bool out_append;
 } cmd_t;
 
 typedef struct proc {
@@ -48,13 +49,26 @@ strdup(const char *s)
 }
 
 static char *
-pop_redirect(char *s)
+pop_redirect(char *s, bool *append)
 {
-    char *fname = s + 1 + strspn(s + 1, " ");
+    char *next = s + 1;
+
+    /* Append redirection operator? (>>) */
+    if (s[1] == s[0] && append != NULL) {
+        next++;
+        *append = true;
+    }
+
+    /* Skip spaces */
+    char *fname = next + strspn(next, " ");
+
+    /* Read until next space */
     char *end = strchr(fname, ' ');
     if (end != NULL) {
         *end++ = '\0';
     }
+
+    /* Pop word from original string */
     char *word = strdup(fname);
     if (end != NULL) {
         strcpy(s, end);
@@ -101,10 +115,11 @@ parse_input(char *line)
         curr->name = NULL;
         curr->in = NULL;
         curr->out = NULL;
+        curr->out_append = false;
 
         char *lt = strchr(cmd_s, '<');
         if (lt != NULL) {
-            curr->in = pop_redirect(lt);
+            curr->in = pop_redirect(lt, NULL);
             if (curr->in == NULL) {
                 fprintf(stderr, "Out of memory, cannot allocate command\n");
                 goto cleanup;
@@ -113,7 +128,7 @@ parse_input(char *line)
 
         char *gt = strchr(cmd_s, '>');
         if (gt != NULL) {
-            curr->out = pop_redirect(gt);
+            curr->out = pop_redirect(gt, &curr->out_append);
             if (curr->out == NULL) {
                 fprintf(stderr, "Out of memory, cannot allocate command\n");
                 goto cleanup;
@@ -123,6 +138,9 @@ parse_input(char *line)
         curr->name = strdup(strtrim(cmd_s));
         if (curr->name == NULL) {
             fprintf(stderr, "Out of memory, cannot allocate command\n");
+            goto cleanup;
+        } else if (curr->name[0] == '\0') {
+            fprintf(stderr, "Parse error: empty command\n");
             goto cleanup;
         }
     }
@@ -231,7 +249,9 @@ execute_command(cmd_t *cmd)
             /* Do the same, this time for stdout */
             if (cmd->out != NULL) {
                 assert(curr_out < 0);
-                curr_out = create(cmd->out, OPEN_WRITE | OPEN_TRUNC | OPEN_CREATE);
+                int mode = OPEN_WRITE | OPEN_CREATE;
+                mode |= cmd->out_append ? OPEN_APPEND : OPEN_TRUNC;
+                curr_out = create(cmd->out, mode);
                 if (curr_out < 0) {
                     fprintf(stderr, "Failed to open '%s' for writing\n", cmd->out);
                     halt(127);
