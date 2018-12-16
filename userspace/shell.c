@@ -231,7 +231,7 @@ execute_command(cmd_t *cmd)
             /* Do the same, this time for stdout */
             if (cmd->out != NULL) {
                 assert(curr_out < 0);
-                curr_out = create(cmd->out, OPEN_WRITE);
+                curr_out = create(cmd->out, OPEN_WRITE | OPEN_TRUNC | OPEN_CREATE);
                 if (curr_out < 0) {
                     fprintf(stderr, "Failed to open '%s' for writing\n", cmd->out);
                     halt(127);

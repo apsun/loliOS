@@ -4,15 +4,6 @@
 #include "paging.h"
 
 /*
- * open() syscall handler for the zero file. Always succeeds.
- */
-static int
-zero_open(file_obj_t *file)
-{
-    return 0;
-}
-
-/*
  * read() syscall handler for the zero file. Fills the buffer
  * with zero bytes.
  */
@@ -56,31 +47,10 @@ zero_write(file_obj_t *file, const void *buf, int nbytes)
     return nbytes;
 }
 
-/*
- * close() syscall handler for the zero file. Always succeeds.
- */
-static int
-zero_close(file_obj_t *file)
-{
-    return 0;
-}
-
-/*
- * ioctl() syscall handler for the zero file. Always fails.
- */
-static int
-zero_ioctl(file_obj_t *file, int req, int arg)
-{
-    return -1;
-}
-
 /* Zero file type operations table */
 static const file_ops_t zero_fops = {
-    .open = zero_open,
     .read = zero_read,
     .write = zero_write,
-    .close = zero_close,
-    .ioctl = zero_ioctl,
 };
 
 /*

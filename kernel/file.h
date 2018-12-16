@@ -23,7 +23,9 @@
 #define OPEN_NONE 0
 #define OPEN_READ (1 << 0)
 #define OPEN_WRITE (1 << 1)
-#define OPEN_ALL (OPEN_READ | OPEN_WRITE)
+#define OPEN_RDWR (OPEN_READ | OPEN_WRITE)
+#define OPEN_CREATE (1 << 2)
+#define OPEN_TRUNC (1 << 3)
 
 /* Accepted fcntl() commands */
 #define FCNTL_NONBLOCK 1
@@ -53,10 +55,10 @@ typedef struct {
     bool nonblocking;
 
     /*
-     * inode index of this file, unused if the file
+     * inode index of this file, -1 if the file
      * does not refer to a physical file on disk.
      */
-    uint32_t inode_idx;
+    int inode_idx;
 
     /*
      * File-private data, use is determined by driver.
@@ -71,7 +73,15 @@ struct file_ops {
     int (*write)(file_obj_t *file, const void *buf, int nbytes);
     int (*close)(file_obj_t *file);
     int (*ioctl)(file_obj_t *file, int req, int arg);
+    int (*seek)(file_obj_t *file, int offset, int mode);
+    int (*truncate)(file_obj_t *file, int length);
 };
+
+/* Result structure for stat() syscall */
+typedef struct stat {
+    int type;
+    int size;
+} stat_t;
 
 /* Registers a file ops table with an associated type */
 void file_register_type(int file_type, const file_ops_t *ops_table);
@@ -105,6 +115,10 @@ __cdecl int file_close(int fd);
 __cdecl int file_ioctl(int fd, int req, int arg);
 __cdecl int file_dup(int srcfd, int destfd);
 __cdecl int file_fcntl(int fd, int req, int arg);
+__cdecl int file_seek(int fd, int offset, int mode);
+__cdecl int file_truncate(int fd, int length);
+__cdecl int file_unlink(const char *filename);
+__cdecl int file_stat(const char *filename, stat_t *buf);
 
 #endif /* ASM */
 

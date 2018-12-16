@@ -42,7 +42,11 @@
 #define SYS_CREATE      36
 #define SYS_FCNTL       37
 #define SYS_YIELD       38
-#define NUM_SYSCALL     38
+#define SYS_SEEK        39
+#define SYS_TRUNCATE    40
+#define SYS_UNLINK      41
+#define SYS_STAT        42
+#define NUM_SYSCALL     42
 
 #define EINTR  2
 #define EAGAIN 3

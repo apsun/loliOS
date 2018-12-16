@@ -266,24 +266,6 @@ rtc_write(file_obj_t *file, const void *buf, int nbytes)
 }
 
 /*
- * close() syscall handler for RTC. Does nothing.
- */
-static int
-rtc_close(file_obj_t *file)
-{
-    return 0;
-}
-
-/*
- * ioctl() syscall handler for RTC. Always fails.
- */
-static int
-rtc_ioctl(file_obj_t *file, int req, int arg)
-{
-    return -1;
-}
-
-/*
  * Converts a separate-component time to a Unix timestamp.
  * Hopefully nobody is using our OS in 2038 ;-)
  */
@@ -346,8 +328,6 @@ static const file_ops_t rtc_fops = {
     .open = rtc_open,
     .read = rtc_read,
     .write = rtc_write,
-    .close = rtc_close,
-    .ioctl = rtc_ioctl,
 };
 
 /* Initializes the RTC and enables interrupts */

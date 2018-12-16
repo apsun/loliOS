@@ -3,6 +3,7 @@
 
 #include "types.h"
 #include "lib.h"
+#include "myalloc.h"
 
 #ifndef ASM
 
@@ -30,16 +31,22 @@ typedef uint32_t bitmap_t;
     ((i) % bitsizeof(bitmap_t))
 
 /*
- * Returns the number of bytes needed to hold a n-bit bitmap.
+ * Returns the number of units needed to hold a n-bit bitmap.
  */
-#define bitmap_nbytes(nbits) \
+#define bitmap_nunits(nbits) \
     ((int)(((nbits) + bitsizeof(bitmap_t) - 1) / bitsizeof(bitmap_t)))
 
 /*
  * Declares a new bitmap with the specified name and number of bits.
  */
 #define bitmap_declare(name, nbits) \
-    bitmap_t name[bitmap_nbytes(nbits)]
+    bitmap_t name[bitmap_nunits(nbits)]
+
+/*
+ * Dynamically allocates a new bitmap with the specified number of bits.
+ */
+#define bitmap_alloc(nbits) \
+    malloc(sizeof(bitmap_t) * bitmap_nunits(nbits))
 
 /*
  * Reads the specified bit in the bitmap.
@@ -69,7 +76,7 @@ static inline int
 bitmap_find_one(bitmap_t *map, int nbits)
 {
     int i;
-    for (i = 0; i < bitmap_nbytes(nbits); ++i) {
+    for (i = 0; i < bitmap_nunits(nbits); ++i) {
         if (map[i] != 0) {
             return i * bitsizeof(bitmap_t) + bsfl(map[i]);
         }
@@ -87,7 +94,7 @@ static inline int
 bitmap_find_zero(bitmap_t *map, int nbits)
 {
     int i;
-    for (i = 0; i < bitmap_nbytes(nbits); ++i) {
+    for (i = 0; i < bitmap_nunits(nbits); ++i) {
         if (~map[i] != 0) {
             return i * bitsizeof(bitmap_t) + bsfl(~map[i]);
         }

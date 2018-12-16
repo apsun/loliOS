@@ -232,22 +232,11 @@ pipe_close(file_obj_t *file)
     return 0;
 }
 
-/*
- * ioctl() syscall handler for pipes. Always fails.
- */
-static int
-pipe_ioctl(file_obj_t *file, int req, int arg)
-{
-    return -1;
-}
-
 /* Combined read/write file ops for pipe files */
 static const file_ops_t pipe_fops = {
-    .open = NULL,
     .read = pipe_read,
     .write = pipe_write,
     .close = pipe_close,
-    .ioctl = pipe_ioctl,
 };
 
 /*

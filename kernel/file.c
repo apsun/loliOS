@@ -78,13 +78,14 @@ file_obj_alloc(const file_ops_t *ops_table, int mode, bool open)
     file->refcnt = 0;
     file->mode = mode;
     file->nonblocking = false;
-    file->inode_idx = 0;
+    file->inode_idx = -1;
     file->private = NULL;
 
     /* Call open() if necessary */
-    if (open && file->ops_table->open(file) < 0) {
-        free(file);
-        return NULL;
+    if (open && file->ops_table->open != NULL) {
+        if (file->ops_table->open(file) < 0) {
+            return NULL;
+        }
     }
 
     return file;
@@ -100,7 +101,10 @@ void
 file_obj_free(file_obj_t *file, bool close)
 {
     assert(file->refcnt == 0);
-    if (close) {
+    if (file->inode_idx >= 0) {
+        fs_release_inode(file->inode_idx);
+    }
+    if (close && file->ops_table->close != NULL) {
         file->ops_table->close(file);
     }
     free(file);
@@ -272,17 +276,24 @@ file_create(const char *filename, int mode)
         return -1;
     }
 
-    /* Try to read filesystem entry */
-    dentry_t dentry;
-    if (fs_dentry_by_name(tmp, &dentry) != 0) {
-        debugf("File not found\n");
-        return -1;
+    /* Try to read or create filesystem entry */
+    dentry_t *dentry;
+    if (fs_dentry_by_name(tmp, &dentry) < 0) {
+        if (mode & OPEN_CREATE) {
+            if (fs_create_file(tmp, &dentry) < 0) {
+                debugf("Failed to create file\n");
+                return -1;
+            }
+        } else {
+            debugf("File not found\n");
+            return -1;
+        }
     }
 
     /* Get corresponding ops table */
-    const file_ops_t *ops_table = get_file_ops(dentry.type);
+    const file_ops_t *ops_table = get_file_ops(dentry->type);
     if (ops_table == NULL) {
-        debugf("Unhandled file type: %u\n", dentry.type);
+        debugf("Unhandled file type: %u\n", dentry->type);
         return -1;
     }
 
@@ -301,50 +312,27 @@ file_create(const char *filename, int mode)
         return -1;
     }
 
-    file->inode_idx = dentry.inode_idx;
+    /* Increment inode refcount */
+    if (dentry->type == FILE_TYPE_FILE) {
+        file->inode_idx = fs_acquire_inode(dentry->inode_idx);
+    }
+
+    /* If truncate flag was specified, attempt to truncate the file */
+    if ((mode & OPEN_TRUNC) && (mode & OPEN_WRITE)) {
+        file_truncate(fd, 0);
+    }
+
     return fd;
 }
 
 /*
  * open() syscall handler. This is equivalent to calling create()
- * with a mode of OPEN_ALL (i.e. both read and write permissions).
+ * with a mode of OPEN_RDWR (i.e. both read and write permissions).
  */
 __cdecl int
 file_open(const char *filename)
 {
-    return file_create(filename, OPEN_ALL);
-}
-
-/*
- * read() syscall handler. Reads the specified number of bytes
- * from the file into the specified userspace buffer. The
- * implementation is determined by the file type.
- */
-__cdecl int
-file_read(int fd, void *buf, int nbytes)
-{
-    file_obj_t *file = get_executing_file(fd);
-    if (file == NULL || !(file->mode & OPEN_READ)) {
-        debugf("Invalid fd or reading without permissions\n");
-        return -1;
-    }
-    return file->ops_table->read(file, buf, nbytes);
-}
-
-/*
- * write() syscall handler. Writes the specified number of bytes
- * from the specified userspace buffer into the file. The
- * implementation is determined by the file type.
- */
-__cdecl int
-file_write(int fd, const void *buf, int nbytes)
-{
-    file_obj_t *file = get_executing_file(fd);
-    if (file == NULL || !(file->mode & OPEN_WRITE)) {
-        debugf("Invalid fd or writing without permissions\n");
-        return -1;
-    }
-    return file->ops_table->write(file, buf, nbytes);
+    return file_create(filename, OPEN_RDWR);
 }
 
 /*
@@ -366,20 +354,6 @@ file_close(int fd)
     }
 
     return file_desc_unbind(get_executing_files(), fd);
-}
-
-/*
- * ioctl() syscall handler. Performs an arbitrary action determined
- * by the file type.
- */
-__cdecl int
-file_ioctl(int fd, int req, int arg)
-{
-    file_obj_t *file = get_executing_file(fd);
-    if (file == NULL) {
-        return -1;
-    }
-    return file->ops_table->ioctl(file, req, arg);
 }
 
 /*
@@ -443,3 +417,117 @@ file_fcntl(int fd, int req, int arg)
         return -1;
     }
 }
+
+/*
+ * unlink() syscall handler. Removes the specified file from
+ * the filesystem.
+ */
+__cdecl int
+file_unlink(const char *filename)
+{
+    char tmp[MAX_FILENAME_LEN + 1];
+    if (strscpy_from_user(tmp, filename, sizeof(tmp)) < 0) {
+        debugf("Invalid string passed to unlink()\n");
+        return -1;
+    }
+
+    return fs_delete_file(tmp);
+}
+
+/*
+ * stat() syscall handler. Retrieves metadata about the
+ * specified file and copies it into the specified buffer.
+ */
+__cdecl int
+file_stat(const char *filename, stat_t *buf)
+{
+    char tmp[MAX_FILENAME_LEN + 1];
+    if (strscpy_from_user(tmp, filename, sizeof(tmp)) < 0) {
+        debugf("Invalid string passed to stat()\n");
+        return -1;
+    }
+
+    stat_t st;
+    if (fs_stat(tmp, &st) < 0) {
+        return -1;
+    }
+
+    if (!copy_to_user(buf, &st, sizeof(stat_t))) {
+        debugf("Failed to copy stat to userspace\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+/*
+ * Helper macro for delegating to functions in the file ops table.
+ */
+#define FORWARD_FILECALL(fd, md, fn, ...) do {                    \
+    file_obj_t *file = get_executing_file(fd);                    \
+    if (file == NULL) {                                           \
+        debugf("File: invalid file descriptor\n");                \
+        return -1;                                                \
+    }                                                             \
+    if (file->ops_table->fn == NULL) {                            \
+        debugf("File: %s() not implemented\n", #fn);              \
+        return -1;                                                \
+    }                                                             \
+    if ((file->mode & (md)) != (md)) {                            \
+        debugf("File: %s() requires %s permissions\n", #fn, #md); \
+        return -1;                                                \
+    }                                                             \
+    return file->ops_table->fn(file, ##__VA_ARGS__);              \
+} while (0)
+
+/*
+ * read() syscall handler. Reads the specified number of bytes
+ * from the file into the specified userspace buffer.
+ */
+__cdecl int
+file_read(int fd, void *buf, int nbytes)
+{
+    FORWARD_FILECALL(fd, OPEN_READ, read, buf, nbytes);
+}
+
+/*
+ * write() syscall handler. Writes the specified number of bytes
+ * from the specified userspace buffer into the file.
+ */
+__cdecl int
+file_write(int fd, const void *buf, int nbytes)
+{
+    FORWARD_FILECALL(fd, OPEN_WRITE, write, buf, nbytes);
+}
+
+/*
+ * ioctl() syscall handler. Performs an arbitrary action determined
+ * by the file type.
+ */
+__cdecl int
+file_ioctl(int fd, int req, int arg)
+{
+    FORWARD_FILECALL(fd, OPEN_NONE, ioctl, req, arg);
+}
+
+/*
+ * seek() syscall handler. Modifies the current read/write offset
+ * of the file.
+ */
+__cdecl int
+file_seek(int fd, int offset, int mode)
+{
+    FORWARD_FILECALL(fd, OPEN_NONE, seek, offset, mode);
+}
+
+/*
+ * truncate() syscall handler. Sets the file length to the specified
+ * value. The file must be opened in writeable mode.
+ */
+__cdecl int
+file_truncate(int fd, int length)
+{
+    FORWARD_FILECALL(fd, OPEN_WRITE, truncate, length);
+}
+
+#undef FORWARD_FILECALL

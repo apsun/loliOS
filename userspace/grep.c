@@ -4,35 +4,16 @@
 #include <string.h>
 #include <syscall.h>
 
-/*
- * Ugly hack: avoid reading these files since they can
- * block indefinitely waiting for data to arrive. In the
- * future we can add a stat syscall to determine the file
- * type for a given file descriptor which is what GNU grep
- * does, but for now we'll just take the lazy way out.
- */
-static const char *special[] = {
-    ".",
-    "rtc",
-    "mouse",
-    "taux",
-    "sound",
-    "tty",
-    "null",
-    "zero",
-    "random",
-};
-
 static bool
 is_regular_file(const char *fname)
 {
-    int i;
-    for (i = 0; i < (int)(sizeof(special) / sizeof(special[0])); ++i) {
-        if (strcmp(fname, special[i]) == 0) {
-            return false;
-        }
+    stat_t st;
+    if (stat(fname, &st) < 0) {
+        fprintf(stderr, "%s: could not stat\n", fname);
+        return false;
     }
-    return true;
+
+    return st.type == FILE_TYPE_FILE;
 }
 
 static int

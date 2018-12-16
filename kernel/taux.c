@@ -354,38 +354,30 @@ taux_handle_poll_ok(uint8_t b, uint8_t c)
 }
 
 /*
- * Taux controller open syscall handler. Always succeeds.
+ * Checks that the file was opened with the appropriate
+ * permissions to perform the specified ioctl call.
  */
 static int
-taux_open(file_obj_t *file)
+taux_ioctl_check_mode(file_obj_t *file, int req)
 {
-    return 0;
-}
+    int mode = 0;
+    switch (req) {
+    case TUX_INIT:
+    case TUX_SET_LED:
+    case TUX_SET_LED_STR:
+        mode = OPEN_WRITE;
+        break;
+    case TUX_BUTTONS:
+        mode = OPEN_READ;
+        break;
+    default:
+        return -1;
+    }
 
-/*
- * Taux controller read syscall handler. Always fails.
- */
-static int
-taux_read(file_obj_t *file, void *buf, int nbytes)
-{
-    return -1;
-}
+    if ((file->mode & mode) != mode) {
+        return -1;
+    }
 
-/*
- * Taux controller write syscall handler. Always fails.
- */
-static int
-taux_write(file_obj_t *file, const void *buf, int nbytes)
-{
-    return -1;
-}
-
-/*
- * Taux controller close syscall handler. Always succeeds.
- */
-static int
-taux_close(file_obj_t *file)
-{
     return 0;
 }
 
@@ -395,6 +387,10 @@ taux_close(file_obj_t *file)
 static int
 taux_ioctl(file_obj_t *file, int req, int arg)
 {
+    if (taux_ioctl_check_mode(file, req) < 0) {
+        return -1;
+    }
+
     switch (req) {
     case TUX_INIT:
         return taux_ioctl_init();
@@ -487,10 +483,6 @@ taux_handle_irq(void)
 
 /* Taux controller file ops */
 static const file_ops_t taux_fops = {
-    .open = taux_open,
-    .read = taux_read,
-    .write = taux_write,
-    .close = taux_close,
     .ioctl = taux_ioctl,
 };
 

@@ -58,6 +58,10 @@ MAKE_SYS(pipe, SYS_PIPE)
 MAKE_SYS(create, SYS_CREATE)
 MAKE_SYS(fcntl, SYS_FCNTL)
 MAKE_SYS(yield, SYS_YIELD)
+MAKE_SYS(seek, SYS_SEEK)
+MAKE_SYS(truncate, SYS_TRUNCATE)
+MAKE_SYS(unlink, SYS_UNLINK)
+MAKE_SYS(stat, SYS_STAT)
 
 .globl _start
 _start:

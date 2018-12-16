@@ -160,13 +160,6 @@ sb16_open(file_obj_t *file)
     return 0;
 }
 
-/* SB16 read() syscall handler, always fails */
-static int
-sb16_read(file_obj_t *file, void *buf, int nbytes)
-{
-    return -1;
-}
-
 /*
  * SB16 write() syscall handler. If audio is not already
  * playing, this will begin playback. To set playback
@@ -304,6 +297,11 @@ sb16_ioctl(file_obj_t *file, int req, int arg)
         return -1;
     }
 
+    if ((file->mode & OPEN_WRITE) != OPEN_WRITE) {
+        debugf("File not opened in write mode\n");
+        return -1;
+    }
+
     switch (req) {
     case SOUND_SET_BITS_PER_SAMPLE:
         return sb16_ioctl_set_bits_per_sample(arg);
@@ -340,7 +338,6 @@ sb16_handle_irq(void)
 /* Sound Blaster 16 file ops */
 static const file_ops_t sb16_fops = {
     .open = sb16_open,
-    .read = sb16_read,
     .write = sb16_write,
     .close = sb16_close,
     .ioctl = sb16_ioctl,

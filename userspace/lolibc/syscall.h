@@ -39,6 +39,10 @@
 #define SYS_CREATE      36
 #define SYS_FCNTL       37
 #define SYS_YIELD       38
+#define SYS_SEEK        39
+#define SYS_TRUNCATE    40
+#define SYS_UNLINK      41
+#define SYS_STAT        42
 
 /* syscall.h */
 #define EINTR  2
@@ -73,7 +77,21 @@
 #define OPEN_NONE 0
 #define OPEN_READ (1 << 0)
 #define OPEN_WRITE (1 << 1)
-#define OPEN_ALL (OPEN_READ | OPEN_WRITE)
+#define OPEN_RDWR (OPEN_READ | OPEN_WRITE)
+#define OPEN_CREATE (1 << 2)
+#define OPEN_TRUNC (1 << 3)
+
+/* file.h */
+#define FILE_TYPE_RTC 0
+#define FILE_TYPE_DIR 1
+#define FILE_TYPE_FILE 2
+#define FILE_TYPE_MOUSE 3
+#define FILE_TYPE_TAUX 4
+#define FILE_TYPE_SOUND 5
+#define FILE_TYPE_TTY 6
+#define FILE_TYPE_NULL 7
+#define FILE_TYPE_ZERO 8
+#define FILE_TYPE_RANDOM 9
 
 #ifndef ASM
 
@@ -89,6 +107,12 @@ typedef struct {
     ip_addr_t ip;
     uint16_t port;
 } sock_addr_t;
+
+/* file.h */
+typedef struct {
+    int type;
+    int length;
+} stat_t;
 
 /* net.h */
 #define IP(a, b, c, d) ((ip_addr_t){.bytes = {(a), (b), (c), (d)}})
@@ -134,6 +158,10 @@ __cdecl int pipe(int *readfd, int *writefd);
 __cdecl int create(const char *filename, int mode);
 __cdecl int fcntl(int fd, int req, int arg);
 __cdecl int yield(void);
+__cdecl int seek(int fd, int offset, int mode);
+__cdecl int truncate(int fd, int length);
+__cdecl int unlink(const char *filename);
+__cdecl int stat(const char *filename, stat_t *buf);
 
 #endif /* ASM */
 

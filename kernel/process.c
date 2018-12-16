@@ -162,21 +162,21 @@ process_parse_cmd(char *command, uint32_t *out_inode_idx, char *out_args)
     char *filename = strsep(&command, " ");
 
     /* Read dentry for the file */
-    dentry_t dentry;
+    dentry_t *dentry;
     if (fs_dentry_by_name(filename, &dentry) != 0) {
         debugf("Cannot find dentry\n");
         return -1;
     }
 
     /* Can only execute files, obviously */
-    if (dentry.type != FILE_TYPE_FILE) {
+    if (dentry->type != FILE_TYPE_FILE) {
         debugf("Can only execute files\n");
         return -1;
     }
 
     /* Read the magic bytes from the file */
     uint32_t magic;
-    if (fs_read_data(dentry.inode_idx, 0, &magic, sizeof(magic), memcpy) != sizeof(magic)) {
+    if (fs_read_data(dentry->inode_idx, 0, &magic, sizeof(magic), memcpy) != sizeof(magic)) {
         debugf("Could not read magic\n");
         return -1;
     }
@@ -202,7 +202,7 @@ process_parse_cmd(char *command, uint32_t *out_inode_idx, char *out_args)
         *out_args = '\0';
     }
 
-    *out_inode_idx = dentry.inode_idx;
+    *out_inode_idx = dentry->inode_idx;
     return 0;
 }
 

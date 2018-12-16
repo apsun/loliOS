@@ -6,8 +6,9 @@
 /* Size of a single filesystem block, in bytes */
 #define FS_BLOCK_SIZE 4096
 
-/* Maximum filename length */
 #define MAX_FILENAME_LEN 32
+#define MAX_DENTRIES 63
+#define MAX_DATA_BLOCKS 1023
 
 #ifndef ASM
 
@@ -26,45 +27,61 @@ typedef struct {
     uint8_t reserved[24];
 } dentry_t;
 
-/* Stat entry structure */
-typedef struct stat_entry_t {
-    /* Number of dentries in the filesystem */
-    uint32_t dentry_count;
-
-    /* Number of inode blocks in the filesystem */
-    uint32_t inode_count;
-
-    /* Number of data blocks in the filesystem */
-    uint32_t data_block_count;
-
-    /* Pad struct to 64 bytes */
-    uint8_t reserved[52];
-} stat_entry_t;
-
 /* Boot block structure */
 typedef struct {
-    /* First entry holds some statistics about our filesystem */
-    stat_entry_t stat;
+    struct {
+        /* Number of dentries in the filesystem */
+        uint32_t dentry_count;
+
+        /* Number of inode blocks in the filesystem */
+        uint32_t inode_count;
+
+        /* Number of data blocks in the filesystem */
+        uint32_t data_block_count;
+
+        /* Pad struct to 64 bytes */
+        uint8_t reserved[52];
+    };
 
     /* Remaining entries hold our directory entries */
-    dentry_t dir_entries[63];
+    dentry_t dir_entries[MAX_DENTRIES];
 } boot_block_t;
 
 /* inode block structure */
 typedef struct {
-    /* Size of the file in bytes */
-    uint32_t size;
+    struct {
+        /* Size of the file in bytes */
+        uint32_t size : 22;
+
+        /* Internal inode reference count */
+        uint32_t refcnt : 9;
+
+        /* Whether this inode should be deleted when refcnt hits zero */
+        uint32_t delet : 1;
+    };
 
     /* Array of data block indices that hold the file data */
-    uint32_t data_blocks[1023];
+    uint32_t data_blocks[MAX_DATA_BLOCKS];
 } inode_t;
 
+/* Filesystem syscall helpers */
+int fs_create_file(const char *filename, dentry_t **dentry);
+int fs_delete_file(const char *filename);
+
+/* stat() syscall helper */
+struct stat;
+int fs_stat(const char *filename, struct stat *st);
+
+/* Manages the inode reference count */
+int fs_acquire_inode(int inode_idx);
+void fs_release_inode(int inode_idx);
+
 /* Finds a dentry by its name */
-int fs_dentry_by_name(const char *fname, dentry_t *dentry);
+int fs_dentry_by_name(const char *fname, dentry_t **dentry);
 
 /* Reads some data from a file with the specified inode index */
 int fs_read_data(
-    uint32_t inode, uint32_t offset,
+    int inode, uint32_t offset,
     void *buf, uint32_t length,
     void *(*copy)(void *, const void *, int));
 

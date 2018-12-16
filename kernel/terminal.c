@@ -383,15 +383,6 @@ terminal_wait_kbd_input(terminal_state_t *term, int nbytes, bool nonblocking)
 }
 
 /*
- * open() syscall handler for stdin/stdout. Always succeeds.
- */
-static int
-terminal_tty_open(file_obj_t *file)
-{
-    return 0;
-}
-
-/*
  * read() syscall handler for stdin. Reads up to nbytes
  * characters or the first line break or EOT, whichever occurs
  * first. Returns the number of characters read.
@@ -497,35 +488,6 @@ terminal_tty_write(file_obj_t *file, const void *buf, int nbytes)
 }
 
 /*
- * close() syscall handler for stdin/stdout. Always fails.
- * Note that in the new post-dup() API, the return value
- * is not actually used.
- */
-static int
-terminal_tty_close(file_obj_t *file)
-{
-    return -1;
-}
-
-/*
- * ioctl() syscall handler for stdin/stdout. Always fails.
- */
-static int
-terminal_tty_ioctl(file_obj_t *file, int req, int arg)
-{
-    return -1;
-}
-
-/*
- * open() syscall handler for the mouse. Always succeeds.
- */
-static int
-terminal_mouse_open(file_obj_t *file)
-{
-    return 0;
-}
-
-/*
  * read() syscall handler for the mouse. Copies at most
  * nbytes worth of input events into buf (see mouse_input_t for
  * the meaning of the event data). It is possible to read
@@ -604,33 +566,6 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
 
     /* Return the number of bytes copied into the buffer */
     return nbytes;
-}
-
-/*
- * write() syscall handler for the mouse. Always fails.
- */
-static int
-terminal_mouse_write(file_obj_t *file, const void *buf, int nbytes)
-{
-    return -1;
-}
-
-/*
- * close() syscall handler for the mouse. Always succeeds.
- */
-static int
-terminal_mouse_close(file_obj_t *file)
-{
-    return 0;
-}
-
-/*
- * ioctl() syscall handler for the mouse. Always fails.
- */
-static int
-terminal_mouse_ioctl(file_obj_t *file, int req, int arg)
-{
-    return -1;
 }
 
 /*
@@ -763,20 +698,13 @@ terminal_update_vidmap(int term_index, bool present)
 
 /* Combined file ops for the stdin/stdout streams */
 static const file_ops_t terminal_tty_fops = {
-    .open = terminal_tty_open,
     .read = terminal_tty_read,
     .write = terminal_tty_write,
-    .close = terminal_tty_close,
-    .ioctl = terminal_tty_ioctl,
 };
 
 /* Mouse file ops */
 static const file_ops_t terminal_mouse_fops = {
-    .open = terminal_mouse_open,
     .read = terminal_mouse_read,
-    .write = terminal_mouse_write,
-    .close = terminal_mouse_close,
-    .ioctl = terminal_mouse_ioctl,
 };
 
 /*

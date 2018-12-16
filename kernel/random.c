@@ -4,15 +4,6 @@
 #include "paging.h"
 
 /*
- * open() syscall handler for the random file. Always succeeds.
- */
-static int
-random_open(file_obj_t *file)
-{
-    return 0;
-}
-
-/*
  * read() syscall handler for the random file. Fills the buffer
  * with random bytes.
  */
@@ -52,40 +43,9 @@ random_read(file_obj_t *file, void *buf, int nbytes)
     }
 }
 
-/*
- * write() syscall handler for the random file. Always fails.
- */
-static int
-random_write(file_obj_t *file, const void *buf, int nbytes)
-{
-    return -1;
-}
-
-/*
- * close() syscall handler for the random file. Always succeeds.
- */
-static int
-random_close(file_obj_t *file)
-{
-    return 0;
-}
-
-/*
- * ioctl() syscall handler for the random file. Always fails.
- */
-static int
-random_ioctl(file_obj_t *file, int req, int arg)
-{
-    return -1;
-}
-
 /* Random file type operations table */
 static const file_ops_t random_fops = {
-    .open = random_open,
     .read = random_read,
-    .write = random_write,
-    .close = random_close,
-    .ioctl = random_ioctl,
 };
 
 /*

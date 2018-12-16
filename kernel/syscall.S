@@ -50,6 +50,10 @@ syscall_jump_table:
     .long file_create
     .long file_fcntl
     .long scheduler_yield
+    .long file_seek
+    .long file_truncate
+    .long file_unlink
+    .long file_stat
 
 .text
 
