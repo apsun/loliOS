@@ -12,7 +12,7 @@ at Urbana-Champaign. The original release included support for:
 - virtual memory
 - PS/2 keyboard
 - real-time clock
-- basic filesystem
+- read-only filesystem
 - terminal I/O
 - userspace execution
 - preemptive multitasking
@@ -28,6 +28,7 @@ Since then, the following additional features have been added:
 - networking (NE2000 + ARP + IP + UDP + TCP + DNS)
 - fork, exec, wait
 - pipes
+- writable in-memory filesystem
 
 Note that this is a Linux-like operating system, not a Linux-compatible
 operating system. It is neither API nor ABI compatible with Linux, and
