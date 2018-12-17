@@ -171,6 +171,22 @@ test_write_fill_block(void)
 }
 
 void
+test_write_large_file(void)
+{
+    int fd = mktemp(0);
+    int ret;
+    char buf[8192] = {'a'};
+
+    ret = write(fd, buf, sizeof(buf));
+    assert(ret == sizeof(buf));
+
+    ret = seek(fd, 0, SEEK_CUR);
+    assert(ret == 8192);
+
+    close(fd);
+}
+
+void
 test_open_trunc(void)
 {
     int fd;
@@ -278,6 +294,7 @@ main(void)
     test_partial_write();
     test_write_gap();
     test_write_fill_block();
+    test_write_large_file();
     test_open_trunc();
     test_open_append();
     test_unlink_lazy_delete();

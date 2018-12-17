@@ -289,7 +289,7 @@ fs_iterate_data(
         int nbytes = end_offset - start_offset;
         if (nbytes > 0) {
             uint8_t *data = fs_data(inode->data_blocks[i]);
-            if (callback(data + start_offset, nbytes, private) < nbytes) {
+            if (callback(data + start_offset, nbytes, private) < 0) {
                 break;
             }
             total_read += nbytes;
@@ -318,7 +318,7 @@ fs_read_data_cb(void *data, int nbytes, void *private)
         return -1;
     }
     p->buf += nbytes;
-    return nbytes;
+    return 0;
 }
 
 /*
@@ -539,7 +539,7 @@ fs_file_write_cb(void *data, int nbytes, void *private)
         return -1;
     }
     p->buf += nbytes;
-    return nbytes;
+    return 0;
 }
 
 /*
