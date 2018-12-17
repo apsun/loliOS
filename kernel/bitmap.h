@@ -46,7 +46,7 @@ typedef uint32_t bitmap_t;
  * Dynamically allocates a new bitmap with the specified number of bits.
  */
 #define bitmap_alloc(nbits) \
-    calloc(sizeof(bitmap_t), bitmap_nunits(nbits))
+    calloc(bitmap_nunits(nbits), sizeof(bitmap_t))
 
 /*
  * Reads the specified bit in the bitmap.

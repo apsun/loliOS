@@ -602,16 +602,18 @@ fs_file_write(file_obj_t *file, const void *buf, int nbytes)
 
     /* If not all bytes were copied, resize file back to accommodate */
     if (copied < nbytes) {
-        new_length -= nbytes - copied;
+        new_length = orig_length;
+        if (new_length < offset + copied) {
+            new_length = offset + copied;
+        }
         fs_resize_inode(inode, new_length, false);
     }
-
-    /* Update current offset */
-    set_off(file, new_length);
 
     if (copied == 0) {
         return -1;
     } else {
+        /* Update current offset */
+        set_off(file, offset + copied);
         return copied;
     }
 }
@@ -649,7 +651,7 @@ fs_file_seek(file_obj_t *file, int offset, int mode)
     }
 
     set_off(file, offset_base + offset);
-    return 0;
+    return get_off(file);
 }
 
 /*
