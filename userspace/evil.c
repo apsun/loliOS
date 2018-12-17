@@ -92,7 +92,7 @@ read_invalid_buffer(void)
 {
     int result = 0;
     char *addr = (char *)(END_OF_USER - 4);
-    int fd = open("shell");
+    int fd = create("shell", OPEN_READ);
 
     /* Checks upper bound at all? */
     if (read(fd, addr, 8) >= 0) {
@@ -173,7 +173,7 @@ read_kernel_buffer(void)
     int result = 0;
     int i;
     for (i = 0; i < 1024; ++i) {
-        int fd = open("shell");
+        int fd = create("shell", OPEN_READ);
         if (read(fd, (char *)(START_OF_KERNEL + i * 4096), 4096) >= 0) {
             result = 1;
         }
@@ -191,7 +191,7 @@ read_large_buffer(void)
 {
     char buf[4097];
     int result = 0;
-    int fd = open("fish");
+    int fd = create("fish", OPEN_READ);
     int count;
     do {
         count = read(fd, buf, sizeof(buf));

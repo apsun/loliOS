@@ -40,9 +40,9 @@ fdopen(int fd)
 }
 
 /*
- * Opens a file with the specified mode. The only
- * supported modes are r, w, and rw. Binary and append
- * modes are not supported.
+ * Opens a file with the specified mode. Supported
+ * values are r, w, a, r+, w+, and a+. Behavior is
+ * undefined if any other string is passed for mode.
  */
 FILE *
 fopen(const char *name, const char *mode)
@@ -58,7 +58,13 @@ fopen(const char *name, const char *mode)
             flags |= OPEN_READ;
             break;
         case 'w':
-            flags |= OPEN_WRITE;
+            flags |= OPEN_WRITE | OPEN_CREATE | OPEN_TRUNC;
+            break;
+        case 'a':
+            flags |= OPEN_WRITE | OPEN_CREATE | OPEN_APPEND;
+            break;
+        case '+':
+            flags |= OPEN_RDWR;
             break;
         default:
             return NULL;

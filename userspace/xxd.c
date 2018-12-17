@@ -144,7 +144,7 @@ main(void)
 
     /* If file is specified, use that as input */
     if (*args.argv) {
-        if ((fd = open(args.argv)) < 0) {
+        if ((fd = create(args.argv, OPEN_READ)) < 0) {
             fprintf(stderr, "%s: No such file or directory\n", args.argv);
             goto cleanup;
         }

@@ -266,7 +266,7 @@ main(void)
     }
 
     /* Open mouse file */
-    if ((mouse_fd = open("mouse")) < 0) {
+    if ((mouse_fd = create("mouse", OPEN_READ)) < 0) {
         fprintf(stderr, "Could not open mouse file\n");
         goto exit;
     }

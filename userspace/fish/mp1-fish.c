@@ -23,8 +23,8 @@ static int
 add_frames(const char *f0, const char *f1)
 {
     /* Open frame files */
-    int fd0 = open(f0);
-    int fd1 = open(f1);
+    int fd0 = create(f0, OPEN_READ);
+    int fd1 = create(f1, OPEN_READ);
     if (fd0 < 0 || fd1 < 0) {
         return -1;
     }
@@ -91,7 +91,7 @@ main(void)
     vga_init();
 
     /* Initialize RTC to 32 ticks/sec */
-    int rtc_fd = open("rtc");
+    int rtc_fd = create("rtc", OPEN_READ);
     int rtc_freq = 32;
     write(rtc_fd, &rtc_freq, sizeof(rtc_freq));
 

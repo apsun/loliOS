@@ -80,7 +80,7 @@ static void
 try_patch_kernel(uint32_t addr)
 {
     /* Now that's what I call reflection! */
-    int fd = open("wtf");
+    int fd = create("wtf", OPEN_READ);
 
     /* Skip until we hit the correct offset */
     int offset = (uint32_t)&iret_context[0] - 0x8048000;

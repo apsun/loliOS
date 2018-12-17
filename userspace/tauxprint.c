@@ -7,7 +7,7 @@
 int
 main(void)
 {
-    int fd = create("taux", OPEN_READ);
+    int fd = create("taux", OPEN_RDWR);
     if (fd < 0) {
         fprintf(stderr, "Failed to open taux file\n");
         return 1;

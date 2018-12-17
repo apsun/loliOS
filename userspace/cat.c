@@ -102,7 +102,7 @@ main(void)
      */
     char filename[128];
     if (getargs(filename, sizeof(filename)) >= 0) {
-        if ((fd = open(filename)) < 0) {
+        if ((fd = create(filename, OPEN_READ)) < 0) {
             fprintf(stderr, "%s: No such file or directory\n", filename);
             goto cleanup;
         }
