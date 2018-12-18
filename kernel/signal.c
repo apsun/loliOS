@@ -116,7 +116,7 @@ __cdecl int
 signal_sigaction(int signum, void *handler_address)
 {
     /* Check signal number range */
-    if (signum < 0 || signum >= NUM_SIGNALS) {
+    if (signum < 0 || signum >= NUM_SIGNALS || signum == SIG_KILL) {
         return -1;
     }
 
@@ -140,7 +140,7 @@ signal_sigreturn(
     int_regs_t *kernel_regs)
 {
     /* Check signal number range */
-    if (signum < 0 || signum >= NUM_SIGNALS) {
+    if (signum < 0 || signum >= NUM_SIGNALS || signum == SIG_KILL) {
         debugf("Invalid signal number\n");
         return -1;
     }
@@ -190,7 +190,7 @@ signal_sigreturn(
 __cdecl int
 signal_sigmask(int signum, int action)
 {
-    if (signum < 0 || signum >= NUM_SIGNALS) {
+    if (signum < 0 || signum >= NUM_SIGNALS || signum == SIG_KILL) {
         return -1;
     }
 
@@ -232,7 +232,7 @@ static int
 signal_kill_one(int pid, int signum)
 {
     pcb_t *pcb = get_pcb(pid);
-    if (pcb == NULL) {
+    if (pcb == NULL || pcb->state == PROCESS_STATE_ZOMBIE) {
         return -1;
     }
 
@@ -291,6 +291,13 @@ signal_kill(int pid, int signum)
 static bool
 signal_handle(signal_info_t *sig, int_regs_t *regs)
 {
+    /* Kill signal should be handled entirely by kernel */
+    if (sig->signum == SIG_KILL) {
+        debugf("Killing process due to SIGKILL\n");
+        process_halt_impl(128 + sig->signum);
+        return true;
+    }
+
     /* If handler is set and signal isn't masked, run it */
     if (sig->handler_addr != NULL && !sig->masked) {
         /* If no more space on stack to push signal context, kill process */
@@ -308,9 +315,9 @@ signal_handle(signal_info_t *sig, int_regs_t *regs)
         return true;
     }
 
-    /* CTRL-C halts with exit code 130 (SIGINT) */
+    /* Interrupt signal halts with exit code 130 (SIGINT) */
     if (sig->signum == SIG_INTERRUPT) {
-        debugf("Killing process due to CTRL-C\n");
+        debugf("Killing process due to SIGINT\n");
         process_halt_impl(128 + sig->signum);
         return true;
     }
@@ -402,6 +409,7 @@ signal_has_pending(signal_info_t *signals)
             case SIG_DIV_ZERO:
             case SIG_SEGFAULT:
             case SIG_INTERRUPT:
+            case SIG_KILL:
                 return true;
             }
         }

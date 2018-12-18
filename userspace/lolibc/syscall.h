@@ -55,6 +55,7 @@
 #define SIG_INTERRUPT 2
 #define SIG_ALARM     3
 #define SIG_USER1     4
+#define SIG_KILL      5
 
 /* signal.h */
 #define SIGMASK_NONE    0

@@ -41,7 +41,9 @@ static list_declare(wait_queue);
 
 /*
  * Gets the PCB of the process with the given PID.
- * This does NOT include the idle process.
+ * This does NOT include the idle process. Note that
+ * the process may already be dead; make sure to check
+ * the process state to ensure it is not a zombie.
  */
 pcb_t *
 get_pcb(int pid)
@@ -840,8 +842,8 @@ process_setpgrp(int pid, int pgrp)
         pid = pcb->pid;
     } else {
         pcb = get_pcb(pid);
-        if (pcb == NULL) {
-            debugf("Invalid/nonexistent PID: %d\n", pid);
+        if (pcb == NULL || pcb->state == PROCESS_STATE_ZOMBIE) {
+            debugf("Invalid/nonexistent/dead PID: %d\n", pid);
             return -1;
         }
     }

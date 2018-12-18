@@ -10,7 +10,8 @@
 #define SIG_INTERRUPT 2
 #define SIG_ALARM     3
 #define SIG_USER1     4
-#define NUM_SIGNALS   5
+#define SIG_KILL      5
+#define NUM_SIGNALS   6
 
 /* sigmask() actions and return values */
 #define SIGMASK_NONE    0
