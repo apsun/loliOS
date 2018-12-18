@@ -3,9 +3,6 @@
 
 #include "types.h"
 
-/* Size of a single filesystem block, in bytes */
-#define FS_BLOCK_SIZE 4096
-
 #define MAX_FILENAME_LEN 32
 #define MAX_DENTRIES 63
 #define MAX_DATA_BLOCKS 1023
@@ -53,7 +50,7 @@ typedef struct {
      * Since the maximum size of a file is 4096 * 1023 bytes,
      * we have 10 free upper bits in each inode's length field.
      * We use that to store the inode refcount and a pending deletion
-     * flag, for a maximum of 512 open copies of a single file.
+     * flag, for a maximum of 511 open copies of a single file.
      * Also note that dup'd file descriptors do not count toward
      * this limit, since the refcount is per file object.
      *

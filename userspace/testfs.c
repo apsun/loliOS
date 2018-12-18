@@ -127,6 +127,38 @@ test_partial_write(void)
 }
 
 void
+test_failed_write(void)
+{
+    int fd = mktemp(0);
+    int ret;
+    char buf[128];
+
+    ret = write(fd, (void *)0xffffffff, 1000);
+    assert(ret < 0);
+
+    ret = seek(fd, 0, SEEK_CUR);
+    assert(ret == 0);
+
+    ret = read(fd, buf, sizeof(buf));
+    assert(ret == 0);
+
+    ret = seek(fd, 10, SEEK_SET);
+    assert(ret == 10);
+
+    ret = write(fd, (void *)0xffffffff, 1000);
+    assert(ret < 0);
+
+    ret = seek(fd, 0, SEEK_CUR);
+    assert(ret == 10);
+
+    ret = seek(fd, 0, SEEK_SET);
+    assert(ret == 0);
+
+    ret = read(fd, buf, sizeof(buf));
+    assert(ret == 0);
+}
+
+void
 test_write_gap(void)
 {
     int fd = mktemp(0);
@@ -292,6 +324,7 @@ main(void)
     test_truncate_shrink();
     test_truncate_grow();
     test_partial_write();
+    test_failed_write();
     test_write_gap();
     test_write_fill_block();
     test_write_large_file();

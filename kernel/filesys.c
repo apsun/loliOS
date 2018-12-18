@@ -15,6 +15,9 @@
 #define get_off(f) ((int)(f)->private)
 #define set_off(f, x) ((f)->private = (void *)(int)(x))
 
+/* Size of a single filesystem block, in bytes */
+#define FS_BLOCK_SIZE 4096
+
 /* Maximum size in bytes of a file */
 #define FS_MAX_FILE_SIZE (FS_BLOCK_SIZE * MAX_DATA_BLOCKS)
 
@@ -569,6 +572,9 @@ fs_file_write(file_obj_t *file, const void *buf, int nbytes)
         nbytes = FS_MAX_FILE_SIZE - offset;
     }
 
+    /* Number of bytes we've successfully copied into the file */
+    int copied = 0;
+
     /* New length of file = max(offset + nbytes, current length) */
     inode_t *inode = fs_inode(file->inode_idx);
     int orig_length = inode->size;
@@ -580,27 +586,37 @@ fs_file_write(file_obj_t *file, const void *buf, int nbytes)
         if (offset > orig_length) {
             if (fs_resize_inode(inode, offset, true) < 0) {
                 debugf("File write failed: cannot allocate data blocks to fill gap\n");
-                return -1;
+                goto exit;
             }
         }
 
         /* Allocate space for the actual data */
         if (fs_resize_inode(inode, new_length, false) < 0) {
             debugf("File write failed: cannot allocate data blocks to hold new data\n");
-            if (offset > orig_length) {
-                /* Undo gap allocation */
-                fs_resize_inode(inode, orig_length, false);
-            }
-            return -1;
+            goto exit;
         }
     }
 
     /* Copy data from userspace into data blocks */
     fs_file_write_private p;
     p.buf = buf;
-    int copied = fs_iterate_data(inode, offset, nbytes, fs_file_write_cb, &p);
+    copied = fs_iterate_data(inode, offset, nbytes, fs_file_write_cb, &p);
 
-    /* If not all bytes were copied, resize file back to accommodate */
+exit:
+    /*
+     * If no bytes were copied at all, resize file back to the original
+     * size, and if a gap was allocated, undo that.
+     */
+    if (copied == 0) {
+        fs_resize_inode(inode, orig_length, false);
+        return -1;
+    }
+
+    /*
+     * Some bytes were copied, so we can't undo the gap allocation,
+     * but we should trim off the excess bytes we allocated that
+     * didn't get written at the end.
+     */
     if (copied < nbytes) {
         new_length = orig_length;
         if (new_length < offset + copied) {
@@ -609,13 +625,9 @@ fs_file_write(file_obj_t *file, const void *buf, int nbytes)
         fs_resize_inode(inode, new_length, false);
     }
 
-    if (copied == 0) {
-        return -1;
-    } else {
-        /* Update current offset */
-        set_off(file, offset + copied);
-        return copied;
-    }
+    /* Update file offset */
+    set_off(file, offset + copied);
+    return copied;
 }
 
 /*
