@@ -43,6 +43,7 @@
 #define SYS_TRUNCATE    40
 #define SYS_UNLINK      41
 #define SYS_STAT        42
+#define NUM_SYSCALL     42
 
 /* syscall.h */
 #define EINTR  2

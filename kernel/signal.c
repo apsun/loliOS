@@ -190,6 +190,10 @@ signal_sigreturn(
 __cdecl int
 signal_sigmask(int signum, int action)
 {
+    if (signum < 0 || signum >= NUM_SIGNALS) {
+        return -1;
+    }
+
     pcb_t *pcb = get_executing_pcb();
     signal_info_t *sig = &pcb->signals[signum];
     int orig_masked = sig->masked ? SIGMASK_BLOCK : SIGMASK_UNBLOCK;
