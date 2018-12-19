@@ -21,36 +21,12 @@ FILE __stdout = {.fd = STDOUT_FILENO};
 FILE __stderr = {.fd = STDERR_FILENO};
 
 /*
- * Wraps an existing file descriptor into a FILE. When the
- * FILE is closed, the descriptor will also be closed.
+ * Parses a stdio mode string into a combination of
+ * OPEN_* flags. Returns 0 on failure.
  */
-FILE *
-fdopen(int fd)
+static int
+parse_mode(const char *mode)
 {
-    FILE *fp = malloc(sizeof(FILE));
-    if (fp == NULL) {
-        return NULL;
-    }
-
-    fp->fd = fd;
-    fp->buf = NULL;
-    fp->offset = 0;
-    fp->count = 0;
-    return fp;
-}
-
-/*
- * Opens a file with the specified mode. Supported
- * values are r, w, a, r+, w+, and a+. Behavior is
- * undefined if any other string is passed for mode.
- */
-FILE *
-fopen(const char *name, const char *mode)
-{
-    assert(name != NULL);
-    assert(mode != NULL);
-    assert(*mode != '\0');
-
     int flags = 0;
     do {
         switch (*mode) {
@@ -67,20 +43,77 @@ fopen(const char *name, const char *mode)
             flags |= OPEN_RDWR;
             break;
         default:
-            return NULL;
+            return 0;
         }
     } while (*++mode != '\0');
+    return flags;
+}
+
+/*
+ * Wraps a file descriptor into a FILE object.
+ */
+static FILE *
+falloc(int fd, int mode)
+{
+    FILE *fp = malloc(sizeof(FILE));
+    if (fp == NULL) {
+        return NULL;
+    }
+
+    fp->mode = mode;
+    fp->fd = fd;
+    fp->buf = NULL;
+    fp->offset = 0;
+    fp->count = 0;
+    return fp;
+}
+
+/*
+ * Wraps an existing file descriptor into a FILE. When the
+ * FILE is closed, the descriptor will also be closed.
+ */
+FILE *
+fdopen(int fd, const char *mode)
+{
+    assert(fd >= 0);
+    assert(mode != NULL);
+
+    int flags = parse_mode(mode);
+    if (flags == 0) {
+        return NULL;
+    }
+
+    return falloc(fd, flags);
+}
+
+/*
+ * Opens a file with the specified mode. Supported
+ * values are r, w, a, r+, w+, and a+. Behavior is
+ * undefined if any other string is passed for mode.
+ */
+FILE *
+fopen(const char *name, const char *mode)
+{
+    assert(name != NULL);
+    assert(mode != NULL);
+    assert(*mode != '\0');
+
+    int flags = parse_mode(mode);
+    if (flags == 0) {
+        return NULL;
+    }
 
     int fd = create(name, flags);
     if (fd < 0) {
         return NULL;
     }
 
-    FILE *fp = fdopen(fd);
+    FILE *fp = falloc(fd, flags);
     if (fp == NULL) {
         close(fd);
         return NULL;
     }
+
     return fp;
 }
 
@@ -120,7 +153,48 @@ fwrite(FILE *fp, const void *buf, int size)
     assert(buf != NULL);
     assert(size >= 0);
 
-    return write(fp->fd, buf, size);
+    int ret = write(fp->fd, buf, size);
+    if (ret > 0) {
+        /*
+         * Also consume the same number of bytes from
+         * the readahead buffer, since our file offset
+         * has now advanced. If file is in append mode,
+         * always clear the buffer.
+         */
+        if (fp->mode & OPEN_APPEND) {
+            fp->offset = 0;
+            fp->count = 0;
+        } else {
+            fp->offset += ret;
+            if (fp->offset >= fp->count) {
+                fp->offset = 0;
+                fp->count = 0;
+            }
+        }
+    }
+
+    return ret;
+}
+
+/*
+ * Wrapper around seek() syscall. WARNING: this API is
+ * intentionally incompatible with the libc API.
+ */
+int
+fseek(FILE *fp, int offset, int mode)
+{
+    int ret = seek(fp->fd, offset, mode);
+    if (ret >= 0) {
+        /*
+         * Invalidate readahead buffer. Technically we could
+         * be smart about saving portions of it by maintaining
+         * our current offset and figuring out what part got
+         * invalidated, but it's not worth the effort.
+         */
+        fp->offset = 0;
+        fp->count = 0;
+    }
+    return ret;
 }
 
 /*

@@ -13,6 +13,7 @@
  * done by higher level APIs.
  */
 typedef struct {
+    int mode;
     int fd;
     char *buf;
     int offset;
@@ -27,11 +28,12 @@ extern FILE __stderr;
 #define stdout (&__stdout)
 #define stderr (&__stderr)
 
-FILE *fdopen(int fd);
+FILE *fdopen(int fd, const char *mode);
 FILE *fopen(const char *name, const char *mode);
 int fread(FILE *fp, void *buf, int size);
 int fwrite(FILE *fp, const void *buf, int size);
 int fclose(FILE *fp);
+int fseek(FILE *fp, int offset, int mode);
 
 int fputc(char c, FILE *fp);
 int fputs(const char *s, FILE *fp);

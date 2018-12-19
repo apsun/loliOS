@@ -317,6 +317,95 @@ test_unlink_lazy_delete(void)
     assert(fd < 0);
 }
 
+void
+test_stdio_file(void)
+{
+    FILE *f;
+    int ret;
+    char buf[128];
+
+    f = fopen("TEST_FILE", "w+");
+    assert(f != NULL);
+
+    ret = fwrite(f, "foobar", 6);
+    assert(ret == 6);
+
+    ret = fread(f, buf, sizeof(buf));
+    assert(ret == 0);
+
+    ret = fseek(f, 0, SEEK_SET);
+    assert(ret == 0);
+
+    ret = fread(f, buf, 1);
+    assert(ret == 1);
+    assert(buf[0] == 'f');
+
+    ret = fseek(f, 3, SEEK_SET);
+    assert(ret == 3);
+
+    ret = fread(f, buf, 1);
+    assert(ret == 1);
+    assert(buf[0] == 'b');
+
+    ret = fwrite(f, "x", 1);
+    assert(ret == 1);
+
+    ret = fread(f, buf, 1);
+    assert(ret == 1);
+    assert(buf[0] == 'r');
+
+    ret = fseek(f, 0, SEEK_SET);
+    assert(ret == 0);
+
+    ret = fread(f, buf, sizeof(buf));
+    assert(ret == 6);
+    assert(memcmp(buf, "foobxr", ret) == 0);
+
+    fclose(f);
+
+    ret = unlink("TEST_FILE");
+    assert(ret == 0);
+}
+
+void
+test_stdio_file_append(void)
+{
+    FILE *f;
+    int ret;
+    char buf[128];
+
+    f = fopen("TEST_FILE", "a+");
+    assert(f != NULL);
+
+    ret = fwrite(f, "foobar", 6);
+    assert(ret == 6);
+
+    ret = fseek(f, 0, SEEK_SET);
+    assert(ret == 0);
+
+    ret = fread(f, buf, 1);
+    assert(ret == 1);
+    assert(buf[0] == 'f');
+
+    ret = fwrite(f, "baz", 3);
+    assert(ret == 3);
+
+    ret = fread(f, buf, sizeof(buf));
+    assert(ret == 0);
+
+    ret = fseek(f, 0, SEEK_SET);
+    assert(ret == 0);
+
+    ret = fread(f, buf, sizeof(buf));
+    assert(ret == 9);
+    assert(memcmp(buf, "foobarbaz", ret) == 0);
+
+    fclose(f);
+
+    ret = unlink("TEST_FILE");
+    assert(ret == 0);
+}
+
 int
 main(void)
 {
@@ -331,6 +420,8 @@ main(void)
     test_open_trunc();
     test_open_append();
     test_unlink_lazy_delete();
+    test_stdio_file();
+    test_stdio_file_append();
     printf("All tests passed!\n");
     return 0;
 }

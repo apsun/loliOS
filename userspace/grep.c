@@ -19,7 +19,7 @@ is_regular_file(const char *fname)
 static int
 grep_file(const char *needle, const char *fname, int fd)
 {
-    FILE *fp = (fd >= 0) ? fdopen(fd) : fopen(fname, "r");
+    FILE *fp = (fd >= 0) ? fdopen(fd, "r") : fopen(fname, "r");
     if (fp == NULL) {
         fprintf(stderr, "%s: could not open file\n", fname);
         if (fd >= 0) close(fd);
