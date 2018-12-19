@@ -15,7 +15,6 @@
 typedef struct {
     int mode;
     int fd;
-    int position;
     char *buf;
     int offset;
     int count;
