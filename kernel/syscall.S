@@ -49,7 +49,7 @@ syscall_jump_table:
     .long pipe_pipe
     .long file_create
     .long file_fcntl
-    .long scheduler_yield
+    .long process_sleep
     .long file_seek
     .long file_truncate
     .long file_unlink

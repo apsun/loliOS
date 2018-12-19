@@ -7,7 +7,6 @@ int
 main(void)
 {
     int ret = 1;
-    int fd = -1;
     
     char args[128];
     if (getargs(args, sizeof(args)) < 0) {
@@ -21,26 +20,13 @@ main(void)
         goto cleanup;
     }
     
-    fd = create("rtc", OPEN_READ | OPEN_WRITE);
-    if (fd < 0) {
-        fprintf(stderr, "Failed to open RTC file\n");
-        goto cleanup;
-    }
-
-    int freq = 2;
-    if (write(fd, &freq, sizeof(freq)) != sizeof(freq)) {
-        fprintf(stderr, "Failed to set RTC frequency\n");
-        goto cleanup;
-    }
-
-    int i;
-    for (i = 0; i < delay * freq; ++i) {
-        read(fd, NULL, 0);
+    int ms = delay * 1000;
+    while (ms > 0) {
+        ms = sleep(ms);
     }
 
     ret = 0;
 
 cleanup:
-    if (fd >= 0) close(fd);
     return ret;
 }

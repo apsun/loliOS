@@ -38,7 +38,7 @@
 #define SYS_PIPE        35
 #define SYS_CREATE      36
 #define SYS_FCNTL       37
-#define SYS_YIELD       38
+#define SYS_SLEEP       38
 #define SYS_SEEK        39
 #define SYS_TRUNCATE    40
 #define SYS_UNLINK      41
@@ -165,7 +165,7 @@ __cdecl int tcsetpgrp(int pgrp);
 __cdecl int pipe(int *readfd, int *writefd);
 __cdecl int create(const char *filename, int mode);
 __cdecl int fcntl(int fd, int req, int arg);
-__cdecl int yield(void);
+__cdecl int sleep(int ms);
 __cdecl int seek(int fd, int offset, int mode);
 __cdecl int truncate(int fd, int length);
 __cdecl int unlink(const char *filename);

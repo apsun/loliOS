@@ -10,15 +10,18 @@ static bool
 is_blacklisted(int num)
 {
     switch (num) {
-    /* These may cause the fuzzer to die or freeze */
+    /* These may cause the fuzzer to die */
     case SYS_HALT:
     case SYS_EXEC:
     case SYS_KILL:
     case SYS_EXECUTE:
 
+    /* These waste a lot of time, so disable them for brevity */
+    case SYS_SLEEP:
+    case SYS_WAIT:
+
     /* These screw with the terminal or take no args */
     case SYS_FORK:
-    case SYS_YIELD:
     case SYS_TCSETPGRP:
     case SYS_TCGETPGRP:
     case SYS_SETPGRP:
@@ -58,15 +61,6 @@ randx(void)
 }
 
 static void
-close_all_files(void)
-{
-    int fd;
-    for (fd = 0; fd < MAX_FILES; ++fd) {
-        close(fd);
-    }
-}
-
-static void
 fuzz(void)
 {
     srand(time());
@@ -85,23 +79,23 @@ fuzz(void)
             "int $0x80;"
             :
             : "a"(eax), "b"(ebx), "c"(ecx), "d"(edx), "S"(esi), "D"(edi));
-
-        /* Periodically close files so we don't run out of descriptors */
-        if (rand() % 100 == 0) {
-            close_all_files();
-        }
     }
 }
 
 int
 main(void)
 {
+    int iter = 0;
     while (1) {
+        printf("%d\n", iter++);
         int pid = fork();
         if (pid < 0) {
             fprintf(stderr, "Failed to fork\n");
             return 1;
         } else if (pid > 0) {
+            /* Wait up to 3 seconds before killing the fuzzer */
+            sleep(3000);
+            kill(pid, SIG_KILL);
             wait(&pid);
         } else {
             fuzz();

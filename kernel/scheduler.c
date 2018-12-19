@@ -121,9 +121,8 @@ scheduler_yield_impl(pcb_t *curr)
 }
 
 /*
- * yield() syscall handler. Yields the current process's
- * execution and schedules the next process to run. Can
- * also be called directly by the kernel.
+ * Yields the current process's timeslice and schedules
+ * the next process to run.
  */
 __cdecl void
 scheduler_yield(void)

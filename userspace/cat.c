@@ -83,7 +83,7 @@ copy_stream(int outputfd, int inputfd)
         bool cant_read = (read_cnt == -EAGAIN || offset == sizeof(buf));
         bool cant_write = (write_cnt = -EAGAIN || (offset == 0 && write_cnt == 0));
         if (cant_read && cant_write) {
-            yield();
+            sleep(0);
         }
     }
 

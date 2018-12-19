@@ -144,6 +144,11 @@ typedef struct {
     timer_t alarm_timer;
 
     /*
+     * Timer for the sleep() syscall.
+     */
+    timer_t sleep_timer;
+
+    /*
      * Heap metadata for this process.
      */
     paging_heap_t heap;
@@ -198,6 +203,7 @@ __cdecl int process_execute(
     int unused4,
     int_regs_t *regs);
 __cdecl void process_halt(int status);
+__cdecl int process_sleep(int ms);
 
 /* Sets the global execution context for the specified process */
 void process_set_context(pcb_t *pcb);

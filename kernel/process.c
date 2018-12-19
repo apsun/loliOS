@@ -39,6 +39,9 @@ static process_data_t process_data[MAX_PROCESSES];
 /* Sleep queue for processes wait()ing on another process */
 static list_declare(wait_queue);
 
+/* Sleep queue for processes that called sleep() */
+static list_declare(sleep_queue);
+
 /*
  * Gets the PCB of the process with the given PID.
  * This does NOT include the idle process. Note that
@@ -417,6 +420,7 @@ process_create_idle(void)
     file_init(pcb->files);
     signal_init(pcb->signals);
     timer_init(&pcb->alarm_timer);
+    timer_init(&pcb->sleep_timer);
     paging_heap_init(&pcb->heap);
 
     process_fill_idle_regs(&pcb->regs);
@@ -468,6 +472,7 @@ process_create_user(char *command, int terminal)
     signal_init(pcb->signals);
     timer_init(&pcb->alarm_timer);
     timer_setup(&pcb->alarm_timer, TIMER_HZ * SIG_ALARM_PERIOD, process_alarm_callback);
+    timer_init(&pcb->sleep_timer);
     paging_heap_init(&pcb->heap);
 
     /* Set terminal foreground group since this is the only process */
@@ -1013,6 +1018,52 @@ process_halt(int status)
      * with a status > 255.
      */
     process_halt_impl(status & 0xff);
+}
+
+/*
+ * Callback for process_sleep(). Wakes the corresponding process.
+ */
+static void
+process_sleep_callback(timer_t *timer)
+{
+    pcb_t *pcb = timer_entry(timer, pcb_t, sleep_timer);
+    scheduler_wake(pcb);
+}
+
+/*
+ * sleep() syscall handler. Puts the process to sleep for the
+ * specified number of milliseconds. Returns the number of
+ * milliseconds that are left to sleep if the process was
+ * woken early.
+ */
+__cdecl int
+process_sleep(int ms)
+{
+    if (ms < 0) {
+        return -1;
+    } else if (ms == 0) {
+        scheduler_yield();
+        return 0;
+    }
+
+    /* Put ourselves to sleep */
+    pcb_t *pcb = get_executing_pcb();
+    int ticks = ms * TIMER_HZ / 1000;
+    int target = timer_now() + ticks;
+    timer_setup(&pcb->sleep_timer, ticks, process_sleep_callback);
+    scheduler_sleep(&sleep_queue);
+
+    /* We woke up, cancel timer in case we got woken early */
+    timer_cancel(&pcb->sleep_timer);
+
+    /* Check if we woke up via the timer callback */
+    int now = timer_now();
+    if (now >= target) {
+        return 0;
+    }
+
+    /* We woke up early, compute remaining time to sleep */
+    return (target - now) * 1000 / TIMER_HZ;
 }
 
 /* Initializes all process control related data */
