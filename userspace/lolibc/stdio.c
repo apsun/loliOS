@@ -53,7 +53,7 @@ parse_mode(const char *mode)
  * Wraps a file descriptor into a FILE object.
  */
 static FILE *
-falloc(int fd, int mode)
+file_alloc(int fd, int mode)
 {
     FILE *fp = malloc(sizeof(FILE));
     if (fp == NULL) {
@@ -66,6 +66,42 @@ falloc(int fd, int mode)
     fp->offset = 0;
     fp->count = 0;
     return fp;
+}
+
+/*
+ * Fills the readahead buffer with more data. Blocks until
+ * data is available. This will reset the offset and count
+ * values to zero if they are equal.
+ */
+static int
+file_readahead(FILE *fp)
+{
+    /* Allocate buffer if not already done */
+    if (fp->buf == NULL) {
+        fp->buf = malloc(FILE_BUFSIZE);
+        if (fp->buf == NULL) {
+            return -1;
+        }
+    }
+
+    /* Compress buffer if possible */
+    if (fp->offset == fp->count) {
+        fp->offset = 0;
+        fp->count = 0;
+    }
+
+    /* Read more data into the buffer */
+    int ret;
+    do {
+        ret = read(fp->fd, &fp->buf[fp->count], FILE_BUFSIZE - fp->count);
+    } while (ret == -EINTR || ret == -EAGAIN);
+
+    /* Advance head pointer */
+    if (ret > 0) {
+        fp->count += ret;
+    }
+
+    return ret;
 }
 
 /*
@@ -83,7 +119,7 @@ fdopen(int fd, const char *mode)
         return NULL;
     }
 
-    return falloc(fd, flags);
+    return file_alloc(fd, flags);
 }
 
 /*
@@ -108,7 +144,7 @@ fopen(const char *name, const char *mode)
         return NULL;
     }
 
-    FILE *fp = falloc(fd, flags);
+    FILE *fp = file_alloc(fd, flags);
     if (fp == NULL) {
         close(fd);
         return NULL;
@@ -128,18 +164,23 @@ fread(FILE *fp, void *buf, int size)
     assert(buf != NULL);
     assert(size >= 0);
 
-    /* If we have buffered data, return that first */
-    if (fp->offset < fp->count) {
-        if (size > fp->count - fp->offset) {
-            size = fp->count - fp->offset;
+    /* Pull data into our readahead buffer */
+    if (fp->offset == fp->count) {
+        int ret = file_readahead(fp);
+        if (ret <= 0) {
+            return ret;
         }
-
-        memcpy(buf, &fp->buf[fp->offset], size);
-        fp->offset += size;
-        return size;
     }
 
-    return read(fp->fd, buf, size);
+    /* Clamp this read to the amount of readahead */
+    if (size > fp->count - fp->offset) {
+        size = fp->count - fp->offset;
+    }
+
+    /* Copy data from readahead buffer into output buf */
+    memcpy(buf, &fp->buf[fp->offset], size);
+    fp->offset += size;
+    return size;
 }
 
 /*
@@ -152,6 +193,18 @@ fwrite(FILE *fp, const void *buf, int size)
     assert(fp != NULL);
     assert(buf != NULL);
     assert(size >= 0);
+
+    /*
+     * If we have anything in our readahead buffer, we need
+     * to seek backwards by the amount of bytes that are in it,
+     * since the real file offset is beyond our virtual offset.
+     */
+    if (!(fp->mode & OPEN_APPEND) && fp->count > fp->offset) {
+        int pos = seek(fp->fd, fp->offset - fp->count, SEEK_CUR);
+        if (pos < 0) {
+            return pos;
+        }
+    }
 
     int ret = write(fp->fd, buf, size);
     if (ret > 0) {
@@ -289,42 +342,6 @@ puts(const char *s)
 }
 
 /*
- * Fills the readahead buffer with more data. Blocks until
- * data is available. This will reset the offset and count
- * values to zero if they are equal.
- */
-static int
-fget_readahead(FILE *fp)
-{
-    /* Allocate buffer if not already done */
-    if (fp->buf == NULL) {
-        fp->buf = malloc(FILE_BUFSIZE);
-        if (fp->buf == NULL) {
-            return -1;
-        }
-    }
-
-    /* Compress buffer if possible */
-    if (fp->offset == fp->count) {
-        fp->offset = 0;
-        fp->count = 0;
-    }
-
-    /* Read more data into the buffer */
-    int ret;
-    do {
-        ret = read(fp->fd, &fp->buf[fp->count], FILE_BUFSIZE - fp->count);
-    } while (ret == -EINTR || ret == -EAGAIN);
-
-    /* Advance head pointer */
-    if (ret > 0) {
-        fp->count += ret;
-    }
-
-    return ret;
-}
-
-/*
  * Reads a single character from the specified file stream.
  * Returns the character on success, < 0 on error or EOF.
  */
@@ -335,7 +352,7 @@ fgetc(FILE *fp)
 
     /* If readahead buffer is empty, read some more data */
     if (fp->offset == fp->count) {
-        if (fget_readahead(fp) <= 0) {
+        if (file_readahead(fp) <= 0) {
             return -1;
         }
     }
@@ -373,7 +390,7 @@ fgets(char *buf, int size, FILE *fp)
          * from the file.
          */
         if (fp->offset == fp->count) {
-            int ret = fget_readahead(fp);
+            int ret = file_readahead(fp);
             if (ret <= 0) {
                 return (total_read == 0) ? NULL : buf;
             }
