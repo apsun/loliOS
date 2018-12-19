@@ -6,7 +6,7 @@
 /* Must keep this in sync with kernel code */
 #define PIPE_CAPACITY 8192
 
-void
+static void
 test_invalid_args(void)
 {
     int ret;
@@ -19,7 +19,7 @@ test_invalid_args(void)
     assert(ret == -1);
 }
 
-void
+static void
 test_circular_queue(void)
 {
     int ret;
@@ -53,7 +53,7 @@ test_circular_queue(void)
     close(writefd);
 }
 
-void
+static void
 test_half_duplex_write(void)
 {
     int ret;
@@ -70,7 +70,7 @@ test_half_duplex_write(void)
     close(writefd);
 }
 
-void
+static void
 test_half_duplex_read(void)
 {
     int ret;
@@ -87,7 +87,7 @@ test_half_duplex_read(void)
     close(readfd);
 }
 
-void
+static void
 test_permissions(void)
 {
     int ret;

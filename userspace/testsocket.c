@@ -4,7 +4,7 @@
 #include <string.h>
 #include <syscall.h>
 
-void
+static void
 fill_buffer(char *buf, int len)
 {
     int i;
@@ -13,7 +13,7 @@ fill_buffer(char *buf, int len)
     }
 }
 
-int
+static int
 bind2(int fd, sock_addr_t *addr)
 {
     int ret = bind(fd, addr);
@@ -23,7 +23,7 @@ bind2(int fd, sock_addr_t *addr)
     return ret;
 }
 
-void
+static void
 test_udp_loopback(void)
 {
     int ret;
@@ -57,7 +57,7 @@ test_udp_loopback(void)
     close(b);
 }
 
-void
+static void
 test_udp_huge(void)
 {
     int ret;
@@ -85,7 +85,7 @@ test_udp_huge(void)
     close(b);
 }
 
-void
+static void
 test_udp_queue(void)
 {
     int ret;
@@ -121,7 +121,7 @@ test_udp_queue(void)
     close(b);
 }
 
-void
+static void
 test_udp_connect(void)
 {
     int ret;
@@ -170,7 +170,7 @@ test_udp_connect(void)
     close(c);
 }
 
-void
+static void
 test_bind_conflict(void)
 {
     int ret;
@@ -213,7 +213,7 @@ test_bind_conflict(void)
     close(c);
 }
 
-void
+static void
 test_tcp_basic(void)
 {
     int ret;
@@ -256,7 +256,7 @@ test_tcp_basic(void)
     close(b);
 }
 
-void
+static void
 test_tcp_invalid(void)
 {
     int ret;
@@ -303,7 +303,7 @@ test_tcp_invalid(void)
     close(a);
 }
 
-void
+static void
 test_tcp_close_with_backlog(void)
 {
     int ret;
@@ -326,7 +326,7 @@ test_tcp_close_with_backlog(void)
     close(b);
 }
 
-void
+static void
 test_tcp_close_early(void)
 {
     int ret;
@@ -335,7 +335,7 @@ test_tcp_close_early(void)
     assert(ret == 0);
 }
 
-void
+static void
 test_tcp_multi_accept(void)
 {
     int ret;
@@ -371,7 +371,7 @@ test_tcp_multi_accept(void)
     close(a);
 }
 
-void
+static void
 test_tcp_segmentation(void)
 {
     int ret;
@@ -408,7 +408,7 @@ test_tcp_segmentation(void)
     close(a);
 }
 
-void
+static void
 test_tcp_shutdown(void)
 {
     int ret;

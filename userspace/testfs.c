@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <syscall.h>
 
-int
+static int
 mktemp(int flags)
 {
     int fd = create("TEST_FILE", OPEN_CREATE | OPEN_RDWR | flags);
@@ -13,7 +13,7 @@ mktemp(int flags)
     return fd;
 }
 
-void
+static void
 test_seek(void)
 {
     int fd = mktemp(0);
@@ -40,7 +40,7 @@ test_seek(void)
     close(fd);
 }
 
-void
+static void
 test_truncate_shrink(void)
 {
     int fd = mktemp(0);
@@ -75,7 +75,7 @@ test_truncate_shrink(void)
     close(fd);
 }
 
-void
+static void
 test_truncate_grow(void)
 {
     int fd = mktemp(0);
@@ -108,7 +108,7 @@ test_truncate_grow(void)
     close(fd);
 }
 
-void
+static void
 test_partial_write(void)
 {
     int fd = mktemp(0);
@@ -126,7 +126,7 @@ test_partial_write(void)
     close(fd);
 }
 
-void
+static void
 test_failed_write(void)
 {
     int fd = mktemp(0);
@@ -158,7 +158,7 @@ test_failed_write(void)
     assert(ret == 0);
 }
 
-void
+static void
 test_write_gap(void)
 {
     int fd = mktemp(0);
@@ -181,7 +181,7 @@ test_write_gap(void)
     close(fd);
 }
 
-void
+static void
 test_write_fill_block(void)
 {
     int fd = mktemp(0);
@@ -202,7 +202,7 @@ test_write_fill_block(void)
     assert(buf[sizeof(buf) - 1] == 'b');
 }
 
-void
+static void
 test_write_large_file(void)
 {
     int fd = mktemp(0);
@@ -218,7 +218,7 @@ test_write_large_file(void)
     close(fd);
 }
 
-void
+static void
 test_open_trunc(void)
 {
     int fd;
@@ -245,7 +245,7 @@ test_open_trunc(void)
     assert(ret == 0);
 }
 
-void
+static void
 test_open_append(void)
 {
     int fd, fd2;
@@ -288,7 +288,7 @@ test_open_append(void)
     assert(ret == 0);
 }
 
-void
+static void
 test_unlink_lazy_delete(void)
 {
     int fd;
@@ -317,7 +317,7 @@ test_unlink_lazy_delete(void)
     assert(fd < 0);
 }
 
-void
+static void
 test_stdio_file(void)
 {
     FILE *f;
@@ -367,7 +367,7 @@ test_stdio_file(void)
     assert(ret == 0);
 }
 
-void
+static void
 test_stdio_file_append(void)
 {
     FILE *f;

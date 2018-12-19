@@ -76,7 +76,7 @@ typedef struct {
 
 static bool haz_interrupt = false;
 
-bool
+static bool
 parse_mouse_input(raw_mouse_input_t in, mouse_input_t *out)
 {
     uint8_t flags = in.flags;
@@ -112,7 +112,7 @@ parse_mouse_input(raw_mouse_input_t in, mouse_input_t *out)
     return true;
 }
 
-int
+static int
 parse_mouse_inputs(
     int num_inputs,
     raw_mouse_input_t in[MOUSE_BUF_SIZE],
@@ -128,7 +128,7 @@ parse_mouse_inputs(
     return num;
 }
 
-int
+static int
 read_mouse_inputs(int fd, mouse_input_t out[MOUSE_BUF_SIZE])
 {
     raw_mouse_input_t raw[MOUSE_BUF_SIZE];
@@ -140,14 +140,14 @@ read_mouse_inputs(int fd, mouse_input_t out[MOUSE_BUF_SIZE])
     return parse_mouse_inputs(ret / sizeof(raw_mouse_input_t), raw, out);
 }
 
-void
+static void
 draw_char(uint8_t *video_mem, int x, int y, char c)
 {
     uint8_t *addr = &video_mem[(SCREEN_WIDTH * y + x) * 2];
     *addr = (uint8_t)c;
 }
 
-void
+static void
 draw_pixel(uint8_t *video_mem, int x, int y, uint8_t color)
 {
     uint8_t *addr = &video_mem[(SCREEN_WIDTH * y + x) * 2 + 1];
@@ -156,7 +156,7 @@ draw_pixel(uint8_t *video_mem, int x, int y, uint8_t color)
     *addr |= (color);
 }
 
-void
+static void
 set_highlight(uint8_t *video_mem, int x, int y, bool highlight)
 {
     uint8_t *addr = &video_mem[(SCREEN_WIDTH * y + x) * 2 + 1];
@@ -167,7 +167,7 @@ set_highlight(uint8_t *video_mem, int x, int y, bool highlight)
     }
 }
 
-void
+static void
 draw_palette(uint8_t *video_mem)
 {
     int i, j, k;
@@ -183,7 +183,7 @@ draw_palette(uint8_t *video_mem)
     }
 }
 
-bool
+static bool
 update_palette(int sx, int sy, uint8_t *selected_color)
 {
     if (sx < 0 || sx >= PALETTE_WIDTH * NUM_COLORS) {
@@ -200,7 +200,7 @@ update_palette(int sx, int sy, uint8_t *selected_color)
     return true;
 }
 
-void
+static void
 clear_screen(uint8_t *video_mem, uint8_t color)
 {
     int i, j;
@@ -213,7 +213,7 @@ clear_screen(uint8_t *video_mem, uint8_t color)
     }
 }
 
-void
+static void
 reset_screen(uint8_t *video_mem)
 {
     int i, j;
@@ -224,7 +224,7 @@ reset_screen(uint8_t *video_mem)
     }
 }
 
-void
+static void
 clamp_coords(int *x, int *y)
 {
     if (*x < 0) {
@@ -240,14 +240,14 @@ clamp_coords(int *x, int *y)
     }
 }
 
-void
+static void
 canvas_to_screen(int cx, int cy, int *sx, int *sy)
 {
     *sx = cx / SCALE_FACTOR_X;
     *sy = SCREEN_HEIGHT - 1 - cy / SCALE_FACTOR_Y;
 }
 
-void
+static void
 sig_interrupt_handler(int signum)
 {
     haz_interrupt = true;

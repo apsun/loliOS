@@ -8,7 +8,7 @@
 #include <string.h>
 #include <syscall.h>
 
-void
+static void
 test_strlen(void)
 {
     assert(strlen("") == 0);
@@ -16,7 +16,7 @@ test_strlen(void)
     assert(strlen("foo") == 3);
 }
 
-void
+static void
 test_strcmp(void)
 {
     assert(strcmp("a", "a") == 0);
@@ -26,7 +26,7 @@ test_strcmp(void)
     assert(strcmp("a", "") > 0);
 }
 
-void
+static void
 test_strncmp(void)
 {
     assert(strncmp("a", "a", 1) == 0);
@@ -36,7 +36,7 @@ test_strncmp(void)
     assert(strncmp("a", "ab", 2) != 0);
 }
 
-void
+static void
 test_strcpy(void)
 {
     char buf[64];
@@ -45,7 +45,7 @@ test_strcpy(void)
     assert(buf[strlen(buf)] == '\0');
 }
 
-void
+static void
 test_stpcpy(void)
 {
     char buf[64];
@@ -54,7 +54,7 @@ test_stpcpy(void)
     assert(buf[strlen(buf)] == '\0');
 }
 
-void
+static void
 test_strncpy(void)
 {
     char buf[5];
@@ -62,7 +62,7 @@ test_strncpy(void)
     assert(strncmp(buf, "Hello", 5) == 0);
 }
 
-void
+static void
 test_strscpy(void)
 {
     char buf[16];
@@ -72,7 +72,7 @@ test_strscpy(void)
     assert(strcmp(buf, "AAAA") == 0);
 }
 
-void
+static void
 test_strcat(void)
 {
     char buf[8] = {0};
@@ -81,7 +81,7 @@ test_strcat(void)
     assert(strcmp(buf, "foobar") == 0);
 }
 
-void
+static void
 test_strncat(void)
 {
     char buf[11] = {0};
@@ -95,7 +95,7 @@ test_strncat(void)
     assert(memcmp(buf, "foobarlona\0", sizeof(buf)) == 0);
 }
 
-void
+static void
 test_strrev(void)
 {
     char buf[] = "Hello world!";
@@ -103,7 +103,7 @@ test_strrev(void)
     assert(strcmp(buf, "!dlrow olleH") == 0);
 }
 
-void
+static void
 test_strchr(void)
 {
     char buf[] = "nyaa";
@@ -112,7 +112,7 @@ test_strchr(void)
     assert(strchr(buf, 'a') == &buf[2]);
 }
 
-void
+static void
 test_strrchr(void)
 {
     char buf[] = "nyaa";
@@ -121,7 +121,7 @@ test_strrchr(void)
     assert(strrchr(buf, 'a') == &buf[3]);
 }
 
-void
+static void
 test_strstr(void)
 {
     char buf[] = "cyka blyat";
@@ -129,7 +129,7 @@ test_strstr(void)
     assert(strstr(buf, "z") == NULL);
 }
 
-void
+static void
 test_strspn(void)
 {
     char buf[] = "abcdefg1234567";
@@ -139,7 +139,7 @@ test_strspn(void)
     assert(strspn(buf, "1234567") == 0);
 }
 
-void
+static void
 test_strcspn(void)
 {
     char buf[] = "foo:bar;baz";
@@ -150,7 +150,7 @@ test_strcspn(void)
     assert(strcspn(buf, ";:") == 3);
 }
 
-void
+static void
 test_strpbrk(void)
 {
     char buf[] = "foo:bar;baz";
@@ -161,7 +161,7 @@ test_strpbrk(void)
     assert(strpbrk(buf, ";:") == &buf[3]);
 }
 
-void
+static void
 test_strtok(void)
 {
     char buf[] = "foo:bar;baz@@blah-";
@@ -180,7 +180,7 @@ test_strtok(void)
     assert(strtok(buf2, "abc") == NULL);
 }
 
-void
+static void
 test_strsep(void)
 {
     char buf[] = "foo:bar;baz@@blah-";
@@ -208,7 +208,7 @@ test_strsep(void)
     assert(strsep(&p2, "abc") == NULL);
 }
 
-void
+static void
 test_utoa(void)
 {
     char buf[64];
@@ -218,7 +218,7 @@ test_utoa(void)
     assert(strcmp(buf, "ff") == 0);
 }
 
-void
+static void
 test_itoa(void)
 {
     char buf[64];
@@ -232,7 +232,7 @@ test_itoa(void)
     assert(strcmp(buf, "-2147483648") == 0);
 }
 
-void
+static void
 test_memcmp(void)
 {
     char buf[] = "i can haz buffer";
@@ -241,7 +241,7 @@ test_memcmp(void)
     assert(memcmp("aa", "ab", 1) == 0);
 }
 
-void
+static void
 test_memset(void)
 {
     unsigned char buf[16];
@@ -253,7 +253,7 @@ test_memset(void)
     assert(buf[1] == 0xaa);
 }
 
-void
+static void
 test_memcpy(void)
 {
     unsigned char buf[16];
@@ -261,7 +261,7 @@ test_memcpy(void)
     assert(memcmp(buf, "i like", 6) == 0);
 }
 
-void
+static void
 test_memmove(void)
 {
     unsigned char buf[4] = {1, 2, 3, 4};
@@ -277,14 +277,14 @@ test_memmove(void)
     assert(buf[3] == 3);
 }
 
-void
+static void
 test_longjmp_helper(jmp_buf *envp)
 {
     longjmp(*envp, 42);
     assert(false);
 }
 
-void
+static void
 test_longjmp(void)
 {
     jmp_buf env;
@@ -297,7 +297,7 @@ test_longjmp(void)
     }
 }
 
-void
+static void
 test_snprintf(void)
 {
     char buf[8];
@@ -337,14 +337,14 @@ test_snprintf(void)
     assert(strcmp(buf, "") == 0);
 }
 
-void
+static void
 test_atexit(void)
 {
     puts("All tests passed!");
     halt(0);
 }
 
-void
+static void
 test_atexit_2(void)
 {
     assert(false);

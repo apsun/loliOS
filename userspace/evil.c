@@ -12,7 +12,7 @@
  *        ^
  *  end of user page
  */
-int
+static int
 open_invalid_string(void)
 {
     int result = 0;
@@ -37,7 +37,7 @@ open_invalid_string(void)
  * Tries executing a string which extends past the end
  * of the user page, and some really long strings
  */
-int
+static int
 execute_invalid_string(void)
 {
     int result = 0;
@@ -87,7 +87,7 @@ execute_invalid_string(void)
  *         ^
  *   end of user page
  */
-int
+static int
 read_invalid_buffer(void)
 {
     int result = 0;
@@ -129,7 +129,7 @@ read_invalid_buffer(void)
 /*
  * Same as read_invalid_buffer, but with write.
  */
-int
+static int
 write_invalid_buffer(void)
 {
     int result = 0;
@@ -167,7 +167,7 @@ write_invalid_buffer(void)
  * Tries corrupting the kernel page by pointing the
  * read output buffer to kernel memory.
  */
-int
+static int
 read_kernel_buffer(void)
 {
     int result = 0;
@@ -186,7 +186,7 @@ read_kernel_buffer(void)
  * Tries reading a buffer slightly larger than the
  * filesystem block size, with size not a multiple of 4.
  */
-int
+static int
 read_large_buffer(void)
 {
     char buf[4097];
@@ -206,7 +206,7 @@ read_large_buffer(void)
 /*
  * Similar to read_invalid_buffer, but with vidmap.
  */
-int
+static int
 vidmap_invalid_buffer(void)
 {
     int result = 0;
@@ -220,7 +220,7 @@ vidmap_invalid_buffer(void)
 /*
  * Similar to read_kernel_buffer, but with vidmap.
  */
-int
+static int
 vidmap_kernel_buffer(void)
 {
     int result = 0;
@@ -231,47 +231,6 @@ vidmap_kernel_buffer(void)
         }
     }
     return result;
-}
-
-/*
- * Attempts to divide by zero. This should cause the
- * program to be aborted, and should not panic the kernel.
- */
-int
-divide_by_zero(void)
-{
-    volatile int x = 0;
-    x = 1 / x;
-    return 0;
-}
-
-/*
- * Sets the data segment register to a garbage value
- * and tries to invoke a syscall. If not handled properly, this
- * will cause the kernel to crash.
- *
- * Apparently QEMU is buggy and just flat out ignores the
- * null segment descriptor. So this test doesn't really work.
- */
-int
-set_garbage_ds(void)
-{
-    asm volatile(
-        /* Write garbage DS */
-        "movw $0x03, %%ax;"
-        "movw %%ax, %%ds;"
-
-        /* Let the kernel do some work */
-        "movl $6, %%eax;"
-        "int $0x80;"
-
-        /* Restore old DS */
-        "movw $0x2B, %%ax;"
-        "movw %%ax, %%ds;"
-        :
-        :
-        : "eax");
-    return 0;
 }
 
 int
