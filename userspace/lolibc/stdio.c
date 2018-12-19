@@ -199,34 +199,28 @@ fwrite(FILE *fp, const void *buf, int size)
      * to seek backwards by the amount of bytes that are in it,
      * since the real file offset is beyond our virtual offset.
      */
-    if (!(fp->mode & OPEN_APPEND) && fp->count > fp->offset) {
-        int pos = seek(fp->fd, fp->offset - fp->count, SEEK_CUR);
-        if (pos < 0) {
-            return pos;
-        }
-    }
-
-    int ret = write(fp->fd, buf, size);
-    if (ret > 0) {
+    if (fp->count > fp->offset) {
         /*
-         * Also consume the same number of bytes from
-         * the readahead buffer, since our file offset
-         * has now advanced. If file is in append mode,
-         * always clear the buffer.
+         * This may fail on unseekable files, for example,
+         * network sockets or pipes. In such cases, the input
+         * and output streams are separate, so we can ignore
+         * errors.
+         *
+         * If we do in fact successfully seek, we assume that
+         * the file shares its read and write offsets, and hence
+         * we need to invalidate the readahead buffer.
+         *
+         * Don't skip this check just because the file is open
+         * in append mode; if someone fdopens a socket in append
+         * mode, we don't want to clear the readahead buffer.
          */
-        if (fp->mode & OPEN_APPEND) {
+        if (seek(fp->fd, fp->offset - fp->count, SEEK_CUR) >= 0) {
             fp->offset = 0;
             fp->count = 0;
-        } else {
-            fp->offset += ret;
-            if (fp->offset >= fp->count) {
-                fp->offset = 0;
-                fp->count = 0;
-            }
         }
     }
 
-    return ret;
+    return write(fp->fd, buf, size);
 }
 
 /*
