@@ -262,6 +262,9 @@ fs_iterate_data(
     int (*callback)(void *data, int nbytes, void *private),
     void *private)
 {
+    assert(offset >= 0);
+    assert(length >= 0);
+
     /* Compute intra-block offsets */
     int first_block = offset / FS_BLOCK_SIZE;
     int first_offset = offset % FS_BLOCK_SIZE;
@@ -633,7 +636,8 @@ exit:
 /*
  * seek() syscall handler for files. Sets the current read/write
  * offset. If data is written beyond the end of the file, the gap
- * is filled with zeros.
+ * is filled with zeros. Seeking beyond the maximum file size is
+ * not allowed.
  */
 static int
 fs_file_seek(file_obj_t *file, int offset, int mode)
@@ -654,8 +658,8 @@ fs_file_seek(file_obj_t *file, int offset, int mode)
         return -1;
     }
 
-    if (offset > 0 && offset > INT_MAX - offset_base) {
-        debugf("Seek offset overflows INT_MAX\n");
+    if (offset > 0 && offset > FS_MAX_FILE_SIZE - offset_base) {
+        debugf("Seek offset greater than max file size\n");
         return -1;
     } else if (offset < 0 && offset_base + offset < 0) {
         debugf("Seek offset is negative\n");
@@ -675,7 +679,7 @@ fs_file_seek(file_obj_t *file, int offset, int mode)
 static int
 fs_file_truncate(file_obj_t *file, int length)
 {
-    if (length < 0) {
+    if (length < 0 || length > FS_MAX_FILE_SIZE) {
         return -1;
     }
 

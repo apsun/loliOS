@@ -3,7 +3,6 @@
 
 #define NULL 0
 #define SIZE_MAX (~(size_t)0)
-#define INT_MAX 2147483647
 
 #ifndef ASM
 
