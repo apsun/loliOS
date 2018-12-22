@@ -100,10 +100,10 @@ static bitmap_declare(allocated_pages, MAX_PAGES);
 #define DIR_TO_PDE_4MB(dir, addr) (&(dir)[TO_DIR_INDEX(addr)].dir_4mb)
 #define TABLE_TO_PTE(table, addr) (&(table)[TO_TABLE_INDEX(addr)])
 #define PDE_TO_TABLE(pde) ((pte_t *)((pde)->base_addr << 12))
-#define PDE_TO_PTE(pde, addr) (TABLE_TO_PTE(PDE_TO_TABLE(pde), addr))
-#define PDE_4KB(addr) (DIR_TO_PDE_4KB(page_dir, addr))
-#define PDE_4MB(addr) (DIR_TO_PDE_4MB(page_dir, addr))
-#define PTE(addr) (PDE_TO_PTE(PDE_4KB(addr), addr))
+#define PDE_TO_PTE(pde, addr) (TABLE_TO_PTE(PDE_TO_TABLE(pde), (addr)))
+#define PDE_4KB(addr) (DIR_TO_PDE_4KB(page_dir, (addr)))
+#define PDE_4MB(addr) (DIR_TO_PDE_4MB(page_dir, (addr)))
+#define PTE(addr) (PDE_TO_PTE(PDE_4KB(addr), (addr)))
 
 /* Initializes the page directory for the first 4MB of memory */
 static void

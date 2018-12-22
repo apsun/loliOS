@@ -9,7 +9,7 @@
 #define fs_dentry(idx) (&fs_boot_block->dir_entries[idx])
 #define fs_inode(idx) ((inode_t *)(fs_boot_block + 1 + (idx)))
 #define fs_data(idx) ((uint8_t *)(fs_boot_block + 1 + fs_boot_block->inode_count + (idx)))
-#define fs_nblocks(nbytes) ((nbytes + FS_BLOCK_SIZE - 1) / FS_BLOCK_SIZE)
+#define fs_nblocks(nbytes) (((nbytes) + FS_BLOCK_SIZE - 1) / FS_BLOCK_SIZE)
 
 /* Helpers for casting to/from file private data */
 #define get_off(f) ((int)(f)->private)
