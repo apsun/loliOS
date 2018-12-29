@@ -163,31 +163,37 @@ terminal_write_char(terminal_state_t *term, char c)
 static void
 terminal_putc_impl(terminal_state_t *term, char c)
 {
+    cursor_pos_t *cur = &term->cursor;
+
     if (c == '\n') {
         /* Reset x position, increment y position */
-        term->cursor.logical_x = 0;
-        term->cursor.screen_x = 0;
-        term->cursor.screen_y++;
+        cur->logical_x = 0;
+        cur->screen_x = 0;
+        cur->screen_y++;
 
         /* Scroll if we're at the bottom */
-        if (term->cursor.screen_y >= NUM_ROWS) {
+        if (cur->screen_y >= NUM_ROWS) {
             terminal_scroll_down(term);
-            term->cursor.screen_y--;
+            cur->screen_y--;
         }
     } else if (c == '\r') {
         /* Just reset x position */
-        term->cursor.logical_x = 0;
-        term->cursor.screen_x = 0;
+        cur->logical_x = 0;
+        cur->screen_x = 0;
     } else if (c == '\b') {
-        /* Only allow when there's something on this logical line */
-        if (term->cursor.logical_x > 0) {
-            term->cursor.logical_x--;
-            term->cursor.screen_x--;
+        /*
+         * Only allow when there's something on this logical line
+         * and we are not already at the top-left corner (prevent
+         * cursor from wrapping to negative y position)
+         */
+        if (cur->logical_x > 0 && !(cur->screen_x == 0 && cur->screen_y == 0)) {
+            cur->logical_x--;
+            cur->screen_x--;
 
             /* If we're off-screen, move the cursor back up a line */
-            if (term->cursor.screen_x < 0) {
-                term->cursor.screen_y--;
-                term->cursor.screen_x += NUM_COLS;
+            if (cur->screen_x < 0) {
+                cur->screen_y--;
+                cur->screen_x += NUM_COLS;
             }
 
             /* Clear the character under the cursor */
@@ -198,17 +204,17 @@ terminal_putc_impl(terminal_state_t *term, char c)
         terminal_write_char(term, c);
 
         /* Move the cursor rightwards, with text wrapping */
-        term->cursor.logical_x++;
-        term->cursor.screen_x++;
-        if (term->cursor.screen_x >= NUM_COLS) {
-            term->cursor.screen_y++;
-            term->cursor.screen_x -= NUM_COLS;
+        cur->logical_x++;
+        cur->screen_x++;
+        if (cur->screen_x >= NUM_COLS) {
+            cur->screen_y++;
+            cur->screen_x -= NUM_COLS;
         }
 
         /* Scroll if we wrapped some text at the bottom */
-        if (term->cursor.screen_y >= NUM_ROWS) {
+        if (cur->screen_y >= NUM_ROWS) {
             terminal_scroll_down(term);
-            term->cursor.screen_y--;
+            cur->screen_y--;
         }
     }
 }
