@@ -187,8 +187,15 @@ arp_queue_insert(net_dev_t *dev, ip_addr_t ip, skb_t *skb)
         return -1;
     }
 
+    skb_t *clone = skb_clone(skb);
+    if (clone == NULL) {
+        free(pkt);
+        debugf("Failed to clone SKB\n");
+        return -1;
+    }
+
     pkt->dev = dev;
-    pkt->skb = skb_clone(skb);
+    pkt->skb = clone;
     pkt->ip = ip;
     list_add_tail(&pkt->list, &entry->packet_queue);
     return 0;

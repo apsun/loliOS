@@ -30,7 +30,20 @@ static net_iface_t lo = {
 static int
 loopback_send(net_iface_t *iface, skb_t *skb, ip_addr_t ip)
 {
+    /*
+     * You may be wondering, why can't we just deliver the packet
+     * now? The problem is that our networking code is not re-entrant.
+     * If our rx handler sends a packet, we end up having a nested
+     * call to the rx handler, and this causes huge problems. Even
+     * if we made the code re-entrant (incredibly difficult), we would
+     * still run the risk of overflowing our stack.
+     */
     skb_t *clone = skb_clone(skb);
+    if (clone == NULL) {
+        debugf("Failed to clone SKB\n");
+        return -1;
+    }
+
     list_add_tail(&clone->list, &loopback_queue);
     return 0;
 }

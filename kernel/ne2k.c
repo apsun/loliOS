@@ -507,7 +507,13 @@ ne2k_send(net_dev_t *dev, skb_t *skb)
          * will break stuff. Enqueueing is a pretty rare operation
          * anyways, so this should have minimal performance impact.
          */
-        list_add_tail(&skb_clone(skb)->list, &tx_queue);
+        skb_t *clone = skb_clone(skb);
+        if (clone == NULL) {
+            debugf("Failed to clone SKB\n");
+            return -1;
+        }
+
+        list_add_tail(&clone->list, &tx_queue);
         return 0;
     }
 

@@ -8,7 +8,7 @@
 
 /*
  * Allocates and initializes a new SKB. Returns NULL if
- * there are no free SKBs. The new SKB has reference count
+ * we ran out of memory. The new SKB has reference count
  * initially set to 1.
  */
 skb_t *
@@ -60,13 +60,17 @@ skb_release(skb_t *skb)
 }
 
 /*
- * Clones the existing SKB. The new SKB has refcount 1
- * and is not in a list.
+ * Clones an existing SKB. Returns NULL if we ran out of
+ * memory. The new SKB has refcount 1 and is not in a list.
  */
 skb_t *
 skb_clone(skb_t *skb)
 {
     skb_t *clone = malloc(sizeof(skb_t) + skb->end);
+    if (clone == NULL) {
+        return NULL;
+    }
+
     memcpy(clone, skb, sizeof(skb_t) + skb->end);
     clone->refcnt = 1;
     list_init(&clone->list);
