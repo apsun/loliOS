@@ -32,15 +32,16 @@ Since then, the following additional features have been added:
 
 Note that this is a Linux-like operating system, not a Linux-compatible
 operating system. It is neither API nor ABI compatible with Linux, and
-the userspace libc is obviously not standards-compliant either. Notable
-differences from Linux are:
+the userspace libc is not standards-compliant either. This OS is not
+intended to be used in a production environment; it is for educational
+purposes only. Notable differences from Linux are:
 
-- minimal filesystem (no directories, permissions, attributes, etc.)
+- minimal filesystem (no subdirectories, permissions, attributes, etc.)
 - no users or groups (essentially, everyone is root)
 - some APIs take different arguments (e.g. gets takes a buffer size)
-- floating point is not supported by the ABI
+- syscalls return errors directly as negative values instead of via errno
+- floating point (x87, SSE, etc.) is not supported by the ABI
 - math.h, wchar.h, time.h, and a few other libraries are not implemented
-- socket APIs are non-blocking (must check for -EAGAIN)
 
 To compile the OS, boot a Linux system and run the build.sh script. To add
 userspace programs to the filesystem, add the source code to the userspace
