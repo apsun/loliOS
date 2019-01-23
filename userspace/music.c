@@ -217,13 +217,13 @@ main(void)
 
     /* Allocate buffer to hold audio data */
     audio_data = malloc(data_size);
-    int read_offset = 0;
     if (audio_data == NULL) {
         fprintf(stderr, "Could not allocate space for audio data\n");
         goto cleanup;
     }
 
     /* And now we just pipe the audio data to the SB16 driver */
+    int read_offset = 0;
     do {
         int write_offset = 0;
         while (write_offset < data_size) {
