@@ -55,7 +55,7 @@ typedef union seg_desc {
 } seg_desc_t;
 
 /* TSS structure */
-typedef struct __packed tss_t {
+typedef struct __packed tss {
     uint16_t prev_task_link;
     uint16_t prev_task_link_pad;
 

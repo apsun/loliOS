@@ -44,20 +44,20 @@ typedef struct { uint8_t bytes[6]; } mac_addr_t;
 #define ipton(ip) (htonl(iptoh(ip)))
 
 /* Layer-2 Ethernet device */
-typedef struct net_dev_t {
+typedef struct net_dev {
     char name[32];
     mac_addr_t mac_addr;
-    int (*send_mac_skb)(struct net_dev_t *dev, skb_t *skb);
+    int (*send_mac_skb)(struct net_dev *dev, skb_t *skb);
 } net_dev_t;
 
 /* Layer-3 IP interface */
-typedef struct net_iface_t {
+typedef struct net_iface {
     char name[32];
     ip_addr_t subnet_mask;
     ip_addr_t ip_addr;
     ip_addr_t gateway_addr;
     net_dev_t *dev;
-    int (*send_ip_skb)(struct net_iface_t *iface, skb_t *skb, ip_addr_t addr);
+    int (*send_ip_skb)(struct net_iface *iface, skb_t *skb, ip_addr_t addr);
 } net_iface_t;
 
 /* Finds the interface for the given device */
