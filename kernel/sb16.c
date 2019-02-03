@@ -172,6 +172,9 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
         return -1;
     } else if (nbytes == 0) {
         return 0;
+    } else if (nbytes < bits_per_sample / 8) {
+        /* Must write at least one sample */
+        return -1;
     }
 
     pcb_t *pcb = get_executing_pcb();
@@ -185,9 +188,7 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
         }
 
         /* If we're using the 16-bit DMA channel, nbytes must be even */
-        if (bits_per_sample != 8) {
-            to_write &= ~1;
-        }
+        to_write &= -(bits_per_sample / 8);
 
         /* Do we have anything to write? */
         if (to_write > 0) {
