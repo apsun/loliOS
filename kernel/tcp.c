@@ -1427,7 +1427,10 @@ tcp_dtor(net_sock_t *sock)
     free(tcp);
 }
 
-/* bind() socketcall handler */
+/*
+ * bind() socketcall handler. Only works on sockets that
+ * have not yet been put into listening mode.
+ */
 int
 tcp_bind(net_sock_t *sock, const sock_addr_t *addr)
 {
@@ -1445,7 +1448,11 @@ tcp_bind(net_sock_t *sock, const sock_addr_t *addr)
     return socket_bind_addr(sock, tmp.ip, tmp.port);
 }
 
-/* connect() socketcall handler */
+/*
+ * connect() socketcall handler. Only works on non-listening
+ * sockets that have not already been connected. Sends a SYN
+ * to the specified remote address.
+ */
 int
 tcp_connect(net_sock_t *sock, const sock_addr_t *addr)
 {
@@ -1497,7 +1504,10 @@ tcp_connect(net_sock_t *sock, const sock_addr_t *addr)
     return 0;
 }
 
-/* listen() socketcall handler */
+/*
+ * listen() socketcall handler. Puts the socket into listening
+ * mode. Only works on unconnected sockets.
+ */
 int
 tcp_listen(net_sock_t *sock, int backlog)
 {
@@ -1519,7 +1529,11 @@ tcp_listen(net_sock_t *sock, int backlog)
     return 0;
 }
 
-/* accept() socketcall handler */
+/*
+ * accept() socketcall handler. Accepts a single incoming
+ * TCP connection. Copies the remote endpoint's address
+ * into addr.
+ */
 int
 tcp_accept(net_sock_t *sock, sock_addr_t *addr)
 {
@@ -1559,7 +1573,10 @@ tcp_accept(net_sock_t *sock, sock_addr_t *addr)
     return fd;
 }
 
-/* recvfrom() socketcall handler */
+/*
+ * recvfrom() socketcall handler. Reads the specified number of
+ * bytes from the remote endpoint. addr is ignored.
+ */
 int
 tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
 {
@@ -1673,7 +1690,11 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
     return copied;
 }
 
-/* sendto() socketcall handler */
+/*
+ * sendto() socketcall handler. Splits the input buffer into
+ * TCP packets and sends them to the remote endpoint. Fails if
+ * the writing end of the socket is closed. addr is ignored.
+ */
 int
 tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *addr)
 {
@@ -1752,7 +1773,10 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
     }
 }
 
-/* shutdown() socketcall handler */
+/*
+ * shutdown() socketcall handler. Sends a FIN to the
+ * remote endpoint and closes the writing end of the socket.
+ */
 int
 tcp_shutdown(net_sock_t *sock)
 {
@@ -1766,7 +1790,13 @@ tcp_shutdown(net_sock_t *sock)
     return 0;
 }
 
-/* close() socketcall handler */
+/*
+ * close() socketcall handler. Sends a FIN to the
+ * remote endpoint and closes the writing end of the
+ * socket. The socket will be inaccessible from userspace,
+ * but will remain alive in the kernel until the FIN
+ * has been ACK'd.
+ */
 int
 tcp_close(net_sock_t *sock)
 {

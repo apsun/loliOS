@@ -139,7 +139,10 @@ udp_dtor(net_sock_t *sock)
     free(udp);
 }
 
-/* bind() socketcall handler */
+/*
+ * bind() socketcall handler. Sets the local endpoint
+ * address of the socket.
+ */
 int
 udp_bind(net_sock_t *sock, const sock_addr_t *addr)
 {
@@ -152,7 +155,11 @@ udp_bind(net_sock_t *sock, const sock_addr_t *addr)
     return socket_bind_addr(sock, tmp.ip, tmp.port);
 }
 
-/* connect() socketcall handler */
+/*
+ * connect() socketcall handler. This sets the default
+ * address to send datagrams to, and also causes incoming
+ * datagrams not from the given address to be discarded.
+ */
 int
 udp_connect(net_sock_t *sock, const sock_addr_t *addr)
 {
@@ -165,7 +172,11 @@ udp_connect(net_sock_t *sock, const sock_addr_t *addr)
     return socket_connect_addr(sock, tmp.ip, tmp.port);
 }
 
-/* recvfrom() socketcall handler */
+/*
+ * recvfrom() socketcall handler. Reads a single datagram
+ * from the socket. The sender's address will be copied to
+ * addr if it is not null.
+ */
 int
 udp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
 {
@@ -220,7 +231,12 @@ udp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
     return nbytes;
 }
 
-/* sendto() socketcall handler */
+/*
+ * sendto() socketcall handler. Sends a single datagram
+ * to the specified remote address. If addr is null, it
+ * will be sent to the connected address if previously
+ * set by connect().
+ */
 int
 udp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *addr)
 {

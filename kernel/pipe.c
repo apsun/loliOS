@@ -271,7 +271,7 @@ pipe_pipe(int *readfd, int *writefd)
         return -1;
     }
 
-    /* Starting from this point, close() can be called */
+    /* Initialize pipe */
     pipe->head = 0;
     pipe->tail = 0;
     pipe->half_closed = false;
