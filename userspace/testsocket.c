@@ -458,6 +458,41 @@ test_tcp_shutdown(void)
     close(b);
 }
 
+static void
+test_tcp_backlog(void)
+{
+    int ret;
+    int a = socket(SOCK_TCP);
+    int b = socket(SOCK_TCP);
+    int c = socket(SOCK_TCP);
+
+    /* Create listening socket */
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    ret = bind2(a, &a_addr);
+    assert(ret == 0);
+    ret = listen(a, 1);
+    assert(ret == 0);
+
+    /* Connect to socket */
+    ret = connect(b, &a_addr);
+    assert(ret == 0);
+
+    /* Backlog full, should not connect (though return is meaningless) */
+    ret = connect(c, &a_addr);
+
+    /* Pop incoming connection */
+    int aconn = accept(a, NULL);
+    assert(aconn >= 0);
+
+    /* Should only have one entry in backlog */
+    ret = accept(a, NULL);
+    assert(ret == -EAGAIN);
+
+    close(aconn);
+    close(b);
+    close(a);
+}
+
 int
 main(void)
 {
@@ -473,6 +508,7 @@ main(void)
     test_tcp_multi_accept();
     test_tcp_segmentation();
     test_tcp_shutdown();
+    test_tcp_backlog();
     printf("All tests passed!\n");
     return 0;
 }

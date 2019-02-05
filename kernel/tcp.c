@@ -118,6 +118,12 @@ typedef struct {
     timer_t fin_timer;
 
     /*
+     * Number of remaining slots in the connection backlog, for listening
+     * sockets.
+     */
+    int backlog_capacity;
+
+    /*
      * Receive window size of the socket. This is used to limit the incoming
      * packet rate, so we don't spend 100% of our time handling packets.
      * This value may be negative to indicate that our inbox is fuller than
@@ -1255,9 +1261,16 @@ tcp_handle_rx_listening(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
 
     /* New incoming connection! */
     if (hdr->syn) {
+        /* Reject if backlog is full */
+        if (tcp->backlog_capacity == 0) {
+            tcp_debugf("Backlog full, dropping connection\n");
+            return -1;
+        }
+
         /* Create a new socket */
         net_sock_t *connsock = socket_obj_alloc(SOCK_TCP);
         if (connsock == NULL) {
+            tcp_debugf("Failed to allocate socket for incoming connection\n");
             return -1;
         }
 
@@ -1287,6 +1300,7 @@ tcp_handle_rx_listening(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
 
         /* Send our initial SYN-ACK */
         if (tcp_send_syn(conntcp) < 0) {
+            tcp_debugf("Failed to send initial SYN-ACK\n");
             tcp_set_state(conntcp, CLOSED);
             tcp_release(conntcp);
             return -1;
@@ -1294,6 +1308,7 @@ tcp_handle_rx_listening(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
 
         /* Add socket to backlog for accept() */
         list_add_tail(&conntcp->backlog, &tcp->backlog);
+        tcp->backlog_capacity--;
         return 0;
     }
 
@@ -1374,6 +1389,7 @@ tcp_ctor(net_sock_t *sock)
     list_init(&tcp->inbox);
     list_init(&tcp->outbox);
     timer_init(&tcp->fin_timer);
+    tcp->backlog_capacity = 256;
     tcp->rwnd_size = TCP_RWND_SIZE;
     tcp->read_num = 0;
     tcp->ack_num = 0;
@@ -1512,7 +1528,7 @@ int
 tcp_listen(net_sock_t *sock, int backlog)
 {
     /* Cannot call listen() on a unbound or connected socket */
-    if (!sock->bound || sock->connected) {
+    if (!sock->bound || sock->connected || backlog <= 0) {
         return -1;
     } else if (sock->listening) {
         return 0;
@@ -1526,6 +1542,7 @@ tcp_listen(net_sock_t *sock, int backlog)
     sock->listening = true;
     tcp_acquire(tcp);
     tcp_set_state(tcp, LISTEN);
+    tcp->backlog_capacity = backlog;
     return 0;
 }
 
@@ -1570,6 +1587,7 @@ tcp_accept(net_sock_t *sock, sock_addr_t *addr)
 
     /* Consume socket from backlog */
     list_del(&conntcp->backlog);
+    conntcp->backlog_capacity++;
     return fd;
 }
 

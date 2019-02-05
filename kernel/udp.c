@@ -57,7 +57,7 @@ udp_handle_rx(net_iface_t *iface, skb_t *skb)
 
 /* Sends a UDP datagram to the specified IP and port */
 static int
-udp_send(net_sock_t *sock, skb_t *skb, ip_addr_t ip, int port)
+udp_send(net_sock_t *sock, skb_t *skb, ip_addr_t ip, uint16_t port)
 {
     /* Auto-bind sender address if not already done */
     if (!sock->bound && socket_bind_addr(sock, ANY_IP, 0) < 0) {
