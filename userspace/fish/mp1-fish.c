@@ -91,7 +91,7 @@ main(void)
     vga_init();
 
     /* Initialize RTC to 32 ticks/sec */
-    int rtc_fd = create("rtc", OPEN_READ);
+    int rtc_fd = create("rtc", OPEN_RDWR);
     int rtc_freq = 32;
     write(rtc_fd, &rtc_freq, sizeof(rtc_freq));
 

@@ -272,7 +272,7 @@ int
 main(void)
 {
     int taux_fd = create("taux", OPEN_RDWR);
-    int rtc_fd = create("rtc", OPEN_READ);
+    int rtc_fd = create("rtc", OPEN_RDWR);
     int rtc_freq = TICKS_PER_SEC;
     write(rtc_fd, &rtc_freq, sizeof(rtc_freq));
 
