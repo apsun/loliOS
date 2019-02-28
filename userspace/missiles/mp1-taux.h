@@ -1,10 +1,10 @@
 #ifndef _MP1_TAUX_H
 #define _MP1_TAUX_H
 
-#define TUX_SET_LED     0x10
-#define TUX_BUTTONS     0x12
-#define TUX_INIT        0x13
-#define TUX_SET_LED_STR 0x16
+#define TAUX_SET_LED     0x10
+#define TAUX_BUTTONS     0x12
+#define TAUX_INIT        0x13
+#define TAUX_SET_LED_STR 0x16
 
 enum {
     TB_START  = 0x01,

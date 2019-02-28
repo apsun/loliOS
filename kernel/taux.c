@@ -6,6 +6,55 @@
 #include "paging.h"
 
 /*
+ * Commands have the top 2 bits set to 11.
+ */
+#define MTCP_CMD(c)    (0xC0 | (c))
+#define MTCP_OFF       MTCP_CMD(0x0)
+#define MTCP_RESET_DEV MTCP_CMD(0x1)
+#define MTCP_POLL      MTCP_CMD(0x2)
+#define MTCP_BIOC_ON   MTCP_CMD(0x3)
+#define MTCP_BIOC_OFF  MTCP_CMD(0x4)
+#define MTCP_DBG_OFF   MTCP_CMD(0x5)
+#define MTCP_LED_SET   MTCP_CMD(0x6)
+#define MTCP_LED_CLK   MTCP_CMD(0x7)
+#define MTCP_LED_USR   MTCP_CMD(0x8)
+#define MTCP_CLK_RESET MTCP_CMD(0x9)
+#define MTCP_CLK_SET   MTCP_CMD(0xa)
+#define MTCP_CLK_POLL  MTCP_CMD(0xb)
+#define MTCP_CLK_RUN   MTCP_CMD(0xc)
+#define MTCP_CLK_STOP  MTCP_CMD(0xd)
+#define MTCP_CLK_UP    MTCP_CMD(0xe)
+#define MTCP_CLK_DOWN  MTCP_CMD(0xf)
+#define MTCP_CLK_MAX   MTCP_CMD(0x10)
+#define MTCP_MOUSE_OFF MTCP_CMD(0x11)
+#define MTCP_MOUSE_ON  MTCP_CMD(0x12)
+#define MTCP_POLL_LEDS MTCP_CMD(0x13)
+
+/*
+ * Responses have the top 2 bits set to 01.
+ * The MTCP_RESP macro converts the parameter
+ * from 000ABCDE format to 01AB0CDE format
+ * (6th bit = 1, 3rd bit = 0).
+ */
+#define MTCP_RESP(n)      (((n) & 7) | (((n) & 0x18) << 1) | 0x40)
+#define MTCP_ACK          MTCP_RESP(0x0)
+#define MTCP_BIOC_EVENT   MTCP_RESP(0x1)
+#define MTCP_CLK_EVENT    MTCP_RESP(0x2)
+#define MTCP_OFF_EVENT    MTCP_RESP(0x3)
+#define MTCP_POLL_OK      MTCP_RESP(0x4)
+#define MCTP_CLK_POLL     MTCP_RESP(0x5)
+#define MTCP_RESET        MTCP_RESP(0x6)
+#define MTCP_LEDS_POLL0   MTCP_RESP(0x8)
+#define MTCP_LEDS_POLL01  MTCP_RESP(0x9)
+#define MTCP_LEDS_POLL02  MTCP_RESP(0xa)
+#define MTCP_LEDS_POLL012 MTCP_RESP(0xb)
+#define MTCP_LEDS_POLL1   MTCP_RESP(0xc)
+#define MTCP_LEDS_POLL11  MTCP_RESP(0xd)
+#define MTCP_LEDS_POLL12  MTCP_RESP(0xe)
+#define MTCP_LEDS_POLL112 MTCP_RESP(0xf)
+#define MTCP_ERROR        MTCP_RESP(0x1F)
+
+/*
  * Taux controller serial configuration.
  */
 #define TAUX_COM_PORT      1
@@ -73,14 +122,14 @@ static int pending_acks = 0;
 /* Holds the current pressed state of the buttons */
 static uint8_t button_status = 0;
 
-/* Holds the last converted value sent to the TUX_SET_LED[_STR] ioctl */
+/* Holds the last converted value sent to the TAUX_SET_LED[_STR] ioctl */
 static uint8_t led_segments[4];
 
 /* Whether we should send a LED_SET packet when free (no pending ACKs) */
 static bool set_led_pending = false;
 
 /*
- * Converts a LED status value (from the TUX_SET_LED
+ * Converts a LED status value (from the TAUX_SET_LED
  * ioctl) to the LED segment format used by the taux
  * controller. The buffer must be at 4 bytes long.
  */
@@ -362,12 +411,12 @@ taux_ioctl_check_mode(file_obj_t *file, int req)
 {
     int mode = 0;
     switch (req) {
-    case TUX_INIT:
-    case TUX_SET_LED:
-    case TUX_SET_LED_STR:
+    case TAUX_INIT:
+    case TAUX_SET_LED:
+    case TAUX_SET_LED_STR:
         mode = OPEN_WRITE;
         break;
-    case TUX_BUTTONS:
+    case TAUX_BUTTONS:
         mode = OPEN_READ;
         break;
     default:
@@ -392,13 +441,13 @@ taux_ioctl(file_obj_t *file, int req, int arg)
     }
 
     switch (req) {
-    case TUX_INIT:
+    case TAUX_INIT:
         return taux_ioctl_init();
-    case TUX_SET_LED:
+    case TAUX_SET_LED:
         return taux_ioctl_set_led(arg);
-    case TUX_BUTTONS:
+    case TAUX_BUTTONS:
         return taux_ioctl_get_buttons(arg);
-    case TUX_SET_LED_STR:
+    case TAUX_SET_LED_STR:
         return taux_ioctl_set_led_str(arg);
     default:
         return -1;

@@ -6,7 +6,7 @@
 void
 taux_display_str(int taux_fd, const char *str)
 {
-    if (ioctl(taux_fd, TUX_SET_LED_STR, (int)str) < 0) {
+    if (ioctl(taux_fd, TAUX_SET_LED_STR, (int)str) < 0) {
         assert(0);
     }
 }
@@ -45,7 +45,7 @@ taux_display_time(int taux_fd, int num_seconds)
     packed |= 0x4 << 24; /* 0100 */
 
     /* Call the ioctl! */
-    if (ioctl(taux_fd, TUX_SET_LED, packed) < 0) {
+    if (ioctl(taux_fd, TAUX_SET_LED, packed) < 0) {
         assert(0);
     }
 }
@@ -60,7 +60,7 @@ taux_display_coords(int taux_fd, int x, int y)
     packed |= 0xf << 16; /* All LEDs on */
     packed |= 0x4 << 24; /* Decimal point in middle */
 
-    if (ioctl(taux_fd, TUX_SET_LED, packed) < 0) {
+    if (ioctl(taux_fd, TAUX_SET_LED, packed) < 0) {
         assert(0);
     }
 }
@@ -80,7 +80,7 @@ taux_display_num(int taux_fd, int num)
     if (num >= 100) packed |= 1 << 18;
     if (num >= 1000) packed |= 1 << 19;
 
-    if (ioctl(taux_fd, TUX_SET_LED, packed) < 0) {
+    if (ioctl(taux_fd, TAUX_SET_LED, packed) < 0) {
         assert(0);
     }
 }
@@ -92,7 +92,7 @@ taux_get_input(int taux_fd)
 
     /* Get raw button data from driver... */
     int raw_buttons;
-    ioctl(taux_fd, TUX_BUTTONS, (int)&raw_buttons);
+    ioctl(taux_fd, TAUX_BUTTONS, (int)&raw_buttons);
 
     /* ... and convert to normalized form */
     int buttons = 0;

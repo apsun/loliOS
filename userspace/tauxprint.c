@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <syscall.h>
 
-#define TUX_SET_LED_STR 0x16
+#define TAUX_SET_LED_STR 0x16
 
 int
 main(void)
@@ -21,7 +21,7 @@ main(void)
             break;
         }
 
-        if (ioctl(fd, TUX_SET_LED_STR, (int)buf) < 0) {
+        if (ioctl(fd, TAUX_SET_LED_STR, (int)buf) < 0) {
             fprintf(stderr, "Cannot display that string!\n");
         }
     }

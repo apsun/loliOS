@@ -10,24 +10,18 @@
 /* Number of supported terminals */
 #define NUM_TERMINALS 3
 
-/* Size of the keyboard buffer */
-#define KEYBOARD_BUF_SIZE 128
-
-/* Maximum number of *bytes* in the mouse buffer */
-#define MOUSE_BUF_SIZE (64 * sizeof(mouse_input_t))
-
 #ifndef ASM
 
 /* Keyboard input buffer */
 typedef struct {
-    char buf[KEYBOARD_BUF_SIZE];
+    char buf[128];
     int count;
     list_t sleep_queue;
 } kbd_input_buf_t;
 
 /* Mouse input buffer */
 typedef struct {
-    uint8_t buf[MOUSE_BUF_SIZE];
+    uint8_t buf[64];
     int count;
     list_t sleep_queue;
 } mouse_input_buf_t;

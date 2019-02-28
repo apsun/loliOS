@@ -599,7 +599,7 @@ terminal_eof(void)
 {
     terminal_state_t *term = get_display_terminal();
     kbd_input_buf_t *input_buf = &term->kbd_input;
-    if (input_buf->count < KEYBOARD_BUF_SIZE) {
+    if (input_buf->count < array_len(input_buf->buf)) {
         input_buf->buf[input_buf->count++] = EOT;
         scheduler_wake_all(&input_buf->sleep_queue);
     }
@@ -640,8 +640,8 @@ handle_char_input(char c)
         input_buf->count--;
         terminal_putc_impl(term, c);
         terminal_update_cursor(term);
-    } else if ((c != '\b' && input_buf->count < KEYBOARD_BUF_SIZE - 1) ||
-               (c == '\n' && input_buf->count < KEYBOARD_BUF_SIZE)) {
+    } else if ((c != '\b' && input_buf->count < array_len(input_buf->buf) - 1) ||
+               (c == '\n' && input_buf->count < array_len(input_buf->buf))) {
         input_buf->buf[input_buf->count++] = c;
         terminal_putc_impl(term, c);
         terminal_update_cursor(term);
