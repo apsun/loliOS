@@ -406,6 +406,38 @@ test_stdio_file_append(void)
     assert(ret == 0);
 }
 
+static void
+test_stdio_fseek_relative(void)
+{
+    FILE *f;
+    int ret;
+    char buf[128];
+
+    f = fopen("TEST_FILE", "w+");
+    assert(f != NULL);
+
+    ret = fwrite(f, "foobar", 6);
+    assert(ret == 6);
+
+    ret = fseek(f, 0, SEEK_SET);
+    assert(ret == 0);
+
+    ret = fread(f, buf, 4);
+    assert(ret == 4);
+
+    ret = fseek(f, -1, SEEK_CUR);
+    assert(ret == 3);
+
+    ret = fread(f, buf, 1);
+    assert(ret == 1);
+    assert(buf[0] == 'b');
+
+    fclose(f);
+
+    ret = unlink("TEST_FILE");
+    assert(ret == 0);
+}
+
 int
 main(void)
 {
@@ -422,6 +454,7 @@ main(void)
     test_unlink_lazy_delete();
     test_stdio_file();
     test_stdio_file_append();
+    test_stdio_fseek_relative();
     printf("All tests passed!\n");
     return 0;
 }

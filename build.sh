@@ -73,6 +73,7 @@ if [ "$nobuild" != "true" ]; then
     make -C "${root_dir}/kernel"
 
     # Generate disk image
+    chmod +x "${root_dir}/diskgen.sh"
     cp "${root_dir}/orig.img" "${root_dir}/disk.img"
     sudo "${root_dir}/diskgen.sh"
 fi

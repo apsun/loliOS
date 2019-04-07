@@ -230,6 +230,14 @@ fwrite(FILE *fp, const void *buf, int size)
 int
 fseek(FILE *fp, int offset, int mode)
 {
+    /*
+     * If performing a relative seek, account for any bytes
+     * that we have prefetched.
+     */
+    if (mode == SEEK_CUR) {
+        offset -= fp->count - fp->offset;
+    }
+
     int ret = seek(fp->fd, offset, mode);
     if (ret >= 0) {
         /*
