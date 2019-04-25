@@ -90,7 +90,7 @@ parse_args(args_t *args)
 
     if (getargs(args->buf, sizeof(args->buf)) < 0) {
         args->buf[0] = '\0';
-        return args;
+        return true;
     }
 
     while (1) {
@@ -109,7 +109,7 @@ parse_args(args_t *args)
                 }
             }
         } else {
-            return args;
+            return true;
         }
     }
 }
@@ -136,14 +136,20 @@ main(void)
         goto cleanup;
     }
 
-    /* If in interactive mode, reset stdin and stdout */
+    /* If in interactive mode, reset stdin */
     if (args.interactive) {
-        fd = dup(0, -1);
+        if (*args.argv == '\0') {
+            if ((fd = dup(0, -1)) < 0) {
+                fprintf(stderr, "Failed to dup stdin\n");
+                goto cleanup;
+            }
+        }
+
         reset_stdin();
     }
 
     /* If file is specified, use that as input */
-    if (*args.argv) {
+    if (*args.argv != '\0') {
         if ((fd = create(args.argv, OPEN_READ)) < 0) {
             fprintf(stderr, "%s: No such file or directory\n", args.argv);
             goto cleanup;
