@@ -1,4 +1,4 @@
-CFLAGS += -Wall -Wextra -Wno-unused-parameter \
+CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter \
 	-Wshadow -Wpointer-arith \
 	-fno-builtin -fno-stack-protector -fno-omit-frame-pointer \
 	-fno-asynchronous-unwind-tables -ffreestanding -fno-pie \
