@@ -489,6 +489,7 @@ test_tcp_backlog(void)
     assert(ret == -EAGAIN);
 
     close(aconn);
+    close(c);
     close(b);
     close(a);
 }

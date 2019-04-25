@@ -156,6 +156,8 @@ test_failed_write(void)
 
     ret = read(fd, buf, sizeof(buf));
     assert(ret == 0);
+
+    close(fd);
 }
 
 static void
@@ -200,6 +202,8 @@ test_write_fill_block(void)
     ret = read(fd, buf, sizeof(buf));
     assert(ret == sizeof(buf));
     assert(buf[sizeof(buf) - 1] == 'b');
+
+    close(fd);
 }
 
 static void
