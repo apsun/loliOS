@@ -1,9 +1,9 @@
-CFLAGS += -Ilolibc -Wall -Wextra -Werror -Wno-unused-parameter \
+CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter \
 	-Wshadow -Wpointer-arith \
 	-fno-builtin -fno-stack-protector -fno-omit-frame-pointer \
 	-fno-asynchronous-unwind-tables -ffreestanding -fno-pie \
-	-m32 -mno-sse
-ASFLAGS += -Ilolibc -Wall -Wextra -m32
+	-m32 -mno-sse -Ilolibc
+ASFLAGS += -Wall -Wextra -m32 -Ilolibc
 LDFLAGS += -nostdlib -static -melf_i386
 
 objs = $(patsubst %.c,%.o,$(patsubst %.S,%.o,$(wildcard $(1)/*.c $(1)/*.S)))

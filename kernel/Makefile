@@ -1,14 +1,10 @@
-# Flags to use when compiling, preprocessing, assembling, and linking
 CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter \
 	-Wshadow -Wpointer-arith \
 	-fno-builtin -fno-stack-protector -fno-omit-frame-pointer \
 	-fno-asynchronous-unwind-tables -ffreestanding -fno-pie \
-	-m32 -mno-sse
+	-m32 -mno-sse -nostdinc
 ASFLAGS += -Wall -Wextra -m32
 LDFLAGS += -nostdlib -static -melf_i386
-
-# If you have any .h files in another directory, add -I<dir> to this line
-CPPFLAGS += -nostdinc -g
 
 # This generates the list of source files
 SRC = $(wildcard *.S) $(wildcard *.c) $(wildcard */*.S) $(wildcard */*.c)
