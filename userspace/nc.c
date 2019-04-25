@@ -551,7 +551,7 @@ parse_args(args_t *args)
 
     if (getargs(args->buf, sizeof(args->buf)) < 0) {
         args->buf[0] = '\0';
-        return args;
+        return true;
     }
 
     while (1) {
@@ -576,7 +576,7 @@ parse_args(args_t *args)
                 }
             }
         } else {
-            return args;
+            return true;
         }
     }
 }

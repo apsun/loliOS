@@ -286,11 +286,11 @@ file_create(const char *filename, int mode)
     if (fs_dentry_by_name(tmp, &dentry) < 0) {
         if (mode & OPEN_CREATE) {
             if (fs_create_file(tmp, &dentry) < 0) {
-                debugf("Failed to create file\n");
+                debugf("Failed to create file: %s\n", tmp);
                 return -1;
             }
         } else {
-            debugf("File not found\n");
+            debugf("File not found: %s\n", tmp);
             return -1;
         }
     }
@@ -305,7 +305,7 @@ file_create(const char *filename, int mode)
     /* Allocate and initialize a file object */
     file_obj_t *file = file_obj_alloc(ops_table, mode, true);
     if (file == NULL) {
-        debugf("Failed to allocate file\n");
+        debugf("Failed to allocate file object\n");
         return -1;
     }
 
