@@ -81,12 +81,9 @@ dump_registers(int_regs_t *regs)
 static char *
 dump_callstack_utox(char buf[16], uint32_t *p)
 {
-    if ((uint32_t)p < KERNEL_PAGE_START ||
-        (uint32_t)p > KERNEL_PAGE_END - sizeof(uint32_t))
-    {
+    if (!is_memory_accessible(p, sizeof(uint32_t), false, false)) {
         return "<overflow>";
     }
-
     snprintf(buf, 16, "0x%08x", *p);
     return buf;
 }
@@ -101,7 +98,7 @@ dump_callstack_utox(char buf[16], uint32_t *p)
 static void
 dump_callstack(uint32_t eip, uint32_t ebp)
 {
-    while (ebp >= KERNEL_PAGE_START && ebp < KERNEL_PAGE_END) {
+    while (is_memory_accessible((void *)ebp, 8, false, false)) {
         uint32_t *args = (uint32_t *)(ebp + 8);
         char buf[5][16];
 #define ARG(n) (dump_callstack_utox(buf[n], &args[n]))

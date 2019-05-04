@@ -550,18 +550,16 @@ paging_update_vidmap_page(uint8_t *video_mem, bool present)
 }
 
 /*
- * Returns whether a single page access would be valid in userspace.
+ * Returns whether a single byte access would be valid.
  * addr should point to some address to check on input. On output,
- * it will point to the next page that may need to be checked. This
- * only checks a single byte, since it does not support accesses
- * spanning multiple pages.
+ * it will point to the next page that may need to be checked.
  */
 static bool
-is_page_user_accessible(uint32_t *addr, bool write)
+is_page_accessible(uintptr_t *addr, bool user, bool write)
 {
     /* Access page info through the directory */
     pde_4kb_t *pde = PDE_4KB(*addr);
-    if (!pde->present || !pde->user || (!pde->write && write)) {
+    if (!pde->present || (!pde->user && user) || (!pde->write && write)) {
         return false;
     }
 
@@ -573,7 +571,7 @@ is_page_user_accessible(uint32_t *addr, bool write)
 
     /* It's a 4KB page, access info through the table */
     pte_t *pte = PDE_TO_PTE(pde, *addr);
-    if (!pte->present || !pte->user || (!pte->write && write)) {
+    if (!pte->present || (!pte->user && user) || (!pte->write && write)) {
         return false;
     }
 
@@ -582,12 +580,13 @@ is_page_user_accessible(uint32_t *addr, bool write)
 }
 
 /*
- * Checks whether a memory access would be valid in userspace.
+ * Checks whether a memory access would be valid.
  * That is, this function will return true iff accessing
- * the same address in ring 3 would not cause a page fault.
+ * every byte in the given range would not cause any
+ * page faults.
  */
-static bool
-is_user_accessible(const void *start, int nbytes, bool write)
+bool
+is_memory_accessible(const void *start, int nbytes, bool user, bool write)
 {
     /* Negative accesses are obviously impossible */
     if (nbytes < 0) {
@@ -595,15 +594,15 @@ is_user_accessible(const void *start, int nbytes, bool write)
     }
 
     /* Check for overflow */
-    uint32_t addr = (uint32_t)start;
-    uint32_t end = addr + (uint32_t)nbytes;
+    uintptr_t addr = (uintptr_t)start;
+    uintptr_t end = addr + nbytes;
     if (end < addr) {
         return false;
     }
 
     /* Go through pages and ensure they're all accessible */
     while (addr < end) {
-        if (!is_page_user_accessible(&addr, write)) {
+        if (!is_page_accessible(&addr, user, write)) {
             return false;
         }
     }
@@ -621,9 +620,9 @@ int
 strscpy_from_user(char *dest, const char *src, int n)
 {
     int i = 0;
-    uint32_t limit = (uint32_t)src;
-    while (i < n && is_page_user_accessible(&limit, false)) {
-        for (; i < n && (uint32_t)&src[i] < limit; ++i) {
+    uintptr_t limit = (uintptr_t)src;
+    while (i < n && is_page_accessible(&limit, true, false)) {
+        for (; i < n && (uintptr_t)&src[i] < limit; ++i) {
             if ((dest[i] = src[i]) == '\0') {
                 return i;
             }
@@ -642,7 +641,7 @@ strscpy_from_user(char *dest, const char *src, int n)
 void *
 copy_from_user(void *dest, const void *src, int n)
 {
-    if (!is_user_accessible(src, n, false)) {
+    if (!is_memory_accessible(src, n, true, false)) {
         return NULL;
     }
 
@@ -658,7 +657,7 @@ copy_from_user(void *dest, const void *src, int n)
 void *
 copy_to_user(void *dest, const void *src, int n)
 {
-    if (!is_user_accessible(dest, n, true)) {
+    if (!is_memory_accessible(dest, n, true, true)) {
         return NULL;
     }
 

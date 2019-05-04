@@ -10,5 +10,4 @@ typedef long ptrdiff_t;
 #define offsetof(type, member) \
     ((size_t)&(((type *)NULL)->member))
 
-
 #endif /* _LOLIBC_STDDEF_H */
