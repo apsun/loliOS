@@ -196,39 +196,20 @@ rtc_open(file_obj_t *file)
  * read() syscall handler for RTC. Waits for the next (virtual)
  * periodic interrupt to occur, then returns success.
  * If a signal is delivered during the read, the read
- * will be prematurely aborted and -1 will be returned.
+ * will be prematurely aborted and -EINTR will be returned.
  */
 static int
 rtc_read(file_obj_t *file, void *buf, int nbytes)
 {
-    pcb_t *pcb = get_executing_pcb();
-
     /* Max number of ticks we need to wait */
     int max_ticks = RTC_HZ / (int)file->private;
 
     /* Wait until we reach the next multiple of max ticks */
     int target_counter = (rtc_counter + max_ticks) & -max_ticks;
-
-    /* Wait for enough RTC interrupts or a signal, whichever comes first */
-    while (1) {
-        /* Nonblocking flag makes no sense, so just always return 0 */
-        if (file->nonblocking) {
-            return 0;
-        }
-
-        /* Check if we've received enough RTC interrupts */
-        if (rtc_counter >= target_counter) {
-            return 0;
-        }
-
-        /* Exit early if we have a pending signal */
-        if (signal_has_pending(pcb->signals)) {
-            return -EINTR;
-        }
-
-        /* Sleep and wait for a new interrupt */
-        scheduler_sleep(&rtc_sleep_queue);
-    }
+    return BLOCKING_WAIT(
+        rtc_counter >= target_counter ? 0 : -EAGAIN,
+        rtc_sleep_queue,
+        file->nonblocking);
 }
 
 /*

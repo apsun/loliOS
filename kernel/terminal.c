@@ -331,61 +331,43 @@ terminal_clear_bsod(void)
 }
 
 /*
- * Waits until either the keyboard input buffer has enough
- * data to be read, or the read call should return early.
- * Returns the number of characters that should be read.
+ * Checks if the keyboard input buffer has enough data to be
+ * read. Returns the number of characters that should be read,
+ * or -EAGAIN if there is currently nothing to read.
  */
 static int
-terminal_wait_kbd_input(terminal_state_t *term, int nbytes, bool nonblocking)
+terminal_check_kbd_input(terminal_state_t *term, int nbytes)
 {
     pcb_t *pcb = get_executing_pcb();
     kbd_input_buf_t *input_buf = &term->kbd_input;
 
-    while (1) {
-        /*
-         * If the process is not in the foreground group, don't
-         * allow the caller to read
-         */
-        if (term->fg_group != pcb->group) {
-            debugf("Attempting to read from background group (fg=%d, curr=%d)\n",
-                term->fg_group, pcb->group);
-            return -1;
-        }
-
-        /*
-         * Check if we have a newline or EOT character. If so, we should
-         * read up to and including that character (or as many chars
-         * as fits in the buffer)
-         */
-        int count = input_buf->count;
-        int i;
-        for (i = 0; i < count; ++i) {
-            if (input_buf->buf[i] == '\n' || input_buf->buf[i] == EOT) {
-                if (nbytes > i + 1) {
-                    nbytes = i + 1;
-                }
-                return nbytes;
-            }
-        }
-
-        /*
-         * If the file is non-blocking, return even if we don't
-         * have a newline character yet
-         */
-        if (nonblocking) {
-            return -EAGAIN;
-        }
-
-        /* Exit early if we have a pending signal */
-        if (signal_has_pending(pcb->signals)) {
-            return -EINTR;
-        }
-
-        /* Wait for some more input */
-        scheduler_sleep(&input_buf->sleep_queue);
+    /*
+     * If the process is not in the foreground group, don't
+     * allow the caller to read
+     */
+    if (term->fg_group != pcb->group) {
+        debugf("Attempting to read from background group (fg=%d, curr=%d)\n",
+            term->fg_group, pcb->group);
+        return -1;
     }
 
-    return nbytes;
+    /*
+     * Check if we have a newline or EOT character. If so, we should
+     * read up to and including that character (or as many chars
+     * as fits in the buffer)
+     */
+    int count = input_buf->count;
+    int i;
+    for (i = 0; i < count; ++i) {
+        if (input_buf->buf[i] == '\n' || input_buf->buf[i] == EOT) {
+            if (nbytes > i + 1) {
+                nbytes = i + 1;
+            }
+            return nbytes;
+        }
+    }
+
+    return -EAGAIN;
 }
 
 /*
@@ -405,17 +387,20 @@ terminal_tty_read(file_obj_t *file, void *buf, int nbytes)
         return 0;
     }
 
+    terminal_state_t *term = get_executing_terminal();
+    kbd_input_buf_t *input_buf = &term->kbd_input;
+
     /*
      * Wait until there's a newline/EOT in the buffer or we
      * have pending signals to handle
      */
-    terminal_state_t *term = get_executing_terminal();
-    nbytes = terminal_wait_kbd_input(term, nbytes, file->nonblocking);
+    nbytes = BLOCKING_WAIT(
+        terminal_check_kbd_input(term, nbytes),
+        input_buf->sleep_queue,
+        file->nonblocking);
     if (nbytes < 0) {
         return nbytes;
     }
-
-    kbd_input_buf_t *input_buf = &term->kbd_input;
 
     /* Don't actually copy the EOT character */
     int ncopy = nbytes;
@@ -519,20 +504,14 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
         return -1;
     }
 
-    /* Check if there's any input to read */
+    /* Wait until there's input to read */
     mouse_input_buf_t *input_buf = &term->mouse_input;
-    while (input_buf->count == 0) {
-        /* Exit early if file is in nonblocking mode */
-        if (file->nonblocking) {
-            return -EAGAIN;
-        }
-
-        /* Exit early if we have a pending signal */
-        if (signal_has_pending(pcb->signals)) {
-            return -EINTR;
-        }
-
-        scheduler_sleep(&input_buf->sleep_queue);
+    int max_read = BLOCKING_WAIT(
+        input_buf->count > 0 ? input_buf->count : -EAGAIN,
+        input_buf->sleep_queue,
+        file->nonblocking);
+    if (max_read < 0) {
+        return max_read;
     }
 
     /*
@@ -542,7 +521,6 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
      * read() ever returns 1 or 2, either the buffer is too small
      * or the previous read was partial.
      */
-    int max_read = input_buf->count;
     if (max_read % sizeof(mouse_input_t) != 0) {
         max_read = max_read % sizeof(mouse_input_t);
     }

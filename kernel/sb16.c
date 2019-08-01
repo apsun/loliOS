@@ -161,6 +161,34 @@ sb16_open(file_obj_t *file)
 }
 
 /*
+ * Returns the maximum number of bytes that may be written
+ * to the SB16 DMA buffer.
+ */
+static int
+sb16_get_writable_count(int nbytes)
+{
+    int to_write = nbytes;
+
+    /* Limit writable bytes to one region */
+    if (to_write > SB16_HALF_BUFFER_SIZE - audio_buf_count) {
+        to_write = SB16_HALF_BUFFER_SIZE - audio_buf_count;
+    }
+
+    /* If we're using the 16-bit DMA channel, nbytes must be even */
+    to_write &= -(bits_per_sample / 8);
+
+    /* Do we have anything to write? */
+    if (to_write > 0) {
+        return to_write;
+    }
+
+    /* If we can't write anything, the device must be busy */
+    assert(is_playing);
+
+    return -EAGAIN;
+}
+
+/*
  * SB16 write() syscall handler. If audio is not already
  * playing, this will begin playback. To set playback
  * parameters, use ioctl().
@@ -177,39 +205,13 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
         return -1;
     }
 
-    pcb_t *pcb = get_executing_pcb();
-    int to_write;
-    while (1) {
-        to_write = nbytes;
-
-        /* Limit writable bytes to one region */
-        if (to_write > SB16_HALF_BUFFER_SIZE - audio_buf_count) {
-            to_write = SB16_HALF_BUFFER_SIZE - audio_buf_count;
-        }
-
-        /* If we're using the 16-bit DMA channel, nbytes must be even */
-        to_write &= -(bits_per_sample / 8);
-
-        /* Do we have anything to write? */
-        if (to_write > 0) {
-            break;
-        }
-
-        /* If we can't write anything, the device must be busy */
-        assert(is_playing);
-
-        /* Check if file is in nonblocking mode */
-        if (file->nonblocking) {
-            return -EAGAIN;
-        }
-
-        /* Check for pending signals */
-        if (signal_has_pending(pcb->signals)) {
-            return -EINTR;
-        }
-
-        /* Wait for previous playback to complete */
-        scheduler_sleep(&sleep_queue);
+    /* Wait until buffer is writable */
+    int to_write = BLOCKING_WAIT(
+        sb16_get_writable_count(nbytes),
+        sleep_queue,
+        file->nonblocking);
+    if (to_write < 0) {
+        return to_write;
     }
 
     /* Copy sample data into the audio buffer */

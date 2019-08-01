@@ -639,6 +639,23 @@ process_wait_impl(int parent_pid, int *pid)
 }
 
 /*
+ * Calls process_wait_impl(), but also copies the output
+ * PID to upid (userspace pointer).
+ */
+static int
+process_wait_impl_user(int parent_pid, int *kpid, int *upid)
+{
+    int ret = process_wait_impl(parent_pid, kpid);
+    if (ret < 0) {
+        return ret;
+    }
+    if (!copy_to_user(upid, kpid, sizeof(int))) {
+        return -1;
+    }
+    return ret;
+}
+
+/*
  * getargs() syscall handler. Copies the command-line arguments
  * that were used to execute the current process into buf.
  */
@@ -783,26 +800,11 @@ process_wait(int *pid)
         kpid = -pcb->group;
     }
 
-    while (1) {
-        /* Check if someone has died */
-        int ret = process_wait_impl(pcb->pid, &kpid);
-        if (ret >= 0) {
-            if (!copy_to_user(pid, &kpid, sizeof(int))) {
-                return -1;
-            }
-            return ret;
-        } else if (ret != -EAGAIN) {
-            return ret;
-        }
-
-        /* Check for pending signals */
-        if (signal_has_pending(pcb->signals)) {
-            return -EINTR;
-        }
-
-        /* Okay then, sleep until someone dies */
-        scheduler_sleep(&wait_queue);
-    }
+    /* Wait for a process to die and copy its PID */
+    return BLOCKING_WAIT(
+        process_wait_impl_user(pcb->pid, &kpid, pid),
+        wait_queue,
+        false);
 }
 
 /*

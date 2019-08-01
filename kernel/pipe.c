@@ -28,6 +28,40 @@ typedef struct {
 } pipe_state_t;
 
 /*
+ * Determines the number of bytes that can be read from
+ * this pipe. Returns 0 if the pipe write end is closed.
+ * Returns -EAGAIN if there are no bytes, but the write
+ * end is still open.
+ */
+static int
+pipe_get_readable_count(pipe_state_t *pipe, int nbytes)
+{
+    /* If the head comes before the tail, it must wrap around */
+    int head = pipe->head;
+    if (head < pipe->tail) {
+        head += PIPE_SIZE;
+    }
+
+    /* Compute number of bytes left in the buffer */
+    int to_read = nbytes;
+    if (to_read > head - pipe->tail) {
+        to_read = head - pipe->tail;
+    }
+
+    /* Have something to read immediately? */
+    if (to_read > 0) {
+        return to_read;
+    }
+
+    /* If write end is closed, treat as EOF */
+    if (pipe->half_closed) {
+        return 0;
+    }
+
+    return -EAGAIN;
+}
+
+/*
  * read() syscall handler for pipe read endpoint. Drains
  * data from the pipe.
  */
@@ -40,45 +74,13 @@ pipe_read(file_obj_t *file, void *buf, int nbytes)
         return 0;
     }
 
-    pcb_t *pcb = get_executing_pcb();
     pipe_state_t *pipe = file->private;
-
-    int to_read;
-    while (1) {
-        /* If the head comes before the tail, it must wrap around */
-        int head = pipe->head;
-        if (head < pipe->tail) {
-            head += PIPE_SIZE;
-        }
-
-        /* Compute number of bytes left in the buffer */
-        to_read = nbytes;
-        if (to_read > head - pipe->tail) {
-            to_read = head - pipe->tail;
-        }
-
-        /* Have something to read immediately? */
-        if (to_read > 0) {
-            break;
-        }
-
-        /* If write end is closed, treat as EOF */
-        if (pipe->half_closed) {
-            return 0;
-        }
-
-        /* Don't retry if file in nonblocking mode */
-        if (file->nonblocking) {
-            return -EAGAIN;
-        }
-
-        /* Exit early if we have a pending signal */
-        if (signal_has_pending(pcb->signals)) {
-            return -EINTR;
-        }
-
-        /* Wait for some more data */
-        scheduler_sleep(&pipe->read_queue);
+    int to_read = BLOCKING_WAIT(
+        pipe_get_readable_count(pipe, nbytes),
+        pipe->read_queue,
+        file->nonblocking);
+    if (to_read <= 0) {
+        return to_read;
     }
 
     /*
@@ -120,6 +122,40 @@ pipe_read(file_obj_t *file, void *buf, int nbytes)
 }
 
 /*
+ * Returns the number of bytes that can be written to the
+ * pipe. Returns -1 if the read half is closed. Returns
+ * -EAGAIN if the pipe is full.
+ */
+static int
+pipe_get_writeable_count(pipe_state_t *pipe, int nbytes)
+{
+    /* If the reader is gone, writes should fail */
+    if (pipe->half_closed) {
+        debugf("Writing to half-duplex pipe\n");
+        return -1;
+    }
+
+    /* If the head comes before the tail, it must wrap around */
+    int tail = pipe->tail;
+    if (tail <= pipe->head) {
+        tail += PIPE_SIZE;
+    }
+
+    /* Compute number of free bytes left in the buffer */
+    int to_write = nbytes;
+    if (to_write > tail - 1 - pipe->head) {
+        to_write = tail - 1 - pipe->head;
+    }
+
+    /* Have some space to write? */
+    if (to_write > 0) {
+        return to_write;
+    }
+
+    return -EAGAIN;
+}
+
+/*
  * write() syscall handler for pipe write endpoint. Appends
  * data to the pipe.
  */
@@ -132,46 +168,13 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
         return 0;
     }
 
-    pcb_t *pcb = get_executing_pcb();
     pipe_state_t *pipe = file->private;
-
-    int to_write;
-    while (1) {
-        /* If the reader is gone, writes should fail */
-        if (pipe->half_closed) {
-            debugf("Writing to half-duplex pipe\n");
-            return -1;
-        }
-
-        /* If the head comes before the tail, it must wrap around */
-        int tail = pipe->tail;
-        if (tail <= pipe->head) {
-            tail += PIPE_SIZE;
-        }
-
-        /* Compute number of free bytes left in the buffer */
-        to_write = nbytes;
-        if (to_write > tail - 1 - pipe->head) {
-            to_write = tail - 1 - pipe->head;
-        }
-
-        /* Have some space to write? */
-        if (to_write > 0) {
-            break;
-        }
-
-        /* Don't retry if file in nonblocking mode */
-        if (file->nonblocking) {
-            return -EAGAIN;
-        }
-
-        /* Exit early if we have a pending signal */
-        if (signal_has_pending(pcb->signals)) {
-            return -EINTR;
-        }
-
-        /* Wait for reader to drain some data */
-        scheduler_sleep(&pipe->write_queue);
+    int to_write = BLOCKING_WAIT(
+        pipe_get_writeable_count(pipe, nbytes),
+        pipe->write_queue,
+        file->nonblocking);
+    if (to_write < 0) {
+        return to_write;
     }
 
     int total_write = 0;
