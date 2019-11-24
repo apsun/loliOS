@@ -19,7 +19,7 @@ static list_declare(socket_list);
 static int socket_open(file_obj_t *file);
 static int socket_read(file_obj_t *file, void *buf, int nbytes);
 static int socket_write(file_obj_t *file, const void *buf, int nbytes);
-static int socket_close(file_obj_t *file);
+static void socket_close(file_obj_t *file);
 static int socket_ioctl(file_obj_t *file, int req, int arg);
 
 /* Network socket file ops */
@@ -230,17 +230,16 @@ socket_open(file_obj_t *file)
  * the socket may remain for a short time. As a result, using
  * the same local address may result in an address conflict.
  */
-static int
+static void
 socket_close(file_obj_t *file)
 {
     net_sock_t *sock = get_sock(file);
     assert(sock != NULL);
-    if (sock->ops_table->close != NULL && sock->ops_table->close(sock) < 0) {
-        return -1;
+    if (sock->ops_table->close != NULL) {
+        sock->ops_table->close(sock);
     }
     file->private = NULL;
     socket_obj_release(sock);
-    return 0;
 }
 
 /*

@@ -43,7 +43,7 @@ int tcp_accept(net_sock_t *sock, sock_addr_t *addr);
 int tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr);
 int tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *addr);
 int tcp_shutdown(net_sock_t *sock);
-int tcp_close(net_sock_t *sock);
+void tcp_close(net_sock_t *sock);
 
 #endif /* ASM */
 

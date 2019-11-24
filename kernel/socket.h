@@ -65,7 +65,7 @@ struct sock_ops {
     int (*sendto)(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *addr);
     int (*shutdown)(net_sock_t *sock);
     int (*ioctl)(net_sock_t *sock, int req, int arg);
-    int (*close)(net_sock_t *sock);
+    void (*close)(net_sock_t *sock);
 };
 
 /* Socket syscall functions */

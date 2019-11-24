@@ -215,7 +215,7 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
  * reads will return buffered data, then EOF when the buffer
  * is empty.
  */
-static int
+static void
 pipe_close(file_obj_t *file)
 {
     pipe_state_t *pipe = file->private;
@@ -232,7 +232,6 @@ pipe_close(file_obj_t *file)
         scheduler_wake_all(&pipe->read_queue);
         scheduler_wake_all(&pipe->write_queue);
     }
-    return 0;
 }
 
 /* Combined read/write file ops for pipe files */

@@ -230,12 +230,11 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
 }
 
 /* Releases exclusive access to the Sound Blaster 16 device */
-static int
+static void
 sb16_close(file_obj_t *file)
 {
     assert(file == open_device);
     open_device = NULL;
-    return 0;
 }
 
 /* Sets the bits per sample playback parameter */

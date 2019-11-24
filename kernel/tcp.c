@@ -1815,11 +1815,10 @@ tcp_shutdown(net_sock_t *sock)
  * but will remain alive in the kernel until the FIN
  * has been ACK'd.
  */
-int
+void
 tcp_close(net_sock_t *sock)
 {
     tcp_sock_t *tcp = tcp_sock(sock);
     tcp_inbox_drain(tcp);
     tcp_close_write(tcp);
-    return 0;
 }

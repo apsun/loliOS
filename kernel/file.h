@@ -77,7 +77,7 @@ struct file_ops {
     int (*open)(file_obj_t *file);
     int (*read)(file_obj_t *file, void *buf, int nbytes);
     int (*write)(file_obj_t *file, const void *buf, int nbytes);
-    int (*close)(file_obj_t *file);
+    void (*close)(file_obj_t *file);
     int (*ioctl)(file_obj_t *file, int req, int arg);
     int (*seek)(file_obj_t *file, int offset, int mode);
     int (*truncate)(file_obj_t *file, int length);
