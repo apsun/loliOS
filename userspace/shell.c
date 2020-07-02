@@ -161,9 +161,22 @@ execute_command(cmd_t *cmd)
     char error[256];
     int orig_tcpgrp = tcgetpgrp();
 
-    int next_in = -1;
-    int curr_in = -1;
-    int curr_out = -1;
+    /*
+     * The loop invariant gets confusing really fast, so use this diagram:
+     *
+     *                  created in this iteration
+     *          /--------------------------------------\
+     * curr_rd                     curr_wr      next_rd
+     * ======> [ current process ] ======> pipe ======> [ next process ]
+     *
+     * For any given loop iteration, we dup the curr_rd value from the
+     * previous iteration to our stdin. We also create a new pipe, and
+     * dup its write endpoint (curr_wr) to our stdout, and save its read
+     * endpoint (next_rd) for the next loop iteration.
+     */
+    int curr_rd = -1;
+    int curr_wr = -1;
+    int next_rd = -1;
 
     error[0] = '\0';
 /*
@@ -211,7 +224,7 @@ execute_command(cmd_t *cmd)
 
         /* Create a pipe for the next process in line */
         if (cmd->next != NULL) {
-            if (pipe(&curr_in, &curr_out) < 0) {
+            if (pipe(&next_rd, &curr_wr) < 0) {
                 FAIL("Failed to create pipe\n");
             }
         }
@@ -221,8 +234,13 @@ execute_command(cmd_t *cmd)
         if (pid < 0) {
             FAIL("Reached max number of processes\n");
         } else if (pid == 0) {
-            /* Don't need this one */
-            close(curr_in);
+            /*
+             * We're in the child! Close the read endpoint of the pipe;
+             * that's for the next process in the pipeline to care about.
+             */
+            if (next_rd >= 0) {
+                close(next_rd);
+            }
 
             /* Set process group and grab terminal foreground */
             setpgrp(0, group_id);
@@ -234,32 +252,37 @@ execute_command(cmd_t *cmd)
              * used by other child processes in each child.
              */
             if (cmd->in != NULL) {
-                assert(next_in < 0);
-                next_in = create(cmd->in, OPEN_READ);
-                if (next_in < 0) {
+                assert(curr_rd < 0);
+                curr_rd = create(cmd->in, OPEN_READ);
+                if (curr_rd < 0) {
                     fprintf(stderr, "Failed to open '%s' for reading\n", cmd->in);
                     halt(127);
                 }
             }
-            if (next_in >= 0) {
-                dup(next_in, STDIN_FILENO);
-                close(next_in);
+
+            /*
+             * If non-negative, curr_rd either points to a file or the read
+             * end of a pipe. Replace our stdin stream with it.
+             */
+            if (curr_rd >= 0) {
+                dup(curr_rd, STDIN_FILENO);
+                close(curr_rd);
             }
 
             /* Do the same, this time for stdout */
             if (cmd->out != NULL) {
-                assert(curr_out < 0);
+                assert(curr_wr < 0);
                 int mode = OPEN_WRITE | OPEN_CREATE;
                 mode |= cmd->out_append ? OPEN_APPEND : OPEN_TRUNC;
-                curr_out = create(cmd->out, mode);
-                if (curr_out < 0) {
+                curr_wr = create(cmd->out, mode);
+                if (curr_wr < 0) {
                     fprintf(stderr, "Failed to open '%s' for writing\n", cmd->out);
                     halt(127);
                 }
             }
-            if (curr_out >= 0) {
-                dup(curr_out, STDOUT_FILENO);
-                close(curr_out);
+            if (curr_wr >= 0) {
+                dup(curr_wr, STDOUT_FILENO);
+                close(curr_wr);
             }
 
             /* And finally, execute the command! */
@@ -267,6 +290,10 @@ execute_command(cmd_t *cmd)
             fprintf(stderr, "%s: command not found\n", cmd->name);
             halt(127);
         } else {
+            /*
+             * We're still in the parent (shell)! Save the PID of
+             * the child process.
+             */
             curr->pid = pid;
 
             /* Use the PID of the root process as the group ID */
@@ -282,20 +309,21 @@ execute_command(cmd_t *cmd)
             setpgrp(pid, group_id);
 
             /*
-             * Close the pipe output from the last iteration, and
-             * out current output becomes the output for the next
-             * iteration.
+             * Close the pipe read end from the current iteration (that
+             * was created in the previous iteration), and set the input
+             * stream for the next iteration to the read end of the
+             * pipe that was created in the current iteration.
              */
-            if (next_in >= 0) {
-                close(next_in);
+            if (curr_rd >= 0) {
+                close(curr_rd);
             }
-            next_in = curr_in;
-            curr_in = -1;
+            curr_rd = next_rd;
+            next_rd = -1;
 
-            /* Close the pipe input from the current iteration */
-            if (curr_out >= 0) {
-                close(curr_out);
-                curr_out = -1;
+            /* Close the pipe write end from the current iteration */
+            if (curr_wr >= 0) {
+                close(curr_wr);
+                curr_wr = -1;
             }
         }
     }
@@ -303,17 +331,17 @@ execute_command(cmd_t *cmd)
 cleanup:
 
     /* Close all open pipe endpoints */
-    if (next_in >= 0) {
-        close(next_in);
-        next_in = -1;
+    if (curr_rd >= 0) {
+        close(curr_rd);
+        curr_rd = -1;
     }
-    if (curr_in >= 0) {
-        close(curr_in);
-        curr_in = -1;
+    if (next_rd >= 0) {
+        close(next_rd);
+        next_rd = -1;
     }
-    if (curr_out >= 0) {
-        close(curr_out);
-        curr_out = -1;
+    if (curr_wr >= 0) {
+        close(curr_wr);
+        curr_wr = -1;
     }
 
     /*
