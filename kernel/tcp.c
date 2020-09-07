@@ -779,15 +779,21 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
      * after the existing entry. If it happens that the new packet
      * belongs at the head of the queue, we rely on the implementation
      * of list_for_each_prev to leave pos == head once the loop ends.
-     *
-     * We do NOT discard retransmissions; this makes the logic a lot
-     * simpler. We just handle it as if it was an overlapping segment.
      */
     list_t *pos;
     list_for_each_prev(pos, &tcp->inbox) {
         skb_t *iskb = list_entry(pos, skb_t, list);
         tcp_hdr_t *ihdr = skb_transport_header(iskb);
-        if (cmp(seq(hdr), seq(ihdr)) > 0) {
+        int c = cmp(seq(hdr), seq(ihdr));
+        if (c >= 0) {
+            /*
+             * If this is an exact overlap with an existing segment,
+             * discard it since it adds no new data.
+             */
+            if (c == 0 && tcp_seg_len(skb) == tcp_seg_len(iskb)) {
+                tcp_debugf("Retransmission of existing packet, dropping\n");
+                return;
+            }
             break;
         }
     }
