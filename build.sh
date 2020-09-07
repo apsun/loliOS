@@ -82,7 +82,7 @@ fi
 if [ "$#" -gt 0 ] && [ "$1" = "run" ]; then
     qemu-system-i386 -hda "${root_dir}/disk.img" -m 256 \
         -gdb tcp:127.0.0.1:1234 \
-        -soundhw sb16 \
+        -device sb16 \
         -device ne2k_isa,netdev=ne2k \
         -netdev user,id=ne2k,hostfwd=udp::4321-:4321,hostfwd=tcp::5432-:5432 \
         -object filter-dump,id=ne2k_filter,netdev=ne2k,file=/tmp/net.pcap
