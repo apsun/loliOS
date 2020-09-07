@@ -690,6 +690,77 @@ tcp_inbox_drain(tcp_sock_t *tcp)
 }
 
 /*
+ * Attempts to advance the state (i.e. handle FIN, update ack_num, etc)
+ * of the TCP socket when a new packet is inserted into the inbox.
+ */
+static void
+tcp_inbox_touch(tcp_sock_t *tcp)
+{
+    /*
+     * If we get more packets while the FIN timer is active, restart
+     * the timeout. In TIME_WAIT state, this means that the remote
+     * peer might not have received our ACK for their FIN; in FIN_WAIT_2,
+     * this indicates that the remote peer has more packets to send.
+     */
+    if (tcp_in_state(tcp, TIME_WAIT | FIN_WAIT_2)) {
+        tcp_start_fin_timeout(tcp);
+    }
+
+    /*
+     * Next, update our ACK number, which is what we will send
+     * to the remote host in any packets containing an ACK. Basically,
+     * just process the packets in order until we find a gap.
+     */
+    list_t *pos, *next;
+    list_for_each_safe(pos, next, &tcp->inbox) {
+        skb_t *iskb = list_entry(pos, skb_t, list);
+        tcp_hdr_t *ihdr = skb_transport_header(iskb);
+
+        /* If seq > ack_num, we have a hole, so stop here */
+        if (cmp(seq(ihdr), tcp->ack_num) > 0) {
+            break;
+        }
+
+        /*
+         * Check if we've already seen this segment before. Note
+         * that some segments may overlap, so we check the ending
+         * sequence number of the packet.
+         */
+        uint32_t end = seq(ihdr) + tcp_seg_len(iskb);
+        if (cmp(end, tcp->ack_num) <= 0) {
+            continue;
+        }
+
+        /* Discard any packets after a FIN */
+        if (tcp_in_state(tcp, CLOSING | TIME_WAIT | CLOSE_WAIT | LAST_ACK | CLOSED)) {
+            tcp_inbox_remove(tcp, iskb);
+            skb_release(iskb);
+            continue;
+        }
+
+        /* Looks good, advance the ACK number */
+        tcp->ack_num = end;
+
+        /* Reached a FIN for the first time */
+        if (ihdr->fin) {
+            if (tcp_in_state(tcp, SYN_RECEIVED | ESTABLISHED)) {
+                tcp_set_state(tcp, CLOSE_WAIT);
+            } else if (tcp_in_state(tcp, FIN_WAIT_1)) {
+                /*
+                 * Since we process the ACK before the inbox, we would
+                 * already have been in the FIN_WAIT_2 state if we got
+                 * a ACK for our FIN.
+                 */
+                tcp_set_state(tcp, CLOSING);
+            } else if (tcp_in_state(tcp, FIN_WAIT_2)) {
+                tcp_set_state(tcp, TIME_WAIT);
+                tcp_start_fin_timeout(tcp);
+            }
+        }
+    }
+}
+
+/*
  * Inserts an incoming TCP packet into the specified socket's
  * inbox, so that its data can be read later in recvfrom().
  * This will advance the ack_num, and also process FIN flags
@@ -725,68 +796,8 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
     /* Adjust the receive window */
     tcp->rwnd_size -= tcp_seg_len(skb);
 
-    /*
-     * If we get more packets while the FIN timer is active, restart
-     * the timeout. In TIME_WAIT state, this means that the remote
-     * peer might not have received our ACK for their FIN; in FIN_WAIT_2,
-     * this indicates that the remote peer has more packets to send.
-     */
-    if (tcp_in_state(tcp, TIME_WAIT | FIN_WAIT_2)) {
-        tcp_start_fin_timeout(tcp);
-    }
-
-    /*
-     * Next, update our ACK number, which is what we will send
-     * to the remote host in any packets containing an ACK. Basically,
-     * just process the packets in order until we find a gap.
-     */
-    list_t *next;
-    list_for_each_safe(pos, next, &tcp->inbox) {
-        skb_t *iskb = list_entry(pos, skb_t, list);
-        tcp_hdr_t *ihdr = skb_transport_header(iskb);
-
-        /* If seq > ack_num, we have a hole, so stop here */
-        if (cmp(seq(ihdr), tcp->ack_num) > 0) {
-            break;
-        }
-
-        /*
-         * Check if we've already seen this segment before. Note
-         * that some segments may overlap, so we check the ending
-         * sequence number of the packet.
-         */
-        uint32_t end = seq(ihdr) + tcp_seg_len(iskb);
-        if (cmp(end, tcp->ack_num) <= 0) {
-            continue;
-        }
-
-        /* Discard any packets after a FIN */
-        if (tcp_in_state(tcp, CLOSING | TIME_WAIT | CLOSE_WAIT | LAST_ACK | CLOSED)) {
-            tcp_inbox_remove(tcp, iskb);
-            skb_release(iskb);
-            continue;
-        }
-
-        /* Looks good, advance the ACK number */
-        tcp->ack_num = end;
-
-        /* Reached a FIN for the first time */
-        if (hdr->fin) {
-            if (tcp_in_state(tcp, SYN_RECEIVED | ESTABLISHED)) {
-                tcp_set_state(tcp, CLOSE_WAIT);
-            } else if (tcp_in_state(tcp, FIN_WAIT_1)) {
-                /*
-                 * Since we process the ACK before the inbox, we would
-                 * already have been in the FIN_WAIT_2 state if we got
-                 * a ACK for our FIN.
-                 */
-                tcp_set_state(tcp, CLOSING);
-            } else if (tcp_in_state(tcp, FIN_WAIT_2)) {
-                tcp_set_state(tcp, TIME_WAIT);
-                tcp_start_fin_timeout(tcp);
-            }
-        }
-    }
+    /* Advance the socket state if this packet was in order */
+    tcp_inbox_touch(tcp);
 }
 
 /*
