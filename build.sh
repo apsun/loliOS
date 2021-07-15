@@ -80,7 +80,9 @@ fi
 
 # If command is "run", boot the VM
 if [ "$#" -gt 0 ] && [ "$1" = "run" ]; then
-    qemu-system-i386 -hda "${root_dir}/disk.img" -m 256 \
+    qemu-system-i386 \
+        -drive format=raw,file="${root_dir}/disk.img" \
+        -m 256 \
         -gdb tcp:127.0.0.1:1234 \
         -device sb16 \
         -device ne2k_isa,netdev=ne2k \
