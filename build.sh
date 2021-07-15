@@ -44,9 +44,15 @@ if [ "$#" -gt 0 ] && [ "$1" = "clean" ]; then
     exit 0
 fi
 
-# If debug mode is set, compile in -O0 with debug info
+# If command is "debug", start GDB attached to QEMU
+if [ "$#" -gt 0 ] && [ "$1" = "debug" ]; then
+    gdb -x "${root_dir}/debug.gdbinit" "${root_dir}/kernel/bootimg"
+    exit 0
+fi
+
+# If debug mode is set, compile in -Og with debug info
 if [ "$debug" = "true" ]; then
-    export CFLAGS="${CFLAGS-} -O0 -g -DDEBUG_PRINT=1"
+    export CFLAGS="${CFLAGS-} -Og -g -DDEBUG_PRINT=1"
 else
     export CFLAGS="${CFLAGS-} -O2"
 fi
@@ -81,9 +87,11 @@ fi
 # If command is "run", boot the VM
 if [ "$#" -gt 0 ] && [ "$1" = "run" ]; then
     qemu-system-i386 \
-        -drive format=raw,file="${root_dir}/disk.img" \
+        -M isapc \
         -m 256 \
+        -drive format=raw,file="${root_dir}/disk.img" \
         -gdb tcp:127.0.0.1:1234 \
+        -device isa-vga \
         -device sb16 \
         -device ne2k_isa,netdev=ne2k \
         -netdev user,id=ne2k,hostfwd=udp::4321-:4321,hostfwd=tcp::5432-:5432 \
