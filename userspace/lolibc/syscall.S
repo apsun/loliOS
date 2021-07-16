@@ -2,13 +2,8 @@
 
 #include <syscall.h>
 
-#define MAKE_SYS(name, number) \
-.globl name;                   \
-name:                          \
-    pushl   %ebx;              \
-    pushl   %esi;              \
-    pushl   %edi;              \
-    movl    $number, %eax;     \
+.globl syscall_bottom;
+syscall_bottom:
     movl    16(%esp), %ebx;    \
     movl    20(%esp), %ecx;    \
     movl    24(%esp), %edx;    \
@@ -19,6 +14,15 @@ name:                          \
     popl    %esi;              \
     popl    %ebx;              \
     ret;
+
+#define MAKE_SYS(name, number) \
+.globl name;                   \
+name:                          \
+    pushl   %ebx;              \
+    pushl   %esi;              \
+    pushl   %edi;              \
+    movl    $number, %eax;     \
+    jmp     syscall_bottom;
 
 MAKE_SYS(halt, SYS_HALT)
 MAKE_SYS(execute, SYS_EXECUTE)
@@ -33,7 +37,6 @@ MAKE_SYS(sigreturn, SYS_SIGRETURN)
 MAKE_SYS(sigmask, SYS_SIGMASK)
 MAKE_SYS(kill, SYS_KILL)
 MAKE_SYS(ioctl, SYS_IOCTL)
-MAKE_SYS(time, SYS_TIME)
 MAKE_SYS(sbrk, SYS_SBRK)
 MAKE_SYS(socket, SYS_SOCKET)
 MAKE_SYS(bind, SYS_BIND)
@@ -57,11 +60,14 @@ MAKE_SYS(tcsetpgrp, SYS_TCSETPGRP)
 MAKE_SYS(pipe, SYS_PIPE)
 MAKE_SYS(create, SYS_CREATE)
 MAKE_SYS(fcntl, SYS_FCNTL)
-MAKE_SYS(sleep, SYS_SLEEP)
+MAKE_SYS(yield, SYS_YIELD)
 MAKE_SYS(seek, SYS_SEEK)
 MAKE_SYS(truncate, SYS_TRUNCATE)
 MAKE_SYS(unlink, SYS_UNLINK)
 MAKE_SYS(stat, SYS_STAT)
+MAKE_SYS(realtime, SYS_REALTIME)
+MAKE_SYS(monotime, SYS_MONOTIME)
+MAKE_SYS(monosleep, SYS_MONOSLEEP)
 
 .globl _start
 _start:

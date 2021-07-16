@@ -1,18 +1,17 @@
 #include "pit.h"
+#include "debug.h"
 #include "lib.h"
 #include "irq.h"
 #include "scheduler.h"
 
-/* Min and max PIT frequencies in Hz */
-#define PIT_FREQ_MAX 1193182
-#define PIT_FREQ_MIN 19
+/* Internal frequency of the PIT */
+#define PIT_FREQ 1193182
 
-/*
- * The frequency we use for context switching.
- * According to the specs it should be 10-50,
- * but 100 looks nicer.
- */
-#define PIT_FREQ_SCHEDULER 100
+/* Use a value such that freq/divisor is ~100Hz */
+#define PIT_DIVISOR 11932
+
+/* Number of nanoseconds that elapse per interrupt */
+#define PIT_NANOS_PER_IRQ (1000000000LL * PIT_DIVISOR / PIT_FREQ)
 
 /* PIT IO ports */
 #define PIT_PORT_DATA_0 0x40
@@ -27,11 +26,19 @@
 #define PIT_CMD_BINARY    0x00 /* Use binary mode */
 
 /*
- * Sets the interrupt frequency of the PIT.
+ * Global counter used for monotonic time.
+ */
+static volatile uint64_t pit_counter = 0;
+
+/*
+ * Sets the interrupt frequency of the PIT. The argument
+ * is the number of PIT cycles per interrupt.
  */
 static void
-pit_set_frequency(int freq)
+pit_set_divisor(int divisor)
 {
+    assert(divisor >= 1 && divisor <= 65536);
+
     /* Set PIT operation mode */
     uint8_t cmd = 0;
     cmd |= PIT_CMD_CHANNEL_0;
@@ -40,33 +47,30 @@ pit_set_frequency(int freq)
     cmd |= PIT_CMD_BINARY;
     outb(cmd, PIT_PORT_CMD);
 
-    /*
-     * Convert frequency to reload value.
-     * A divisor of 0 actually represents 65536,
-     * since the value is truncated to 16 bits.
-     */
-    uint16_t divisor;
-    if (freq < PIT_FREQ_MIN) {
-        divisor = 0;
-    } else if (freq > PIT_FREQ_MAX) {
-        divisor = 1;
-    } else {
-        divisor = PIT_FREQ_MAX / freq;
-    }
-
-    /* Write reload value */
+    /* Write divisor value. 65536 is naturally masked to 0. */
     outb((divisor >> 0) & 0xff, PIT_PORT_DATA_0);
     outb((divisor >> 8) & 0xff, PIT_PORT_DATA_0);
 }
 
 /*
- * PIT IRQ handler. Yields the current process's timeslice
- * and performs a context switch.
+ * PIT IRQ handler. Updates timers and yields the current
+ * process's timeslice.
  */
 static void
 pit_handle_irq(void)
 {
+    uint64_t now = ++pit_counter;
+    timer_tick(PIT_NANOS_PER_IRQ * now);
     scheduler_yield();
+}
+
+/*
+ * Returns the current monotonic clock time in nanoseconds.
+ */
+int64_t
+pit_now(void)
+{
+    return PIT_NANOS_PER_IRQ * pit_counter;
 }
 
 /*
@@ -76,6 +80,6 @@ pit_handle_irq(void)
 void
 pit_init(void)
 {
-    pit_set_frequency(PIT_FREQ_SCHEDULER);
+    pit_set_divisor(PIT_DIVISOR);
     irq_register_handler(IRQ_PIT, pit_handle_irq);
 }

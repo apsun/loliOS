@@ -14,7 +14,6 @@
 #define SYS_SIGMASK     11
 #define SYS_KILL        12
 #define SYS_IOCTL       13
-#define SYS_TIME        14
 #define SYS_SBRK        15
 #define SYS_SOCKET      16
 #define SYS_BIND        17
@@ -38,12 +37,15 @@
 #define SYS_PIPE        35
 #define SYS_CREATE      36
 #define SYS_FCNTL       37
-#define SYS_SLEEP       38
+#define SYS_YIELD       38
 #define SYS_SEEK        39
 #define SYS_TRUNCATE    40
 #define SYS_UNLINK      41
 #define SYS_STAT        42
-#define NUM_SYSCALL     42
+#define SYS_REALTIME    43
+#define SYS_MONOTIME    44
+#define SYS_MONOSLEEP   45
+#define NUM_SYSCALL     45
 
 /* syscall.h */
 #define EINTR  2
@@ -125,6 +127,16 @@ typedef struct {
 /* net.h */
 #define IP(a, b, c, d) ((ip_addr_t){.bytes = {(a), (b), (c), (d)}})
 
+/* time.h */
+typedef int64_t time_t;
+typedef int64_t nanotime_t;
+
+/* time.h */
+#define SECONDS(s) ((s) * 1000000000LL)
+#define MILLISECONDS(ms) ((ms) * 1000000LL)
+#define MICROSECONDS(us) ((us) * 1000LL)
+#define NANOSECONDS(ns) ((ns) * 1LL)
+
 #define __cdecl __attribute__((cdecl))
 #define __noreturn __attribute__((noreturn))
 
@@ -141,7 +153,6 @@ __cdecl int sigreturn(int signum, void *user_regs);
 __cdecl int sigmask(int signum, int action);
 __cdecl int kill(int pid, int signum);
 __cdecl int ioctl(int fd, int req, int arg);
-__cdecl int time(void);
 __cdecl int sbrk(int delta);
 __cdecl int socket(int type);
 __cdecl int bind(int fd, const sock_addr_t *addr);
@@ -165,11 +176,14 @@ __cdecl int tcsetpgrp(int pgrp);
 __cdecl int pipe(int *readfd, int *writefd);
 __cdecl int create(const char *filename, int mode);
 __cdecl int fcntl(int fd, int req, int arg);
-__cdecl int sleep(int ms);
+__cdecl int yield(void);
 __cdecl int seek(int fd, int offset, int mode);
 __cdecl int truncate(int fd, int length);
 __cdecl int unlink(const char *filename);
 __cdecl int stat(const char *filename, stat_t *buf);
+__cdecl int realtime(time_t *tp);
+__cdecl int monotime(nanotime_t *tp);
+__cdecl int monosleep(const nanotime_t *tp);
 
 #endif /* ASM */
 

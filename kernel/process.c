@@ -4,6 +4,8 @@
 #include "filesys.h"
 #include "paging.h"
 #include "terminal.h"
+#include "time.h"
+#include "timer.h"
 #include "x86_desc.h"
 #include "scheduler.h"
 #include "syscall.h"
@@ -22,6 +24,9 @@
 
 /* Name of the userspace program to execute on boot */
 #define INIT_PROCESS "shell"
+
+/* Period of the alarm signal */
+#define SIG_ALARM_PERIOD SECONDS(10)
 
 /* Kernel stack struct */
 typedef struct {
@@ -286,7 +291,7 @@ process_alarm_callback(timer_t *timer)
 {
     pcb_t *pcb = timer_entry(timer, pcb_t, alarm_timer);
     signal_kill(pcb->pid, SIG_ALARM);
-    timer_setup(timer, TIMER_HZ * SIG_ALARM_PERIOD, process_alarm_callback);
+    timer_setup(timer, SIG_ALARM_PERIOD, process_alarm_callback);
 }
 
 /*
@@ -471,7 +476,7 @@ process_create_user(char *command, int terminal)
     terminal_open_streams(pcb->files);
     signal_init(pcb->signals);
     timer_init(&pcb->alarm_timer);
-    timer_setup(&pcb->alarm_timer, TIMER_HZ * SIG_ALARM_PERIOD, process_alarm_callback);
+    timer_setup(&pcb->alarm_timer, SIG_ALARM_PERIOD, process_alarm_callback);
     timer_init(&pcb->sleep_timer);
     paging_heap_init(&pcb->heap);
 
@@ -583,7 +588,7 @@ process_exec_impl(pcb_t *pcb, int_regs_t *regs, const char *command)
     paging_heap_destroy(&pcb->heap);
 
     /* Restart SIGALARM timer */
-    timer_setup(&pcb->alarm_timer, TIMER_HZ * SIG_ALARM_PERIOD, process_alarm_callback);
+    timer_setup(&pcb->alarm_timer, SIG_ALARM_PERIOD, process_alarm_callback);
 
     /* Copy our program into physical memory */
     uint32_t entry_point = paging_load_exe(inode, pcb->user_pfn);
@@ -1033,39 +1038,36 @@ process_sleep_callback(timer_t *timer)
 }
 
 /*
- * sleep() syscall handler. Puts the process to sleep for the
- * specified number of milliseconds. Returns the number of
- * milliseconds that are left to sleep if the process was
- * woken early.
+ * Sleeps until the specified monotonic clock time (in nanoseconds).
+ * If target is earlier than the current time, the call will immediately
+ * return 0. The sleep may be interrupted, in which case -EINTR will
+ * be returned and this can be called again with the same argument.
+ * Otherwise, 0 will be returned to indicate a successful sleep.
  */
-__cdecl int
-process_sleep(int ms)
+int
+process_sleep(nanotime_t target)
 {
-    if (ms < 0) {
-        return -1;
-    } else if (ms == 0) {
-        scheduler_yield();
+    /* Check if we're already past the target time */
+    nanotime_t now = monotime_now();
+    if (now >= target) {
         return 0;
     }
 
     /* Put ourselves to sleep */
     pcb_t *pcb = get_executing_pcb();
-    int ticks = ms * TIMER_HZ / 1000;
-    int target = timer_now() + ticks;
-    timer_setup(&pcb->sleep_timer, ticks, process_sleep_callback);
+    timer_setup_abs(&pcb->sleep_timer, target, process_sleep_callback);
     scheduler_sleep(&sleep_queue);
 
     /* We woke up, cancel timer in case we got woken early */
     timer_cancel(&pcb->sleep_timer);
 
-    /* Check if we woke up via the timer callback */
-    int now = timer_now();
+    /* Check if we slept long enough */
+    now = monotime_now();
     if (now >= target) {
         return 0;
     }
 
-    /* We woke up early, compute remaining time to sleep */
-    return (target - now) * 1000 / TIMER_HZ;
+    return -EINTR;
 }
 
 /* Initializes all process control related data */

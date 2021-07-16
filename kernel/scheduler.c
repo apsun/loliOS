@@ -124,7 +124,7 @@ scheduler_yield_impl(pcb_t *curr)
  * Yields the current process's timeslice and schedules
  * the next process to run.
  */
-__cdecl void
+__cdecl int
 scheduler_yield(void)
 {
     asm volatile(
@@ -134,6 +134,7 @@ scheduler_yield(void)
         :
         : "a"(get_executing_pcb())
         : "ebx", "ecx", "edx", "esi", "edi", "memory");
+    return 0;
 }
 
 /*

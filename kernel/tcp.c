@@ -12,6 +12,7 @@
 #include "debug.h"
 #include "list.h"
 #include "file.h"
+#include "time.h"
 #include "timer.h"
 #include "syscall.h"
 #include "myalloc.h"
@@ -48,7 +49,7 @@
  * Time to wait in the TIME_WAIT and FIN_WAIT_2 states before
  * releasing the socket.
  */
-#define TCP_FIN_TIMEOUT (60 * TIMER_HZ)
+#define TCP_FIN_TIMEOUT SECONDS(60)
 
 /*
  * Maximum number of times to attempt retransmitting a packet
@@ -57,9 +58,9 @@
 #define TCP_MAX_RETRANSMISSIONS 3
 
 /* Allowed RTO range for retransmission timer */
-#define TCP_MIN_RTO (1 * TIMER_HZ)
-#define TCP_MAX_RTO (120 * TIMER_HZ)
-#define TCP_DEFAULT_RTO (3 * TIMER_HZ)
+#define TCP_MIN_RTO SECONDS(1)
+#define TCP_MAX_RTO SECONDS(120)
+#define TCP_DEFAULT_RTO SECONDS(3)
 
 /* Starting receive window size */
 #define TCP_RWND_SIZE 8192
@@ -150,8 +151,8 @@ typedef struct {
     bool reset : 1;
 
     /* RTT measurement for timeouts */
-    int estimated_rtt;
-    int variance_rtt;
+    nanotime_t estimated_rtt;
+    nanotime_t variance_rtt;
 } tcp_sock_t;
 
 /*
@@ -182,7 +183,7 @@ typedef struct {
      * Time at which we last transmitted this packet, used to update
      * the RTT when we receive the ACK for this packet.
      */
-    int transmit_time;
+    nanotime_t transmit_time;
 } tcp_pkt_t;
 
 /* Converts between tcp_sock_t and net_sock_t */
@@ -543,28 +544,28 @@ tcp_start_fin_timeout(tcp_sock_t *tcp)
  * compute the retransmit timeout.
  */
 static void
-tcp_update_rtt(tcp_sock_t *tcp, int sample_rtt)
+tcp_update_rtt(tcp_sock_t *tcp, nanotime_t sample_rtt)
 {
     /* On the first update, estimated = sample; deviation = sample / 2 */
     if (tcp->estimated_rtt < 0) {
         tcp->estimated_rtt = sample_rtt;
-        tcp->variance_rtt = sample_rtt / 2;
+        tcp->variance_rtt = sample_rtt >> 1;
     }
 
     /* Jacobson's algorithm */
-    int error = sample_rtt - tcp->estimated_rtt;
+    int64_t error = sample_rtt - tcp->estimated_rtt;
     if (error < 0) {
         error = -error;
     }
-    tcp->estimated_rtt = 7 * tcp->estimated_rtt / 8 + sample_rtt / 8;
-    tcp->variance_rtt = 3 * tcp->variance_rtt / 4 + error / 4;
+    tcp->estimated_rtt = ((7 * tcp->estimated_rtt) >> 3) + (sample_rtt >> 3);
+    tcp->variance_rtt = ((3 * tcp->variance_rtt) >> 2) + (error >> 2);
 }
 
 /*
  * Computes the retransmit timeout for the given socket
  * based on the RTT statistics.
  */
-static int
+static nanotime_t
 tcp_get_retransmit_timeout(tcp_sock_t *tcp)
 {
     /* Default RTO if no data collected */
@@ -573,7 +574,7 @@ tcp_get_retransmit_timeout(tcp_sock_t *tcp)
     }
 
     /* RTO = EstRTT + 4*VarRTT, clamped to [MIN_RTO, MAX_RTO] range */
-    int rto = tcp->estimated_rtt + 4 * tcp->variance_rtt;
+    nanotime_t rto = tcp->estimated_rtt + 4 * tcp->variance_rtt;
     if (rto < TCP_MIN_RTO) {
         rto = TCP_MIN_RTO;
     } else if (rto > TCP_MAX_RTO) {
@@ -593,11 +594,12 @@ tcp_outbox_transmit(tcp_sock_t *tcp, tcp_pkt_t *pkt)
      * 2^(number of times we've transmitted this packet - 1),
      * which is part of Karn's algorithm.
      */
-    int timeout = tcp_get_retransmit_timeout(tcp) << pkt->num_transmissions;
+    nanotime_t base_timeout = tcp_get_retransmit_timeout(tcp);
+    nanotime_t timeout = base_timeout << pkt->num_transmissions;
     timer_setup(&pkt->retransmit_timer, timeout, tcp_on_retransmit_timeout);
 
     /* Update packet info and send the segment */
-    pkt->transmit_time = timer_now();
+    pkt->transmit_time = monotime_now();
     pkt->num_transmissions++;
     return tcp_send(tcp, pkt->skb);
 }
@@ -646,7 +648,7 @@ tcp_outbox_insert(tcp_sock_t *tcp, skb_t *skb)
     pkt->tcp = tcp;
     pkt->skb = skb_retain(skb);
     pkt->num_transmissions = 0;
-    pkt->transmit_time = timer_now();
+    pkt->transmit_time = monotime_now();
     timer_init(&pkt->retransmit_timer);
     list_add_tail(&pkt->list, &tcp->outbox);
     return pkt;
@@ -996,7 +998,7 @@ tcp_handle_rx_ack(tcp_sock_t *tcp, uint32_t ack_num)
              * retransmitted packets.
              */
             if (opkt->num_transmissions == 1) {
-                tcp_update_rtt(tcp, timer_now() - opkt->transmit_time);
+                tcp_update_rtt(tcp, monotime_now() - opkt->transmit_time);
             }
         }
 

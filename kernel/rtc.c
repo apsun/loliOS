@@ -5,10 +5,8 @@
 #include "irq.h"
 #include "file.h"
 #include "paging.h"
-#include "process.h"
 #include "scheduler.h"
 #include "signal.h"
-#include "timer.h"
 #include "syscall.h"
 
 /* RTC IO ports */
@@ -58,13 +56,26 @@
 #define RTC_A_RS_4    0xE
 #define RTC_A_RS_2    0xF
 
+/* Global RTC frequency, both as a register value and in Hz */
+#define RTC_A_RS_GLOBAL RTC_A_RS_1024
+#define RTC_HZ (32768 >> (RTC_A_RS_GLOBAL - 1))
+
+/* Compact struct to hold fields read from the RTC. */
+typedef struct {
+    uint8_t century;
+    uint8_t year;
+    uint8_t month;
+    uint8_t day;
+    uint8_t hour;
+    uint8_t minute;
+    uint8_t second;
+} rtc_tm_t;
+
 /*
- * Number of RTC interrupts that have occurred.
- * Note: We use a 32-bit value since reads will be atomic,
- * so no locking is required. 24 days of uptime is
- * required to overflow the value, which is Good Enough (TM).
+ * Number of RTC interrupts that have occurred. Used to
+ * implement virtual RTC reads. May wrap around to zero.
  */
-static volatile int rtc_counter;
+static volatile uint32_t rtc_counter = 0;
 
 /*
  * Scheduler queue for processes waiting for an RTC interrupt.
@@ -101,80 +112,25 @@ rtc_handle_irq(void)
     rtc_read_reg(RTC_REG_C);
 
     /* Increment the global RTC interrupt counter */
-    int new_counter = ++rtc_counter;
-
-    /* Update timers */
-    timer_tick(new_counter);
+    rtc_counter++;
 
     /* Wake all processes waiting for an interrupt */
     scheduler_wake_all(&rtc_sleep_queue);
 }
 
 /*
- * Maps an integer frequency value to one of the
- * RTC_A_RS_* constants. Returns RTC_A_RS_NONE if the
- * frequency is not a power of 2 between 2 and 1024.
- */
-static uint8_t
-rtc_freq_to_rs(int freq)
-{
-    switch (freq) {
-    case 8192:
-    case 4096:
-    case 2048:
-        return RTC_A_RS_NONE;
-    case 1024:
-        return RTC_A_RS_1024;
-    case 512:
-        return RTC_A_RS_512;
-    case 256:
-        return RTC_A_RS_256;
-    case 128:
-        return RTC_A_RS_128;
-    case 64:
-        return RTC_A_RS_64;
-    case 32:
-        return RTC_A_RS_32;
-    case 16:
-        return RTC_A_RS_16;
-    case 8:
-        return RTC_A_RS_8;
-    case 4:
-        return RTC_A_RS_4;
-    case 2:
-        return RTC_A_RS_2;
-    default:
-        return RTC_A_RS_NONE;
-    }
-}
-
-/*
  * Sets the real interrupt frequency of the RTC.
- * The input must be a power of 2 between 2
- * and 1024.
+ * The input must be one of the RTC_A_RS_* constants.
  *
  * Returns -1 on error, 0 on success.
  */
 static int
-rtc_set_frequency(int freq)
+rtc_set_frequency(uint8_t rs)
 {
-    /* Convert the integer to an enum value */
-    uint8_t rs = rtc_freq_to_rs(freq);
-    if (rs == RTC_A_RS_NONE) {
-        debugf("Invalid RTC frequency: %d\n", freq);
-        return -1;
-    }
-
-    /* Read register A */
     uint8_t reg_a = rtc_read_reg(RTC_REG_A);
-
-    /* Set frequency control bits */
     reg_a &= ~RTC_A_RS;
     reg_a |= rs;
-
-    /* Write register A */
     rtc_write_reg(RTC_REG_A, reg_a);
-
     return 0;
 }
 
@@ -202,12 +158,12 @@ static int
 rtc_read(file_obj_t *file, void *buf, int nbytes)
 {
     /* Max number of ticks we need to wait */
-    int max_ticks = RTC_HZ / (int)file->private;
+    uint32_t max_ticks = RTC_HZ / (int)file->private;
 
     /* Wait until we reach the next multiple of max ticks */
-    int target_counter = (rtc_counter + max_ticks) & -max_ticks;
+    uint32_t target_counter = (rtc_counter + max_ticks) & -max_ticks;
     return BLOCKING_WAIT(
-        rtc_counter >= target_counter ? 0 : -EAGAIN,
+        (int32_t)(rtc_counter - target_counter) >= 0 ? 0 : -EAGAIN,
         rtc_sleep_queue,
         file->nonblocking);
 }
@@ -224,84 +180,67 @@ rtc_read(file_obj_t *file, void *buf, int nbytes)
 static int
 rtc_write(file_obj_t *file, const void *buf, int nbytes)
 {
-    /* Check if we're reading the appropriate size */
     if (nbytes != sizeof(int)) {
         return -1;
     }
 
-    /* Read the frequency */
     int freq;
     if (!copy_from_user(&freq, buf, sizeof(int))) {
         return -1;
     }
 
-    /* Validate frequency */
-    if (rtc_freq_to_rs(freq) == RTC_A_RS_NONE) {
+    if (freq < 2 || freq > 1024 || ((freq & (freq - 1)) != 0)) {
         return -1;
     }
 
-    /* Save desired interrupt frequency in file */
     file->private = (void *)freq;
-
     return nbytes;
 }
 
 /*
  * Converts a separate-component time to a Unix timestamp.
- * Hopefully nobody is using our OS in 2038 ;-)
  */
-static int
-rtc_mktime(
-    int year, int month, int day,
-    int hour, int min, int sec)
+static time_t
+rtc_mktime(rtc_tm_t t)
 {
     /* Below algorithm shamelessly stolen from Linux mktime() */
-    month -= 2;
+    int year = (int)t.year + (int)t.century * 100;
+    int month = (int)t.month - 2;
     if (month <= 0) {
         month += 12;
         year -= 1;
     }
 
-    int leap_days = year / 4 - year / 100 + year / 400;
-    int days = leap_days + 367 * month / 12 + day + year * 365 - 719499;
-    int hours = days * 24 + hour;
-    int mins = hours * 60 + min;
-    int secs = mins * 60 + sec;
+    time_t leap_days = year / 4 - year / 100 + year / 400;
+    time_t day_in_year = 367 * month / 12 + t.day;
+    time_t days = leap_days + day_in_year + year * 365 - 719499;
+    time_t hours = days * 24 + t.hour;
+    time_t mins = hours * 60 + t.minute;
+    time_t secs = mins * 60 + t.second;
     return secs;
 }
 
 /*
- * Returns the number of seconds since the Unix Epoch
- * (1970-01-01 00:00:00 UTC). This value will overflow
- * in 2038.
+ * Returns the number of seconds since the Unix epoch (UTC).
  */
-__cdecl int
-rtc_time(void)
+time_t
+rtc_now(void)
 {
     /* Wait until update finishes */
     while (rtc_read_reg(RTC_REG_A) & RTC_A_UIP);
 
     /* Read all time components */
-    int sec = rtc_read_reg(RTC_SECOND);
-    int min = rtc_read_reg(RTC_MINUTE);
-    int hour = rtc_read_reg(RTC_HOUR);
-    int day = rtc_read_reg(RTC_DAY);
-    int month = rtc_read_reg(RTC_MONTH);
-    int year = rtc_read_reg(RTC_YEAR);
-    int century = rtc_read_reg(RTC_CENTURY);
-    year += 100 * century;
+    rtc_tm_t t;
+    t.century = rtc_read_reg(RTC_CENTURY);
+    t.year = rtc_read_reg(RTC_YEAR);
+    t.month = rtc_read_reg(RTC_MONTH);
+    t.day = rtc_read_reg(RTC_DAY);
+    t.hour = rtc_read_reg(RTC_HOUR);
+    t.minute = rtc_read_reg(RTC_MINUTE);
+    t.second = rtc_read_reg(RTC_SECOND);
 
     /* Convert to Unix timestamp */
-    return rtc_mktime(year, month, day, hour, min, sec);
-}
-
-/*
- * Returns the current value of the RTC counter.
- */
-int
-rtc_get_counter(void)
-{
-    return rtc_counter;
+    return rtc_mktime(t);
 }
 
 /* RTC file ops */
@@ -332,12 +271,10 @@ rtc_init(void)
     rtc_write_reg(RTC_REG_B, reg_b);
 
     /*
-     * Initialize the interrupt frequency.
-     * Since we virtualize the device, this just needs
-     * to be at least as large as the largest virtual
-     * frequency.
+     * Set global RTC frequency (needs to be at least as large
+     * as the largest virtual frequency we support)
      */
-    rtc_set_frequency(RTC_HZ);
+    rtc_set_frequency(RTC_A_RS_GLOBAL);
 
     /* Register RTC IRQ handler and enable interrupts */
     irq_register_handler(IRQ_RTC, rtc_handle_irq);

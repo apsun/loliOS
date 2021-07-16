@@ -243,10 +243,20 @@ dns_resolve(const char *hostname, ip_addr_t *ip)
         goto cleanup;
     }
 
-    /* Wait for reply (<= in case clock ticks over riiiight after we start) */
-    int start = time();
+    /* Compute timeout */
+    nanotime_t start;
+    monotime(&start);
+    nanotime_t end = start + SECONDS(1);
+
+    /* Wait for reply */
     uint8_t rbuf[0x600];
-    while (time() <= start + DNS_TIMEOUT) {
+    while (1) {
+        nanotime_t now;
+        monotime(&now);
+        if (now >= end) {
+            break;
+        }
+
         int rcnt;
         if ((rcnt = recvfrom(sockfd, rbuf, sizeof(rbuf), NULL)) != 0) {
             if (rcnt == -EINTR || rcnt == -EAGAIN) {

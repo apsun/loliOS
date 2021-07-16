@@ -17,7 +17,6 @@
 #define SYS_SIGMASK     11
 #define SYS_KILL        12
 #define SYS_IOCTL       13
-#define SYS_TIME        14
 #define SYS_SBRK        15
 #define SYS_SOCKET      16
 #define SYS_BIND        17
@@ -41,12 +40,15 @@
 #define SYS_PIPE        35
 #define SYS_CREATE      36
 #define SYS_FCNTL       37
-#define SYS_SLEEP       38
+#define SYS_YIELD       38
 #define SYS_SEEK        39
 #define SYS_TRUNCATE    40
 #define SYS_UNLINK      41
 #define SYS_STAT        42
-#define NUM_SYSCALL     42
+#define SYS_REALTIME    43
+#define SYS_MONOTIME    44
+#define SYS_MONOSLEEP   45
+#define NUM_SYSCALL     45
 
 #define EINTR  2
 #define EAGAIN 3

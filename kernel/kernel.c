@@ -19,6 +19,7 @@
 #include "null.h"
 #include "zero.h"
 #include "random.h"
+#include "time.h"
 
 /* Check if the bit BIT in FLAGS is set. */
 #define CHECK_FLAG(flags, bit) ((flags) & (1 << (bit)))
@@ -190,7 +191,7 @@ entry(unsigned long magic, unsigned long addr)
     process_init();
 
     printf("Seeding random number generator...\n");
-    srand(rtc_time());
+    srand((unsigned int)realtime_now());
 
     printf("Initializing taux controller driver...\n");
     taux_init();

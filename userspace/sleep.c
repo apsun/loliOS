@@ -19,10 +19,19 @@ main(void)
         fprintf(stderr, "Invalid delay: %s\n", args);
         goto cleanup;
     }
-    
-    int ms = delay * 1000;
-    while (ms > 0) {
-        ms = sleep(ms);
+
+    nanotime_t now;
+    monotime(&now);
+    nanotime_t target = now + SECONDS(delay);
+
+    while (1) {
+        int r = monosleep(&target);
+        if (r == 0) {
+            break;
+        } else if (r < 0 && r != -EINTR) {
+            printf("monosleep() failed\n");
+            goto cleanup;
+        }
     }
 
     ret = 0;

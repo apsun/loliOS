@@ -45,7 +45,9 @@ main(void)
     char chrs[ITERATION_COUNT];
 
     /* I can haz randomness? */
-    srand(time());
+    time_t now;
+    realtime(&now);
+    srand((unsigned int)now);
 
     /* malloc some randomly sized blocks */
     for (i = 0; i < ITERATION_COUNT; ++i) {

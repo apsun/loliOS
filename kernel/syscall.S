@@ -25,7 +25,7 @@ syscall_jump_table:
     .long signal_sigmask
     .long signal_kill
     .long file_ioctl
-    .long rtc_time
+    .long syscall_unimplemented
     .long process_sbrk
     .long socket_socket
     .long socket_bind
@@ -49,13 +49,24 @@ syscall_jump_table:
     .long pipe_pipe
     .long file_create
     .long file_fcntl
-    .long process_sleep
+    .long scheduler_yield
     .long file_seek
     .long file_truncate
     .long file_unlink
     .long file_stat
+    .long time_realtime
+    .long time_monotime
+    .long time_monosleep
 
 .text
+
+/*
+ * Dummy syscall handler that always returns -1.
+ */
+.globl syscall_unimplemented
+syscall_unimplemented:
+    movl $-1, %eax
+    ret
 
 /*
  * int syscall_handle(

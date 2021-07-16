@@ -18,9 +18,6 @@
 #define SIGMASK_BLOCK   1
 #define SIGMASK_UNBLOCK 2
 
-/* Period of the alarm signal, in seconds */
-#define SIG_ALARM_PERIOD 10
-
 #ifndef ASM
 
 typedef struct {

@@ -32,7 +32,7 @@
 })
 
 /* Yields the current process's timeslice */
-__cdecl void scheduler_yield(void);
+__cdecl int scheduler_yield(void);
 
 /* Permanently yields the current process's timeslice */
 void scheduler_exit(void);

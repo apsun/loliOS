@@ -4,7 +4,7 @@
 #include "types.h"
 #include "lib.h"
 #include "list.h"
-#include "rtc.h"
+#include "time.h"
 
 #ifndef ASM
 
@@ -15,12 +15,9 @@
  */
 typedef struct timer {
     list_t list;
-    int when;
+    nanotime_t when;
     void (*callback)(struct timer *);
 } timer_t;
-
-/* Number of timer ticks per second */
-#define TIMER_HZ RTC_HZ
 
 /*
  * Returns a pointer to the structure containing
@@ -30,10 +27,7 @@ typedef struct timer {
     container_of(ptr, type, member)
 
 /* Updates all active timers and runs callbacks upon expiry */
-void timer_tick(int now);
-
-/* Returns the current timer counter */
-int timer_now(void);
+void timer_tick(nanotime_t now);
 
 /* Initializes a timer object */
 void timer_init(timer_t *timer);
@@ -42,7 +36,10 @@ void timer_init(timer_t *timer);
 void timer_clone(timer_t *dest, timer_t *src);
 
 /* Starts a new timer with the specified delay and callback */
-void timer_setup(timer_t *timer, int delay, void (*callback)(timer_t *));
+void timer_setup(timer_t *timer, nanotime_t delay, void (*callback)(timer_t *));
+
+/* Starts a new timer with the specified target time and callback */
+void timer_setup_abs(timer_t *timer, nanotime_t when, void (*callback)(timer_t *));
 
 /* Cancels a running timer */
 void timer_cancel(timer_t *timer);

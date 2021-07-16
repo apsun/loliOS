@@ -2,6 +2,7 @@
 #include "lib.h"
 #include "debug.h"
 #include "list.h"
+#include "time.h"
 #include "timer.h"
 #include "myalloc.h"
 #include "ethernet.h"
@@ -18,8 +19,8 @@
  * timeout = how long to cache results before sending
  * a new ARP request.
  */
-#define ARP_RESOLVE_TIMEOUT (1 * TIMER_HZ)
-#define ARP_CACHE_TIMEOUT (60 * TIMER_HZ)
+#define ARP_RESOLVE_TIMEOUT SECONDS(1)
+#define ARP_CACHE_TIMEOUT SECONDS(60)
 
 /* ARP packet header */
 typedef struct {

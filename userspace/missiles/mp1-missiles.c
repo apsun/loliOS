@@ -277,7 +277,9 @@ main(void)
     write(rtc_fd, &rtc_freq, sizeof(rtc_freq));
 
     /* Initialization */
-    srand(time());
+    time_t now;
+    realtime(&now);
+    srand((unsigned int)now);
     vga_init();
 
     /* Wait for user to begin */

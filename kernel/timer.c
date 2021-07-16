@@ -1,7 +1,7 @@
 #include "timer.h"
 #include "lib.h"
 #include "debug.h"
-#include "rtc.h"
+#include "time.h"
 
 /* Global list of timers, in order of time until expiry */
 static list_declare(timer_list);
@@ -24,11 +24,10 @@ timer_insert_list(timer_t *timer)
 }
 
 /*
- * Calls and deactivates any expired timers. This is called
- * every RTC tick.
+ * Calls and deactivates any expired timers.
  */
 void
-timer_tick(int now)
+timer_tick(nanotime_t now)
 {
     while (!list_empty(&timer_list)) {
         timer_t *pending = list_first_entry(&timer_list, timer_t, list);
@@ -40,15 +39,6 @@ timer_tick(int now)
         pending->callback = NULL;
         callback(pending);
     }
-}
-
-/*
- * Returns the current timer counter.
- */
-int
-timer_now(void)
-{
-    return rtc_get_counter();
 }
 
 /*
@@ -84,19 +74,27 @@ timer_clone(timer_t *dest, timer_t *src)
 
 /*
  * Activates a timer to expire after the specified delay.
- * Note that the delay is relative to the current time,
- * and is in timer tick units (i.e. for a 3 second timeout,
- * delay should be 3 * TIMER_HZ). If the timer is already
- * active, the original callback will be cancelled and the
- * timer rescheduled.
+ * If the timer is already active, the original callback will
+ * be cancelled and the timer rescheduled.
  */
 void
-timer_setup(timer_t *timer, int delay, void (*callback)(timer_t *))
+timer_setup(timer_t *timer, nanotime_t delay, void (*callback)(timer_t *))
+{
+    timer_setup_abs(timer, monotime_now() + delay, callback);
+}
+
+/*
+ * Activates a timer to expire at the specified (monotonic) time.
+ * if the timer is already active, the original callback will
+ * be cancelled and the timer rescheduled.
+ */
+void
+timer_setup_abs(timer_t *timer, nanotime_t when, void (*callback)(timer_t *))
 {
     if (timer->callback != NULL) {
         list_del(&timer->list);
     }
-    timer->when = timer_now() + delay;
+    timer->when = when;
     timer->callback = callback;
     timer_insert_list(timer);
 }

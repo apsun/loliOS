@@ -89,6 +89,7 @@ if [ "$#" -gt 0 ] && [ "$1" = "run" ]; then
     qemu-system-i386 \
         -M isapc \
         -m 256 \
+        -cpu qemu32 \
         -drive format=raw,file="${root_dir}/disk.img" \
         -gdb tcp:127.0.0.1:1234 \
         -device isa-vga \

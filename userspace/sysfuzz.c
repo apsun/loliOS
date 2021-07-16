@@ -10,23 +10,14 @@ static bool
 is_blacklisted(int num)
 {
     switch (num) {
-    /* These may cause the fuzzer to die */
-    case SYS_HALT:
-    case SYS_EXEC:
+    /* Don't let child process kill the parent */
     case SYS_KILL:
-    case SYS_EXECUTE:
 
-    /* These waste a lot of time, so disable them for brevity */
-    case SYS_SLEEP:
-    case SYS_WAIT:
-
-    /* These screw with the terminal or take no args */
-    case SYS_FORK:
+    /* These screw with the terminal */
     case SYS_TCSETPGRP:
     case SYS_TCGETPGRP:
     case SYS_SETPGRP:
     case SYS_GETPGRP:
-    case SYS_GETPID:
         return true;
     default:
         return false;
@@ -63,7 +54,6 @@ randx(void)
 static void
 fuzz(void)
 {
-    srand(time());
     while (1) {
         int eax = (rand() % NUM_SYSCALL) + 1;
         if (is_blacklisted(eax)) {
@@ -85,8 +75,15 @@ fuzz(void)
 int
 main(void)
 {
+    time_t seed;
+    realtime(&seed);
+    srand((unsigned int)seed);
+
     int iter = 0;
     while (1) {
+        /* Progress the shared randomness state */
+        rand();
+
         printf("%d\n", iter++);
         int pid = fork();
         if (pid < 0) {
@@ -94,7 +91,10 @@ main(void)
             return 1;
         } else if (pid > 0) {
             /* Wait up to 3 seconds before killing the fuzzer */
-            sleep(3000);
+            nanotime_t now;
+            monotime(&now);
+            nanotime_t target = now + SECONDS(3);
+            monosleep(&target);
             kill(pid, SIG_KILL);
             wait(&pid);
         } else {
