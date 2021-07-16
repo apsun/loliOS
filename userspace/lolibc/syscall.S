@@ -4,6 +4,9 @@
 
 .globl syscall_bottom;
 syscall_bottom:
+    pushl   %ebx;              \
+    pushl   %esi;              \
+    pushl   %edi;              \
     movl    16(%esp), %ebx;    \
     movl    20(%esp), %ecx;    \
     movl    24(%esp), %edx;    \
@@ -18,9 +21,6 @@ syscall_bottom:
 #define MAKE_SYS(name, number) \
 .globl name;                   \
 name:                          \
-    pushl   %ebx;              \
-    pushl   %esi;              \
-    pushl   %edi;              \
     movl    $number, %eax;     \
     jmp     syscall_bottom;
 
