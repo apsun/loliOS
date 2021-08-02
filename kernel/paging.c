@@ -154,6 +154,21 @@ paging_init_video(void)
     }
 }
 
+/* Initializes the VBE framebuffer pages */
+static void
+paging_init_vbe(void)
+{
+    uint32_t addr;
+    for (addr = VBE_PAGE_START; addr < VBE_PAGE_END; addr += MB(4)) {
+        pde_4mb_t *pde = PDE_4MB(addr);
+        pde->present = 1;
+        pde->write = 1;
+        pde->user = 0;
+        pde->size = SIZE_4MB;
+        pde->base_addr = TO_4MB_BASE(addr);
+    }
+}
+
 /* Initializes the 4KB vidmap page */
 static void
 paging_init_vidmap(void)
@@ -233,6 +248,7 @@ paging_init(void)
     paging_init_video();
     paging_init_vidmap();
     paging_init_sb16();
+    paging_init_vbe();
 
     /* Set control registers */
     paging_init_registers();
