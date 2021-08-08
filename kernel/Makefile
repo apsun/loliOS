@@ -1,5 +1,5 @@
-CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter \
-	-Wshadow -Wpointer-arith \
+CFLAGS += -std=gnu90 -Wall -Wextra -Werror \
+	-Wno-unused-parameter -Wshadow -Wpointer-arith \
 	-fno-builtin -fno-stack-protector -fno-omit-frame-pointer \
 	-fno-asynchronous-unwind-tables -ffreestanding -fno-pie \
 	-m32 -march=i386 -mno-sse -nostdinc
