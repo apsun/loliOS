@@ -85,7 +85,7 @@ static void
 test_strncat(void)
 {
     char buf[11] = {0};
-    buf[10] = 0xff;
+    buf[10] = '\xff';
     assert(strncat(buf, "foo", 3) == buf);
     assert(strncat(buf, "bar", 3) == buf);
     assert(strcmp(buf, "foobar") == 0);
