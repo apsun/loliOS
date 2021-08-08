@@ -45,7 +45,9 @@
 #define SYS_REALTIME    43
 #define SYS_MONOTIME    44
 #define SYS_MONOSLEEP   45
-#define NUM_SYSCALL     45
+#define SYS_VBEMAP      46
+#define SYS_VBEUNMAP    47
+#define NUM_SYSCALL     47
 
 /* syscall.h */
 #define EINTR  2

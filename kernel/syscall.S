@@ -57,6 +57,8 @@ syscall_jump_table:
     .long time_realtime
     .long time_monotime
     .long time_monosleep
+    .long vbe_vbemap
+    .long vbe_vbeunmap
 
 .text
 

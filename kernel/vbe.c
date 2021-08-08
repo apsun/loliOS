@@ -90,6 +90,35 @@ vbe_get_register(uint16_t index)
 __cdecl int
 vbe_vbemap(uint8_t **ptr, int xres, int yres, int bpp)
 {
+    switch (bpp) {
+    case 8:
+    case 15:
+    case 16:
+    case 24:
+    case 32:
+        break;
+    default:
+        debugf("Unsupported bpp: %d\n", bpp);
+        return -1;
+    }
+
+    if ((xres & 0x7) || (yres & 0x7)) {
+        debugf("Resolution not 8-px aligned (%d,%d)\n", xres, yres);
+        return -1;
+    }
+
+    if (xres <= 0 || xres > 16000 || yres <= 0 || yres > 12000) {
+        debugf("Resolution out of range (%d,%d)\n", xres, yres);
+        return -1;
+    }
+
+    /* +1 is needed to round 15bpp up to 2 bytes */
+    int bytespp = (bpp + 1) / 8;
+    if (xres * yres * bytespp >= VBE_FB_SIZE) {
+        debugf("Resolution too large (%d*%d*%d)\n", xres, yres, bpp);
+        return -1;
+    }
+
     // TODO
     return -1;
 }
