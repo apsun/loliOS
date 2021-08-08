@@ -1,4 +1,4 @@
-#include "vga.h"
+#include "vbe.h"
 #include "debug.h"
 #include "lib.h"
 #include "paging.h"
@@ -53,6 +53,11 @@
 #define VBE_DISPI_ID_MAGIC 0xB0C4
 
 /*
+ * How much memory is available for the framebuffer.
+ */
+#define VBE_FB_SIZE ((int)(VBE_PAGE_END - VBE_PAGE_START))
+
+/*
  * Writes one of the VBE registers. The index must be one of the
  * VBE_DISPI_INDEX_* constants.
  */
@@ -83,7 +88,7 @@ vbe_get_register(uint16_t index)
  * Up to 8MB of video memory is supported (i.e. 1920x1080x32bpp).
  */
 __cdecl int
-vga_vbemap(uint8_t *ptr, int xres, int yres, int bpp)
+vbe_vbemap(uint8_t **ptr, int xres, int yres, int bpp)
 {
     // TODO
     return -1;
@@ -93,14 +98,14 @@ vga_vbemap(uint8_t *ptr, int xres, int yres, int bpp)
  * Releases the framebuffer.
  */
 __cdecl int
-vga_vbeunmap(uint8_t *ptr)
+vbe_vbeunmap(uint8_t *ptr)
 {
     // TODO
     return -1;
 }
 
 void
-vga_init(void)
+vbe_init(void)
 {
     /*
      * QEMU supports up up to 0xB0C4 properly. To check for this,
