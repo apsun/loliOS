@@ -12,19 +12,19 @@ if [ "$EUID" -eq 0 ]; then
 fi
 
 # Parse flag options
-nobuild="false"
 compat="false"
-debug="false"
-while getopts ":dcn" opt; do
+nobuild="false"
+optimize="false"
+while getopts ":cno" opt; do
     case "$opt" in
-    d)
-        debug="true"
-        ;;
     c)
         compat="true"
         ;;
     n)
         nobuild="true"
+        ;;
+    o)
+        optimize="true"
         ;;
     *)
         echo "Invalid option: -$OPTARG"
@@ -50,8 +50,8 @@ if [ "$#" -gt 0 ] && [ "$1" = "debug" ]; then
     exit 0
 fi
 
-# If debug mode is set, compile in -Og with debug info
-if [ "$debug" = "true" ]; then
+# If optimize mode is set, compile in -O2
+if [ "$optimize" != "true" ]; then
     export CFLAGS="${CFLAGS-} -Og -g -DDEBUG_PRINT=1"
 else
     export CFLAGS="${CFLAGS-} -O2"
