@@ -28,8 +28,6 @@ main(void)
     ret = vbemap((void **)&vbemem, 1920, 1080, 32);
     assert(ret >= 0);
 
-    memset(vbemem, 0xff, 8 * 1024 * 1024);
-
     /*
      * TODO: Simple gradient lerp algorithm for testing
      *
@@ -44,7 +42,6 @@ main(void)
             RGB32_G(start) + (RGB32_G(end) - RGB32_G(start)) * (i % 1920) / 1920,
             RGB32_B(start) + (RGB32_B(end) - RGB32_B(start)) * (i % 1920) / 1920);
     }
-
 
     nanotime_t now;
     monotime(&now);

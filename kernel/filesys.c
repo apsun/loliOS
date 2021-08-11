@@ -515,7 +515,7 @@ fs_resize_inode(inode_t *inode, int new_length, bool clear)
         if (clear) {
             int i;
             for (i = old_blocks; i < new_blocks; ++i) {
-                memset_dword(fs_data(inode->data_blocks[i]), 0, FS_BLOCK_SIZE / 4);
+                memset(fs_data(inode->data_blocks[i]), 0, FS_BLOCK_SIZE);
             }
         }
 

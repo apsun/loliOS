@@ -632,6 +632,9 @@ memchr(const void *s, unsigned char c, int n)
 void *
 memset(void *s, uint8_t c, int n)
 {
+    assert(s != NULL);
+    assert(n >= 0);
+
     asm volatile("              \n\
         1:                      \n\
         testl   %%ecx, %%ecx    \n\
@@ -643,12 +646,9 @@ memset(void *s, uint8_t c, int n)
         subl    $1, %%ecx       \n\
         jmp     1b              \n\
         2:                      \n\
-        movw    %%ds, %%dx      \n\
-        movw    %%dx, %%es      \n\
         movl    %%ecx, %%edx    \n\
         shrl    $2, %%ecx       \n\
         andl    $0x3, %%edx     \n\
-        cld                     \n\
         rep     stosl           \n\
         3:                      \n\
         testl   %%edx, %%edx    \n\
@@ -658,8 +658,8 @@ memset(void *s, uint8_t c, int n)
         subl    $1, %%edx       \n\
         jmp     3b              \n\
         4:                      \n"
-        :
-        : "a"(c << 24 | c << 16 | c << 8 | c), "D"(s), "c"(n)
+        : "+D"(s), "+c"(n)
+        : "a"(c << 24 | c << 16 | c << 8 | c)
         : "edx", "memory", "cc");
 
     return s;
@@ -673,13 +673,13 @@ memset(void *s, uint8_t c, int n)
 void *
 memset_word(void *s, uint16_t c, int n)
 {
+    assert(s != NULL);
+    assert(n >= 0);
+
     asm volatile("              \n\
-        movw    %%ds, %%dx      \n\
-        movw    %%dx, %%es      \n\
-        cld                     \n\
         rep     stosw           \n"
-        :
-        : "a"(c), "D"(s), "c"(n)
+        : "+D"(s), "+c"(n)
+        : "a"(c)
         : "edx", "memory", "cc");
 
     return s;
@@ -693,13 +693,13 @@ memset_word(void *s, uint16_t c, int n)
 void *
 memset_dword(void *s, uint32_t c, int n)
 {
+    assert(s != NULL);
+    assert(n >= 0);
+
     asm volatile("              \n\
-        movw    %%ds, %%dx      \n\
-        movw    %%dx, %%es      \n\
-        cld                     \n\
         rep     stosl           \n"
-        :
-        : "a"(c), "D"(s), "c"(n)
+        : "+D"(s), "+c"(n)
+        : "a"(c)
         : "edx", "memory", "cc");
 
     return s;
@@ -712,6 +712,10 @@ memset_dword(void *s, uint32_t c, int n)
 void *
 memcpy(void *dest, const void *src, int n)
 {
+    assert(dest != NULL);
+    assert(src != NULL);
+    assert(n >= 0);
+
     asm volatile("              \n\
         1:                      \n\
         testl   %%ecx, %%ecx    \n\
@@ -725,12 +729,9 @@ memcpy(void *dest, const void *src, int n)
         subl    $1, %%ecx       \n\
         jmp     1b              \n\
         2:                      \n\
-        movw    %%ds, %%dx      \n\
-        movw    %%dx, %%es      \n\
         movl    %%ecx, %%edx    \n\
         shrl    $2, %%ecx       \n\
         andl    $0x3, %%edx     \n\
-        cld                     \n\
         rep     movsl           \n\
         3:                      \n\
         testl   %%edx, %%edx    \n\
@@ -742,8 +743,8 @@ memcpy(void *dest, const void *src, int n)
         subl    $1, %%edx       \n\
         jmp     3b              \n\
         4:                      \n"
+        : "+D"(dest), "+S"(src), "+c"(n)
         :
-        : "S"(src), "D"(dest), "c"(n)
         : "eax", "edx", "memory", "cc");
 
     return dest;
@@ -756,19 +757,21 @@ memcpy(void *dest, const void *src, int n)
 void *
 memmove(void *dest, const void *src, int n)
 {
+    assert(dest != NULL);
+    assert(src != NULL);
+    assert(n >= 0);
+
     asm volatile("                         \n\
-        movw    %%ds, %%dx                 \n\
-        movw    %%dx, %%es                 \n\
-        cld                                \n\
         cmp     %%edi, %%esi               \n\
         jae     1f                         \n\
         leal    -1(%%esi, %%ecx), %%esi    \n\
         leal    -1(%%edi, %%ecx), %%edi    \n\
         std                                \n\
         1:                                 \n\
-        rep     movsb                      \n"
+        rep     movsb                      \n\
+        cld                                \n"
+        : "+D"(dest), "+S"(src), "+c"(n)
         :
-        : "D"(dest), "S"(src), "c"(n)
         : "edx", "memory", "cc");
 
     return dest;

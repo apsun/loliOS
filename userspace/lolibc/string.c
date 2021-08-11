@@ -488,10 +488,33 @@ memset(void *s, unsigned char c, int n)
     assert(s != NULL);
     assert(n >= 0);
 
-    unsigned char *p = s;
-    while (n--) {
-        *p++ = c;
-    }
+    asm volatile("              \n\
+        1:                      \n\
+        testl   %%ecx, %%ecx    \n\
+        jz      4f              \n\
+        testl   $0x3, %%edi     \n\
+        jz      2f              \n\
+        movb    %%al, (%%edi)   \n\
+        addl    $1, %%edi       \n\
+        subl    $1, %%ecx       \n\
+        jmp     1b              \n\
+        2:                      \n\
+        movl    %%ecx, %%edx    \n\
+        shrl    $2, %%ecx       \n\
+        andl    $0x3, %%edx     \n\
+        rep     stosl           \n\
+        3:                      \n\
+        testl   %%edx, %%edx    \n\
+        jz      4f              \n\
+        movb    %%al, (%%edi)   \n\
+        addl    $1, %%edi       \n\
+        subl    $1, %%edx       \n\
+        jmp     3b              \n\
+        4:                      \n"
+        : "+D"(s), "+c"(n)
+        : "a"(c << 24 | c << 16 | c << 8 | c)
+        : "edx", "memory", "cc");
+
     return s;
 }
 
@@ -506,11 +529,37 @@ memcpy(void *dest, const void *src, int n)
     assert(src != NULL);
     assert(n >= 0);
 
-    unsigned char *d = dest;
-    const unsigned char *s = src;
-    while (n--) {
-        *d++ = *s++;
-    }
+    asm volatile("              \n\
+        1:                      \n\
+        testl   %%ecx, %%ecx    \n\
+        jz      4f              \n\
+        testl   $0x3, %%edi     \n\
+        jz      2f              \n\
+        movb    (%%esi), %%al   \n\
+        movb    %%al, (%%edi)   \n\
+        addl    $1, %%edi       \n\
+        addl    $1, %%esi       \n\
+        subl    $1, %%ecx       \n\
+        jmp     1b              \n\
+        2:                      \n\
+        movl    %%ecx, %%edx    \n\
+        shrl    $2, %%ecx       \n\
+        andl    $0x3, %%edx     \n\
+        rep     movsl           \n\
+        3:                      \n\
+        testl   %%edx, %%edx    \n\
+        jz      4f              \n\
+        movb    (%%esi), %%al   \n\
+        movb    %%al, (%%edi)   \n\
+        addl    $1, %%edi       \n\
+        addl    $1, %%esi       \n\
+        subl    $1, %%edx       \n\
+        jmp     3b              \n\
+        4:                      \n"
+        : "+D"(dest), "+S"(src), "+c"(n)
+        :
+        : "eax", "edx", "memory", "cc");
+
     return dest;
 }
 
@@ -525,16 +574,18 @@ memmove(void *dest, const void *src, int n)
     assert(src != NULL);
     assert(n >= 0);
 
-    unsigned char *d = dest;
-    const unsigned char *s = src;
-    if (d < s) {
-        while (n--) {
-            *d++ = *s++;
-        }
-    } else {
-        while (n--) {
-            d[n] = s[n];
-        }
-    }
+    asm volatile("                         \n\
+        cmp     %%edi, %%esi               \n\
+        jae     1f                         \n\
+        leal    -1(%%esi, %%ecx), %%esi    \n\
+        leal    -1(%%edi, %%ecx), %%edi    \n\
+        std                                \n\
+        1:                                 \n\
+        rep     movsb                      \n\
+        cld                                \n"
+        : "+D"(dest), "+S"(src), "+c"(n)
+        :
+        : "edx", "memory", "cc");
+
     return dest;
 }

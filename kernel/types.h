@@ -11,6 +11,7 @@
 #define __used __attribute__((used))
 #define __unused __attribute__((unused))
 #define __noinline __attribute__((noinline))
+#define __always_inline __attribute__((always_inline))
 #define __packed __attribute__((packed))
 #define __aligned(x) __attribute__((aligned(x)))
 
