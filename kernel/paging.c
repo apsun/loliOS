@@ -142,6 +142,16 @@ paging_init_video(void)
     vga_pte->user = 0;
     vga_pte->base_addr = TO_4KB_BASE(VIDEO_PAGE_START);
 
+    /* VGA font pages */
+    uint32_t addr;
+    for (addr = VGA_FONT_PAGE_START; addr < VGA_FONT_PAGE_END; addr += KB(4)) {
+        pte_t *font_pte = PTE(addr);
+        font_pte->present = 1;
+        font_pte->write = 1;
+        font_pte->user = 0;
+        font_pte->base_addr = TO_4KB_BASE(addr);
+    }
+
     /* Virtual video memory pages, one per terminal */
     int i;
     for (i = 0; i < NUM_TERMINALS; ++i) {
@@ -163,7 +173,7 @@ paging_init_vbe(void)
         pde_4mb_t *pde = PDE_4MB(addr);
         pde->present = 1;
         pde->write = 1;
-        pde->user = 0;
+        pde->user = 1;  // TODO: Use indirect pages with proper permissions
         pde->size = SIZE_4MB;
         pde->base_addr = TO_4MB_BASE(addr);
     }

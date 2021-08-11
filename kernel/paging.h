@@ -6,6 +6,9 @@
 #define KB(x) ((x) * 1024)
 #define MB(x) ((x) * 1024 * 1024)
 
+#define VGA_FONT_PAGE_START 0x000A0000
+#define VGA_FONT_PAGE_END   0x000B0000
+
 #define VIDEO_PAGE_START    0x000B8000
 #define VIDEO_PAGE_END      0x000B9000
 

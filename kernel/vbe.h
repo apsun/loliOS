@@ -6,8 +6,8 @@
 #ifndef ASM
 
 /* Syscalls */
-__cdecl int vbe_vbemap(uint8_t **ptr, int xres, int yres, int bpp);
-__cdecl int vbe_vbeunmap(uint8_t *ptr);
+__cdecl int vbe_vbemap(void **ptr, int xres, int yres, int bpp);
+__cdecl int vbe_vbeunmap(void *ptr);
 
 void vbe_init(void);
 

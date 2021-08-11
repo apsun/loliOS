@@ -186,6 +186,8 @@ __cdecl int stat(const char *filename, stat_t *buf);
 __cdecl int realtime(time_t *tp);
 __cdecl int monotime(nanotime_t *tp);
 __cdecl int monosleep(const nanotime_t *tp);
+__cdecl int vbemap(void **ptr, int xres, int yres, int bpp);
+__cdecl int vbeunmap(void *ptr);
 
 #endif /* ASM */
 

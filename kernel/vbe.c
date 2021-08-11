@@ -58,6 +58,215 @@
 #define VBE_FB_SIZE ((int)(VBE_PAGE_END - VBE_PAGE_START))
 
 /*
+ * IO port addresses to access the VGA registers.
+ */
+#define VGA_PORT_SEQ 0x03C4
+#define VGA_PORT_CRTC 0x03D4
+#define VGA_PORT_ATTR 0x03C0
+#define VGA_PORT_GFX 0x03CE
+#define VGA_PORT_IS1 0x03DA
+#define VGA_PORT_MISC 0x03C2
+
+/*
+ * Magical incantation to return to VGA text mode.
+ */
+static const uint8_t vga_text_seq[] = {
+    0x03, /* Reset Register */
+    0x00, /* Clocking Mode Register */
+    0x03, /* Map Mask Register */
+    0x00, /* Character Map Select Register */
+    0x02, /* Sequencer Memory Mode Register */
+};
+static const uint8_t vga_text_crtc[] = {
+    0x5F, /* Horizontal Total Register */
+    0x4F, /* End Horizontal Display Register */
+    0x50, /* Start Horizontal Blanking Register */
+    0x82, /* End Horizontal Blanking Register */
+    0x55, /* Start Horizontal Retrace Register */
+    0x81, /* End Horizontal Retrace Register */
+    0xBF, /* Vertical Total Register */
+    0x1F, /* Overflow Register */
+    0x00, /* Preset Row Scan Register */
+    0x4F, /* Maximum Scan Line Register */
+    0x0D, /* Cursor Start Register */
+    0x0E, /* Cursor End Register */
+    0x00, /* Start Address High Register */ // <<<
+    0x00, /* Start Address Low Register */ // <<<
+    0x00, /* Cursor Location High Register */
+    0x00, /* Cursor Location Low Register */
+    0x9C, /* Vertical Retrace Start Register */
+    0x8E, /* Vertical Retrace End Register */
+    0x8F, /* Vertical Display End Register */
+    0x28, /* Offset Register */
+    0x1F, /* Underline Location Register */
+    0x96, /* Start Vertical Blanking Register */
+    0xB9, /* End Vertical Blanking */
+    0xA3, /* CRTC Mode Control Register */
+    0xFF, /* Line Compare Register */
+};
+static const uint8_t vga_text_attr[] = {
+    /* Palette Registers */
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x14, 0x07,
+    0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F,
+
+    0x0C, /* Attribute Mode Control Register */
+    0x00, /* Overscan Color Register */
+    0x0F, /* Color Plane Enable Register */
+    0x08, /* Horizontal Pixel Panning Register */
+    0x00, /* Color Select Register */
+};
+static const uint8_t vga_text_gfx[] = {
+    0x00, /* Set/Reset Register */
+    0x00, /* Enable Set/Reset Register */
+    0x00, /* Color Compare Register */
+    0x00, /* Data Rotate Register */
+    0x00, /* Read Map Select Register */
+    0x10, /* Graphics Mode Register */
+    0x0E, /* Miscellaneous Graphics Register */
+    0x0F, /* Color Don't Care Register */
+    0xFF, /* Bit Mask Register */
+};
+
+/* Holds font data saved from VGA memory */
+static uint8_t vga_text_font[256][16];
+
+/*
+ * Whether VBE is available on the system.
+ */
+static bool vbe_available = false;
+
+/*
+ * Puts the VGA into font access mode. Fonts can be accessed
+ * in 0xA0000~0xB0000 in banks of 8KB (32B/char * 256chars).
+ *
+ * Implementation note: font glyphs are stored in plane 2.
+ * Normally planes 0 and 1 are mapped in odd/even mode for
+ * character and attributes correspondingly.
+ */
+static void
+vga_begin_font_access(void)
+{
+    /* Write to plane 2 */
+    outb(0x02, VGA_PORT_SEQ);
+    outb(0x04, VGA_PORT_SEQ + 1);
+
+    /* Disable odd/even write */
+    outb(0x04, VGA_PORT_SEQ);
+    outb(0x06, VGA_PORT_SEQ + 1);
+
+    /* Read from plane 2 */
+    outb(0x04, VGA_PORT_GFX);
+    outb(0x02, VGA_PORT_GFX + 1);
+
+    /* Disable odd/even read */
+    outb(0x05, VGA_PORT_GFX);
+    outb(0x00, VGA_PORT_GFX + 1);
+
+    /* Map 0xA0000~0xB0000 (64KB, enough for all 8 font banks) */
+    outb(0x06, VGA_PORT_GFX);
+    outb(0x04, VGA_PORT_GFX + 1);
+}
+
+/*
+ * Puts the VGA back into text access mode.
+ */
+static void
+vga_end_font_access(void)
+{
+    outb(0x02, VGA_PORT_SEQ);
+    outb(vga_text_seq[0x02], VGA_PORT_SEQ + 1);
+
+    outb(0x04, VGA_PORT_SEQ);
+    outb(vga_text_seq[0x04], VGA_PORT_SEQ + 1);
+
+    outb(0x04, VGA_PORT_GFX);
+    outb(vga_text_gfx[0x04], VGA_PORT_GFX + 1);
+
+    outb(0x05, VGA_PORT_GFX);
+    outb(vga_text_gfx[0x05], VGA_PORT_GFX + 1);
+
+    outb(0x06, VGA_PORT_GFX);
+    outb(vga_text_gfx[0x06], VGA_PORT_GFX + 1);
+}
+
+/*
+ * Reads font glyph data from VGA memory.
+ */
+static void
+vga_read_font(uint8_t font[256][16])
+{
+    vga_begin_font_access();
+    int i;
+    for (i = 0; i < 256; ++i) {
+        memcpy(font[i], (void *)(VGA_FONT_PAGE_START + 32 * i), 16);
+    }
+    vga_end_font_access();
+}
+
+/*
+ * Writes font glyph data into VGA memory.
+ */
+static void
+vga_write_font(const uint8_t font[256][16])
+{
+    vga_begin_font_access();
+    int i;
+    for (i = 0; i < 256; ++i) {
+        memcpy((void *)(VGA_FONT_PAGE_START + 32 * i), font[i], 16);
+    }
+    vga_end_font_access();
+}
+
+/*
+ * Resets VGA into text mode.
+ */
+static void
+vga_reset_text_mode(void)
+{
+    size_t i;
+
+    /* Write sequencer registers */
+    for (i = 0; i < sizeof(vga_text_seq); ++i) {
+        outb(i, VGA_PORT_SEQ);
+        outb(vga_text_seq[i], VGA_PORT_SEQ + 1);
+    }
+
+    /* Disable CRTC register protection */
+    outb(0x11, VGA_PORT_CRTC);
+    outb(0, VGA_PORT_CRTC + 1);
+
+    /* Write CRTC registers */
+    for (i = 0; i < sizeof(vga_text_crtc); ++i) {
+        outb(i, VGA_PORT_CRTC);
+        outb(vga_text_crtc[i], VGA_PORT_CRTC + 1);
+    }
+
+    /* Reset attribute register flip-flop */
+    inb(VGA_PORT_IS1);
+
+    /* Write attribute registers */
+    for (i = 0; i < sizeof(vga_text_attr); ++i) {
+        outb(i, VGA_PORT_ATTR);
+        outb(vga_text_attr[i], VGA_PORT_ATTR);
+    }
+
+    /* Write graphics registers */
+    for (i = 0; i < sizeof(vga_text_gfx); ++i) {
+        outb(i, VGA_PORT_GFX);
+        outb(vga_text_gfx[i], VGA_PORT_GFX + 1);
+    }
+
+    /* Write misc register */
+    outb(0x67, VGA_PORT_MISC);
+
+    /* Disable blanking */
+    outb(0x20, VGA_PORT_ATTR);
+
+    /* Restore font data */
+    vga_write_font(vga_text_font);
+}
+
+/*
  * Writes one of the VBE registers. The index must be one of the
  * VBE_DISPI_INDEX_* constants.
  */
@@ -88,8 +297,13 @@ vbe_get_register(uint16_t index)
  * Up to 8MB of video memory is supported (i.e. 1920x1080x32bpp).
  */
 __cdecl int
-vbe_vbemap(uint8_t **ptr, int xres, int yres, int bpp)
+vbe_vbemap(void **ptr, int xres, int yres, int bpp)
 {
+    if (!vbe_available) {
+        debugf("VBE is not supported on this system\n");
+        return -1;
+    }
+
     switch (bpp) {
     case 8:
     case 15:
@@ -119,20 +333,39 @@ vbe_vbemap(uint8_t **ptr, int xres, int yres, int bpp)
         return -1;
     }
 
-    // TODO
-    return -1;
+    void *p = (void *)VBE_PAGE_START;
+    if (!copy_to_user(ptr, &p, sizeof(void *))) {
+        return -1;
+    }
+
+    /* VBE must be disabled while we change xres/yres/bpp */
+    vbe_set_register(VBE_DISPI_INDEX_ENABLE, 0);
+    vbe_set_register(VBE_DISPI_INDEX_XRES, xres);
+    vbe_set_register(VBE_DISPI_INDEX_YRES, yres);
+    vbe_set_register(VBE_DISPI_INDEX_BPP, bpp);
+    vbe_set_register(VBE_DISPI_INDEX_ENABLE, VBE_DISPI_LFB_ENABLED | VBE_DISPI_ENABLED);
+
+    return 0;
 }
 
 /*
  * Releases the framebuffer.
  */
 __cdecl int
-vbe_vbeunmap(uint8_t *ptr)
+vbe_vbeunmap(void *ptr)
 {
-    // TODO
-    return -1;
+    /* Disable VBE mode */
+    vbe_set_register(VBE_DISPI_INDEX_ENABLE, 0);
+
+    /* Return to VGA text mode */
+    vga_reset_text_mode();
+
+    return 0;
 }
 
+/*
+ * Checks that VBE is available, and initializes font data.
+ */
 void
 vbe_init(void)
 {
@@ -149,27 +382,11 @@ vbe_init(void)
     }
 
     /*
-     * VBE must be disabled while we change xres/yres/bpp.
+     * Save the font glyph data so we can restore it when returning
+     * from VBE mode (as switching to VBE clobbers video memory,
+     * where the font data is stored).
      */
-    vbe_set_register(VBE_DISPI_INDEX_ENABLE, 0);
-    vbe_set_register(VBE_DISPI_INDEX_XRES, 1920);
-    vbe_set_register(VBE_DISPI_INDEX_YRES, 1080);
-    vbe_set_register(VBE_DISPI_INDEX_BPP, 32);
-    vbe_set_register(VBE_DISPI_INDEX_ENABLE, VBE_DISPI_LFB_ENABLED | VBE_DISPI_ENABLED);
+    vga_read_font(vga_text_font);
 
-    /*
-     * TODO: Simple gradient lerp algorithm for testing
-     *
-     * https://uigradients.com/#AzurLane
-     */
-    uint32_t *vbemem = (uint32_t *)VBE_PAGE_START;
-    uint32_t start = 0x007f7fd5;
-    uint32_t end = 0x0091eae4;
-    int i;
-    for (i = 0; i < 1920 * 1080; ++i) {
-        vbemem[i] = RGB32(
-            RGB32_R(start) + (RGB32_R(end) - RGB32_R(start)) * (i % 1920) / 1920,
-            RGB32_G(start) + (RGB32_G(end) - RGB32_G(start)) * (i % 1920) / 1920,
-            RGB32_B(start) + (RGB32_B(end) - RGB32_B(start)) * (i % 1920) / 1920);
-    }
+    vbe_available = true;
 }
