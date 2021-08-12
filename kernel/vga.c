@@ -393,13 +393,13 @@ vga_vbeunmap(void *ptr)
 void
 vga_set_cursor_location(uint16_t location)
 {
-    /* Cursor location low */
-    outb(0x0E, VGA_PORT_CRTC);
-    outb(location & 0xff, VGA_PORT_CRTC + 1);
-
     /* Cursor location high */
-    outb(0x0F, VGA_PORT_CRTC);
+    outb(0x0E, VGA_PORT_CRTC);
     outb((location >> 8) & 0xff, VGA_PORT_CRTC + 1);
+
+    /* Cursor location low */
+    outb(0x0F, VGA_PORT_CRTC);
+    outb(location & 0xff, VGA_PORT_CRTC + 1);
 }
 
 /*
