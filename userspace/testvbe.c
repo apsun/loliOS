@@ -19,36 +19,63 @@
 #define RGB32_G(rgb32) (((rgb32) >> 8) & 0xff)
 #define RGB32_B(rgb32) (((rgb32) >> 0) & 0xff)
 
+/*
+ * Screen dimensions.
+ */
+#define WIDTH 1280
+#define HEIGHT 720
+
 int
 main(void)
 {
-    int ret;
+    int ret = 1;
 
-    uint32_t *vbemem;
-    ret = vbemap((void **)&vbemem, 1920, 1080, 32);
-    assert(ret >= 0);
-
-    /*
-     * TODO: Simple gradient lerp algorithm for testing
-     *
-     * https://uigradients.com/#AzurLane
-     */
-    uint32_t start = 0x007f7fd5;
-    uint32_t end = 0x0091eae4;
-    int i;
-    for (i = 0; i < 1920 * 1080; ++i) {
-        vbemem[i] = RGB32(
-            RGB32_R(start) + (RGB32_R(end) - RGB32_R(start)) * (i % 1920) / 1920,
-            RGB32_G(start) + (RGB32_G(end) - RGB32_G(start)) * (i % 1920) / 1920,
-            RGB32_B(start) + (RGB32_B(end) - RGB32_B(start)) * (i % 1920) / 1920);
+    int secs = 15;
+    char args[128];
+    if (getargs(args, sizeof(args)) >= 0) {
+        secs = atoi(args);
+        if (secs == 0) {
+            fprintf(stderr, "Invalid duration: %s\n", args);
+            goto cleanup;
+        }
     }
 
-    nanotime_t now;
-    monotime(&now);
-    nanotime_t target = now + SECONDS(3);
-    monosleep(&target);
+    uint32_t *buf = malloc(WIDTH * HEIGHT * sizeof(uint32_t));
+    assert(buf != NULL);
 
-    ret = vbeunmap(&vbemem);
-    assert(ret >= 0);
-    return 0;
+    uint32_t col0 = 0x007f7fd5;
+    uint32_t col1 = 0x0091eae4;
+    int i;
+    for (i = 0; i < WIDTH * HEIGHT; ++i) {
+        buf[i] = RGB32(
+            RGB32_R(col0) + (RGB32_R(col1) - RGB32_R(col0)) * (i % WIDTH) / WIDTH,
+            RGB32_G(col0) + (RGB32_G(col1) - RGB32_G(col0)) * (i % WIDTH) / WIDTH,
+            RGB32_B(col0) + (RGB32_B(col1) - RGB32_B(col0)) * (i % WIDTH) / WIDTH);
+    }
+
+    uint32_t *vbemem;
+    vbemap((void **)&vbemem, WIDTH, HEIGHT, 32);
+
+    nanotime_t start;
+    monotime(&start);
+    nanotime_t end = start + SECONDS(secs);
+
+    int iter = 0;
+    while (1) {
+        memcpy(vbemem, buf, WIDTH * HEIGHT * sizeof(uint32_t));
+        iter++;
+
+        nanotime_t now;
+        monotime(&now);
+        if (now >= end) {
+            break;
+        }
+    }
+
+    vbeunmap(&vbemem);
+    printf("\n%d frames @ %dx%d (~%d fps)\n", iter, WIDTH, HEIGHT, iter / secs);
+    ret = 0;
+
+cleanup:
+    return ret;
 }
