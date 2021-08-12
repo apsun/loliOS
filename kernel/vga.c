@@ -139,6 +139,15 @@ static bool vga_text_font_saved = false;
 static bool vbe_available = false;
 
 /*
+ * Helper for outb(lo, port); outb(hi, port + 1);
+ */
+static void
+outlh(uint8_t lo, uint8_t hi, uint16_t port)
+{
+    outw(lo | (hi << 8), port);
+}
+
+/*
  * Puts the VGA into font access mode. Fonts can be accessed
  * in 0xA0000~0xB0000 in banks of 8KB (32B/char * 256chars).
  */
@@ -161,24 +170,19 @@ vga_begin_font_access(void)
      */
 
     /* Write to plane 2 */
-    outb(0x02, VGA_PORT_SEQ);
-    outb(0x04, VGA_PORT_SEQ + 1);
+    outlh(0x02, 0x04, VGA_PORT_SEQ);
 
     /* Disable odd/even write */
-    outb(0x04, VGA_PORT_SEQ);
-    outb(0x06, VGA_PORT_SEQ + 1);
+    outlh(0x04, 0x06, VGA_PORT_SEQ);
 
     /* Read from plane 2 */
-    outb(0x04, VGA_PORT_GFX);
-    outb(0x02, VGA_PORT_GFX + 1);
+    outlh(0x04, 0x02, VGA_PORT_GFX);
 
     /* Disable odd/even read */
-    outb(0x05, VGA_PORT_GFX);
-    outb(0x00, VGA_PORT_GFX + 1);
+    outlh(0x05, 0x00, VGA_PORT_GFX);
 
     /* Map 0xA0000~0xB0000 (64KB, enough for all 8 font banks) */
-    outb(0x06, VGA_PORT_GFX);
-    outb(0x04, VGA_PORT_GFX + 1);
+    outlh(0x06, 0x04, VGA_PORT_GFX);
 }
 
 /*
@@ -187,20 +191,11 @@ vga_begin_font_access(void)
 static void
 vga_end_font_access(void)
 {
-    outb(0x02, VGA_PORT_SEQ);
-    outb(vga_text_seq[0x02], VGA_PORT_SEQ + 1);
-
-    outb(0x04, VGA_PORT_SEQ);
-    outb(vga_text_seq[0x04], VGA_PORT_SEQ + 1);
-
-    outb(0x04, VGA_PORT_GFX);
-    outb(vga_text_gfx[0x04], VGA_PORT_GFX + 1);
-
-    outb(0x05, VGA_PORT_GFX);
-    outb(vga_text_gfx[0x05], VGA_PORT_GFX + 1);
-
-    outb(0x06, VGA_PORT_GFX);
-    outb(vga_text_gfx[0x06], VGA_PORT_GFX + 1);
+    outlh(0x02, vga_text_seq[0x02], VGA_PORT_SEQ);
+    outlh(0x04, vga_text_seq[0x04], VGA_PORT_SEQ);
+    outlh(0x04, vga_text_gfx[0x04], VGA_PORT_GFX);
+    outlh(0x05, vga_text_gfx[0x05], VGA_PORT_GFX);
+    outlh(0x06, vga_text_gfx[0x06], VGA_PORT_GFX);
 }
 
 /*
@@ -241,18 +236,15 @@ vga_reset_text_mode(void)
 
     /* Write sequencer registers */
     for (i = 0; i < sizeof(vga_text_seq); ++i) {
-        outb(i, VGA_PORT_SEQ);
-        outb(vga_text_seq[i], VGA_PORT_SEQ + 1);
+        outlh(i, vga_text_seq[i], VGA_PORT_SEQ);
     }
 
     /* Disable CRTC register protection */
-    outb(0x11, VGA_PORT_CRTC);
-    outb(0x00, VGA_PORT_CRTC + 1);
+    outlh(0x11, 0x00, VGA_PORT_CRTC);
 
     /* Write CRTC registers */
     for (i = 0; i < sizeof(vga_text_crtc); ++i) {
-        outb(i, VGA_PORT_CRTC);
-        outb(vga_text_crtc[i], VGA_PORT_CRTC + 1);
+        outlh(i, vga_text_crtc[i], VGA_PORT_CRTC);
     }
 
     /* Reset attribute register flip-flop */
@@ -266,8 +258,7 @@ vga_reset_text_mode(void)
 
     /* Write graphics registers */
     for (i = 0; i < sizeof(vga_text_gfx); ++i) {
-        outb(i, VGA_PORT_GFX);
-        outb(vga_text_gfx[i], VGA_PORT_GFX + 1);
+        outlh(i, vga_text_gfx[i], VGA_PORT_GFX);
     }
 
     /* Write misc register */
@@ -393,13 +384,8 @@ vga_vbeunmap(void *ptr)
 void
 vga_set_cursor_location(uint16_t location)
 {
-    /* Cursor location high */
-    outb(0x0E, VGA_PORT_CRTC);
-    outb((location >> 8) & 0xff, VGA_PORT_CRTC + 1);
-
-    /* Cursor location low */
-    outb(0x0F, VGA_PORT_CRTC);
-    outb(location & 0xff, VGA_PORT_CRTC + 1);
+    outlh(0x0E, (location >> 8) & 0xff, VGA_PORT_CRTC);
+    outlh(0x0F, (location >> 0) & 0xff, VGA_PORT_CRTC);
 }
 
 /*
