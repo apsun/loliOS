@@ -168,6 +168,9 @@ typedef struct {
 /* Gets a PCB by its process ID */
 pcb_t *get_pcb(int pid);
 
+/* Gets the idle process PCB */
+pcb_t *get_idle_pcb(void);
+
 /* Gets the next PCB after the specified one */
 pcb_t *get_next_pcb(pcb_t *pcb);
 

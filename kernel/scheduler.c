@@ -10,9 +10,10 @@
  * from the active queue and enqueue them into the inactive
  * queue, we essentially mark them as "already executed".
  * Once every task has had an opportunity to execute, we
- * "clear" the mark by swapping the queues. Note that
- * the invariant is that the idle task is always schedulable,
- * so there is always _something_ to run.
+ * "clear" the mark by swapping the queues.
+ *
+ * Note that the idle task is not in these queues, and is
+ * only scheduled when there are no other processes to run.
  */
 static list_t scheduler_queues[2];
 static int scheduler_active = 0;
@@ -53,6 +54,13 @@ scheduler_next_pcb(void)
      * putting them to sleep.
      */
     if (list_empty(scheduler_active_queue())) {
+        /*
+         * If we _really_ have nothing to run, schedule
+         * the idle process.
+         */
+        if (list_empty(scheduler_inactive_queue())) {
+            return get_idle_pcb();
+        }
         scheduler_active = !scheduler_active;
     }
 
@@ -79,8 +87,6 @@ __cdecl __noinline __used static void
 scheduler_yield_impl(pcb_t *curr)
 {
     pcb_t *next = scheduler_next_pcb();
-
-    /* This can happen if idle is the only process running */
     if (curr == next) {
         return;
     }
@@ -156,6 +162,7 @@ scheduler_exit(void)
 void
 scheduler_add(pcb_t *pcb)
 {
+    assert(pcb->pid > 0);
     list_add_tail(&pcb->scheduler_list, scheduler_inactive_queue());
 }
 
@@ -165,6 +172,7 @@ scheduler_add(pcb_t *pcb)
 void
 scheduler_remove(pcb_t *pcb)
 {
+    assert(pcb->pid > 0);
     list_del(&pcb->scheduler_list);
 }
 
@@ -179,6 +187,7 @@ void
 scheduler_sleep(list_t *queue)
 {
     pcb_t *pcb = get_executing_pcb();
+    assert(pcb->pid > 0);
     assert(pcb->state == PROCESS_STATE_RUNNING);
     list_del(&pcb->scheduler_list);
     list_add_tail(&pcb->scheduler_list, queue);
@@ -194,6 +203,7 @@ scheduler_sleep(list_t *queue)
 void
 scheduler_wake(pcb_t *pcb)
 {
+    assert(pcb->pid > 0);
     if (pcb->state == PROCESS_STATE_SLEEPING) {
         list_del(&pcb->scheduler_list);
         list_add_tail(&pcb->scheduler_list, scheduler_inactive_queue());

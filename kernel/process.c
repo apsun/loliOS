@@ -69,6 +69,15 @@ get_pcb(int pid)
 }
 
 /*
+ * Returns the PCB of the idle process.
+ */
+pcb_t *
+get_idle_pcb(void)
+{
+    return &process_info[0];
+}
+
+/*
  * Iterator API for PCB objects. Call this with NULL
  * as a parameter to get the first process; call this
  * with the first process to get the second process;
@@ -436,7 +445,6 @@ process_create_idle(void)
     paging_heap_init(&pcb->heap);
 
     process_fill_idle_regs(&pcb->regs);
-    scheduler_add(pcb);
     return pcb;
 }
 
