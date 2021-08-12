@@ -324,17 +324,24 @@ process_run(pcb_t *pcb)
 static void
 process_idle(void)
 {
-    /*
-     * Note that there is no race condition between sti and
-     * hlt here - sti only takes effect after the next instruction
-     * has executed. If an interrupt occurred between sti and hlt,
-     * it would be handled after hlt executes and hlt would
-     * return immediately. Also use a single asm block, or else
-     * the compiler might insert extra instructions between sti
-     * and hlt.
-     */
     while (1) {
+        /*
+         * Note that there is no race condition between sti and
+         * hlt here - sti only takes effect after the next instruction
+         * has executed. If an interrupt occurred between sti and hlt,
+         * it would be handled after hlt executes and hlt would
+         * return immediately. Also use a single asm block, or else
+         * the compiler might insert extra instructions between sti
+         * and hlt.
+         */
         asm volatile("sti; hlt; cli" ::: "memory");
+
+        /*
+         * Immediately yield back to the scheduler, in case the
+         * interrupt woke up a normal process. If it turns out that
+         * there is nothing to do, we will just come right back.
+         */
+        scheduler_yield();
     }
 }
 
