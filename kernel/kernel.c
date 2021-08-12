@@ -20,7 +20,7 @@
 #include "zero.h"
 #include "random.h"
 #include "time.h"
-#include "vbe.h"
+#include "vga.h"
 
 /* Check if the bit BIT in FLAGS is set. */
 #define CHECK_FLAG(flags, bit) ((flags) & (1 << (bit)))
@@ -28,6 +28,9 @@
 void
 entry(unsigned long magic, unsigned long addr)
 {
+    /* Initialize VGA (need it for the terminal) */
+    vga_init();
+
     /* Initialize terminals */
     terminal_init();
 
@@ -214,9 +217,6 @@ entry(unsigned long magic, unsigned long addr)
 
     printf("Initializing random file driver...\n");
     random_init();
-
-    printf("Initializing VBE driver...\n");
-    vbe_init();
 
     /* We made it! */
     printf("Boot successful!\n");

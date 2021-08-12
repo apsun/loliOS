@@ -6,6 +6,7 @@
 #include "signal.h"
 #include "scheduler.h"
 #include "syscall.h"
+#include "vga.h"
 
 /* EOT (CTRL-D) character */
 #define EOT '\x04'
@@ -17,12 +18,6 @@
 #define ATTRIB_BSOD 0x1F
 #define VIDEO_MEM ((uint8_t *)VIDEO_PAGE_START)
 #define VIDEO_MEM_SIZE (NUM_ROWS * NUM_COLS * 2)
-
-/* VGA registers */
-#define VGA_REG_CURSOR_HI 0x0E
-#define VGA_REG_CURSOR_LO 0x0F
-#define VGA_PORT_INDEX    0x3D4
-#define VGA_PORT_DATA     0x3D5
 
 /* Holds information about each terminal */
 static terminal_state_t terminal_states[NUM_TERMINALS];
@@ -63,19 +58,9 @@ get_display_terminal(void)
     return get_terminal(display_terminal);
 }
 
-/*
- * Sets the contents of a VGA register.
- */
-static void
-vga_set_register(uint8_t index, uint8_t value)
-{
-    outb(index, VGA_PORT_INDEX);
-    outb(value, VGA_PORT_DATA);
-}
-
 /* Clears out a region of VGA memory (overwrites it with spaces) */
 static void
-vga_clear_region(uint8_t *ptr, int num_chars, char attrib)
+terminal_clear_region(uint8_t *ptr, int num_chars, char attrib)
 {
     uint16_t pattern = (' ' << 0) | (attrib << 8);
     memset_word(ptr, pattern, num_chars);
@@ -95,8 +80,7 @@ terminal_update_cursor(terminal_state_t *term)
 
     /* Write the position to the VGA cursor position registers */
     uint16_t pos = term->cursor.screen_y * NUM_COLS + term->cursor.screen_x;
-    vga_set_register(VGA_REG_CURSOR_LO, (pos >> 0) & 0xff);
-    vga_set_register(VGA_REG_CURSOR_HI, (pos >> 8) & 0xff);
+    vga_set_cursor_location(pos);
 }
 
 /*
@@ -139,7 +123,7 @@ terminal_scroll_down(terminal_state_t *term)
     memmove(term->video_mem, term->video_mem + bytes_per_row, shift_count);
 
     /* Clear out last row */
-    vga_clear_region(term->video_mem + shift_count, bytes_per_row / 2, term->attrib);
+    terminal_clear_region(term->video_mem + shift_count, bytes_per_row / 2, term->attrib);
 }
 
 /*
@@ -227,7 +211,7 @@ static void
 terminal_clear_impl(terminal_state_t *term)
 {
     /* Clear screen */
-    vga_clear_region(term->video_mem, VIDEO_MEM_SIZE / 2, term->attrib);
+    terminal_clear_region(term->video_mem, VIDEO_MEM_SIZE / 2, term->attrib);
 
     /* Reset cursor to top-left position */
     term->cursor.logical_x = 0;
@@ -793,7 +777,7 @@ terminal_init(void)
         term->attrib = ATTRIB;
 
         /* Initialize the terminal memory region */
-        vga_clear_region(term->backing_mem, VIDEO_MEM_SIZE / 2, term->attrib);
+        terminal_clear_region(term->backing_mem, VIDEO_MEM_SIZE / 2, term->attrib);
 
         /* Initialize other fields */
         term->vidmap = false;

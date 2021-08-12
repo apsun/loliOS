@@ -1,4 +1,4 @@
-#include "vbe.h"
+#include "vga.h"
 #include "debug.h"
 #include "lib.h"
 #include "paging.h"
@@ -25,7 +25,7 @@
 #define VBE_DISPI_IOPORT_DATA 0x01CF
 
 /*
- * Register index numbers.
+ * VGA register index numbers.
  */
 #define VBE_DISPI_INDEX_ID 0
 #define VBE_DISPI_INDEX_XRES 1
@@ -53,7 +53,7 @@
 #define VBE_DISPI_ID_MAGIC 0xB0C4
 
 /*
- * How much memory is available for the framebuffer.
+ * How much memory is available for the VBE framebuffer.
  */
 #define VBE_FB_SIZE ((int)(VBE_PAGE_END - VBE_PAGE_START))
 
@@ -90,8 +90,8 @@ static const uint8_t vga_text_crtc[] = {
     0x4F, /* Maximum Scan Line Register */
     0x0D, /* Cursor Start Register */
     0x0E, /* Cursor End Register */
-    0x00, /* Start Address High Register */ // <<<
-    0x00, /* Start Address Low Register */ // <<<
+    0x00, /* Start Address High Register */
+    0x00, /* Start Address Low Register */
     0x00, /* Cursor Location High Register */
     0x00, /* Cursor Location Low Register */
     0x9C, /* Vertical Retrace Start Register */
@@ -127,8 +127,11 @@ static const uint8_t vga_text_gfx[] = {
     0xFF, /* Bit Mask Register */
 };
 
-/* Holds font data saved from VGA memory */
+/*
+ * Holds font data saved from VGA memory.
+ */
 static uint8_t vga_text_font[256][16];
+static bool vga_text_font_saved = false;
 
 /*
  * Whether VBE is available on the system.
@@ -138,14 +141,25 @@ static bool vbe_available = false;
 /*
  * Puts the VGA into font access mode. Fonts can be accessed
  * in 0xA0000~0xB0000 in banks of 8KB (32B/char * 256chars).
- *
- * Implementation note: font glyphs are stored in plane 2.
- * Normally planes 0 and 1 are mapped in odd/even mode for
- * character and attributes correspondingly.
  */
 static void
 vga_begin_font_access(void)
 {
+    /*
+     * Implementation note: font glyphs are stored in plane 2.
+     * Normally planes 0 and 1 are mapped in even/odd mode for
+     * character and attributes correspondingly. To set font
+     * data, we disable even/odd mode and select plane 2 for
+     * writing.
+     *
+     * Each character is 8x16, but takes up 32B (first 16B is
+     * the data, remaining 16B is ignored).
+     *
+     * Technically, we don't need to remap the video addresses,
+     * since we only ever actually use the first bank of
+     * characters (8KB in size).
+     */
+
     /* Write to plane 2 */
     outb(0x02, VGA_PORT_SEQ);
     outb(0x04, VGA_PORT_SEQ + 1);
@@ -233,7 +247,7 @@ vga_reset_text_mode(void)
 
     /* Disable CRTC register protection */
     outb(0x11, VGA_PORT_CRTC);
-    outb(0, VGA_PORT_CRTC + 1);
+    outb(0x00, VGA_PORT_CRTC + 1);
 
     /* Write CRTC registers */
     for (i = 0; i < sizeof(vga_text_crtc); ++i) {
@@ -261,9 +275,6 @@ vga_reset_text_mode(void)
 
     /* Disable blanking */
     outb(0x20, VGA_PORT_ATTR);
-
-    /* Restore font data */
-    vga_write_font(vga_text_font);
 }
 
 /*
@@ -297,7 +308,7 @@ vbe_get_register(uint16_t index)
  * Up to 8MB of video memory is supported (i.e. 1920x1080x32bpp).
  */
 __cdecl int
-vbe_vbemap(void **ptr, int xres, int yres, int bpp)
+vga_vbemap(void **ptr, int xres, int yres, int bpp)
 {
     if (!vbe_available) {
         debugf("VBE is not supported on this system\n");
@@ -338,6 +349,16 @@ vbe_vbemap(void **ptr, int xres, int yres, int bpp)
         return -1;
     }
 
+    /*
+     * Save the font glyph data so we can restore it when returning
+     * from VBE mode (as switching to VBE clobbers video memory,
+     * where the font data is stored).
+     */
+    if (!vga_text_font_saved) {
+        vga_read_font(vga_text_font);
+        vga_text_font_saved = true;
+    }
+
     /* VBE must be disabled while we change xres/yres/bpp */
     vbe_set_register(VBE_DISPI_INDEX_ENABLE, 0);
     vbe_set_register(VBE_DISPI_INDEX_XRES, xres);
@@ -352,7 +373,7 @@ vbe_vbemap(void **ptr, int xres, int yres, int bpp)
  * Releases the framebuffer.
  */
 __cdecl int
-vbe_vbeunmap(void *ptr)
+vga_vbeunmap(void *ptr)
 {
     /* Disable VBE mode */
     vbe_set_register(VBE_DISPI_INDEX_ENABLE, 0);
@@ -360,33 +381,44 @@ vbe_vbeunmap(void *ptr)
     /* Return to VGA text mode */
     vga_reset_text_mode();
 
+    /* Restore font data */
+    vga_write_font(vga_text_font);
+
     return 0;
 }
 
 /*
- * Checks that VBE is available, and initializes font data.
+ * Sets the VGA cursor location register.
  */
 void
-vbe_init(void)
+vga_set_cursor_location(uint16_t location)
+{
+    /* Cursor location low */
+    outb(0x0E, VGA_PORT_CRTC);
+    outb(location & 0xff, VGA_PORT_CRTC + 1);
+
+    /* Cursor location high */
+    outb(0x0F, VGA_PORT_CRTC);
+    outb((location >> 8) & 0xff, VGA_PORT_CRTC + 1);
+}
+
+/*
+ * Initializes the VGA driver.
+ */
+void
+vga_init(void)
 {
     /*
-     * QEMU supports up up to 0xB0C4 properly. To check for this,
-     * write the version to the ID register and try to read it back;
+     * Check if system supports the Bochs VBE extensions. QEMU
+     * supports up up to 0xB0C4 properly. To check for this, write
+     * the version to the ID register and try to read it back;
      * if we get a lower or different number, it's unsupported.
      */
     vbe_set_register(VBE_DISPI_INDEX_ID, VBE_DISPI_ID_MAGIC);
     uint16_t id = vbe_get_register(VBE_DISPI_INDEX_ID);
     if (id != VBE_DISPI_ID_MAGIC) {
         debugf("Hardware does not support VBE version 0x%04x (got 0x%04x)\n", VBE_DISPI_ID_MAGIC, id);
-        return;
+    } else {
+        vbe_available = true;
     }
-
-    /*
-     * Save the font glyph data so we can restore it when returning
-     * from VBE mode (as switching to VBE clobbers video memory,
-     * where the font data is stored).
-     */
-    vga_read_font(vga_text_font);
-
-    vbe_available = true;
 }
