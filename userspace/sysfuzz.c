@@ -6,67 +6,69 @@
 
 #define MAX_FILES 8
 
-static bool
-is_blacklisted(int num)
-{
-    switch (num) {
-    /* Don't let child process kill the parent */
-    case SYS_KILL:
-
-    /* These takes no args and make fuzzing slower */
-    case SYS_HALT:
-    case SYS_FORK:
-
-    /* These screw with the terminal */
-    case SYS_TCSETPGRP:
-    case SYS_SETPGRP:
-        return true;
-    default:
-        return false;
-    }
-}
-
 static uint32_t
-rand32(void)
+globalrand(int fd)
 {
-    uint32_t ret = 0;
-    ret |= (rand() & 0xff) << 0;
-    ret |= (rand() & 0xff) << 8;
-    ret |= (rand() & 0xff) << 16;
-    ret |= (rand() & 0xff) << 24;
+    /*
+     * Randomness source needs to be shared globally, or else we end up
+     * repeating the same tests over and over.
+     */
+    uint32_t ret;
+    int n = read(fd, &ret, sizeof(ret));
+    if (n != sizeof(ret)) {
+        /* We probably closed the random file, no point continuing */
+        exit(1);
+    }
     return ret;
 }
 
 static uint32_t
-randfd(void)
+randfd(int fd)
 {
-    return rand() % MAX_FILES;
+    return globalrand(fd) % MAX_FILES;
 }
 
 static uint32_t
-randx(void)
+randx(int fd)
 {
-    if (rand() & 1) {
-        return randfd();
+    if (globalrand(fd) & 1) {
+        return randfd(fd);
     } else {
-        return rand32();
+        return globalrand(fd);
     }
 }
 
 static void
-fuzz(void)
+fuzz(int fd)
 {
     while (1) {
-        int eax = (rand() % NUM_SYSCALL) + 1;
-        if (is_blacklisted(eax)) {
+        int eax = (globalrand(fd) % NUM_SYSCALL) + 1;
+        uint32_t ebx = randx(fd);
+        uint32_t ecx = randx(fd);
+        uint32_t edx = randx(fd);
+        uint32_t esi = randx(fd);
+        uint32_t edi = randx(fd);
+
+        /* Don't let child process kill the parent */
+        if (eax == SYS_KILL) {
             continue;
         }
 
-        uint32_t ebx = randx();
-        uint32_t ecx = randx();
-        uint32_t edx = randx();
-        uint32_t esi = randx();
-        uint32_t edi = randx();
+        /* These takes no args and make fuzzing slower */
+        if (eax == SYS_HALT || eax == SYS_FORK) {
+            continue;
+        }
+
+        /* These screw with the terminal */
+        if (eax == SYS_TCSETPGRP || eax == SYS_SETPGRP) {
+            continue;
+        }
+
+        /* read(stdin) wastes a lot of time */
+        if (eax == SYS_READ && ebx == 0) {
+            continue;
+        }
+
         asm volatile(
             "int $0x80;"
             :
@@ -77,15 +79,14 @@ fuzz(void)
 int
 main(void)
 {
-    time_t seed;
-    realtime(&seed);
-    srand((unsigned int)seed);
+    int randfd = open("random");
+    if (randfd < 0) {
+        fprintf(stderr, "Failed to get randomness\n");
+        return 1;
+    }
 
     int iter = 0;
     while (1) {
-        /* Progress the shared randomness state */
-        rand();
-
         printf("%d\n", iter++);
         int pid = fork();
         if (pid < 0) {
@@ -100,7 +101,7 @@ main(void)
             kill(pid, SIG_KILL);
             wait(&pid);
         } else {
-            fuzz();
+            fuzz(randfd);
         }
     }
 }
