@@ -244,13 +244,17 @@ test_memcmp(void)
 static void
 test_memset(void)
 {
-    unsigned char buf[16];
+    unsigned char buf[123];
     memset(buf, 0xaa, sizeof(buf));
     assert(buf[0] == 0xaa);
-    assert(buf[15] == 0xaa);
+    assert(buf[122] == 0xaa);
     memset(buf, 0xbb, 1);
     assert(buf[0] == 0xbb);
     assert(buf[1] == 0xaa);
+    memset(&buf[1], 0, sizeof(buf));
+    assert(buf[0] == 0xbb);
+    assert(buf[1] == 0);
+    assert(buf[122] == 0);
 }
 
 static void
@@ -259,6 +263,16 @@ test_memcpy(void)
     unsigned char buf[16];
     memcpy(buf, "i like pie", 6);
     assert(memcmp(buf, "i like", 6) == 0);
+
+    unsigned char buf2[50];
+    memset(&buf2[0], 0x42, 25);
+    memset(&buf2[25], 0x69, 25);
+    memcpy(&buf2[3], &buf2[24], 3);
+    assert(buf2[0] == 0x42);
+    assert(buf2[3] == 0x42);
+    assert(buf2[4] == 0x69);
+    assert(buf2[5] == 0x69);
+    assert(buf2[6] == 0x42);
 }
 
 static void

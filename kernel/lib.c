@@ -630,37 +630,80 @@ memchr(const void *s, unsigned char c, int n)
  * the value of c. Returns s.
  */
 void *
-memset(void *s, uint8_t c, int n)
+memset(void *s, unsigned char c, int n)
 {
     assert(s != NULL);
     assert(n >= 0);
 
-    asm volatile("              \n\
-        1:                      \n\
-        testl   %%ecx, %%ecx    \n\
-        jz      4f              \n\
-        testl   $0x3, %%edi     \n\
-        jz      2f              \n\
-        movb    %%al, (%%edi)   \n\
-        addl    $1, %%edi       \n\
-        subl    $1, %%ecx       \n\
-        jmp     1b              \n\
-        2:                      \n\
-        movl    %%ecx, %%edx    \n\
-        shrl    $2, %%ecx       \n\
-        andl    $0x3, %%edx     \n\
-        rep     stosl           \n\
-        3:                      \n\
-        testl   %%edx, %%edx    \n\
-        jz      4f              \n\
-        movb    %%al, (%%edi)   \n\
-        addl    $1, %%edi       \n\
-        subl    $1, %%edx       \n\
-        jmp     3b              \n\
-        4:                      \n"
-        : "+D"(s), "+c"(n)
-        : "a"(c << 24 | c << 16 | c << 8 | c)
-        : "edx", "memory", "cc");
+    /*
+     * Empirical testing suggests 8B is fastest on QEMU, about
+     * 50% faster than REP STOSL.
+     */
+    typedef unsigned long long word_t;
+
+    /*
+     * Pack c into a word for fast fill.
+     */
+    word_t word = 0;
+    if (c != 0) {
+        word = \
+            ((word_t)c << 56) | \
+            ((word_t)c << 48) | \
+            ((word_t)c << 40) | \
+            ((word_t)c << 32) | \
+            ((word_t)c << 24) | \
+            ((word_t)c << 16) | \
+            ((word_t)c << 8)  | \
+            ((word_t)c << 0);
+    }
+
+    /*
+     * Align dest ptr to word boundary. The switch must
+     * handle up to alignof(word_t) - 1.
+     */
+    unsigned char *sb = s;
+    int nalign = -(size_t)sb & (__alignof__(word_t) - 1);
+    if (n >= nalign) {
+        n -= nalign;
+        switch (nalign) {
+        case 7: *sb++ = c; __attribute__((fallthrough));
+        case 6: *sb++ = c; __attribute__((fallthrough));
+        case 5: *sb++ = c; __attribute__((fallthrough));
+        case 4: *sb++ = c; __attribute__((fallthrough));
+        case 3: *sb++ = c; __attribute__((fallthrough));
+        case 2: *sb++ = c; __attribute__((fallthrough));
+        case 1: *sb++ = c; __attribute__((fallthrough));
+        case 0: break;
+        default: panic("Unhandled memset alignment");
+        }
+    }
+
+    /*
+     * Do a fast word-by-word copy.
+     */
+    word_t *sw = (word_t *)sb;
+    int nword = n / sizeof(word_t);
+    while (nword--) {
+        *sw++ = word;
+    }
+
+    /*
+     * Handle trailing bytes at the end with a byte-by-byte copy.
+     * The switch must handle up to sizeof(word_t) - 1.
+     */
+    sb = (unsigned char *)sw;
+    int ntrailing = n & (sizeof(word_t) - 1);
+    switch (ntrailing) {
+    case 7: *sb++ = c; __attribute__((fallthrough));
+    case 6: *sb++ = c; __attribute__((fallthrough));
+    case 5: *sb++ = c; __attribute__((fallthrough));
+    case 4: *sb++ = c; __attribute__((fallthrough));
+    case 3: *sb++ = c; __attribute__((fallthrough));
+    case 2: *sb++ = c; __attribute__((fallthrough));
+    case 1: *sb++ = c; __attribute__((fallthrough));
+    case 0: break;
+    default: panic("Unhandled memset size");
+    }
 
     return s;
 }
@@ -716,36 +759,62 @@ memcpy(void *dest, const void *src, int n)
     assert(src != NULL);
     assert(n >= 0);
 
-    asm volatile("              \n\
-        1:                      \n\
-        testl   %%ecx, %%ecx    \n\
-        jz      4f              \n\
-        testl   $0x3, %%edi     \n\
-        jz      2f              \n\
-        movb    (%%esi), %%al   \n\
-        movb    %%al, (%%edi)   \n\
-        addl    $1, %%edi       \n\
-        addl    $1, %%esi       \n\
-        subl    $1, %%ecx       \n\
-        jmp     1b              \n\
-        2:                      \n\
-        movl    %%ecx, %%edx    \n\
-        shrl    $2, %%ecx       \n\
-        andl    $0x3, %%edx     \n\
-        rep     movsl           \n\
-        3:                      \n\
-        testl   %%edx, %%edx    \n\
-        jz      4f              \n\
-        movb    (%%esi), %%al   \n\
-        movb    %%al, (%%edi)   \n\
-        addl    $1, %%edi       \n\
-        addl    $1, %%esi       \n\
-        subl    $1, %%edx       \n\
-        jmp     3b              \n\
-        4:                      \n"
-        : "+D"(dest), "+S"(src), "+c"(n)
-        :
-        : "eax", "edx", "memory", "cc");
+    /*
+     * Empirical testing suggests 8B is fastest on QEMU, about
+     * twice the speed of REP MOVSL.
+     */
+    typedef unsigned long long word_t;
+
+    /*
+     * Align dest ptr to word boundary. The switch must
+     * handle up to alignof(word_t) - 1.
+     */
+    unsigned char *db = dest;
+    const unsigned char *sb = src;
+    int nalign = -(size_t)db & (__alignof__(word_t) - 1);
+    if (n >= nalign) {
+        n -= nalign;
+        switch (nalign) {
+        case 7: *db++ = *sb++; __attribute__((fallthrough));
+        case 6: *db++ = *sb++; __attribute__((fallthrough));
+        case 5: *db++ = *sb++; __attribute__((fallthrough));
+        case 4: *db++ = *sb++; __attribute__((fallthrough));
+        case 3: *db++ = *sb++; __attribute__((fallthrough));
+        case 2: *db++ = *sb++; __attribute__((fallthrough));
+        case 1: *db++ = *sb++; __attribute__((fallthrough));
+        case 0: break;
+        default: panic("Unhandled memcpy alignment");
+        }
+    }
+
+    /*
+     * Do a fast word-by-word copy.
+     */
+    word_t *dw = (word_t *)db;
+    const word_t *sw = (const word_t *)sb;
+    int nword = n / sizeof(word_t);
+    while (nword--) {
+        *dw++ = *sw++;
+    }
+
+    /*
+     * Handle trailing bytes at the end with a byte-by-byte copy.
+     * The switch must handle up to sizeof(word_t) - 1.
+     */
+    db = (unsigned char *)dw;
+    sb = (const unsigned char *)sw;
+    int ntrailing = n & (sizeof(word_t) - 1);
+    switch (ntrailing) {
+    case 7: *db++ = *sb++; __attribute__((fallthrough));
+    case 6: *db++ = *sb++; __attribute__((fallthrough));
+    case 5: *db++ = *sb++; __attribute__((fallthrough));
+    case 4: *db++ = *sb++; __attribute__((fallthrough));
+    case 3: *db++ = *sb++; __attribute__((fallthrough));
+    case 2: *db++ = *sb++; __attribute__((fallthrough));
+    case 1: *db++ = *sb++; __attribute__((fallthrough));
+    case 0: break;
+    default: panic("Unhandled memcpy size");
+    }
 
     return dest;
 }
