@@ -270,11 +270,16 @@ test_memmove(void)
     assert(buf[1] == 3);
     assert(buf[2] == 3);
     assert(buf[3] == 4);
+    memmove(&buf[1], &buf[0], 3);
+    assert(buf[0] == 2);
+    assert(buf[1] == 2);
+    assert(buf[2] == 3);
+    assert(buf[3] == 3);
     memmove(&buf[2], &buf[0], 2);
     assert(buf[0] == 2);
-    assert(buf[1] == 3);
+    assert(buf[1] == 2);
     assert(buf[2] == 2);
-    assert(buf[3] == 3);
+    assert(buf[3] == 2);
 }
 
 static void

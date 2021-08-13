@@ -574,18 +574,15 @@ memmove(void *dest, const void *src, int n)
     assert(src != NULL);
     assert(n >= 0);
 
-    asm volatile("                         \n\
-        cmp     %%edi, %%esi               \n\
-        jae     1f                         \n\
-        leal    -1(%%esi, %%ecx), %%esi    \n\
-        leal    -1(%%edi, %%ecx), %%edi    \n\
-        std                                \n\
-        1:                                 \n\
-        rep     movsb                      \n\
-        cld                                \n"
-        : "+D"(dest), "+S"(src), "+c"(n)
-        :
-        : "edx", "memory", "cc");
+    unsigned char *d = dest;
+    const unsigned char *s = src;
+    if (d <= s || s + n <= d) {
+        return memcpy(dest, src, n);
+    } else {
+        while (n--) {
+            d[n] = s[n];
+        }
+    }
 
     return dest;
 }
