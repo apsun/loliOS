@@ -806,7 +806,7 @@ consume_format:
                 goto consume_format;
             }
 
-            /* Fallthrough */
+            __attribute__((fallthrough));
         case '1':
         case '2':
         case '3':

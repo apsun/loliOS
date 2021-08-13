@@ -660,13 +660,13 @@ memset(void *s, unsigned char c, int n)
     if (n >= nalign) {
         n -= nalign;
         switch (nalign) {
-        case 7: *sb++ = c; __attribute__((fallthrough));
-        case 6: *sb++ = c; __attribute__((fallthrough));
-        case 5: *sb++ = c; __attribute__((fallthrough));
-        case 4: *sb++ = c; __attribute__((fallthrough));
-        case 3: *sb++ = c; __attribute__((fallthrough));
-        case 2: *sb++ = c; __attribute__((fallthrough));
-        case 1: *sb++ = c; __attribute__((fallthrough));
+        case 7: *sb++ = c; __fallthrough;
+        case 6: *sb++ = c; __fallthrough;
+        case 5: *sb++ = c; __fallthrough;
+        case 4: *sb++ = c; __fallthrough;
+        case 3: *sb++ = c; __fallthrough;
+        case 2: *sb++ = c; __fallthrough;
+        case 1: *sb++ = c; __fallthrough;
         case 0: break;
         default: panic("Unhandled memset alignment");
         }
@@ -688,13 +688,13 @@ memset(void *s, unsigned char c, int n)
     sb = (unsigned char *)sw;
     int ntrailing = n & (sizeof(word_t) - 1);
     switch (ntrailing) {
-    case 7: *sb++ = c; __attribute__((fallthrough));
-    case 6: *sb++ = c; __attribute__((fallthrough));
-    case 5: *sb++ = c; __attribute__((fallthrough));
-    case 4: *sb++ = c; __attribute__((fallthrough));
-    case 3: *sb++ = c; __attribute__((fallthrough));
-    case 2: *sb++ = c; __attribute__((fallthrough));
-    case 1: *sb++ = c; __attribute__((fallthrough));
+    case 7: *sb++ = c; __fallthrough;
+    case 6: *sb++ = c; __fallthrough;
+    case 5: *sb++ = c; __fallthrough;
+    case 4: *sb++ = c; __fallthrough;
+    case 3: *sb++ = c; __fallthrough;
+    case 2: *sb++ = c; __fallthrough;
+    case 1: *sb++ = c; __fallthrough;
     case 0: break;
     default: panic("Unhandled memset size");
     }
@@ -769,13 +769,13 @@ memcpy(void *dest, const void *src, int n)
     if (n >= nalign) {
         n -= nalign;
         switch (nalign) {
-        case 7: *db++ = *sb++; __attribute__((fallthrough));
-        case 6: *db++ = *sb++; __attribute__((fallthrough));
-        case 5: *db++ = *sb++; __attribute__((fallthrough));
-        case 4: *db++ = *sb++; __attribute__((fallthrough));
-        case 3: *db++ = *sb++; __attribute__((fallthrough));
-        case 2: *db++ = *sb++; __attribute__((fallthrough));
-        case 1: *db++ = *sb++; __attribute__((fallthrough));
+        case 7: *db++ = *sb++; __fallthrough;
+        case 6: *db++ = *sb++; __fallthrough;
+        case 5: *db++ = *sb++; __fallthrough;
+        case 4: *db++ = *sb++; __fallthrough;
+        case 3: *db++ = *sb++; __fallthrough;
+        case 2: *db++ = *sb++; __fallthrough;
+        case 1: *db++ = *sb++; __fallthrough;
         case 0: break;
         default: panic("Unhandled memcpy alignment");
         }
@@ -799,13 +799,13 @@ memcpy(void *dest, const void *src, int n)
     sb = (const unsigned char *)sw;
     int ntrailing = n & (sizeof(word_t) - 1);
     switch (ntrailing) {
-    case 7: *db++ = *sb++; __attribute__((fallthrough));
-    case 6: *db++ = *sb++; __attribute__((fallthrough));
-    case 5: *db++ = *sb++; __attribute__((fallthrough));
-    case 4: *db++ = *sb++; __attribute__((fallthrough));
-    case 3: *db++ = *sb++; __attribute__((fallthrough));
-    case 2: *db++ = *sb++; __attribute__((fallthrough));
-    case 1: *db++ = *sb++; __attribute__((fallthrough));
+    case 7: *db++ = *sb++; __fallthrough;
+    case 6: *db++ = *sb++; __fallthrough;
+    case 5: *db++ = *sb++; __fallthrough;
+    case 4: *db++ = *sb++; __fallthrough;
+    case 3: *db++ = *sb++; __fallthrough;
+    case 2: *db++ = *sb++; __fallthrough;
+    case 1: *db++ = *sb++; __fallthrough;
     case 0: break;
     default: panic("Unhandled memcpy size");
     }
@@ -1176,7 +1176,7 @@ consume_format:
                 goto consume_format;
             }
 
-            /* Fallthrough */
+            __fallthrough;
         case '1':
         case '2':
         case '3':

@@ -14,6 +14,7 @@
 #define __always_inline __attribute__((always_inline))
 #define __packed __attribute__((packed))
 #define __aligned(x) __attribute__((aligned(x)))
+#define __fallthrough __attribute__((fallthrough))
 
 typedef long long int64_t;
 typedef unsigned long long uint64_t;

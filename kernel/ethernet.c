@@ -66,7 +66,7 @@ ethernet_send_ip(net_iface_t *iface, skb_t *skb, ip_addr_t ip)
         if (arp_send_request(iface, ip) < 0) {
             return -1;
         }
-        /* Fallthrough */
+        __fallthrough;
     case ARP_WAITING:
         return arp_queue_insert(dev, ip, skb);
     case ARP_UNREACHABLE:
