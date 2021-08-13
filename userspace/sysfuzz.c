@@ -13,11 +13,13 @@ is_blacklisted(int num)
     /* Don't let child process kill the parent */
     case SYS_KILL:
 
+    /* These takes no args and make fuzzing slower */
+    case SYS_HALT:
+    case SYS_FORK:
+
     /* These screw with the terminal */
     case SYS_TCSETPGRP:
-    case SYS_TCGETPGRP:
     case SYS_SETPGRP:
-    case SYS_GETPGRP:
         return true;
     default:
         return false;

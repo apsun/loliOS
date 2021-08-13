@@ -2,6 +2,7 @@
 #include "lib.h"
 #include "file.h"
 #include "paging.h"
+#include "mt19937.h"
 
 /*
  * read() syscall handler for the random file. Fills the buffer
@@ -17,7 +18,7 @@ random_read(file_obj_t *file, void *buf, int nbytes)
     }
 
     int copied = 0;
-    uint8_t block[256];
+    uint32_t block[64];
     uint8_t *bufp = buf;
     while (copied < nbytes) {
         int to_copy = sizeof(block);
@@ -26,8 +27,8 @@ random_read(file_obj_t *file, void *buf, int nbytes)
         }
 
         int i;
-        for (i = 0; i < to_copy; ++i) {
-            block[i] = rand() & 0xff;
+        for (i = 0; i < (to_copy + 3) / 4; ++i) {
+            block[i] = urand();
         }
 
         if (!copy_to_user(&bufp[copied], block, to_copy)) {

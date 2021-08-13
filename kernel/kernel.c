@@ -21,6 +21,7 @@
 #include "random.h"
 #include "time.h"
 #include "vga.h"
+#include "mt19937.h"
 
 /* Check if the bit BIT in FLAGS is set. */
 #define CHECK_FLAG(flags, bit) ((flags) & (1 << (bit)))

@@ -7,7 +7,6 @@
 
 static void (*atexit_fns[MAX_ATEXIT])(void);
 static int atexit_count = 0;
-static unsigned int rand_state = 1;
 
 /*
  * Exits the program with the specified status code.
@@ -49,23 +48,4 @@ __noreturn void
 abort(void)
 {
     halt(1);
-}
-
-/*
- * Generates a random number.
- */
-int
-rand(void)
-{
-    rand_state = rand_state * 1103515245 + 12345;
-    return (rand_state >> 16) & 0x7fff;
-}
-
-/*
- * Seeds the random number generator.
- */
-void
-srand(unsigned int seed)
-{
-    rand_state = seed;
 }

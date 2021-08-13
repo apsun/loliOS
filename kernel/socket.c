@@ -7,6 +7,7 @@
 #include "net.h"
 #include "tcp.h"
 #include "udp.h"
+#include "mt19937.h"
 
 /* Lowest port number used for random local port numbers */
 #define EPHEMERAL_PORT_START 49152

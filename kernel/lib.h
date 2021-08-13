@@ -66,10 +66,6 @@ int snprintf(char *buf, int size, const char *format, ...);
 int vprintf(const char *format, va_list args);
 int printf(const char *format, ...);
 
-/* Random number generation - stdlib.h */
-int rand(void);
-void srand(unsigned int seed);
-
 /*
  * Reads a byte from the specified I/O port.
  */

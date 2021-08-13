@@ -21,6 +21,7 @@
 #include "net.h"
 #include "ip.h"
 #include "ethernet.h"
+#include "mt19937.h"
 
 /*
  * Enable for verbose TCP logging. Warning: very verbose.
@@ -200,21 +201,6 @@ typedef struct {
 
 /* Forward declaration */
 static void tcp_on_retransmit_timeout(timer_t *timer);
-
-/*
- * Generates a random 32-bit integer. Required since our libc
- * rand() only generates a 15 bit value.
- */
-static uint32_t
-tcp_rand32(void)
-{
-    uint32_t ret = 0;
-    ret |= (rand() & 0xff) << 0;
-    ret |= (rand() & 0xff) << 8;
-    ret |= (rand() & 0xff) << 16;
-    ret |= (rand() & 0xff) << 24;
-    return ret;
-}
 
 /*
  * Returns the body length of the given TCP packet.
@@ -1412,7 +1398,7 @@ tcp_ctor(net_sock_t *sock)
     tcp->rwnd_size = TCP_RWND_SIZE;
     tcp->read_num = 0;
     tcp->ack_num = 0;
-    tcp->seq_num = tcp_rand32();
+    tcp->seq_num = urand();
     tcp->unack_num = tcp->seq_num;
     tcp->num_duplicate_acks = 0;
     tcp->reset = false;

@@ -2,12 +2,6 @@
 #include "debug.h"
 #include "terminal.h"
 
-/* Whether to force rand() to always return zero */
-#define DETERMINISTIC_RAND 0
-
-/* PRNG state for rand() */
-static unsigned int rand_state = 1;
-
 /*
  * Checks whether the input is a lowercase
  * alphabetical character.
@@ -1300,27 +1294,4 @@ printf(const char *format, ...)
     int ret = vprintf(format, args);
     va_end(args);
     return ret;
-}
-
-/*
- * Generates a random number.
- */
-int
-rand(void)
-{
-#if DETERMINISTIC_RAND
-    return 0;
-#else
-    rand_state = rand_state * 1103515245 + 12345;
-    return (rand_state >> 16) & 0x7fff;
-#endif
-}
-
-/*
- * Seeds the random number generator.
- */
-void
-srand(unsigned int seed)
-{
-    rand_state = seed;
 }
