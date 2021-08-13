@@ -690,3 +690,19 @@ copy_to_user(void *dest, const void *src, int n)
     memcpy(dest, src, n);
     return dest;
 }
+
+/*
+ * Fills a userspace buffer with the specified byte, checking
+ * that the buffer is valid. Returns s if the entire buffer could
+ * be filled, and null otherwise.
+ */
+void *
+memset_user(void *s, unsigned char c, int n)
+{
+    if (!is_memory_accessible(s, n, true, true)) {
+        return NULL;
+    }
+
+    memset(s, c, n);
+    return s;
+}

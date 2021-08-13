@@ -102,6 +102,7 @@ bool is_memory_accessible(const void *start, int nbytes, bool user, bool write);
 int strscpy_from_user(char *dest, const char *src, int n);
 void *copy_from_user(void *dest, const void *src, int n);
 void *copy_to_user(void *dest, const void *src, int n);
+void *memset_user(void *s, unsigned char c, int n);
 
 #endif /* ASM */
 

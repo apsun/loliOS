@@ -16,26 +16,11 @@ zero_read(file_obj_t *file, void *buf, int nbytes)
         return 0;
     }
 
-    int copied = 0;
-    uint8_t block[256] = {0};
-    uint8_t *bufp = buf;
-    while (copied < nbytes) {
-        int to_copy = sizeof(block);
-        if (to_copy > nbytes - copied) {
-            to_copy = nbytes - copied;
-        }
-
-        if (!copy_to_user(&bufp[copied], block, to_copy)) {
-            break;
-        }
-        copied += to_copy;
-    }
-
-    if (copied == 0) {
+    if (!memset_user(buf, 0, nbytes)) {
         return -1;
-    } else {
-        return copied;
     }
+
+    return nbytes;
 }
 
 /*
