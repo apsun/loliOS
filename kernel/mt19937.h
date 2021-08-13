@@ -12,6 +12,6 @@ unsigned int urand(void);
 /* Generates a random number in [0, 2^31) */
 int rand(void);
 
-#endif
+#endif /* ASM */
 
 #endif /* _MT19937_H */

@@ -49,6 +49,10 @@
 #define SYS_VBEUNMAP    47
 #define NUM_SYSCALL     47
 
+#ifndef ASM
+
+#include <stdint.h>
+
 /* syscall.h */
 #define EINTR  2
 #define EAGAIN 3
@@ -105,10 +109,6 @@
 /* file.h */
 #define FCNTL_NONBLOCK 1
 
-#ifndef ASM
-
-#include <stdint.h>
-
 /* net.h */
 typedef struct {
     uint8_t bytes[4];
@@ -139,55 +139,52 @@ typedef int64_t nanotime_t;
 #define MICROSECONDS(us) ((us) * 1000LL)
 #define NANOSECONDS(ns) ((ns) * 1LL)
 
-#define __cdecl __attribute__((cdecl))
-#define __noreturn __attribute__((noreturn))
-
-__cdecl __noreturn int halt(int status);
-__cdecl int execute(const char *command);
-__cdecl int read(int fd, void *buf, int nbytes);
-__cdecl int write(int fd, const void *buf, int nbytes);
-__cdecl int open(const char *filename);
-__cdecl int close(int fd);
-__cdecl int getargs(char *buf, int nbytes);
-__cdecl int vidmap(uint8_t **screen_start);
-__cdecl int sigaction(int signum, void (*handler)(int signum));
-__cdecl int sigreturn(int signum, void *user_regs);
-__cdecl int sigmask(int signum, int action);
-__cdecl int kill(int pid, int signum);
-__cdecl int ioctl(int fd, int req, int arg);
-__cdecl int sbrk(int delta);
-__cdecl int socket(int type);
-__cdecl int bind(int fd, const sock_addr_t *addr);
-__cdecl int connect(int fd, const sock_addr_t *addr);
-__cdecl int listen(int fd, int backlog);
-__cdecl int accept(int fd, sock_addr_t *addr);
-__cdecl int recvfrom(int fd, void *buf, int nbytes, sock_addr_t *addr);
-__cdecl int sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr);
-__cdecl int shutdown(int fd);
-__cdecl int getsockname(int fd, sock_addr_t *addr);
-__cdecl int getpeername(int fd, sock_addr_t *addr);
-__cdecl int dup(int srcfd, int destfd);
-__cdecl int fork(void);
-__cdecl int exec(const char *command);
-__cdecl int wait(int *pid);
-__cdecl int getpid(void);
-__cdecl int getpgrp(void);
-__cdecl int setpgrp(int pid, int pgrp);
-__cdecl int tcgetpgrp(void);
-__cdecl int tcsetpgrp(int pgrp);
-__cdecl int pipe(int *readfd, int *writefd);
-__cdecl int create(const char *filename, int mode);
-__cdecl int fcntl(int fd, int req, int arg);
-__cdecl int yield(void);
-__cdecl int seek(int fd, int offset, int mode);
-__cdecl int truncate(int fd, int length);
-__cdecl int unlink(const char *filename);
-__cdecl int stat(const char *filename, stat_t *buf);
-__cdecl int realtime(time_t *tp);
-__cdecl int monotime(nanotime_t *tp);
-__cdecl int monosleep(const nanotime_t *tp);
-__cdecl int vbemap(void **ptr, int xres, int yres, int bpp);
-__cdecl int vbeunmap(void *ptr);
+__attribute__((cdecl, noreturn)) int halt(int status);
+__attribute__((cdecl)) int execute(const char *command);
+__attribute__((cdecl)) int read(int fd, void *buf, int nbytes);
+__attribute__((cdecl)) int write(int fd, const void *buf, int nbytes);
+__attribute__((cdecl)) int open(const char *filename);
+__attribute__((cdecl)) int close(int fd);
+__attribute__((cdecl)) int getargs(char *buf, int nbytes);
+__attribute__((cdecl)) int vidmap(uint8_t **screen_start);
+__attribute__((cdecl)) int sigaction(int signum, void (*handler)(int signum));
+__attribute__((cdecl)) int sigreturn(int signum, void *user_regs);
+__attribute__((cdecl)) int sigmask(int signum, int action);
+__attribute__((cdecl)) int kill(int pid, int signum);
+__attribute__((cdecl)) int ioctl(int fd, int req, int arg);
+__attribute__((cdecl)) int sbrk(int delta);
+__attribute__((cdecl)) int socket(int type);
+__attribute__((cdecl)) int bind(int fd, const sock_addr_t *addr);
+__attribute__((cdecl)) int connect(int fd, const sock_addr_t *addr);
+__attribute__((cdecl)) int listen(int fd, int backlog);
+__attribute__((cdecl)) int accept(int fd, sock_addr_t *addr);
+__attribute__((cdecl)) int recvfrom(int fd, void *buf, int nbytes, sock_addr_t *addr);
+__attribute__((cdecl)) int sendto(int fd, const void *buf, int nbytes, const sock_addr_t *addr);
+__attribute__((cdecl)) int shutdown(int fd);
+__attribute__((cdecl)) int getsockname(int fd, sock_addr_t *addr);
+__attribute__((cdecl)) int getpeername(int fd, sock_addr_t *addr);
+__attribute__((cdecl)) int dup(int srcfd, int destfd);
+__attribute__((cdecl)) int fork(void);
+__attribute__((cdecl)) int exec(const char *command);
+__attribute__((cdecl)) int wait(int *pid);
+__attribute__((cdecl)) int getpid(void);
+__attribute__((cdecl)) int getpgrp(void);
+__attribute__((cdecl)) int setpgrp(int pid, int pgrp);
+__attribute__((cdecl)) int tcgetpgrp(void);
+__attribute__((cdecl)) int tcsetpgrp(int pgrp);
+__attribute__((cdecl)) int pipe(int *readfd, int *writefd);
+__attribute__((cdecl)) int create(const char *filename, int mode);
+__attribute__((cdecl)) int fcntl(int fd, int req, int arg);
+__attribute__((cdecl)) int yield(void);
+__attribute__((cdecl)) int seek(int fd, int offset, int mode);
+__attribute__((cdecl)) int truncate(int fd, int length);
+__attribute__((cdecl)) int unlink(const char *filename);
+__attribute__((cdecl)) int stat(const char *filename, stat_t *buf);
+__attribute__((cdecl)) int realtime(time_t *tp);
+__attribute__((cdecl)) int monotime(nanotime_t *tp);
+__attribute__((cdecl)) int monosleep(const nanotime_t *tp);
+__attribute__((cdecl)) int vbemap(void **ptr, int xres, int yres, int bpp);
+__attribute__((cdecl)) int vbeunmap(void *ptr);
 
 #endif /* ASM */
 

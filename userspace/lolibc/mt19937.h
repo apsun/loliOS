@@ -1,7 +1,5 @@
-#ifndef _MT19937_H
-#define _MT19937_H
-
-#ifndef ASM
+#ifndef _LOLIBC_MT19937_H
+#define _LOLIBC_MT19937_H
 
 /* Seeds the random number generator */
 void srand(unsigned int seed);
@@ -12,6 +10,4 @@ unsigned int urand(void);
 /* Generates a random number in [0, 2^31) */
 int rand(void);
 
-#endif
-
-#endif /* _MT19937_H */
+#endif /* _LOLIBC_MT19937_H */

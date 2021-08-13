@@ -9,20 +9,6 @@ static void (*atexit_fns[MAX_ATEXIT])(void);
 static int atexit_count = 0;
 
 /*
- * Exits the program with the specified status code.
- * This will run any functions registered with atexit().
- */
-__noreturn void
-exit(int status)
-{
-    int i = atexit_count;
-    while (i--) {
-        atexit_fns[i]();
-    }
-    halt(status);
-}
-
-/*
  * Registers a function to be called when the
  * program exits. Returns 0 on success, -1 on
  * failure.
@@ -41,10 +27,24 @@ atexit(void (*fn)(void))
 }
 
 /*
+ * Exits the program with the specified status code.
+ * This will run any functions registered with atexit().
+ */
+__attribute__((noreturn)) void
+exit(int status)
+{
+    int i = atexit_count;
+    while (i--) {
+        atexit_fns[i]();
+    }
+    halt(status);
+}
+
+/*
  * Aborts the program. This does not run any functions
  * registered with atexit().
  */
-__noreturn void
+__attribute__((noreturn)) void
 abort(void)
 {
     halt(1);
