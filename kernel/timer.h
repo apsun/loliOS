@@ -2,7 +2,6 @@
 #define _TIMER_H
 
 #include "types.h"
-#include "lib.h"
 #include "list.h"
 #include "time.h"
 

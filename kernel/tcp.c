@@ -8,7 +8,6 @@
  * - Delayed ACK
  */
 #include "tcp.h"
-#include "lib.h"
 #include "debug.h"
 #include "list.h"
 #include "file.h"

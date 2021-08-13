@@ -1,6 +1,6 @@
 #include "rtc.h"
-#include "lib.h"
 #include "debug.h"
+#include "portio.h"
 #include "list.h"
 #include "irq.h"
 #include "file.h"

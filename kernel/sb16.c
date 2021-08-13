@@ -1,6 +1,6 @@
 #include "sb16.h"
-#include "lib.h"
 #include "debug.h"
+#include "portio.h"
 #include "list.h"
 #include "file.h"
 #include "paging.h"

@@ -1,6 +1,6 @@
 #include "pit.h"
 #include "debug.h"
-#include "lib.h"
+#include "portio.h"
 #include "irq.h"
 #include "scheduler.h"
 

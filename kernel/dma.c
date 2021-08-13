@@ -1,6 +1,6 @@
 #include "dma.h"
-#include "lib.h"
 #include "debug.h"
+#include "portio.h"
 
 #define DMA_MASK_DISABLE 4
 

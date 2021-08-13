@@ -1,6 +1,6 @@
 #include "net.h"
-#include "lib.h"
 #include "debug.h"
+#include "string.h"
 
 /* List of registered network interfaces */
 static net_iface_t *interfaces[2];

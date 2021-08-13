@@ -1,5 +1,4 @@
 #include "null.h"
-#include "lib.h"
 #include "file.h"
 
 /*

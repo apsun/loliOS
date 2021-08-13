@@ -1,6 +1,6 @@
 #include "process.h"
-#include "lib.h"
 #include "debug.h"
+#include "string.h"
 #include "filesys.h"
 #include "paging.h"
 #include "terminal.h"
@@ -125,7 +125,7 @@ get_executing_pcb(void)
      *      <- lower addresses         higher addresses ->
      */
     uint32_t esp;
-    read_register("esp", esp);
+    asm volatile("movl %%esp, %0" : "=g"(esp));
     process_data_t *data = (process_data_t *)(esp & ~(PROCESS_DATA_SIZE - 1));
     return data->pcb;
 }

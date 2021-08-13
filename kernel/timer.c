@@ -1,6 +1,6 @@
 #include "timer.h"
-#include "lib.h"
 #include "debug.h"
+#include "list.h"
 #include "time.h"
 
 /* Global list of timers, in order of time until expiry */

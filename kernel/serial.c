@@ -1,6 +1,6 @@
 #include "serial.h"
-#include "lib.h"
 #include "debug.h"
+#include "portio.h"
 #include "irq.h"
 
 /*

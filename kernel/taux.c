@@ -1,6 +1,6 @@
 #include "taux.h"
 #include "debug.h"
-#include "lib.h"
+#include "string.h"
 #include "serial.h"
 #include "file.h"
 #include "paging.h"

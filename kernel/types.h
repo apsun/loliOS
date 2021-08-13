@@ -6,7 +6,6 @@
 
 #ifndef ASM
 
-/* Commonly used attributes */
 #define __cdecl __attribute__((cdecl))
 #define __used __attribute__((used))
 #define __unused __attribute__((unused))
@@ -30,6 +29,32 @@ typedef long intptr_t;
 typedef unsigned long uintptr_t;
 typedef long ptrdiff_t;
 typedef enum { false, true } bool;
+
+typedef char *va_list;
+#define va_start(list, last) ((list) = (char *)(&(last) + 1))
+#define va_arg(list, T) ((list) += sizeof(T), *(T *)((list) - sizeof(T)))
+#define va_copy(dest, src) ((dest) = (src))
+#define va_end(list) ((void)0)
+
+/*
+ * Returns the length of an array. Only works on actual
+ * arrays, not pointers to arrays. Never use on function
+ * arguments.
+ */
+#define array_len(arr) ((int)(sizeof(arr) / sizeof((arr)[0])))
+
+/*
+ * Returns the offset of a field inside a structure.
+ */
+#define offsetof(type, member) \
+    ((size_t)&(((type *)NULL)->member))
+
+/*
+ * Returns a pointer to the parent structure of the
+ * specified structure pointer.
+ */
+#define container_of(ptr, type, member) \
+    ((type *)((char *)(ptr) - offsetof(type, member)))
 
 #endif /* ASM */
 

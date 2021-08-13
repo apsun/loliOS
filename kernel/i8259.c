@@ -1,6 +1,6 @@
 #include "i8259.h"
-#include "lib.h"
 #include "debug.h"
+#include "portio.h"
 
 /* Ports that each PIC sits on */
 #define MASTER_8259_PORT_CMD  0x20

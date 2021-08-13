@@ -1,5 +1,4 @@
 #include "mouse.h"
-#include "lib.h"
 #include "debug.h"
 #include "terminal.h"
 #include "ps2.h"

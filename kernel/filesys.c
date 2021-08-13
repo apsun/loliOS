@@ -1,6 +1,6 @@
 #include "filesys.h"
-#include "lib.h"
 #include "debug.h"
+#include "string.h"
 #include "bitmap.h"
 #include "file.h"
 #include "paging.h"

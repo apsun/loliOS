@@ -2,7 +2,7 @@
 #define _DEBUG_H
 
 #include "types.h"
-#include "lib.h"
+#include "printf.h"
 
 #ifndef ASM
 
@@ -21,6 +21,10 @@
 #define DEBUG_PANIC_BSOD 0
 #endif
 
+#define loop() do {                 \
+    asm volatile("hlt; jmp . - 1"); \
+} while (0)
+
 #if DEBUG_PANIC_BSOD
 
 #define panic(msg) do {  \
@@ -30,7 +34,7 @@
 #else /* DEBUG_PANIC_BSOD */
 
 #define panic(msg) do {                                    \
-    cli();                                                 \
+    asm volatile("cli");                                   \
     printf("%s:%d: Panic: %s\n", __FILE__, __LINE__, msg); \
     loop();                                                \
 } while (0)

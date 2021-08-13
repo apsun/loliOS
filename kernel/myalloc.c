@@ -17,7 +17,7 @@
  */
 #include "myalloc.h"
 #include "debug.h"
-#include "lib.h"
+#include "string.h"
 #include "paging.h"
 
 /*

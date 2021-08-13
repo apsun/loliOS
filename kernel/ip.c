@@ -1,6 +1,6 @@
 #include "ip.h"
-#include "lib.h"
 #include "debug.h"
+#include "string.h"
 #include "tcp.h"
 #include "udp.h"
 

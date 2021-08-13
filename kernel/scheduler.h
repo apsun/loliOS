@@ -2,7 +2,6 @@
 #define _SCHEDULER_H
 
 #include "types.h"
-#include "list.h"
 #include "process.h"
 #include "signal.h"
 

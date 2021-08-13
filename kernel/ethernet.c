@@ -1,6 +1,6 @@
 #include "ethernet.h"
-#include "lib.h"
 #include "debug.h"
+#include "net.h"
 #include "arp.h"
 #include "ip.h"
 

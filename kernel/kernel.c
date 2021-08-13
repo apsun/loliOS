@@ -1,5 +1,4 @@
 #include "multiboot.h"
-#include "lib.h"
 #include "debug.h"
 #include "x86_desc.h"
 #include "i8259.h"

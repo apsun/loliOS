@@ -1,6 +1,6 @@
 #include "skb.h"
-#include "lib.h"
 #include "debug.h"
+#include "string.h"
 #include "myalloc.h"
 
 /* 1500 bytes for Ethernet body + 14 byte Ethernet header */

@@ -2,7 +2,6 @@
 #define _BITMAP_H
 
 #include "types.h"
-#include "lib.h"
 #include "myalloc.h"
 
 #ifndef ASM
@@ -65,6 +64,22 @@ typedef uint32_t bitmap_t;
  */
 #define bitmap_clear(map, i) \
     (map)[bitmap_index(i)] &= ~(1 << bitmap_subindex(i))
+
+/*
+ * Finds the index of the first set bit in value.
+ * Behavior is undefined if value is all zero bits.
+ */
+static inline int
+bsfl(uint32_t value)
+{
+    int32_t i;
+    asm volatile(
+        "bsfl %1, %0"
+        : "=r"(i)
+        : "g"(value)
+        : "cc");
+    return i;
+}
 
 /*
  * Finds the index of the first '1' bit in the bitmap.

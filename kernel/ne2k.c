@@ -1,6 +1,7 @@
 #include "ne2k.h"
 #include "debug.h"
-#include "lib.h"
+#include "portio.h"
+#include "string.h"
 #include "irq.h"
 #include "list.h"
 #include "skb.h"
@@ -252,7 +253,7 @@ static bool
 ne2k_reset(void)
 {
     /* Send reset signal */
-    outb(NE2K_RESET, inb(NE2K_RESET));
+    outb(inb(NE2K_RESET), NE2K_RESET);
 
     /* Check for reset ACK (this should be a loop on real hardware) */
     if ((inb(NE2K_ISR) & NE2K_ISR_RESET) == 0) {

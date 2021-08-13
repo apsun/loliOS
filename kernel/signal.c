@@ -1,6 +1,6 @@
 #include "signal.h"
-#include "lib.h"
 #include "debug.h"
+#include "string.h"
 #include "process.h"
 #include "paging.h"
 #include "scheduler.h"

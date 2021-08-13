@@ -2,7 +2,6 @@
 #define _NET_H
 
 #include "types.h"
-#include "lib.h"
 #include "skb.h"
 
 #ifndef ASM
@@ -10,6 +9,30 @@
 /* Type-safe network endianness wrappers */
 typedef struct { uint32_t raw; } be32_t;
 typedef struct { uint16_t raw; } be16_t;
+
+/*
+ * Swaps the endianness of a 16-bit value.
+ */
+static inline uint16_t
+bswap16(uint16_t x)
+{
+    return (uint16_t)(
+        (x & 0x00ff) << 8 |
+        (x & 0xff00) >> 8);
+}
+
+/*
+ * Swaps the endianness of a 32-bit value.
+ */
+static inline uint32_t
+bswap32(uint32_t x)
+{
+    return (uint32_t)(
+        (x & 0x000000ff) << 24 |
+        (x & 0x0000ff00) << 8  |
+        (x & 0x00ff0000) >> 8  |
+        (x & 0xff000000) >> 24);
+}
 
 /* Network endianness swapping macros */
 #define ntohs(x) bswap16((x).raw)

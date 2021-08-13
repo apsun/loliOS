@@ -1,6 +1,6 @@
 #include "ps2.h"
-#include "lib.h"
 #include "debug.h"
+#include "portio.h"
 #include "irq.h"
 #include "keyboard.h"
 #include "mouse.h"

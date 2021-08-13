@@ -1,5 +1,4 @@
 #include "zero.h"
-#include "lib.h"
 #include "file.h"
 #include "paging.h"
 
