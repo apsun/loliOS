@@ -366,6 +366,11 @@ vga_vbemap(void **ptr, int xres, int yres, int bpp)
 __cdecl int
 vga_vbeunmap(void *ptr)
 {
+    /* If we never saved the font, VBE was never enabled in the first place */
+    if (!vga_text_font_saved) {
+        return 0;
+    }
+
     /* Disable VBE mode */
     vbe_set_register(VBE_DISPI_INDEX_ENABLE, 0);
 
