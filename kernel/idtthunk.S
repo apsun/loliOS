@@ -66,27 +66,17 @@ idt_handle_common_thunk:
      * ordering in int_regs_t, since the stack is interpreted
      * as an instance of that struct.
      */
-    pushl %ebp
-    pushl %edi
-    pushl %esi
-    pushl %edx
-    pushl %ecx
-    pushl %ebx
-    pushl %eax
-    pushw %gs
-    pushw %fs
-    pushw %es
     pushw %ds
-
-    /* Also push control registers (read-only) */
-    movl %cr4, %eax
+    pushw %es
+    pushw %fs
+    pushw %gs
     pushl %eax
-    movl %cr3, %eax
-    pushl %eax
-    movl %cr2, %eax
-    pushl %eax
-    movl %cr0, %eax
-    pushl %eax
+    pushl %ebx
+    pushl %ecx
+    pushl %edx
+    pushl %esi
+    pushl %edi
+    pushl %ebp
 
     /* Clear direction flag */
     cld
@@ -105,21 +95,18 @@ idt_handle_common_thunk:
 
 .globl idt_unwind_stack
 idt_unwind_stack:
-    /* Ignore control registers */
-    addl $16, %esp
-
     /* Restore all registers */
-    popw %ds
-    popw %es
-    popw %fs
-    popw %gs
-    popl %eax
-    popl %ebx
-    popl %ecx
-    popl %edx
-    popl %esi
-    popl %edi
     popl %ebp
+    popl %edi
+    popl %esi
+    popl %edx
+    popl %ecx
+    popl %ebx
+    popl %eax
+    popw %gs
+    popw %fs
+    popw %es
+    popw %ds
 
     /* Pop IRQ vector number and error code */
     addl $8, %esp

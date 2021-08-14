@@ -48,21 +48,17 @@
 /* Interrupt registers */
 typedef struct {
     /* Pushed by idt_handle_common_thunk */
-    uint32_t cr0;
-    uint32_t cr2;
-    uint32_t cr3;
-    uint32_t cr4;
-    uint16_t ds;
-    uint16_t es;
-    uint16_t fs;
-    uint16_t gs;
-    uint32_t eax;
-    uint32_t ebx;
-    uint32_t ecx;
-    uint32_t edx;
-    uint32_t esi;
-    uint32_t edi;
     uint32_t ebp;
+    uint32_t edi;
+    uint32_t esi;
+    uint32_t edx;
+    uint32_t ecx;
+    uint32_t ebx;
+    uint32_t eax;
+    uint16_t gs;
+    uint16_t fs;
+    uint16_t es;
+    uint16_t ds;
 
     /* Pushed by per-interrupt idt_handle_* thunk */
     int32_t int_num;

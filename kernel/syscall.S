@@ -72,7 +72,7 @@ syscall_unimplemented:
 
 /*
  * int syscall_handle(
- *     uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e,
+ *     intptr_t a, intptr_t b, intptr_t c, intptr_t d, intptr_t e,
  *     int_regs_t *regs, int num)
  *
  * DO NOT CHANGE THE PARAMETER ORDER, this function (ab)uses cdecl to

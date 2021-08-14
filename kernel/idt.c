@@ -56,10 +56,18 @@ dump_registers(int_regs_t *regs)
     printf("ebp: 0x%08x     ", regs->ebp);
     printf("esp: 0x%08x\n",    regs->esp);
 
-    printf("cr0: 0x%08x     ", regs->cr0);
-    printf("cr2: 0x%08x     ", regs->cr2);
-    printf("cr3: 0x%08x     ", regs->cr3);
-    printf("cr4: 0x%08x\n",    regs->cr4);
+    uint32_t cr0, cr2, cr3, cr4;
+    asm volatile(
+        "movl %%cr0, %0;"
+        "movl %%cr2, %1;"
+        "movl %%cr3, %2;"
+        "movl %%cr4, %3;"
+        : "=r"(cr0), "=r"(cr2), "=r"(cr3), "=r"(cr4));
+
+    printf("cr0: 0x%08x     ", cr0);
+    printf("cr2: 0x%08x     ", cr2);
+    printf("cr3: 0x%08x     ", cr3);
+    printf("cr4: 0x%08x\n",    cr4);
 
     printf("eip: 0x%08x  ",     regs->eip);
     printf("eflags: 0x%08x   ", regs->eflags);
