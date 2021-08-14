@@ -64,7 +64,6 @@ struct sock_ops {
     int (*recvfrom)(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr);
     int (*sendto)(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *addr);
     int (*shutdown)(net_sock_t *sock);
-    int (*ioctl)(net_sock_t *sock, int req, int arg);
     void (*close)(net_sock_t *sock);
 };
 

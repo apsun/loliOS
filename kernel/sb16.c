@@ -239,7 +239,7 @@ sb16_close(file_obj_t *file)
 
 /* Sets the bits per sample playback parameter */
 static int
-sb16_ioctl_set_bits_per_sample(int arg)
+sb16_ioctl_set_bits_per_sample(intptr_t arg)
 {
     if (arg == 8 || arg == 16) {
         bits_per_sample = arg;
@@ -252,7 +252,7 @@ sb16_ioctl_set_bits_per_sample(int arg)
 
 /* Sets the mono/stereo playback parameter */
 static int
-sb16_ioctl_set_num_channels(int arg)
+sb16_ioctl_set_num_channels(intptr_t arg)
 {
     if (arg == 1 || arg == 2) {
         num_channels = arg;
@@ -265,7 +265,7 @@ sb16_ioctl_set_num_channels(int arg)
 
 /* Sets the sample rate playback parameter */
 static int
-sb16_ioctl_set_sample_rate(int arg)
+sb16_ioctl_set_sample_rate(intptr_t arg)
 {
     switch (arg) {
     case 8000:
@@ -292,7 +292,7 @@ sb16_ioctl_set_sample_rate(int arg)
  * SOUND_SET_SAMPLE_RATE: arg = 8000, 11025, etc., 44100
  */
 static int
-sb16_ioctl(file_obj_t *file, int req, int arg)
+sb16_ioctl(file_obj_t *file, int req, intptr_t arg)
 {
     if (is_playing) {
         debugf("Cannot change parameters during playback\n");

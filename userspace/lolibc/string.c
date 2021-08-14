@@ -1,6 +1,7 @@
 #include <string.h>
 #include <assert.h>
 #include <stddef.h>
+#include <stdint.h>
 
 /*
  * Returns the length of the specified string.
@@ -515,7 +516,7 @@ memset(void *s, unsigned char c, int n)
      * handle up to alignof(word_t) - 1.
      */
     unsigned char *sb = s;
-    int nalign = -(size_t)sb & (__alignof__(word_t) - 1);
+    int nalign = -(intptr_t)sb & (__alignof__(word_t) - 1);
     if (n >= nalign) {
         n -= nalign;
         switch (nalign) {
@@ -584,7 +585,7 @@ memcpy(void *dest, const void *src, int n)
      */
     unsigned char *db = dest;
     const unsigned char *sb = src;
-    int nalign = -(size_t)db & (__alignof__(word_t) - 1);
+    int nalign = -(intptr_t)db & (__alignof__(word_t) - 1);
     if (n >= nalign) {
         n -= nalign;
         switch (nalign) {

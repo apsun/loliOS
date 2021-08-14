@@ -48,9 +48,9 @@ __cdecl int signal_sigaction(int signum, void *handler_address);
 __cdecl int signal_sigreturn(
     int signum,
     int_regs_t *user_regs,
-    int unused1,
-    int unused2,
-    int unused3,
+    intptr_t unused1,
+    intptr_t unused2,
+    intptr_t unused3,
     int_regs_t *kernel_regs);
 __cdecl int signal_sigmask(int signum, int action);
 __cdecl int signal_kill(int pid, int signum);

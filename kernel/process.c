@@ -756,11 +756,11 @@ process_sbrk(int delta)
  */
 __cdecl int
 process_fork(
-    int unused1,
-    int unused2,
-    int unused3,
-    int unused4,
-    int unused5,
+    intptr_t unused1,
+    intptr_t unused2,
+    intptr_t unused3,
+    intptr_t unused4,
+    intptr_t unused5,
     int_regs_t *regs)
 {
     /*
@@ -782,10 +782,10 @@ process_fork(
 __cdecl int
 process_exec(
     const char *command,
-    int unused1,
-    int unused2,
-    int unused3,
-    int unused4,
+    intptr_t unused1,
+    intptr_t unused2,
+    intptr_t unused3,
+    intptr_t unused4,
     int_regs_t *regs)
 {
     return process_exec_impl(get_executing_pcb(), regs, command);
@@ -896,10 +896,10 @@ process_setpgrp(int pid, int pgrp)
 __cdecl int
 process_execute(
     const char *command,
-    int unused1,
-    int unused2,
-    int unused3,
-    int unused4,
+    intptr_t unused1,
+    intptr_t unused2,
+    intptr_t unused3,
+    intptr_t unused4,
     int_regs_t *regs)
 {
     /* Start by cloning ourselves */

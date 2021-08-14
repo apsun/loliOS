@@ -21,7 +21,6 @@ static int socket_open(file_obj_t *file);
 static int socket_read(file_obj_t *file, void *buf, int nbytes);
 static int socket_write(file_obj_t *file, const void *buf, int nbytes);
 static void socket_close(file_obj_t *file);
-static int socket_ioctl(file_obj_t *file, int req, int arg);
 
 /* Network socket file ops */
 static const file_ops_t socket_fops = {
@@ -29,7 +28,6 @@ static const file_ops_t socket_fops = {
     .read = socket_read,
     .write = socket_write,
     .close = socket_close,
-    .ioctl = socket_ioctl,
 };
 
 /* UDP socket operations table */
@@ -66,7 +64,7 @@ get_sock(file_obj_t *file)
     if (file->ops_table != &socket_fops) {
         return NULL;
     }
-    return file->private;
+    return (net_sock_t *)file->private;
 }
 
 /*
@@ -210,7 +208,7 @@ socket_obj_bind_file(file_obj_t **files, net_sock_t *sock)
         return -1;
     }
 
-    file->private = socket_obj_retain(sock);
+    file->private = (intptr_t)socket_obj_retain(sock);
     return fd;
 }
 
@@ -241,21 +239,6 @@ socket_close(file_obj_t *file)
     }
     file->private = NULL;
     socket_obj_release(sock);
-}
-
-/*
- * ioctl() syscall for socket files. Dispatches it to the
- * per-socket-type handler.
- */
-static int
-socket_ioctl(file_obj_t *file, int req, int arg)
-{
-    net_sock_t *sock = get_sock(file);
-    assert(sock != NULL);
-    if (sock->ops_table->ioctl == NULL) {
-        return -1;
-    }
-    return sock->ops_table->ioctl(sock, req, arg);
 }
 
 /*

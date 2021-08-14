@@ -69,7 +69,7 @@ typedef struct {
     /*
      * File-private data, use is determined by driver.
      */
-    void *private;
+    intptr_t private;
 } file_obj_t;
 
 /* File operations table */
@@ -78,7 +78,7 @@ struct file_ops {
     int (*read)(file_obj_t *file, void *buf, int nbytes);
     int (*write)(file_obj_t *file, const void *buf, int nbytes);
     void (*close)(file_obj_t *file);
-    int (*ioctl)(file_obj_t *file, int req, int arg);
+    int (*ioctl)(file_obj_t *file, int req, intptr_t arg);
     int (*seek)(file_obj_t *file, int offset, int mode);
     int (*truncate)(file_obj_t *file, int length);
 };
@@ -118,9 +118,9 @@ __cdecl int file_open(const char *filename);
 __cdecl int file_read(int fd, void *buf, int nbytes);
 __cdecl int file_write(int fd, const void *buf, int nbytes);
 __cdecl int file_close(int fd);
-__cdecl int file_ioctl(int fd, int req, int arg);
+__cdecl int file_ioctl(int fd, int req, intptr_t arg);
 __cdecl int file_dup(int srcfd, int destfd);
-__cdecl int file_fcntl(int fd, int req, int arg);
+__cdecl int file_fcntl(int fd, int req, intptr_t arg);
 __cdecl int file_seek(int fd, int offset, int mode);
 __cdecl int file_truncate(int fd, int length);
 __cdecl int file_unlink(const char *filename);

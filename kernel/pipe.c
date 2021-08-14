@@ -73,7 +73,7 @@ pipe_read(file_obj_t *file, void *buf, int nbytes)
         return 0;
     }
 
-    pipe_state_t *pipe = file->private;
+    pipe_state_t *pipe = (pipe_state_t *)file->private;
     int to_read = BLOCKING_WAIT(
         pipe_get_readable_count(pipe, nbytes),
         pipe->read_queue,
@@ -167,7 +167,7 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
         return 0;
     }
 
-    pipe_state_t *pipe = file->private;
+    pipe_state_t *pipe = (pipe_state_t *)file->private;
     int to_write = BLOCKING_WAIT(
         pipe_get_writeable_count(pipe, nbytes),
         pipe->write_queue,
@@ -217,7 +217,7 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
 static void
 pipe_close(file_obj_t *file)
 {
-    pipe_state_t *pipe = file->private;
+    pipe_state_t *pipe = (pipe_state_t *)file->private;
 
     /*
      * If both ends are closed, release the underlying pipe.
@@ -278,8 +278,8 @@ pipe_pipe(int *readfd, int *writefd)
     pipe->half_closed = false;
     list_init(&pipe->read_queue);
     list_init(&pipe->write_queue);
-    read_file->private = pipe;
-    write_file->private = pipe;
+    read_file->private = (intptr_t)pipe;
+    write_file->private = (intptr_t)pipe;
 
     /* Bind read descriptor */
     file_obj_t **files = get_executing_files();

@@ -233,10 +233,10 @@ vga_write_font(const uint8_t font[256][16])
 static void
 vga_reset_text_mode(void)
 {
-    size_t i;
+    int i;
 
     /* Write sequencer registers */
-    for (i = 0; i < sizeof(vga_text_seq); ++i) {
+    for (i = 0; i < array_len(vga_text_seq); ++i) {
         outlh(i, vga_text_seq[i], VGA_PORT_SEQ);
     }
 
@@ -244,7 +244,7 @@ vga_reset_text_mode(void)
     outlh(0x11, 0x00, VGA_PORT_CRTC);
 
     /* Write CRTC registers */
-    for (i = 0; i < sizeof(vga_text_crtc); ++i) {
+    for (i = 0; i < array_len(vga_text_crtc); ++i) {
         outlh(i, vga_text_crtc[i], VGA_PORT_CRTC);
     }
 
@@ -252,13 +252,13 @@ vga_reset_text_mode(void)
     inb(VGA_PORT_IS1);
 
     /* Write attribute registers */
-    for (i = 0; i < sizeof(vga_text_attr); ++i) {
+    for (i = 0; i < array_len(vga_text_attr); ++i) {
         outb(i, VGA_PORT_ATTR);
         outb(vga_text_attr[i], VGA_PORT_ATTR);
     }
 
     /* Write graphics registers */
-    for (i = 0; i < sizeof(vga_text_gfx); ++i) {
+    for (i = 0; i < array_len(vga_text_gfx); ++i) {
         outlh(i, vga_text_gfx[i], VGA_PORT_GFX);
     }
 

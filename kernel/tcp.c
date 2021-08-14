@@ -404,9 +404,9 @@ tcp_release(tcp_sock_t *tcp)
  * number, along with any flags, before sending the packet.
  */
 static skb_t *
-tcp_alloc_skb(size_t body_len)
+tcp_alloc_skb(int body_len)
 {
-    size_t hdr_len = sizeof(tcp_hdr_t) + sizeof(ip_hdr_t) + sizeof(ethernet_hdr_t);
+    int hdr_len = sizeof(tcp_hdr_t) + sizeof(ip_hdr_t) + sizeof(ethernet_hdr_t);
     skb_t *skb = skb_alloc(hdr_len + body_len);
     if (skb == NULL) {
         return NULL;

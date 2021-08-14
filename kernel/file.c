@@ -394,7 +394,7 @@ file_dup(int srcfd, int destfd)
  * Handles the FCNTL_NONBLOCK fcntl() call.
  */
 static int
-file_fcntl_nonblock(file_obj_t *file, int req, int arg)
+file_fcntl_nonblock(file_obj_t *file, int req, intptr_t arg)
 {
     bool orig_nonblocking = file->nonblocking;
     file->nonblocking = !!arg;
@@ -407,7 +407,7 @@ file_fcntl_nonblock(file_obj_t *file, int req, int arg)
 * calls to unknown objects.
 */
 __cdecl int
-file_fcntl(int fd, int req, int arg)
+file_fcntl(int fd, int req, intptr_t arg)
 {
     file_obj_t *file = get_executing_file(fd);
     if (file == NULL) {
@@ -509,7 +509,7 @@ file_write(int fd, const void *buf, int nbytes)
  * by the file type.
  */
 __cdecl int
-file_ioctl(int fd, int req, int arg)
+file_ioctl(int fd, int req, intptr_t arg)
 {
     FORWARD_FILECALL(fd, OPEN_NONE, ioctl, req, arg);
 }

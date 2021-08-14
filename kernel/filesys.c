@@ -13,7 +13,7 @@
 
 /* Helpers for casting to/from file private data */
 #define get_off(f) ((int)(f)->private)
-#define set_off(f, x) ((f)->private = (void *)(int)(x))
+#define set_off(f, x) ((f)->private = (x))
 
 /* Size of a single filesystem block, in bytes */
 #define FS_BLOCK_SIZE 4096

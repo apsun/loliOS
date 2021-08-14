@@ -182,18 +182,18 @@ __cdecl int process_getargs(char *buf, int nbytes);
 __cdecl int process_vidmap(uint8_t **screen_start);
 __cdecl int process_sbrk(int delta);
 __cdecl int process_fork(
-    int unused1,
-    int unused2,
-    int unused3,
-    int unused4,
-    int unused5,
+    intptr_t unused1,
+    intptr_t unused2,
+    intptr_t unused3,
+    intptr_t unused4,
+    intptr_t unused5,
     int_regs_t *regs);
 __cdecl int process_exec(
     const char *command,
-    int unused1,
-    int unused2,
-    int unused3,
-    int unused4,
+    intptr_t unused1,
+    intptr_t unused2,
+    intptr_t unused3,
+    intptr_t unused4,
     int_regs_t *regs);
 __cdecl int process_wait(int *pid);
 __cdecl int process_getpid(void);
@@ -201,10 +201,10 @@ __cdecl int process_getpgrp(void);
 __cdecl int process_setpgrp(int pid, int pgrp);
 __cdecl int process_execute(
     const char *command,
-    int unused1,
-    int unused2,
-    int unused3,
-    int unused4,
+    intptr_t unused1,
+    intptr_t unused2,
+    intptr_t unused3,
+    intptr_t unused4,
     int_regs_t *regs);
 __cdecl void process_halt(int status);
 

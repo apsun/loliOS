@@ -279,7 +279,7 @@ taux_ioctl_init(void)
  * Handles the SET_LED ioctl() call.
  */
 static int
-taux_ioctl_set_led(int arg)
+taux_ioctl_set_led(intptr_t arg)
 {
     /* Convert and save the LED status */
     taux_convert_set_led(arg, led_segments);
@@ -298,7 +298,7 @@ taux_ioctl_set_led(int arg)
  * Handles the SET_LED_STR ioctl() call.
  */
 static int
-taux_ioctl_set_led_str(int arg)
+taux_ioctl_set_led_str(intptr_t arg)
 {
     /* Copy string to kernel (max length = 8 chars + NUL) */
     char str[8 + 1];
@@ -326,7 +326,7 @@ taux_ioctl_set_led_str(int arg)
  * Handles the GET_BUTTONS ioctl() call.
  */
 static int
-taux_ioctl_get_buttons(int arg)
+taux_ioctl_get_buttons(intptr_t arg)
 {
     uint8_t *ptr = (uint8_t *)arg;
     if (!copy_to_user(ptr, &button_status, sizeof(button_status))) {
@@ -434,7 +434,7 @@ taux_ioctl_check_mode(file_obj_t *file, int req)
  * Taux controller ioctl syscall handler.
  */
 static int
-taux_ioctl(file_obj_t *file, int req, int arg)
+taux_ioctl(file_obj_t *file, int req, intptr_t arg)
 {
     if (taux_ioctl_check_mode(file, req) < 0) {
         return -1;

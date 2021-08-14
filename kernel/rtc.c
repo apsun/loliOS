@@ -144,7 +144,7 @@ rtc_open(file_obj_t *file)
      * File private field holds the virtual interrupt frequency
      * for this file.
      */
-    file->private = (void *)2;
+    file->private = 2;
     return 0;
 }
 
@@ -193,7 +193,7 @@ rtc_write(file_obj_t *file, const void *buf, int nbytes)
         return -1;
     }
 
-    file->private = (void *)freq;
+    file->private = freq;
     return nbytes;
 }
 

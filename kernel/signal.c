@@ -134,9 +134,9 @@ __cdecl int
 signal_sigreturn(
     int signum,
     int_regs_t *user_regs,
-    int unused1,
-    int unused2,
-    int unused3,
+    intptr_t unused1,
+    intptr_t unused2,
+    intptr_t unused3,
     int_regs_t *kernel_regs)
 {
     /* Check signal number range */
