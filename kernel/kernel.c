@@ -27,9 +27,6 @@
 void
 entry(unsigned long magic, unsigned long addr)
 {
-    /* Initialize VGA (need it for the terminal) */
-    vga_init();
-
     /* Initialize terminals */
     terminal_init();
 
@@ -216,6 +213,9 @@ entry(unsigned long magic, unsigned long addr)
 
     printf("Initializing random file driver...\n");
     random_init();
+
+    printf("Initializing VGA driver...\n");
+    vga_init();
 
     /* We made it! */
     printf("Boot successful!\n");
