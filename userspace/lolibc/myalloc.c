@@ -288,7 +288,7 @@ mya_sbrk(size_t delta, void **orig_brk, void **new_brk)
 
     /* We know the allocation is safe, call sbrk */
     void *last_brk;
-    if ((last_brk = (void *)sbrk(delta)) == (void *)-1) {
+    if (sbrk(delta, &last_brk) < 0) {
         return false;
     }
 
@@ -325,8 +325,7 @@ mya_initialize(void)
      */
 
     /* Initialize cached brk value */
-    mya_last_brk = (void *)sbrk(0);
-    if (mya_last_brk == (void *)-1) {
+    if (sbrk(0, &mya_last_brk) < 0) {
         return false;
     }
 

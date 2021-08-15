@@ -79,7 +79,7 @@ dma_start(
     assert((mode & (~0xff | 3)) == 0);
 
     /* Buffer must be in the first 16MB = 2^24 bytes of memory */
-    uint32_t addr = (uint32_t)buf;
+    uintptr_t addr = (uintptr_t)buf;
     assert((addr & ~0xffffff) == 0);
     assert(((addr + nbytes - 1) & ~0xffffff) == 0);
 

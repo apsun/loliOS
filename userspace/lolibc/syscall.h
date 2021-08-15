@@ -152,7 +152,7 @@ __attribute__((cdecl)) int sigreturn(int signum, void *user_regs);
 __attribute__((cdecl)) int sigmask(int signum, int action);
 __attribute__((cdecl)) int kill(int pid, int signum);
 __attribute__((cdecl)) int ioctl(int fd, int req, intptr_t arg);
-__attribute__((cdecl)) int sbrk(int delta);
+__attribute__((cdecl)) int sbrk(int delta, void **orig_brk);
 __attribute__((cdecl)) int socket(int type);
 __attribute__((cdecl)) int bind(int fd, const sock_addr_t *addr);
 __attribute__((cdecl)) int connect(int fd, const sock_addr_t *addr);

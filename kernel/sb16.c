@@ -142,7 +142,7 @@ sb16_start_playback(void)
 static void
 sb16_swap_buffers(void)
 {
-    audio_buf = (uint8_t *)((uint32_t)audio_buf ^ SB16_HALF_BUFFER_SIZE);
+    audio_buf = (uint8_t *)((uintptr_t)audio_buf ^ SB16_HALF_BUFFER_SIZE);
     audio_buf_count = 0;
 }
 

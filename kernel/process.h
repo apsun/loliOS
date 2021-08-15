@@ -180,7 +180,7 @@ pcb_t *get_executing_pcb(void);
 /* Process syscall handlers */
 __cdecl int process_getargs(char *buf, int nbytes);
 __cdecl int process_vidmap(uint8_t **screen_start);
-__cdecl int process_sbrk(int delta);
+__cdecl int process_sbrk(int delta, void **orig_brk);
 __cdecl int process_fork(
     intptr_t unused1,
     intptr_t unused2,

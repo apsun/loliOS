@@ -76,7 +76,7 @@ static int
 fs_alloc_data_block(void)
 {
     int data_idx = bitmap_find_zero(fs_data_block_map, fs_boot_block->data_block_count);
-    if ((uint32_t)data_idx >= fs_boot_block->data_block_count) {
+    if (data_idx >= (int)fs_boot_block->data_block_count) {
         return -1;
     }
     bitmap_set(fs_data_block_map, data_idx);
@@ -89,6 +89,7 @@ fs_alloc_data_block(void)
 static void
 fs_free_data_block(int data_idx)
 {
+    assert((uint32_t)data_idx < fs_boot_block->data_block_count);
     bitmap_clear(fs_data_block_map, data_idx);
 }
 
@@ -113,7 +114,7 @@ fs_create_file(const char *filename, dentry_t **dentry_out)
 
     /* Find a free inode */
     int inode_idx = bitmap_find_zero(fs_inode_map, fs_boot_block->inode_count);
-    if ((uint32_t)inode_idx >= fs_boot_block->inode_count) {
+    if (inode_idx >= (int)fs_boot_block->inode_count) {
         debugf("Reached maximum number of inodes\n");
         return -1;
     }
@@ -149,7 +150,7 @@ fs_delete_file(const char *filename)
     }
 
     /* Free up dentry */
-    int dentry_idx = dentry - fs_boot_block->dir_entries;
+    int dentry_idx = dentry - &fs_boot_block->dir_entries[0];
     bitmap_clear(fs_dentry_map, dentry_idx);
 
     /*
@@ -236,7 +237,7 @@ fs_dentry_by_name(const char *fname, dentry_t **dentry)
             continue;
         }
 
-        dentry_t *curr = &fs_boot_block->dir_entries[i];
+        dentry_t *curr = fs_dentry(i);
         if (fs_namecmp(fname, curr->name) == 0) {
             *dentry = curr;
             return 0;
@@ -335,13 +336,15 @@ fs_read_data_cb(void *data, int nbytes, void *private)
  */
 int
 fs_read_data(
-    int inode_idx, int offset,
-    void *buf, int length,
+    int inode_idx,
+    int offset,
+    void *buf,
+    int length,
     void *(*copy)(void *dest, const void *src, int nbytes))
 {
-    if (offset < 0 || length < 0) {
-        return -1;
-    }
+    assert((uint32_t)inode_idx < fs_boot_block->inode_count);
+    assert(offset >= 0);
+    assert(length >= 0);
 
     /* Clamp read length to end of file */
     inode_t *inode = fs_inode(inode_idx);
@@ -426,6 +429,10 @@ fs_dir_read(file_obj_t *file, void *buf, int nbytes)
 static int
 fs_file_read(file_obj_t *file, void *buf, int nbytes)
 {
+    if (nbytes < 0) {
+        return -1;
+    }
+
     /* Read bytes into userspace buffer */
     int count = fs_read_data(file->inode_idx, get_off(file), buf, nbytes, copy_to_user);
 

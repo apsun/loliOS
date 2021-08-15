@@ -75,7 +75,7 @@ void free_page(int vfn, int pfn);
 void paging_heap_init(paging_heap_t *heap);
 
 /* Expands or shrinks the data break */
-int paging_heap_sbrk(paging_heap_t *heap, int delta);
+void *paging_heap_sbrk(paging_heap_t *heap, int delta);
 
 /* Frees a process heap */
 void paging_heap_destroy(paging_heap_t *heap);
@@ -87,7 +87,7 @@ int paging_heap_clone(paging_heap_t *dest, paging_heap_t *src);
 void paging_page_clone(int dest_pfn, void *src_vaddr);
 
 /* Loads a program into memory */
-uint32_t paging_load_exe(uint32_t inode_idx, int pfn);
+uint32_t paging_load_exe(int inode_idx, int pfn);
 
 /* Updates the process pages */
 void paging_set_context(int pfn, paging_heap_t *heap);

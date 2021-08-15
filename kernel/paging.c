@@ -92,10 +92,10 @@ static bitmap_declare(allocated_pages, MAX_PAGES);
  * PDE = pointer to single page directory entry
  * PTE = pointer to single page table entry
  */
-#define TO_4MB_BASE(x) (((uint32_t)(x)) >> 22)
-#define TO_4KB_BASE(x) (((uint32_t)(x)) >> 12)
-#define TO_DIR_INDEX(x) (((uint32_t)(x)) >> 22)
-#define TO_TABLE_INDEX(x) ((((uint32_t)(x)) >> 12) & 0x3ff)
+#define TO_4MB_BASE(x) (((uintptr_t)(x)) >> 22)
+#define TO_4KB_BASE(x) (((uintptr_t)(x)) >> 12)
+#define TO_DIR_INDEX(x) (((uintptr_t)(x)) >> 22)
+#define TO_TABLE_INDEX(x) ((((uintptr_t)(x)) >> 12) & 0x3ff)
 #define DIR_TO_PDE_4KB(dir, addr) (&(dir)[TO_DIR_INDEX(addr)].dir_4kb)
 #define DIR_TO_PDE_4MB(dir, addr) (&(dir)[TO_DIR_INDEX(addr)].dir_4mb)
 #define TABLE_TO_PTE(table, addr) (&(table)[TO_TABLE_INDEX(addr)])
@@ -143,7 +143,7 @@ paging_init_video(void)
     vga_pte->base_addr = TO_4KB_BASE(VIDEO_PAGE_START);
 
     /* VGA font pages */
-    uint32_t addr;
+    uintptr_t addr;
     for (addr = VGA_FONT_PAGE_START; addr < VGA_FONT_PAGE_END; addr += KB(4)) {
         pte_t *font_pte = PTE(addr);
         font_pte->present = 1;
@@ -155,7 +155,7 @@ paging_init_video(void)
     /* Virtual video memory pages, one per terminal */
     int i;
     for (i = 0; i < NUM_TERMINALS; ++i) {
-        uint32_t term_addr = TERMINAL_PAGE_START + i * KB(4);
+        uintptr_t term_addr = TERMINAL_PAGE_START + i * KB(4);
         pte_t *tty_pte = PTE(term_addr);
         tty_pte->present = 1;
         tty_pte->write = 1;
@@ -168,7 +168,7 @@ paging_init_video(void)
 static void
 paging_init_vbe(void)
 {
-    uint32_t addr;
+    uintptr_t addr;
     for (addr = VBE_PAGE_START; addr < VBE_PAGE_END; addr += MB(4)) {
         pde_4mb_t *pde = PDE_4MB(addr);
         pde->present = 1;
@@ -193,14 +193,13 @@ paging_init_vidmap(void)
 static void
 paging_init_sb16(void)
 {
-    uint32_t addr = SB16_PAGE_START;
-    while (addr < SB16_PAGE_END) {
+    uintptr_t addr;
+    for (addr = SB16_PAGE_START; addr < SB16_PAGE_END; addr += KB(4)) {
         pte_t *pte = PTE(addr);
         pte->present = 1;
         pte->write = 1;
         pte->user = 0;
         pte->base_addr = TO_4KB_BASE(addr);
-        addr += KB(4);
     }
 }
 
@@ -249,8 +248,8 @@ void
 paging_init(void)
 {
     /* Ensure page table arrays are 4096-byte aligned */
-    assert(((uint32_t)page_dir   & 0xfff) == 0);
-    assert(((uint32_t)page_table & 0xfff) == 0);
+    assert(((uintptr_t)page_dir   & 0xfff) == 0);
+    assert(((uintptr_t)page_table & 0xfff) == 0);
 
     /* Initialize static page table entries */
     paging_init_common();
@@ -275,13 +274,13 @@ int
 paging_page_alloc(void)
 {
     /* Find a free page... */
-    int pfn = bitmap_find_zero(allocated_pages, MAX_PAGES);
+    int pfn = (int)bitmap_find_zero(allocated_pages, MAX_PAGES);
     if (pfn >= MAX_PAGES) {
         return -1;
     }
 
     /* ... and mark it as allocated. */
-    bitmap_set(allocated_pages, pfn);
+    bitmap_set(allocated_pages, (size_t)pfn);
     return pfn;
 }
 
@@ -291,8 +290,10 @@ paging_page_alloc(void)
 void
 paging_page_free(int pfn)
 {
-    assert(bitmap_get(allocated_pages, pfn));
-    bitmap_clear(allocated_pages, pfn);
+    assert(pfn >= 0);
+    assert(bitmap_get(allocated_pages, (size_t)pfn));
+
+    bitmap_clear(allocated_pages, (size_t)pfn);
 }
 
 /*
@@ -303,7 +304,10 @@ paging_page_free(int pfn)
 static void
 paging_page_map(int vfn, int pfn, bool user)
 {
-    uint32_t vaddr = vfn * MB(4);
+    assert(vfn >= 0);
+    assert(pfn >= 0);
+
+    uintptr_t vaddr = vfn * MB(4);
     pde_4mb_t *entry = PDE_4MB(vaddr);
     entry->present = 1;
     entry->write = 1;
@@ -320,7 +324,9 @@ paging_page_map(int vfn, int pfn, bool user)
 static void
 paging_page_unmap(int vfn)
 {
-    uint32_t vaddr = vfn * MB(4);
+    assert(vfn >= 0);
+
+    uintptr_t vaddr = vfn * MB(4);
     pde_4mb_t *entry = PDE_4MB(vaddr);
     entry->present = 0;
     paging_flush_tlb();
@@ -334,6 +340,8 @@ paging_page_unmap(int vfn)
 int
 get_free_page(int vfn, bool user)
 {
+    assert(vfn >= 0);
+
     int pfn = paging_page_alloc();
     if (pfn < 0) {
         return -1;
@@ -350,6 +358,9 @@ get_free_page(int vfn, bool user)
 void
 free_page(int vfn, int pfn)
 {
+    assert(vfn >= 0);
+    assert(pfn >= 0);
+
     paging_page_unmap(vfn);
     paging_page_free(pfn);
 }
@@ -408,28 +419,34 @@ paging_heap_grow(paging_heap_t *heap, int new_pages)
 
 /*
  * Grows or shrinks a heap, depending on the value
- * of delta. Returns -1 on error (e.g. shrinking by
+ * of delta. Returns NULL on error (e.g. shrinking by
  * more than available, or not enough physical memory).
  * On success, returns the previous brk's virtual address.
+ * This function is guaranteed to not fail if delta == 0.
  */
-int
+void *
 paging_heap_sbrk(paging_heap_t *heap, int delta)
 {
     int orig_size = heap->size;
+    void *orig_brk = (void *)(HEAP_PAGE_START + orig_size);
+
+    if (delta == 0) {
+        return orig_brk;
+    }
+
     int orig_num_pages = heap->num_pages;
-    int orig_brk = HEAP_PAGE_START + orig_size;
     void *orig_page_brk = (void *)(HEAP_PAGE_START + orig_num_pages * MB(4));
 
     /* Upper bound limit (if delta is huge, rhs is negative -> true) */
     if (delta > 0 && orig_size > MAX_HEAP_SIZE - delta) {
         debugf("Trying to expand heap beyond virtual capacity\n");
-        return -1;
+        return NULL;
     }
 
     /* Lower bound limit */
     if (delta < 0 && orig_size + delta < 0) {
         debugf("Trying to deallocate more than was allocated\n");
-        return -1;
+        return NULL;
     }
 
     int new_size = orig_size + delta;
@@ -438,7 +455,7 @@ paging_heap_sbrk(paging_heap_t *heap, int delta)
     /* Grow or shrink heap as necessary */
     if (new_num_pages > orig_num_pages) {
         if (paging_heap_grow(heap, new_num_pages) < 0) {
-            return -1;
+            return NULL;
         }
         memset(orig_page_brk, 0, (new_num_pages - orig_num_pages) * MB(4));
     } else if (new_num_pages < orig_num_pages) {
@@ -507,7 +524,7 @@ paging_page_clone(int dest_pfn, void *src_vaddr)
  * page mappings.
  */
 uint32_t
-paging_load_exe(uint32_t inode_idx, int pfn)
+paging_load_exe(int inode_idx, int pfn)
 {
     paging_page_map(TEMP_PAGE_START / MB(4), pfn, false);
 

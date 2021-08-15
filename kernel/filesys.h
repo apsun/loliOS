@@ -90,8 +90,10 @@ int fs_dentry_by_name(const char *fname, dentry_t **dentry);
 
 /* Reads some data from a file with the specified inode index */
 int fs_read_data(
-    int inode_idx, int offset,
-    void *buf, int length,
+    int inode_idx,
+    int offset,
+    void *buf,
+    int length,
     void *(*copy)(void *dest, const void *src, int nbytes));
 
 /* Initializes the filesystem */

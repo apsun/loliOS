@@ -172,7 +172,7 @@ process_free_pcb(pcb_t *pcb)
  * the arguments to out_args, and returns 0. Otherwise, returns -1.
  */
 static int
-process_parse_cmd(char *command, uint32_t *out_inode_idx, char *out_args)
+process_parse_cmd(char *command, int *out_inode_idx, char *out_args)
 {
     /* Strip leading whitespace */
     command += strspn(command, " ");
@@ -221,7 +221,7 @@ process_parse_cmd(char *command, uint32_t *out_inode_idx, char *out_args)
         *out_args = '\0';
     }
 
-    *out_inode_idx = dentry->inode_idx;
+    *out_inode_idx = (int)dentry->inode_idx;
     return 0;
 }
 
@@ -464,8 +464,8 @@ process_create_user(char *command, int terminal)
     }
 
     /* Parse command and find the executable inode */
-    uint32_t inode;
-    if (process_parse_cmd(command, &inode, pcb->args) != 0) {
+    int inode_idx;
+    if (process_parse_cmd(command, &inode_idx, pcb->args) != 0) {
         debugf("Invalid command/executable file\n");
         process_free_pcb(pcb);
         return NULL;
@@ -499,7 +499,7 @@ process_create_user(char *command, int terminal)
     terminal_tcsetpgrp_impl(terminal, pcb->group);
 
     /* Copy our program into physical memory */
-    uint32_t entry_point = paging_load_exe(inode, pfn);
+    uint32_t entry_point = paging_load_exe(inode_idx, pfn);
     process_fill_user_regs(&pcb->regs, entry_point);
 
     /* Finally, schedule this process for execution */
@@ -590,8 +590,8 @@ process_exec_impl(pcb_t *pcb, int_regs_t *regs, const char *command)
     }
 
     /* Parse command and find the executable inode */
-    uint32_t inode;
-    if (process_parse_cmd(cmd, &inode, pcb->args) != 0) {
+    int inode_idx;
+    if (process_parse_cmd(cmd, &inode_idx, pcb->args) != 0) {
         debugf("Invalid command/executable file\n");
         return -1;
     }
@@ -606,7 +606,7 @@ process_exec_impl(pcb_t *pcb, int_regs_t *regs, const char *command)
     timer_setup(&pcb->alarm_timer, SIG_ALARM_PERIOD, process_alarm_callback);
 
     /* Copy our program into physical memory */
-    uint32_t entry_point = paging_load_exe(inode, pcb->user_pfn);
+    uint32_t entry_point = paging_load_exe(inode_idx, pcb->user_pfn);
 
     /* Replace interrupt context used to return into userspace */
     process_fill_user_regs(regs, entry_point);
@@ -741,13 +741,28 @@ process_vidmap(uint8_t **screen_start)
 
 /*
  * sbrk() syscall handler. Expands or shrinks the current
- * process's heap by the specified number of bytes.
+ * process's heap by the specified number of bytes. If orig_brk
+ * is not NULL, the original brk value is written to it.
+ * Returns 0 on success, < 0 on failure.
  */
 __cdecl int
-process_sbrk(int delta)
+process_sbrk(int delta, void **orig_brk)
 {
     pcb_t *pcb = get_executing_pcb();
-    return paging_heap_sbrk(&pcb->heap, delta);
+
+    /* Try to copy the address first to avoid having to revert the change */
+    void *brk = paging_heap_sbrk(&pcb->heap, 0);
+    if (orig_brk != NULL && !copy_to_user(orig_brk, &brk, sizeof(void *))) {
+        return -1;
+    }
+
+    /* Resize the heap */
+    void *ret = paging_heap_sbrk(&pcb->heap, delta);
+    if (ret == NULL) {
+        return -1;
+    }
+
+    return 0;
 }
 
 /*

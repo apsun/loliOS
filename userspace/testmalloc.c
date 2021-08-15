@@ -23,9 +23,9 @@ main(void)
     int i;
 
     /* sbrk correctness checks */
-    assert(sbrk(-2147483647) < 0);
-    assert(sbrk(-2147483647 - 1) < 0);
-    assert(sbrk(2147483647) < 0);
+    assert(sbrk(-2147483647, NULL) < 0);
+    assert(sbrk(-2147483647 - 1, NULL) < 0);
+    assert(sbrk(2147483647, NULL) < 0);
 
     /* 0-sized allocation checks */
     (void)malloc(0);

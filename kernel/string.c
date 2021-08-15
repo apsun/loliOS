@@ -515,7 +515,7 @@ memset(void *s, unsigned char c, int n)
      * handle up to alignof(word_t) - 1.
      */
     unsigned char *sb = s;
-    int nalign = -(intptr_t)sb & (__alignof__(word_t) - 1);
+    int nalign = -(uintptr_t)sb & (__alignof__(word_t) - 1);
     if (n >= nalign) {
         n -= nalign;
         switch (nalign) {
@@ -624,7 +624,7 @@ memcpy(void *dest, const void *src, int n)
      */
     unsigned char *db = dest;
     const unsigned char *sb = src;
-    int nalign = -(intptr_t)db & (__alignof__(word_t) - 1);
+    int nalign = -(uintptr_t)db & (__alignof__(word_t) - 1);
     if (n >= nalign) {
         n -= nalign;
         switch (nalign) {

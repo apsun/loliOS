@@ -14,26 +14,26 @@ typedef uint32_t bitmap_t;
 /*
  * Returns the size of the parameter in bits.
  */
-#define bitsizeof(x) \
+#define bitmap_bitsizeof(x) \
     (8 * sizeof(x))
 
 /*
  * Returns the major (unit) component of a bit index.
  */
 #define bitmap_index(i) \
-    ((i) / bitsizeof(bitmap_t))
+    ((i) / bitmap_bitsizeof(bitmap_t))
 
 /*
  * Returns the minor (bit) component of a bit index.
  */
 #define bitmap_subindex(i) \
-    ((i) % bitsizeof(bitmap_t))
+    ((i) % bitmap_bitsizeof(bitmap_t))
 
 /*
  * Returns the number of units needed to hold a n-bit bitmap.
  */
 #define bitmap_nunits(nbits) \
-    ((int)(((nbits) + bitsizeof(bitmap_t) - 1) / bitsizeof(bitmap_t)))
+    ((int)(((nbits) + bitmap_bitsizeof(bitmap_t) - 1) / bitmap_bitsizeof(bitmap_t)))
 
 /*
  * Declares a new bitmap with the specified name and number of bits.
@@ -70,7 +70,7 @@ typedef uint32_t bitmap_t;
  * Behavior is undefined if value is all zero bits.
  */
 static inline int
-bsfl(uint32_t value)
+bitmap_bsfl(uint32_t value)
 {
     int32_t i;
     asm volatile(
@@ -93,7 +93,7 @@ bitmap_find_one(bitmap_t *map, int nbits)
     int i;
     for (i = 0; i < bitmap_nunits(nbits); ++i) {
         if (map[i] != 0) {
-            return i * bitsizeof(bitmap_t) + bsfl(map[i]);
+            return i * bitmap_bitsizeof(bitmap_t) + bitmap_bsfl(map[i]);
         }
     }
     return nbits;
@@ -111,7 +111,7 @@ bitmap_find_zero(bitmap_t *map, int nbits)
     int i;
     for (i = 0; i < bitmap_nunits(nbits); ++i) {
         if (~map[i] != 0) {
-            return i * bitsizeof(bitmap_t) + bsfl(~map[i]);
+            return i * bitmap_bitsizeof(bitmap_t) + bitmap_bsfl(~map[i]);
         }
     }
     return nbits;
