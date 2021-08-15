@@ -8,6 +8,7 @@
 #include "signal.h"
 #include "paging.h"
 #include "timer.h"
+#include "heap.h"
 
 /* Maximum argument length, including the NUL terminator */
 #define MAX_ARGS_LEN 128
@@ -78,9 +79,9 @@ typedef struct {
     int terminal;
 
     /*
-     * Allocated physical page frame number for this process's 128MB page.
+     * Allocated physical address for this process's 128MB page.
      */
-    int user_pfn;
+    uintptr_t user_paddr;
 
     /*
      * Initial state used to run the process. For the initial
@@ -151,7 +152,7 @@ typedef struct {
     /*
      * Heap metadata for this process.
      */
-    paging_heap_t heap;
+    heap_t heap;
 
     /*
      * Arguments passed when creating this process. Will always be
@@ -207,6 +208,9 @@ __cdecl int process_execute(
     int_regs_t *regs);
 __cdecl void process_halt(int status);
 __cdecl int process_monosleep(int target);
+
+/* Unsets the global execution context for the specified process */
+void process_unset_context(pcb_t *pcb);
 
 /* Sets the global execution context for the specified process */
 void process_set_context(pcb_t *pcb);

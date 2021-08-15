@@ -1,0 +1,55 @@
+#ifndef _HEAP_H
+#define _HEAP_H
+
+#include "types.h"
+
+/* Needs to be at least as large as end_vaddr - start_vaddr */
+#define MAX_HEAP_PAGES 32
+
+#ifndef ASM
+
+/* Heap state (can be either user or kernel) */
+typedef struct {
+    /* Virtual address at which this heap starts */
+    uintptr_t start_vaddr;
+
+    /* This heap may grow up to this address */
+    uintptr_t end_vaddr;
+
+    /* Whether the heap is kernel or userspace memory */
+    bool user : 1;
+
+    /* If true, this heap is currently mapped in memory */
+    bool mapped : 1;
+
+    /* Size of the heap in bytes, might not be a multiple of page size */
+    int size;
+
+    /* Number of valid entries in the array below */
+    int num_pages;
+
+    /* List of physical pages that are allocated for this heap */
+    uintptr_t page_paddrs[MAX_HEAP_PAGES];
+} heap_t;
+
+/* Initializes a heap */
+void heap_init(heap_t *heap, uintptr_t start_vaddr, uintptr_t end_vaddr, bool user);
+
+/* Expands or shrinks the heap */
+void *heap_sbrk(heap_t *heap, int delta);
+
+/* Clones an existing heap */
+int heap_clone(heap_t *dest, heap_t *src);
+
+/* Removes memory mappings for the specified heap */
+void heap_unmap(heap_t *heap);
+
+/* Adds memory mappings for the specified heap */
+void heap_map(heap_t *heap);
+
+/* Frees all pages used by a heap */
+void heap_clear(heap_t *heap);
+
+#endif /* ASM */
+
+#endif /* _HEAP_H */

@@ -6,6 +6,8 @@
 #define KB(x) ((x) * 1024)
 #define MB(x) ((x) * 1024 * 1024)
 
+#define PAGE_SIZE MB(4)
+
 #define VGA_FONT_PAGE_START 0x000A0000
 #define VGA_FONT_PAGE_END   0x000B0000
 
@@ -24,11 +26,14 @@
 #define KERNEL_PAGE_START   0x00400000
 #define KERNEL_PAGE_END     0x00800000
 
+#define KERNEL_HEAP_START   0x00800000
+#define KERNEL_HEAP_END     0x08000000
+
 #define USER_PAGE_START     0x08000000
 #define USER_PAGE_END       0x08400000
 
-#define HEAP_PAGE_START     0x08400000
-#define HEAP_PAGE_END       0x10000000
+#define USER_HEAP_START     0x08400000
+#define USER_HEAP_END       0x10000000
 
 #define TEMP_PAGE_START     0x10000000
 #define TEMP_PAGE_END       0x10400000
@@ -39,58 +44,31 @@
 #define VBE_PAGE_START      0xE0000000
 #define VBE_PAGE_END        (VBE_PAGE_START + MB(8))
 
-#define MAX_HEAP_SIZE (HEAP_PAGE_END - HEAP_PAGE_START)
-#define MAX_HEAP_PAGES (MAX_HEAP_SIZE / MB(4))
-
 #ifndef ASM
-
-/* Container for a process's heap info */
-typedef struct {
-    /* Size of the heap in bytes, might not be a multiple of page size */
-    int size;
-
-    /* Number of valid entries in the array below */
-    int num_pages;
-
-    /* List of physical pages that are allocated for this heap */
-    int pages[MAX_HEAP_PAGES];
-} paging_heap_t;
 
 /* Initializes paging */
 void paging_init(void);
 
-/* Allocates a physical 4MB page */
-int paging_page_alloc(void);
+/* Allocates a page without mapping it */
+uintptr_t paging_page_alloc(void);
 
-/* Deallocates a physical 4MB page */
-void paging_page_free(int pfn);
+/* Deallocates a page without unmapping it */
+void paging_page_free(uintptr_t paddr);
 
-/* Allocates and maps a virtual 4MB page */
-int get_free_page(int vfn, bool user);
+/* Maps a page into memory */
+void paging_page_map(uintptr_t vaddr, uintptr_t paddr, bool user);
 
-/* Deallocates and unmaps a virtual 4MB page */
-void free_page(int vfn, int pfn);
+/* Unmaps a page from memory */
+void paging_page_unmap(uintptr_t vaddr);
 
-/* Initializes a process heap */
-void paging_heap_init(paging_heap_t *heap);
+/* Loads a program into the user page */
+uint32_t paging_load_user_page(int inode_idx, uintptr_t paddr);
 
-/* Expands or shrinks the data break */
-void *paging_heap_sbrk(paging_heap_t *heap, int delta);
+/* Clones an existing user page */
+void paging_clone_user_page(uintptr_t dest_paddr);
 
-/* Frees a process heap */
-void paging_heap_destroy(paging_heap_t *heap);
-
-/* Clones an existing process heap */
-int paging_heap_clone(paging_heap_t *dest, paging_heap_t *src);
-
-/* Clones an existing process page */
-void paging_page_clone(int dest_pfn, void *src_vaddr);
-
-/* Loads a program into memory */
-uint32_t paging_load_exe(int inode_idx, int pfn);
-
-/* Updates the process pages */
-void paging_set_context(int pfn, paging_heap_t *heap);
+/* Updates the user page */
+void paging_map_user_page(uintptr_t paddr);
 
 /* Updates the vidmap page to point to the specified address */
 void paging_update_vidmap_page(uint8_t *video_mem, bool present);

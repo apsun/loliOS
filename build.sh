@@ -46,7 +46,13 @@ fi
 
 # If command is "debug", start GDB attached to QEMU
 if [ "$#" -gt 0 ] && [ "$1" = "debug" ]; then
-    gdb -x "${root_dir}/debug.gdbinit" "${root_dir}/kernel/bootimg"
+    if [ "$#" -gt 1 ]; then
+        gdb -x "${root_dir}/debug.gdbinit" \
+            -ex "add-symbol-file '${root_dir}/userspace/elf/$2'" \
+            "${root_dir}/kernel/bootimg"
+    else
+        gdb -x "${root_dir}/debug.gdbinit" "${root_dir}/kernel/bootimg"
+    fi
     exit 0
 fi
 

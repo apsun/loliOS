@@ -103,9 +103,10 @@ dump_callstack_utox(char buf[16], uint32_t *p)
  * their calling conventions).
  */
 static void
-dump_callstack(uint32_t eip, uint32_t ebp)
+dump_callstack(uint32_t eip, uint32_t ebp, int limit)
 {
-    while (is_memory_accessible((void *)ebp, 8, false, false)) {
+    int n = 0;
+    while (n++ < limit && is_memory_accessible((void *)ebp, 8, false, false)) {
         uint32_t *args = (uint32_t *)(ebp + 8);
         char buf[5][16];
 #define ARG(n) (dump_callstack_utox(buf[n], &args[n]))
@@ -151,7 +152,7 @@ handle_exception(int_regs_t *regs)
     printf("\nRegisters:\n");
     dump_registers(regs);
     printf("\nBacktrace:\n");
-    dump_callstack(regs->eip, regs->ebp);
+    dump_callstack(regs->eip, regs->ebp, 8);
     loop();
 }
 

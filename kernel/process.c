@@ -250,15 +250,22 @@ get_kernel_base_esp(pcb_t *pcb)
 }
 
 /*
+ * Unsets the global execution context for the specified process.
+ */
+void
+process_unset_context(pcb_t *pcb)
+{
+    heap_unmap(&pcb->heap);
+}
+
+/*
  * Sets the global execution context for the specified process.
  */
 void
 process_set_context(pcb_t *pcb)
 {
-    /* Restore process page */
-    paging_set_context(pcb->user_pfn, &pcb->heap);
-
-    /* Restore vidmap status */
+    paging_map_user_page(pcb->user_paddr);
+    heap_map(&pcb->heap);
     terminal_update_vidmap(pcb->terminal, pcb->vidmap);
 
     /* Restore TSS entry */
@@ -416,8 +423,8 @@ process_close(pcb_t *pcb)
 {
     file_deinit(pcb->files);
     timer_cancel(&pcb->alarm_timer);
-    paging_heap_destroy(&pcb->heap);
-    paging_page_free(pcb->user_pfn);
+    heap_clear(&pcb->heap);
+    paging_page_free(pcb->user_paddr);
     scheduler_remove(pcb);
 }
 
@@ -434,7 +441,7 @@ process_create_idle(void)
     pcb->state = PROCESS_STATE_NEW;
     pcb->parent_pid = -1;
     pcb->terminal = 0;
-    pcb->user_pfn = -1;
+    pcb->user_paddr = 0;
     pcb->compat = false;
     pcb->group = pcb->pid;
     pcb->vidmap = false;
@@ -442,7 +449,7 @@ process_create_idle(void)
     signal_init(pcb->signals);
     timer_init(&pcb->alarm_timer);
     timer_init(&pcb->sleep_timer);
-    paging_heap_init(&pcb->heap);
+    heap_init(&pcb->heap, 0, 0, false);
 
     process_fill_idle_regs(&pcb->regs);
     return pcb;
@@ -472,8 +479,8 @@ process_create_user(char *command, int terminal)
     }
 
     /* Allocate physical memory to hold process */
-    int pfn = paging_page_alloc();
-    if (pfn < 0) {
+    uintptr_t paddr = paging_page_alloc();
+    if (paddr == 0) {
         debugf("Cannot allocate page for process\n");
         process_free_pcb(pcb);
         return NULL;
@@ -483,7 +490,7 @@ process_create_user(char *command, int terminal)
     pcb->state = PROCESS_STATE_NEW;
     pcb->parent_pid = -1;
     pcb->terminal = terminal;
-    pcb->user_pfn = pfn;
+    pcb->user_paddr = paddr;
     pcb->compat = false;
     pcb->group = pcb->pid;
     pcb->vidmap = false;
@@ -493,13 +500,13 @@ process_create_user(char *command, int terminal)
     timer_init(&pcb->alarm_timer);
     timer_setup(&pcb->alarm_timer, SIG_ALARM_PERIOD_MS, process_alarm_callback);
     timer_init(&pcb->sleep_timer);
-    paging_heap_init(&pcb->heap);
+    heap_init(&pcb->heap, USER_HEAP_START, USER_HEAP_END, true);
 
     /* Set terminal foreground group since this is the only process */
     terminal_tcsetpgrp_impl(terminal, pcb->group);
 
     /* Copy our program into physical memory */
-    uint32_t entry_point = paging_load_exe(inode_idx, pfn);
+    uint32_t entry_point = paging_load_user_page(inode_idx, paddr);
     process_fill_user_regs(&pcb->regs, entry_point);
 
     /* Finally, schedule this process for execution */
@@ -524,8 +531,8 @@ process_clone(pcb_t *parent_pcb, int_regs_t *regs, bool clone_pages)
     }
 
     /* Allocate physical memory to hold process */
-    int pfn = paging_page_alloc();
-    if (pfn < 0) {
+    uintptr_t paddr = paging_page_alloc();
+    if (paddr == 0) {
         debugf("Cannot allocate page for child process\n");
         process_free_pcb(child_pcb);
         return NULL;
@@ -533,20 +540,20 @@ process_clone(pcb_t *parent_pcb, int_regs_t *regs, bool clone_pages)
 
     /* First try to clone the heap, since that can fail */
     if (clone_pages) {
-        if (paging_heap_clone(&child_pcb->heap, &parent_pcb->heap) < 0) {
+        if (heap_clone(&child_pcb->heap, &parent_pcb->heap) < 0) {
             debugf("Cannot allocate heap for child process\n");
-            paging_page_free(pfn);
+            paging_page_free(paddr);
             process_free_pcb(child_pcb);
             return NULL;
         }
     } else {
-        paging_heap_init(&child_pcb->heap);
+        heap_init(&child_pcb->heap, USER_HEAP_START, USER_HEAP_END, true);
     }
 
     /* Some state isn't cloned - set those here */
     child_pcb->state = PROCESS_STATE_NEW;
     child_pcb->parent_pid = parent_pcb->pid;
-    child_pcb->user_pfn = pfn;
+    child_pcb->user_paddr = paddr;
     child_pcb->compat = false;
 
     /* Set "return" value to zero in child */
@@ -564,7 +571,7 @@ process_clone(pcb_t *parent_pcb, int_regs_t *regs, bool clone_pages)
 
     /* Clone user page into child */
     if (clone_pages) {
-        paging_page_clone(pfn, (void *)USER_PAGE_START);
+        paging_clone_user_page(paddr);
     }
 
     /* Schedule child for execution */
@@ -600,13 +607,13 @@ process_exec_impl(pcb_t *pcb, int_regs_t *regs, const char *command)
     signal_init(pcb->signals);
 
     /* Reset child process heap */
-    paging_heap_destroy(&pcb->heap);
+    heap_clear(&pcb->heap);
 
     /* Restart SIGALARM timer */
     timer_setup(&pcb->alarm_timer, SIG_ALARM_PERIOD_MS, process_alarm_callback);
 
     /* Copy our program into physical memory */
-    uint32_t entry_point = paging_load_exe(inode_idx, pcb->user_pfn);
+    uint32_t entry_point = paging_load_user_page(inode_idx, pcb->user_paddr);
 
     /* Replace interrupt context used to return into userspace */
     process_fill_user_regs(regs, entry_point);
@@ -751,13 +758,13 @@ process_sbrk(int delta, void **orig_brk)
     pcb_t *pcb = get_executing_pcb();
 
     /* Try to copy the address first to avoid having to revert the change */
-    void *brk = paging_heap_sbrk(&pcb->heap, 0);
+    void *brk = heap_sbrk(&pcb->heap, 0);
     if (orig_brk != NULL && !copy_to_user(orig_brk, &brk, sizeof(void *))) {
         return -1;
     }
 
     /* Resize the heap */
-    void *ret = paging_heap_sbrk(&pcb->heap, delta);
+    void *ret = heap_sbrk(&pcb->heap, delta);
     if (ret == NULL) {
         return -1;
     }

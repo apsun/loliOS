@@ -19,6 +19,7 @@
 #include "debug.h"
 #include "string.h"
 #include "paging.h"
+#include "heap.h"
 
 /*
  * Whether to poison new allocations with an invalid pattern to
@@ -60,7 +61,7 @@
  * Generally, this should be set to the page size for
  * maximum performance.
  */
-#define MYA_SBRK_ALIGN (4 * 1024 * 1024)
+#define MYA_SBRK_ALIGN PAGE_SIZE
 
 /*
  * Masks for extracting the size and flags out of the
@@ -164,7 +165,7 @@ static mya_header_t *mya_free_list = NULL;
  * This caches the value of the last call to sbrk, so that we can
  * efficiently check if an allocation would overflow.
  */
-static void *mya_last_brk = (void *)MB(8);
+static void *mya_last_brk = (void *)KERNEL_HEAP_START;
 
 /*
  * Whether we've initialized the global state.
@@ -172,13 +173,9 @@ static void *mya_last_brk = (void *)MB(8);
 static bool mya_initialized = false;
 
 /*
- * List of PFNs that have been allocated by the kernel. Since we
- * restrict the kernel to allocate in the 8~128MB virtual address
- * range, we can only allocate a maximum of 30 pages. To convert
- * to a VFN, just add 2 to the index.
+ * The kernel's heap state.
  */
-static int mya_pages[(128 - 8) / 4];
-static int mya_num_pages = 0;
+static heap_t mya_kernel_heap;
 
 /*
  * Adds a block to the free list. Upon entry,
@@ -288,37 +285,21 @@ mya_coalesce(mya_header_t *header)
 static bool
 mya_sbrk(size_t delta, void **orig_brk, void **new_brk)
 {
-    /* Only allow increments of 4MB in the kernel */
-    assert(delta % MYA_SBRK_ALIGN == 0);
-
-    /* Check that we don't overflow above 128MB */
-    if (delta / MYA_SBRK_ALIGN + mya_num_pages > array_len(mya_pages)) {
+    /* If allocation would overflow, fail fast */
+    if ((size_t)mya_last_brk + delta < (size_t)mya_last_brk) {
         return false;
     }
 
-    /* Allocate one page at a time */
-    int orig_num_pages = mya_num_pages;
-    size_t allocated = 0;
-    while (allocated < delta) {
-        /*
-         * Allocate and map a page into virtual memory.
-         * +2 since we skip the first 8MB = 2 pages.
-         */
-        int pfn = get_free_page(mya_num_pages + 2, false);
-        if (pfn < 0) {
-            while (mya_num_pages > orig_num_pages) {
-                mya_num_pages--;
-                free_page(mya_num_pages + 2, mya_pages[mya_num_pages]);
-            }
-            return false;
-        }
-
-        mya_pages[mya_num_pages++] = pfn;
-        allocated += MB(4);
+    /* We know the allocation is safe, call sbrk */
+    void *last_brk = heap_sbrk(&mya_kernel_heap, delta);
+    if (last_brk == NULL) {
+        return false;
     }
 
-    *orig_brk = mya_last_brk;
-    mya_last_brk = (void *)((char *)mya_last_brk + allocated);
+    /* Update cached brk value */
+    mya_last_brk = (void *)((char *)last_brk + delta);
+
+    *orig_brk = last_brk;
     *new_brk = mya_last_brk;
     return true;
 }
@@ -346,6 +327,10 @@ mya_initialize(void)
      *        | | size = X | used = 0 |            |
      * header | | size = 0 | used = 1 |____________v_______
      */
+
+    /* Initialize the kernel heap state */
+    heap_init(&mya_kernel_heap, KERNEL_HEAP_START, KERNEL_HEAP_END, false);
+    heap_map(&mya_kernel_heap);
 
     /* Allocate some starting memory */
     void *orig_brk, *new_brk;

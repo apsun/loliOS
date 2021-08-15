@@ -93,7 +93,8 @@ scheduler_yield_impl(pcb_t *curr)
 
     /*
      * Save current stack pointer so we can switch back to this
-     * stack frame.
+     * stack frame, and unset process execution context in
+     * preparation for the next process.
      */
     if (curr != NULL) {
         asm volatile(
@@ -101,6 +102,8 @@ scheduler_yield_impl(pcb_t *curr)
             "movl %%ebp, %1;"
             : "=g"(curr->scheduler_esp),
               "=g"(curr->scheduler_ebp));
+
+        process_unset_context(curr);
     }
 
     if (next->state == PROCESS_STATE_NEW) {

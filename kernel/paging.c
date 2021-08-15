@@ -11,7 +11,7 @@
 
 /* Amount of physical memory present in the system (256MB) */
 #define MAX_RAM MB(256)
-#define MAX_PAGES (MAX_RAM / MB(4))
+#define MAX_PAGES (MAX_RAM / PAGE_SIZE)
 
 /* Where in the user page to begin copying the userspace program */
 #define PROCESS_OFFSET 0x48000
@@ -80,7 +80,7 @@ static pte_t page_table[1024];
 /*
  * We don't bother with free lists or any of that fancy stuff
  * in our page allocator. Just use a single flat bitmap with
- * one bit representing one 4MB page in the system.
+ * one bit representing one page in the system.
  */
 static bitmap_declare(allocated_pages, MAX_PAGES);
 
@@ -164,21 +164,6 @@ paging_init_video(void)
     }
 }
 
-/* Initializes the VBE framebuffer pages */
-static void
-paging_init_vbe(void)
-{
-    uintptr_t addr;
-    for (addr = VBE_PAGE_START; addr < VBE_PAGE_END; addr += MB(4)) {
-        pde_4mb_t *pde = PDE_4MB(addr);
-        pde->present = 1;
-        pde->write = 1;
-        pde->user = 1;  // TODO: Use indirect pages with proper permissions
-        pde->size = SIZE_4MB;
-        pde->base_addr = TO_4MB_BASE(addr);
-    }
-}
-
 /* Initializes the 4KB vidmap page */
 static void
 paging_init_vidmap(void)
@@ -200,6 +185,21 @@ paging_init_sb16(void)
         pte->write = 1;
         pte->user = 0;
         pte->base_addr = TO_4KB_BASE(addr);
+    }
+}
+
+/* Initializes the VBE framebuffer pages */
+static void
+paging_init_vbe(void)
+{
+    uintptr_t addr;
+    for (addr = VBE_PAGE_START; addr < VBE_PAGE_END; addr += MB(4)) {
+        pde_4mb_t *pde = PDE_4MB(addr);
+        pde->present = 1;
+        pde->write = 1;
+        pde->user = 1;  // TODO: Use indirect pages with proper permissions
+        pde->size = SIZE_4MB;
+        pde->base_addr = TO_4MB_BASE(addr);
     }
 }
 
@@ -264,258 +264,70 @@ paging_init(void)
 }
 
 /*
- * Allocates a new page and returns its page frame number.
- * If no free pages are available, returns -1. This does
+ * Allocates a new page and returns its physical address.
+ * If no free pages are available, returns 0. This does
  * not modify the page directory; it only prevents this
  * function from returning the same address in the future
  * until paging_page_free() is called.
  */
-int
+uintptr_t
 paging_page_alloc(void)
 {
     /* Find a free page... */
-    int pfn = (int)bitmap_find_zero(allocated_pages, MAX_PAGES);
+    int pfn = bitmap_find_zero(allocated_pages, MAX_PAGES);
     if (pfn >= MAX_PAGES) {
         return -1;
     }
 
     /* ... and mark it as allocated. */
-    bitmap_set(allocated_pages, (size_t)pfn);
-    return pfn;
+    bitmap_set(allocated_pages, pfn);
+    uintptr_t paddr = pfn * PAGE_SIZE;
+    return paddr;
 }
 
 /*
  * Frees a page obtained from paging_page_alloc().
  */
 void
-paging_page_free(int pfn)
+paging_page_free(uintptr_t paddr)
 {
-    assert(pfn >= 0);
-    assert(bitmap_get(allocated_pages, (size_t)pfn));
-
-    bitmap_clear(allocated_pages, (size_t)pfn);
+    assert(paddr != 0);
+    int pfn = paddr / PAGE_SIZE;
+    assert(bitmap_get(allocated_pages, pfn));
+    bitmap_clear(allocated_pages, pfn);
 }
 
 /*
- * Modifies the page tables to map the specified virtual
- * address to the specified physical address. This should
- * only be used for pages obtained from paging_page_alloc().
+ * Modifies the page tables to map one page (of size PAGE_SIZE)
+ * from the specified virtual address to the specified physical
+ * address. Flushes the TLB.
  */
-static void
-paging_page_map(int vfn, int pfn, bool user)
+void
+paging_page_map(uintptr_t vaddr, uintptr_t paddr, bool user)
 {
-    assert(vfn >= 0);
-    assert(pfn >= 0);
+    assert(PAGE_SIZE == MB(4));
 
-    uintptr_t vaddr = vfn * MB(4);
     pde_4mb_t *entry = PDE_4MB(vaddr);
     entry->present = 1;
     entry->write = 1;
     entry->user = user;
     entry->size = SIZE_4MB;
-    entry->base_addr = pfn;
+    entry->base_addr = TO_4MB_BASE(paddr);
     paging_flush_tlb();
 }
 
 /*
- * Modifies the page tables to unmap the specified virtual
- * address.
+ * Modifies the page tables to unmap the specified page. Flushes
+ * the TLB.
  */
-static void
-paging_page_unmap(int vfn)
+void
+paging_page_unmap(uintptr_t vaddr)
 {
-    assert(vfn >= 0);
+    assert(PAGE_SIZE == MB(4));
 
-    uintptr_t vaddr = vfn * MB(4);
     pde_4mb_t *entry = PDE_4MB(vaddr);
     entry->present = 0;
     paging_flush_tlb();
-}
-
-/*
- * Allocates and maps a new page. This will modify the page
- * directory. Returns the PFN of the allocated page, or -1
- * if there are no free pages remaining.
- */
-int
-get_free_page(int vfn, bool user)
-{
-    assert(vfn >= 0);
-
-    int pfn = paging_page_alloc();
-    if (pfn < 0) {
-        return -1;
-    } else {
-        paging_page_map(vfn, pfn, user);
-        return pfn;
-    }
-}
-
-/*
- * Frees a page previously allocated using get_free_page().
- * This will modify the page directory.
- */
-void
-free_page(int vfn, int pfn)
-{
-    assert(vfn >= 0);
-    assert(pfn >= 0);
-
-    paging_page_unmap(vfn);
-    paging_page_free(pfn);
-}
-
-/*
- * Initializes a new process heap.
- */
-void
-paging_heap_init(paging_heap_t *heap)
-{
-    heap->size = 0;
-    heap->num_pages = 0;
-}
-
-/*
- * Shrinks the specified heap to the specified number of pages.
- * This will flush the TLB.
- */
-static void
-paging_heap_shrink(paging_heap_t *heap, int new_pages)
-{
-    while (heap->num_pages > new_pages) {
-        int i = --heap->num_pages;
-        int vfn = HEAP_PAGE_START / MB(4) + i;
-        int pfn = heap->pages[i];
-        free_page(vfn, pfn);
-    }
-}
-
-/*
- * Grows the specified heap to the specified number of pages.
- * This will flush the TLB. If there are not enough free
- * pages to satisfy the allocation, the heap will not be
- * modified and -1 will be returned.
- */
-static int
-paging_heap_grow(paging_heap_t *heap, int new_pages)
-{
-    int orig_pages = heap->num_pages;
-    while (heap->num_pages < new_pages) {
-        int vfn = HEAP_PAGE_START / MB(4) + heap->num_pages;
-        int pfn = get_free_page(vfn, true);
-
-        /* If allocation fails, undo allocations */
-        if (pfn < 0) {
-            debugf("Physical memory exhausted\n");
-            paging_heap_shrink(heap, orig_pages);
-            return -1;
-        }
-
-        heap->pages[heap->num_pages++] = pfn;
-    }
-
-    return 0;
-}
-
-/*
- * Grows or shrinks a heap, depending on the value
- * of delta. Returns NULL on error (e.g. shrinking by
- * more than available, or not enough physical memory).
- * On success, returns the previous brk's virtual address.
- * This function is guaranteed to not fail if delta == 0.
- */
-void *
-paging_heap_sbrk(paging_heap_t *heap, int delta)
-{
-    int orig_size = heap->size;
-    void *orig_brk = (void *)(HEAP_PAGE_START + orig_size);
-
-    if (delta == 0) {
-        return orig_brk;
-    }
-
-    int orig_num_pages = heap->num_pages;
-    void *orig_page_brk = (void *)(HEAP_PAGE_START + orig_num_pages * MB(4));
-
-    /* Upper bound limit (if delta is huge, rhs is negative -> true) */
-    if (delta > 0 && orig_size > MAX_HEAP_SIZE - delta) {
-        debugf("Trying to expand heap beyond virtual capacity\n");
-        return NULL;
-    }
-
-    /* Lower bound limit */
-    if (delta < 0 && orig_size + delta < 0) {
-        debugf("Trying to deallocate more than was allocated\n");
-        return NULL;
-    }
-
-    int new_size = orig_size + delta;
-    int new_num_pages = (new_size + MB(4) - 1) / MB(4);
-
-    /* Grow or shrink heap as necessary */
-    if (new_num_pages > orig_num_pages) {
-        if (paging_heap_grow(heap, new_num_pages) < 0) {
-            return NULL;
-        }
-        memset(orig_page_brk, 0, (new_num_pages - orig_num_pages) * MB(4));
-    } else if (new_num_pages < orig_num_pages) {
-        paging_heap_shrink(heap, new_num_pages);
-    }
-
-    /* Update heap size */
-    heap->size = new_size;
-    return orig_brk;
-}
-
-/*
- * Deallocates a heap, freeing all pages used by it.
- * This restores the heap to its initial (empty) state.
- */
-void
-paging_heap_destroy(paging_heap_t *heap)
-{
-    paging_heap_shrink(heap, 0);
-    heap->size = 0;
-}
-
-/*
- * Clones an existing process's heap. Note that this
- * currently does not perform copy-on-write optimization.
- */
-int
-paging_heap_clone(paging_heap_t *dest, paging_heap_t *src)
-{
-    /* Allocate same number of pages as src */
-    dest->size = src->size;
-    dest->num_pages = 0;
-    if (paging_heap_grow(dest, src->num_pages) < 0) {
-        return -1;
-    }
-
-    /*
-     * Copy page contents, 4MB at a time. Temporary page
-     * is necessary since we need to be able to view both
-     * physical addresses simultaneously, but both have
-     * the same virtual address.
-     */
-    int i;
-    for (i = 0; i < dest->num_pages; ++i) {
-        paging_page_map(TEMP_PAGE_START / MB(4), dest->pages[i], false);
-        paging_page_map(TEMP_PAGE_2_START / MB(4), src->pages[i], false);
-        memcpy((void *)TEMP_PAGE_START, (void *)TEMP_PAGE_2_START, MB(4));
-    }
-    return 0;
-}
-
-/*
- * Clones an already-present page to a new, unmapped physical
- * memory address.
- */
-void
-paging_page_clone(int dest_pfn, void *src_vaddr)
-{
-    paging_page_map(TEMP_PAGE_START / MB(4), dest_pfn, false);
-    memcpy((void *)TEMP_PAGE_START, src_vaddr, MB(4));
 }
 
 /*
@@ -524,9 +336,9 @@ paging_page_clone(int dest_pfn, void *src_vaddr)
  * page mappings.
  */
 uint32_t
-paging_load_exe(int inode_idx, int pfn)
+paging_load_user_page(int inode_idx, uintptr_t paddr)
 {
-    paging_page_map(TEMP_PAGE_START / MB(4), pfn, false);
+    paging_page_map(TEMP_PAGE_START, paddr, false);
 
     /* Clear process page first */
     memset((void *)TEMP_PAGE_START, 0, MB(4));
@@ -536,7 +348,7 @@ paging_load_exe(int inode_idx, int pfn)
     int offset = 0;
     do {
         uint8_t *vaddr = (uint8_t *)TEMP_PAGE_START + PROCESS_OFFSET + offset;
-        count = fs_read_data(inode_idx, offset, vaddr, MB(4), memcpy);
+        count = fs_read_data(inode_idx, offset, vaddr, MB(4) - offset, memcpy);
         offset += count;
     } while (count > 0);
 
@@ -546,34 +358,32 @@ paging_load_exe(int inode_idx, int pfn)
      * read garbage, which will cause the program to fault in userspace.
      * No need to handle it here.
      */
-    return *(uint32_t *)(TEMP_PAGE_START + PROCESS_OFFSET + 24);
+    uint32_t entry = *(uint32_t *)(TEMP_PAGE_START + PROCESS_OFFSET + 24);
+
+    paging_page_unmap(TEMP_PAGE_START);
+    return entry;
 }
 
 /*
- * Updates the process and heap pages to point to the
- * physical pages corresponding to the specified process.
- * This should be called during context switching.
+ * Clones an already-present page to a new, unmapped physical
+ * memory address.
  */
 void
-paging_set_context(int pfn, paging_heap_t *heap)
+paging_clone_user_page(uintptr_t dest_paddr)
 {
-    /* Point the user page to the corresponding physical address */
-    if (pfn >= 0) {
-        paging_page_map(USER_PAGE_START / MB(4), pfn, true);
-    } else {
-        paging_page_unmap(USER_PAGE_START / MB(4));
-    }
+    paging_page_map(TEMP_PAGE_START, dest_paddr, false);
+    memcpy((void *)TEMP_PAGE_START, (const void *)USER_PAGE_START, PAGE_SIZE);
+    paging_page_unmap(TEMP_PAGE_START);
+}
 
-    /* Replace heap page directory entries */
-    int i;
-    for (i = 0; i < MAX_HEAP_PAGES; ++i) {
-        int vfn = HEAP_PAGE_START / MB(4) + i;
-        if (i < heap->num_pages) {
-            paging_page_map(vfn, heap->pages[i], true);
-        } else {
-            paging_page_unmap(vfn);
-        }
-    }
+/*
+ * Updates the user page to point to the specified physical
+ * address.
+ */
+void
+paging_map_user_page(uintptr_t paddr)
+{
+    paging_page_map(USER_PAGE_START, paddr, true);
 }
 
 /*
@@ -583,12 +393,9 @@ paging_set_context(int pfn, paging_heap_t *heap)
 void
 paging_update_vidmap_page(uint8_t *video_mem, bool present)
 {
-    /* Update page table structures */
     pte_t *table = PTE(VIDMAP_PAGE_START);
     table->present = present ? 1 : 0;
     table->base_addr = TO_4KB_BASE(video_mem);
-
-    /* Also flush the TLB */
     paging_flush_tlb();
 }
 
