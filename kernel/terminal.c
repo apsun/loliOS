@@ -768,7 +768,7 @@ terminal_init(void)
         terminal_state_t *term = &terminal_states[i];
 
         /* Point backing memory to the per-terminal page */
-        term->backing_mem = (uint8_t *)TERMINAL_PAGE_START + KB(i * 4);
+        term->backing_mem = (uint8_t *)TERMINAL_PAGE_START + i * KB(4);
 
         /* Active memory points to the backing memory */
         term->video_mem = term->backing_mem;

@@ -290,7 +290,7 @@ printf_impl(
     a.true_len = 0;
     a.error = false;
 
-    for (; *format != '\0'; format++) {
+    for (; *format != '\0'; ++format) {
         if (*format != '%') {
             printf_append_char(&a, *format);
             continue;

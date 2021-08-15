@@ -38,7 +38,7 @@ static int
 fs_namecmp(const char *search_name, const char file_name[MAX_FILENAME_LEN])
 {
     int i;
-    for (i = 0; i < MAX_FILENAME_LEN; i++) {
+    for (i = 0; i < MAX_FILENAME_LEN; ++i) {
         if (search_name[i] != file_name[i] || file_name[i] == '\0') {
             return search_name[i] - file_name[i];
         }

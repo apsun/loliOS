@@ -143,24 +143,24 @@ paging_init_video(void)
     vga_pte->base_addr = TO_4KB_BASE(VIDEO_PAGE_START);
 
     /* VGA font pages */
-    uintptr_t addr;
-    for (addr = VGA_FONT_PAGE_START; addr < VGA_FONT_PAGE_END; addr += KB(4)) {
-        pte_t *font_pte = PTE(addr);
+    uintptr_t vga_addr;
+    for (vga_addr = VGA_FONT_PAGE_START; vga_addr < VGA_FONT_PAGE_END; vga_addr += KB(4)) {
+        pte_t *font_pte = PTE(vga_addr);
         font_pte->present = 1;
         font_pte->write = 1;
         font_pte->user = 0;
-        font_pte->base_addr = TO_4KB_BASE(addr);
+        font_pte->base_addr = TO_4KB_BASE(vga_addr);
     }
 
-    /* Virtual video memory pages, one per terminal */
+    /* Backing video memory pages, one per terminal */
     int i;
     for (i = 0; i < NUM_TERMINALS; ++i) {
-        uintptr_t term_addr = TERMINAL_PAGE_START + i * KB(4);
-        pte_t *tty_pte = PTE(term_addr);
+        uintptr_t tty_addr = TERMINAL_PAGE_START + i * KB(4);
+        pte_t *tty_pte = PTE(tty_addr);
         tty_pte->present = 1;
         tty_pte->write = 1;
         tty_pte->user = 0;
-        tty_pte->base_addr = TO_4KB_BASE(term_addr);
+        tty_pte->base_addr = TO_4KB_BASE(tty_addr);
     }
 }
 
@@ -331,7 +331,7 @@ paging_page_unmap(uintptr_t vaddr)
 }
 
 /*
- * Copies a program into memory, and returns the virtual
+ * Copies a program into the user page, and returns the virtual
  * address of the entry point. This does not clobber any
  * page mappings.
  */
@@ -365,14 +365,14 @@ paging_load_user_page(int inode_idx, uintptr_t paddr)
 }
 
 /*
- * Clones an already-present page to a new, unmapped physical
- * memory address.
+ * Copies the contents of the user page to the specified physical
+ * address. This does not clobber any page mappings.
  */
 void
 paging_clone_user_page(uintptr_t dest_paddr)
 {
     paging_page_map(TEMP_PAGE_START, dest_paddr, false);
-    memcpy((void *)TEMP_PAGE_START, (const void *)USER_PAGE_START, PAGE_SIZE);
+    memcpy((void *)TEMP_PAGE_START, (const void *)USER_PAGE_START, MB(4));
     paging_page_unmap(TEMP_PAGE_START);
 }
 

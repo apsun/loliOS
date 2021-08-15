@@ -81,7 +81,7 @@ entry(unsigned long magic, unsigned long addr)
             printf("Module %d ends at address: 0x%08x\n", mod_count, mod->mod_end);
             printf("First few bytes of module:\n");
             int i;
-            for (i = 0; i < 16; i++) {
+            for (i = 0; i < 16; ++i) {
                 printf("0x%02x ", *((uint8_t *)(mod->mod_start + i)));
             }
             printf("\n");

@@ -16,7 +16,7 @@ void
 srand(unsigned int seed)
 {
     state[0] = seed;
-    for (index = 1; index < N; index++) {
+    for (index = 1; index < N; ++index) {
         state[index] = (1812433253U * (state[index - 1] ^ (state[index - 1] >> 30)) + index); 
     }
 }
