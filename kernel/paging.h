@@ -38,9 +38,6 @@
 #define TEMP_PAGE_START     0x10000000
 #define TEMP_PAGE_END       0x10400000
 
-#define TEMP_PAGE_2_START   0x10400000
-#define TEMP_PAGE_2_END     0x10800000
-
 #define VBE_PAGE_START      0xE0000000
 #define VBE_PAGE_END        (VBE_PAGE_START + MB(8))
 
