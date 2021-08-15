@@ -64,8 +64,13 @@ fuzz(int fd)
             continue;
         }
 
+        /* Limit duration of monosleep() */
+        if (eax == SYS_MONOSLEEP && ebx > 100) {
+            continue;
+        }
+
         /* read(stdin) wastes a lot of time */
-        if (eax == SYS_READ && ebx == 0) {
+        if (eax == SYS_READ && ebx == STDIN_FILENO) {
             continue;
         }
 
