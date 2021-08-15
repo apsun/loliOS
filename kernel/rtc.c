@@ -200,7 +200,7 @@ rtc_write(file_obj_t *file, const void *buf, int nbytes)
 /*
  * Converts a separate-component time to a Unix timestamp.
  */
-static time_t
+static int
 rtc_mktime(rtc_tm_t t)
 {
     /* Below algorithm shamelessly stolen from Linux mktime() */
@@ -211,20 +211,20 @@ rtc_mktime(rtc_tm_t t)
         year -= 1;
     }
 
-    time_t leap_days = year / 4 - year / 100 + year / 400;
-    time_t day_in_year = 367 * month / 12 + t.day;
-    time_t days = leap_days + day_in_year + year * 365 - 719499;
-    time_t hours = days * 24 + t.hour;
-    time_t mins = hours * 60 + t.minute;
-    time_t secs = mins * 60 + t.second;
+    int leap_days = year / 4 - year / 100 + year / 400;
+    int day_in_year = 367 * month / 12 + t.day;
+    int days = leap_days + day_in_year + year * 365 - 719499;
+    int hours = days * 24 + t.hour;
+    int mins = hours * 60 + t.minute;
+    int secs = mins * 60 + t.second;
     return secs;
 }
 
 /*
  * Returns the number of seconds since the Unix epoch (UTC).
  */
-time_t
-rtc_now(void)
+__cdecl int
+rtc_realtime(void)
 {
     /* Wait until update finishes */
     while (rtc_read_reg(RTC_REG_A) & RTC_A_UIP);

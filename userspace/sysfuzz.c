@@ -94,10 +94,7 @@ main(void)
             return 1;
         } else if (pid > 0) {
             /* Wait up to 3 seconds before killing the fuzzer */
-            nanotime_t now;
-            monotime(&now);
-            nanotime_t target = now + SECONDS(3);
-            monosleep(&target);
+            monosleep(monotime() + 3000);
             kill(pid, SIG_KILL);
             wait(&pid);
         } else {

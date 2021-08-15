@@ -4,7 +4,7 @@
 #include "filesys.h"
 #include "paging.h"
 #include "terminal.h"
-#include "time.h"
+#include "pit.h"
 #include "timer.h"
 #include "x86_desc.h"
 #include "scheduler.h"
@@ -25,8 +25,8 @@
 /* Name of the userspace program to execute on boot */
 #define INIT_PROCESS "shell"
 
-/* Period of the alarm signal */
-#define SIG_ALARM_PERIOD SECONDS(10)
+/* Period of the alarm signal in milliseconds */
+#define SIG_ALARM_PERIOD_MS 10000
 
 /* Kernel stack struct */
 typedef struct {
@@ -300,7 +300,7 @@ process_alarm_callback(timer_t *timer)
 {
     pcb_t *pcb = timer_entry(timer, pcb_t, alarm_timer);
     signal_kill(pcb->pid, SIG_ALARM);
-    timer_setup(timer, SIG_ALARM_PERIOD, process_alarm_callback);
+    timer_setup(timer, SIG_ALARM_PERIOD_MS, process_alarm_callback);
 }
 
 /*
@@ -491,7 +491,7 @@ process_create_user(char *command, int terminal)
     terminal_open_streams(pcb->files);
     signal_init(pcb->signals);
     timer_init(&pcb->alarm_timer);
-    timer_setup(&pcb->alarm_timer, SIG_ALARM_PERIOD, process_alarm_callback);
+    timer_setup(&pcb->alarm_timer, SIG_ALARM_PERIOD_MS, process_alarm_callback);
     timer_init(&pcb->sleep_timer);
     paging_heap_init(&pcb->heap);
 
@@ -603,7 +603,7 @@ process_exec_impl(pcb_t *pcb, int_regs_t *regs, const char *command)
     paging_heap_destroy(&pcb->heap);
 
     /* Restart SIGALARM timer */
-    timer_setup(&pcb->alarm_timer, SIG_ALARM_PERIOD, process_alarm_callback);
+    timer_setup(&pcb->alarm_timer, SIG_ALARM_PERIOD_MS, process_alarm_callback);
 
     /* Copy our program into physical memory */
     uint32_t entry_point = paging_load_exe(inode_idx, pcb->user_pfn);
@@ -1058,41 +1058,45 @@ process_halt(int status)
 }
 
 /*
- * Callback for process_sleep(). Wakes the corresponding process.
+ * Callback for process_monosleep(). Wakes the corresponding process.
  */
 static void
-process_sleep_callback(timer_t *timer)
+process_monosleep_callback(timer_t *timer)
 {
     pcb_t *pcb = timer_entry(timer, pcb_t, sleep_timer);
     scheduler_wake(pcb);
 }
 
 /*
- * Sleeps until the specified monotonic clock time (in nanoseconds).
+ * Sleeps until the specified monotonic clock time (in milliseconds).
  * If target is earlier than the current time, the call will immediately
  * return 0. The sleep may be interrupted, in which case -EINTR will
  * be returned and this can be called again with the same argument.
  * Otherwise, 0 will be returned to indicate a successful sleep.
  */
-int
-process_sleep(nanotime_t target)
+__cdecl int
+process_monosleep(int target)
 {
+    if (target < 0) {
+        return -1;
+    }
+
     /* Check if we're already past the target time */
-    nanotime_t now = monotime_now();
+    int now = pit_monotime();
     if (now >= target) {
         return 0;
     }
 
     /* Put ourselves to sleep */
     pcb_t *pcb = get_executing_pcb();
-    timer_setup_abs(&pcb->sleep_timer, target, process_sleep_callback);
+    timer_setup_abs(&pcb->sleep_timer, target, process_monosleep_callback);
     scheduler_sleep(&sleep_queue);
 
     /* We woke up, cancel timer in case we got woken early */
     timer_cancel(&pcb->sleep_timer);
 
     /* Check if we slept long enough */
-    now = monotime_now();
+    now = pit_monotime();
     if (now >= target) {
         return 0;
     }

@@ -1,7 +1,7 @@
 #include "timer.h"
 #include "debug.h"
 #include "list.h"
-#include "time.h"
+#include "pit.h"
 
 /* Global list of timers, in order of time until expiry */
 static list_declare(timer_list);
@@ -27,7 +27,7 @@ timer_insert_list(timer_t *timer)
  * Calls and deactivates any expired timers.
  */
 void
-timer_tick(nanotime_t now)
+timer_tick(int now)
 {
     while (!list_empty(&timer_list)) {
         timer_t *pending = list_first_entry(&timer_list, timer_t, list);
@@ -73,23 +73,23 @@ timer_clone(timer_t *dest, timer_t *src)
 }
 
 /*
- * Activates a timer to expire after the specified delay.
- * If the timer is already active, the original callback will
- * be cancelled and the timer rescheduled.
+ * Activates a timer to expire after the specified delay in
+ * milliseconds. If the timer is already active, the original
+ * callback will be cancelled and the timer rescheduled.
  */
 void
-timer_setup(timer_t *timer, nanotime_t delay, void (*callback)(timer_t *))
+timer_setup(timer_t *timer, int delay, void (*callback)(timer_t *))
 {
-    timer_setup_abs(timer, monotime_now() + delay, callback);
+    timer_setup_abs(timer, pit_monotime() + delay, callback);
 }
 
 /*
- * Activates a timer to expire at the specified (monotonic) time.
+ * Activates a timer to expire at the specified monotonic time.
  * if the timer is already active, the original callback will
  * be cancelled and the timer rescheduled.
  */
 void
-timer_setup_abs(timer_t *timer, nanotime_t when, void (*callback)(timer_t *))
+timer_setup_abs(timer_t *timer, int when, void (*callback)(timer_t *))
 {
     if (timer->callback != NULL) {
         list_del(&timer->list);

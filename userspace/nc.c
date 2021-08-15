@@ -12,6 +12,9 @@
 /* Maximum number of bytes to send at once */
 #define MSS 1460
 
+/* How long to wait for a DNS reply */
+#define DNS_TIMEOUT 1000
+
 typedef struct {
     uint16_t be_id;
     uint16_t be_flags;
@@ -243,19 +246,12 @@ dns_resolve(const char *hostname, ip_addr_t *ip)
     }
 
     /* Compute timeout */
-    nanotime_t start;
-    monotime(&start);
-    nanotime_t end = start + SECONDS(1);
+    int start = monotime();
+    int end = start + DNS_TIMEOUT;
 
     /* Wait for reply */
     uint8_t rbuf[0x600];
-    while (1) {
-        nanotime_t now;
-        monotime(&now);
-        if (now >= end) {
-            break;
-        }
-
+    while (monotime() < end) {
         int rcnt;
         if ((rcnt = recvfrom(sockfd, rbuf, sizeof(rbuf), NULL)) != 0) {
             if (rcnt == -EINTR || rcnt == -EAGAIN) {

@@ -54,9 +54,9 @@ syscall_jump_table:
     .long file_truncate
     .long file_unlink
     .long file_stat
-    .long time_realtime
-    .long time_monotime
-    .long time_monosleep
+    .long rtc_realtime
+    .long pit_monotime
+    .long process_monosleep
     .long vga_vbemap
     .long vga_vbeunmap
 

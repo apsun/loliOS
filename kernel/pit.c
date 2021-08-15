@@ -10,8 +10,8 @@
 /* Use a value such that freq/divisor is ~100Hz */
 #define PIT_DIVISOR 11932
 
-/* Number of nanoseconds that elapse per interrupt */
-#define PIT_NANOS_PER_IRQ (1000000000LL * PIT_DIVISOR / PIT_FREQ)
+/* Number of milliseconds that elapse per interrupt */
+#define PIT_MS_PER_IRQ (1000 * PIT_DIVISOR / PIT_FREQ)
 
 /* PIT IO ports */
 #define PIT_PORT_DATA_0 0x40
@@ -28,7 +28,7 @@
 /*
  * Global counter used for monotonic time.
  */
-static volatile uint64_t pit_counter = 0;
+static uint32_t pit_counter = 0;
 
 /*
  * Sets the interrupt frequency of the PIT. The argument
@@ -59,18 +59,20 @@ pit_set_divisor(int divisor)
 static void
 pit_handle_irq(void)
 {
-    uint64_t now = ++pit_counter;
-    timer_tick(PIT_NANOS_PER_IRQ * now);
+    uint32_t now = ++pit_counter;
+    timer_tick(PIT_MS_PER_IRQ * now);
     scheduler_yield();
 }
 
 /*
- * Returns the current monotonic clock time in nanoseconds.
+ * Returns the current monotonic clock time in milliseconds.
+ * The result is only valid when compared with the result
+ * of another call to monotime(), or as an input to monosleep().
  */
-int64_t
-pit_now(void)
+__cdecl int
+pit_monotime(void)
 {
-    return PIT_NANOS_PER_IRQ * pit_counter;
+    return PIT_MS_PER_IRQ * pit_counter;
 }
 
 /*

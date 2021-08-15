@@ -2,7 +2,6 @@
 #include "debug.h"
 #include "string.h"
 #include "list.h"
-#include "time.h"
 #include "timer.h"
 #include "myalloc.h"
 #include "ethernet.h"
@@ -13,14 +12,14 @@
 #define ARP_PROTOTYPE_IPV4 0x0800
 
 /*
- * Timeout in seconds for the entries in the ARP
+ * Timeout in milliseconds for the entries in the ARP
  * cache. Resolve timeout = how long to wait for a
  * reply before declaring it unreachable. Cache
  * timeout = how long to cache results before sending
  * a new ARP request.
  */
-#define ARP_RESOLVE_TIMEOUT SECONDS(1)
-#define ARP_CACHE_TIMEOUT SECONDS(60)
+#define ARP_RESOLVE_TIMEOUT_MS 1000
+#define ARP_CACHE_TIMEOUT_MS 60000
 
 /* ARP packet header */
 typedef struct {
@@ -107,7 +106,7 @@ arp_on_resolve_timeout(timer_t *timer)
 {
     arp_entry_t *entry = timer_entry(timer, arp_entry_t, timeout);
     entry->state = ARP_UNREACHABLE;
-    timer_setup(&entry->timeout, ARP_CACHE_TIMEOUT, arp_on_cache_timeout);
+    timer_setup(&entry->timeout, ARP_CACHE_TIMEOUT_MS, arp_on_cache_timeout);
     arp_queue_flush(entry, NULL);
 }
 
@@ -157,10 +156,10 @@ arp_cache_insert(net_dev_t *dev, ip_addr_t ip, const mac_addr_t *mac)
     if (mac != NULL) {
         entry->mac_addr = *mac;
         entry->state = ARP_REACHABLE;
-        timer_setup(&entry->timeout, ARP_CACHE_TIMEOUT, arp_on_cache_timeout);
+        timer_setup(&entry->timeout, ARP_CACHE_TIMEOUT_MS, arp_on_cache_timeout);
     } else {
         entry->state = ARP_WAITING;
-        timer_setup(&entry->timeout, ARP_RESOLVE_TIMEOUT, arp_on_resolve_timeout);
+        timer_setup(&entry->timeout, ARP_RESOLVE_TIMEOUT_MS, arp_on_resolve_timeout);
     }
     return entry;
 }

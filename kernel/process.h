@@ -7,7 +7,6 @@
 #include "idt.h"
 #include "signal.h"
 #include "paging.h"
-#include "time.h"
 #include "timer.h"
 
 /* Maximum argument length, including the NUL terminator */
@@ -207,6 +206,7 @@ __cdecl int process_execute(
     intptr_t unused4,
     int_regs_t *regs);
 __cdecl void process_halt(int status);
+__cdecl int process_monosleep(int target);
 
 /* Sets the global execution context for the specified process */
 void process_set_context(pcb_t *pcb);
@@ -216,9 +216,6 @@ void process_run(pcb_t *pcb);
 
 /* Halts the executing process with the specified status code */
 void process_halt_impl(int status);
-
-/* Puts the executing process to sleep until the specified time */
-int process_sleep(nanotime_t target);
 
 /* Initializes processes */
 void process_init(void);

@@ -56,20 +56,13 @@ main(void)
     uint32_t *vbemem;
     vbemap((void **)&vbemem, WIDTH, HEIGHT, 32);
 
-    nanotime_t start;
-    monotime(&start);
-    nanotime_t end = start + SECONDS(secs);
+    int start = monotime();
+    int end = start + secs * 1000;
 
     int iter = 0;
-    while (1) {
+    while (monotime() < end) {
         memcpy(vbemem, buf, WIDTH * HEIGHT * sizeof(uint32_t));
         iter++;
-
-        nanotime_t now;
-        monotime(&now);
-        if (now >= end) {
-            break;
-        }
     }
 
     vbeunmap(&vbemem);

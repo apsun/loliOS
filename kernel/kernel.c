@@ -18,7 +18,6 @@
 #include "null.h"
 #include "zero.h"
 #include "random.h"
-#include "time.h"
 #include "vga.h"
 #include "mt19937.h"
 
@@ -195,7 +194,7 @@ entry(unsigned long magic, unsigned long addr)
     process_init();
 
     printf("Seeding random number generator...\n");
-    srand((unsigned int)realtime_now());
+    srand((unsigned int)rtc_realtime());
 
     printf("Initializing taux controller driver...\n");
     taux_init();

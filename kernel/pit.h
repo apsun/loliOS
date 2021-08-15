@@ -5,8 +5,8 @@
 
 #ifndef ASM
 
-/* Returns the current monotonic timestamp in nanoseconds */
-int64_t pit_now(void);
+/* Returns the current monotonic clock time in milliseconds */
+__cdecl int pit_monotime(void);
 
 /* Initializes the PIT */
 void pit_init(void);

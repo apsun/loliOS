@@ -129,16 +129,6 @@ typedef struct {
 /* net.h */
 #define IP(a, b, c, d) ((ip_addr_t){.bytes = {(a), (b), (c), (d)}})
 
-/* time.h */
-typedef int64_t time_t;
-typedef int64_t nanotime_t;
-
-/* time.h */
-#define SECONDS(s) ((s) * 1000000000LL)
-#define MILLISECONDS(ms) ((ms) * 1000000LL)
-#define MICROSECONDS(us) ((us) * 1000LL)
-#define NANOSECONDS(ns) ((ns) * 1LL)
-
 __attribute__((cdecl, noreturn)) int halt(int status);
 __attribute__((cdecl)) int execute(const char *command);
 __attribute__((cdecl)) int read(int fd, void *buf, int nbytes);
@@ -180,9 +170,9 @@ __attribute__((cdecl)) int seek(int fd, int offset, int mode);
 __attribute__((cdecl)) int truncate(int fd, int length);
 __attribute__((cdecl)) int unlink(const char *filename);
 __attribute__((cdecl)) int stat(const char *filename, stat_t *buf);
-__attribute__((cdecl)) int realtime(time_t *tp);
-__attribute__((cdecl)) int monotime(nanotime_t *tp);
-__attribute__((cdecl)) int monosleep(const nanotime_t *tp);
+__attribute__((cdecl)) int realtime(void);
+__attribute__((cdecl)) int monotime(void);
+__attribute__((cdecl)) int monosleep(int target);
 __attribute__((cdecl)) int vbemap(void **ptr, int xres, int yres, int bpp);
 __attribute__((cdecl)) int vbeunmap(void *ptr);
 

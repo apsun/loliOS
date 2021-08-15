@@ -20,12 +20,11 @@ main(void)
         goto cleanup;
     }
 
-    nanotime_t now;
-    monotime(&now);
-    nanotime_t target = now + SECONDS(delay);
+    int now = monotime();
+    int target = now + delay * 1000;
 
     while (1) {
-        int r = monosleep(&target);
+        int r = monosleep(target);
         if (r == 0) {
             break;
         } else if (r < 0 && r != -EINTR) {
