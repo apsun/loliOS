@@ -512,23 +512,14 @@ memset(void *s, unsigned char c, int n)
     }
 
     /*
-     * Align dest ptr to word boundary. The switch must
-     * handle up to alignof(word_t) - 1.
+     * Align dest ptr to word boundary.
      */
     unsigned char *sb = s;
     int nalign = -(uintptr_t)sb & (__alignof__(word_t) - 1);
     if (n >= nalign) {
         n -= nalign;
-        switch (nalign) {
-        case 7: *sb++ = c; __attribute__((fallthrough));
-        case 6: *sb++ = c; __attribute__((fallthrough));
-        case 5: *sb++ = c; __attribute__((fallthrough));
-        case 4: *sb++ = c; __attribute__((fallthrough));
-        case 3: *sb++ = c; __attribute__((fallthrough));
-        case 2: *sb++ = c; __attribute__((fallthrough));
-        case 1: *sb++ = c; __attribute__((fallthrough));
-        case 0: break;
-        default: abort();
+        while (nalign--) {
+            *sb++ = c;
         }
     }
 
@@ -547,16 +538,8 @@ memset(void *s, unsigned char c, int n)
      */
     sb = (unsigned char *)sw;
     int ntrailing = n & (sizeof(word_t) - 1);
-    switch (ntrailing) {
-    case 7: *sb++ = c; __attribute__((fallthrough));
-    case 6: *sb++ = c; __attribute__((fallthrough));
-    case 5: *sb++ = c; __attribute__((fallthrough));
-    case 4: *sb++ = c; __attribute__((fallthrough));
-    case 3: *sb++ = c; __attribute__((fallthrough));
-    case 2: *sb++ = c; __attribute__((fallthrough));
-    case 1: *sb++ = c; __attribute__((fallthrough));
-    case 0: break;
-    default: abort();
+    while (ntrailing--) {
+        *sb++ = c;
     }
 
     return s;
@@ -580,24 +563,15 @@ memcpy(void *dest, const void *src, int n)
     typedef unsigned long long word_t;
 
     /*
-     * Align dest ptr to word boundary. The switch must
-     * handle up to alignof(word_t) - 1.
+     * Align dest ptr to word boundary.
      */
     unsigned char *db = dest;
     const unsigned char *sb = src;
     int nalign = -(uintptr_t)db & (__alignof__(word_t) - 1);
     if (n >= nalign) {
         n -= nalign;
-        switch (nalign) {
-        case 7: *db++ = *sb++; __attribute__((fallthrough));
-        case 6: *db++ = *sb++; __attribute__((fallthrough));
-        case 5: *db++ = *sb++; __attribute__((fallthrough));
-        case 4: *db++ = *sb++; __attribute__((fallthrough));
-        case 3: *db++ = *sb++; __attribute__((fallthrough));
-        case 2: *db++ = *sb++; __attribute__((fallthrough));
-        case 1: *db++ = *sb++; __attribute__((fallthrough));
-        case 0: break;
-        default: abort();
+        while (nalign--) {
+            *db++ = *sb++;
         }
     }
 
@@ -613,21 +587,12 @@ memcpy(void *dest, const void *src, int n)
 
     /*
      * Handle trailing bytes at the end with a byte-by-byte copy.
-     * The switch must handle up to sizeof(word_t) - 1.
      */
     db = (unsigned char *)dw;
     sb = (const unsigned char *)sw;
     int ntrailing = n & (sizeof(word_t) - 1);
-    switch (ntrailing) {
-    case 7: *db++ = *sb++; __attribute__((fallthrough));
-    case 6: *db++ = *sb++; __attribute__((fallthrough));
-    case 5: *db++ = *sb++; __attribute__((fallthrough));
-    case 4: *db++ = *sb++; __attribute__((fallthrough));
-    case 3: *db++ = *sb++; __attribute__((fallthrough));
-    case 2: *db++ = *sb++; __attribute__((fallthrough));
-    case 1: *db++ = *sb++; __attribute__((fallthrough));
-    case 0: break;
-    default: abort();
+    while (ntrailing--) {
+        *db++ = *sb++;
     }
 
     return dest;
