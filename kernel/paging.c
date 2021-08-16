@@ -228,7 +228,7 @@ paging_init_registers(void)
         "movl %%eax, %%cr0;"
         :
         : "g"(&page_dir)
-        : "eax", "cc");
+        : "eax", "memory", "cc");
 }
 
 /* Flushes the TLB */
@@ -240,7 +240,7 @@ paging_flush_tlb(void)
         "movl %%eax, %%cr3;"
         :
         :
-        : "eax");
+        : "eax", "memory");
 }
 
 /* Initializes all initial page tables and enables paging. */
