@@ -85,7 +85,7 @@ static inline void
 outl(uint32_t data, uint16_t port)
 {
     asm volatile(
-        "outl %l1, (%w0)"
+        "outl %1, (%w0)"
         :
         : "d"(port), "a"(data)
         : "memory");

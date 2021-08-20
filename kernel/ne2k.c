@@ -202,20 +202,30 @@ ne2k_config_dma(int offset, int nbytes)
 static void
 ne2k_read_mem(void *buf, int offset, int nbytes)
 {
+    assert((offset & 3) == 0);
+
     /* Set up transfer */
     ne2k_config_dma(offset, nbytes);
     outb(NE2K_ISR_RDC, NE2K_ISR);
     outb(NE2K_CMD_NODMA | NE2K_CMD_RREAD, NE2K_CMD);
 
-    /* Read the data */
-    uint16_t *bufw = buf;
+    /* Read in dwords (QEMU extension) */
     int i;
-    for (i = 0; i < nbytes / 2; ++i) {
-        bufw[i] = inw(NE2K_DATA);
+    uint32_t *bufl = (uint32_t *)buf;
+    for (i = 0; i < nbytes / 4; ++i) {
+        *bufl++ = inl(NE2K_DATA);
     }
-    if (nbytes & 1) {
-        uint8_t *bufb = buf;
-        bufb[nbytes - 1] = inb(NE2K_DATA);
+
+    /* Read in words (NE2K_DCFG_WORD must be set) */
+    uint16_t *bufw = (uint16_t *)bufl;
+    if (nbytes & 0x2) {
+        *bufw++ = inw(NE2K_DATA);
+    }
+
+    /* Read in bytes */
+    uint8_t *bufb = (uint8_t *)bufw;
+    if (nbytes & 0x1) {
+        *bufb++ = inb(NE2K_DATA);
     }
 
     /* Wait for RDC confirmation */
@@ -225,22 +235,32 @@ ne2k_read_mem(void *buf, int offset, int nbytes)
 
 /* Writes the contents of the NE2k memory */
 static void
-ne2k_write_mem(int offset, void *buf, int nbytes)
+ne2k_write_mem(int offset, const void *buf, int nbytes)
 {
+    assert((offset & 3) == 0);
+
     /* Set up transfer */
     ne2k_config_dma(offset, nbytes);
     outb(NE2K_ISR_RDC, NE2K_ISR);
     outb(NE2K_CMD_NODMA | NE2K_CMD_RWRITE, NE2K_CMD);
 
-    /* Write the data */
-    uint16_t *bufw = buf;
+    /* Write in dwords (QEMU extension) */
     int i;
-    for (i = 0; i < nbytes / 2; ++i) {
-        outw(bufw[i], NE2K_DATA);
+    const uint32_t *bufl = (const uint32_t *)buf;
+    for (i = 0; i < nbytes / 4; ++i) {
+        outl(*bufl++, NE2K_DATA);
     }
-    if (nbytes & 1) {
-        uint8_t *bufb = buf;
-        outb(bufb[nbytes - 1], NE2K_DATA);
+
+    /* Write in words (NE2K_DCFG_WORD must be set) */
+    const uint16_t *bufw = (const uint16_t *)bufl;
+    if (nbytes & 0x2) {
+        outw(*bufw++, NE2K_DATA);
+    }
+
+    /* Write in bytes */
+    const uint8_t *bufb = (const uint8_t *)bufw;
+    if (nbytes & 0x1) {
+        outb(*bufb++, NE2K_DATA);
     }
 
     /* Wait for RDC confirmation */
