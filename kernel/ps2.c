@@ -1,4 +1,5 @@
 #include "ps2.h"
+#include "types.h"
 #include "debug.h"
 #include "portio.h"
 #include "irq.h"

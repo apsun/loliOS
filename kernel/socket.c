@@ -1,6 +1,6 @@
 #include "socket.h"
+#include "types.h"
 #include "debug.h"
-#include "string.h"
 #include "myalloc.h"
 #include "file.h"
 #include "paging.h"

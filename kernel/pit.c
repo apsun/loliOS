@@ -1,8 +1,10 @@
 #include "pit.h"
+#include "types.h"
 #include "debug.h"
 #include "portio.h"
 #include "irq.h"
 #include "scheduler.h"
+#include "timer.h"
 
 /* Internal frequency of the PIT */
 #define PIT_FREQ 1193182

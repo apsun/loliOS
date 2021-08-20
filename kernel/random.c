@@ -1,4 +1,5 @@
 #include "random.h"
+#include "types.h"
 #include "file.h"
 #include "paging.h"
 #include "mt19937.h"

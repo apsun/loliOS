@@ -1,8 +1,6 @@
 #ifndef _DMA_H
 #define _DMA_H
 
-#include "types.h"
-
 #define DMA_OP_VERIFY    (0 << 2)
 #define DMA_OP_WRITE     (1 << 2)
 #define DMA_OP_READ      (2 << 2)

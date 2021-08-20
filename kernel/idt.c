@@ -1,4 +1,6 @@
 #include "idt.h"
+#include "types.h"
+#include "printf.h"
 #include "debug.h"
 #include "x86_desc.h"
 #include "irq.h"

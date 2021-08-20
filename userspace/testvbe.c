@@ -1,8 +1,9 @@
 #include <stdio.h>
 #include <assert.h>
+#include <stdint.h>
 #include <stdlib.h>
-#include <syscall.h>
 #include <string.h>
+#include <syscall.h>
 
 /*
  * Converts 8-bit R/G/B values to a single 32bpp pixel.

@@ -1,12 +1,11 @@
 #include "pipe.h"
+#include "types.h"
 #include "debug.h"
 #include "list.h"
 #include "myalloc.h"
 #include "paging.h"
 #include "file.h"
-#include "process.h"
 #include "scheduler.h"
-#include "signal.h"
 #include "syscall.h"
 
 /*

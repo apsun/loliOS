@@ -1,4 +1,5 @@
 #include "irq.h"
+#include "types.h"
 #include "i8259.h"
 #include "debug.h"
 

@@ -1,4 +1,5 @@
 #include "paging.h"
+#include "types.h"
 #include "debug.h"
 #include "string.h"
 #include "terminal.h"

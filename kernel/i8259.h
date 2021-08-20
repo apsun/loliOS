@@ -1,8 +1,6 @@
 #ifndef _I8259_H
 #define _I8259_H
 
-#include "types.h"
-
 #ifndef ASM
 
 /* Initialize both PICs */

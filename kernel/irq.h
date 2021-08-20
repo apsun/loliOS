@@ -1,8 +1,6 @@
 #ifndef _IRQ_H
 #define _IRQ_H
 
-#include "types.h"
-
 /* IRQ number constants */
 #define IRQ_PIT      0
 #define IRQ_KEYBOARD 1

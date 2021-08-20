@@ -1,4 +1,5 @@
 #include "dma.h"
+#include "types.h"
 #include "debug.h"
 #include "portio.h"
 

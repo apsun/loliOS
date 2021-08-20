@@ -1,7 +1,7 @@
 #include "ne2k.h"
+#include "types.h"
 #include "debug.h"
 #include "portio.h"
-#include "string.h"
 #include "irq.h"
 #include "list.h"
 #include "skb.h"

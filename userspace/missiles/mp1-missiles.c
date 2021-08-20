@@ -3,10 +3,8 @@
 #include "mp1-taux.h"
 #include "mp1-vga.h"
 #include <assert.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <syscall.h>
 
 #define MISSILE_CHAR '*'

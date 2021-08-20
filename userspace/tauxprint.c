@@ -1,5 +1,5 @@
+#include <stddef.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <syscall.h>
 
 #define TAUX_SET_LED_STR 0x16

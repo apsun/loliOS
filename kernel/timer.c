@@ -1,5 +1,5 @@
 #include "timer.h"
-#include "debug.h"
+#include "types.h"
 #include "list.h"
 #include "pit.h"
 

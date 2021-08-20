@@ -1,8 +1,6 @@
 #ifndef _TAUX_H
 #define _TAUX_H
 
-#include "types.h"
-
 /*
  * Accepted ioctl() request values.
  */

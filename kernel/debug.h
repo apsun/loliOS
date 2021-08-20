@@ -1,7 +1,6 @@
 #ifndef _DEBUG_H
 #define _DEBUG_H
 
-#include "types.h"
 #include "printf.h"
 
 #ifndef ASM

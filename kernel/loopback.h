@@ -1,8 +1,6 @@
 #ifndef _LOOPBACK_H
 #define _LOOPBACK_H
 
-#include "types.h"
-
 #ifndef ASM
 
 /* Delivers any enqueued loopback packets */

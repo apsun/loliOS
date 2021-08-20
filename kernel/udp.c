@@ -1,6 +1,6 @@
 #include "udp.h"
+#include "types.h"
 #include "debug.h"
-#include "string.h"
 #include "list.h"
 #include "myalloc.h"
 #include "syscall.h"

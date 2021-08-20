@@ -1,8 +1,6 @@
 #ifndef _ZERO_H
 #define _ZERO_H
 
-#include "types.h"
-
 #ifndef ASM
 
 /* Initializes the zero file driver */

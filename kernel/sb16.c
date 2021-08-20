@@ -1,4 +1,5 @@
 #include "sb16.h"
+#include "types.h"
 #include "debug.h"
 #include "portio.h"
 #include "list.h"
@@ -6,9 +7,7 @@
 #include "paging.h"
 #include "irq.h"
 #include "dma.h"
-#include "process.h"
 #include "scheduler.h"
-#include "signal.h"
 #include "syscall.h"
 
 /* DMA channels */

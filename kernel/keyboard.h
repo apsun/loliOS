@@ -1,8 +1,6 @@
 #ifndef _KEYBOARD_H
 #define _KEYBOARD_H
 
-#include "types.h"
-
 #ifndef ASM
 
 /* Modifier key enum */

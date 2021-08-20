@@ -1,8 +1,6 @@
 #ifndef _NE2K_H
 #define _NE2K_H
 
-#include "types.h"
-
 #ifndef ASM
 
 /* Initializes the NE2000 device */

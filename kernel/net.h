@@ -2,6 +2,7 @@
 #define _NET_H
 
 #include "types.h"
+#include "string.h"
 #include "skb.h"
 
 #ifndef ASM

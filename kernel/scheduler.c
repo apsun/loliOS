@@ -1,4 +1,5 @@
 #include "scheduler.h"
+#include "types.h"
 #include "debug.h"
 #include "list.h"
 #include "process.h"

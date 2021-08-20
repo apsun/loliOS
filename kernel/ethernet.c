@@ -1,4 +1,5 @@
 #include "ethernet.h"
+#include "types.h"
 #include "debug.h"
 #include "net.h"
 #include "arp.h"

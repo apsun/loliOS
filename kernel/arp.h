@@ -1,7 +1,6 @@
 #ifndef _ARP_H
 #define _ARP_H
 
-#include "types.h"
 #include "net.h"
 #include "skb.h"
 

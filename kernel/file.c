@@ -1,4 +1,5 @@
 #include "file.h"
+#include "types.h"
 #include "debug.h"
 #include "myalloc.h"
 #include "paging.h"

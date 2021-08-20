@@ -16,7 +16,7 @@
  * Have fun, myaa~
  */
 #include "myalloc.h"
-#include "debug.h"
+#include "types.h"
 #include "string.h"
 #include "paging.h"
 #include "heap.h"

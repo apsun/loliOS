@@ -1,4 +1,5 @@
 #include "terminal.h"
+#include "types.h"
 #include "debug.h"
 #include "string.h"
 #include "process.h"

@@ -1,12 +1,11 @@
 #include "rtc.h"
-#include "debug.h"
+#include "types.h"
 #include "portio.h"
 #include "list.h"
 #include "irq.h"
 #include "file.h"
 #include "paging.h"
 #include "scheduler.h"
-#include "signal.h"
 #include "syscall.h"
 
 /* RTC IO ports */

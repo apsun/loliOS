@@ -1,4 +1,5 @@
 #include "loopback.h"
+#include "types.h"
 #include "debug.h"
 #include "list.h"
 #include "net.h"

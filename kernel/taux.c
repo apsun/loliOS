@@ -1,4 +1,5 @@
 #include "taux.h"
+#include "types.h"
 #include "debug.h"
 #include "string.h"
 #include "serial.h"

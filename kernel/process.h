@@ -6,7 +6,6 @@
 #include "file.h"
 #include "idt.h"
 #include "signal.h"
-#include "paging.h"
 #include "timer.h"
 #include "heap.h"
 

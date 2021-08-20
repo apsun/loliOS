@@ -1,6 +1,6 @@
 #include "arp.h"
+#include "types.h"
 #include "debug.h"
-#include "string.h"
 #include "list.h"
 #include "timer.h"
 #include "myalloc.h"

@@ -1,8 +1,6 @@
 #ifndef _RANDOM_H
 #define _RANDOM_H
 
-#include "types.h"
-
 #ifndef ASM
 
 /* Initializes the random file driver */
