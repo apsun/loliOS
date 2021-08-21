@@ -15,6 +15,11 @@
  */
 #define FILE_BUFSIZE 1024
 
+/*
+ * Threshold at which we choose to skip the readahead buffer.
+ */
+#define FILE_SMALLREAD 256
+
 /* FILE wrapper for the standard streams */
 FILE __stdin = {.fd = STDIN_FILENO};
 FILE __stdout = {.fd = STDOUT_FILENO};
@@ -41,6 +46,8 @@ parse_mode(const char *mode)
             break;
         case '+':
             flags |= OPEN_RDWR;
+            break;
+        case 'b':
             break;
         default:
             return 0;
@@ -69,6 +76,20 @@ file_alloc(int fd, int mode)
 }
 
 /*
+ * Reads nbytes of data into buf, internally handling
+ * interrupted syscalls.
+ */
+static int
+file_read(FILE *fp, char *buf, int nbytes)
+{
+    int ret;
+    do {
+        ret = read(fp->fd, buf, nbytes);
+    } while (ret == -EAGAIN || ret == -EINTR);
+    return ret;
+}
+
+/*
  * Fills the readahead buffer with more data. Blocks until
  * data is available. This will reset the offset and count
  * values to zero if they are equal.
@@ -91,12 +112,7 @@ file_readahead(FILE *fp)
     }
 
     /* Read more data into the buffer */
-    int ret;
-    do {
-        ret = read(fp->fd, &fp->buf[fp->count], FILE_BUFSIZE - fp->count);
-    } while (ret == -EINTR || ret == -EAGAIN);
-
-    /* Advance head pointer */
+    int ret = file_read(fp, &fp->buf[fp->count], FILE_BUFSIZE - fp->count);
     if (ret > 0) {
         fp->count += ret;
     }
@@ -166,23 +182,47 @@ fread(void *buf, int size, int count, FILE *fp)
     assert(count >= 0);
     assert(fp != NULL);
 
-    /* Pull data into our readahead buffer */
-    if (fp->offset == fp->count) {
-        int ret = file_readahead(fp);
-        if (ret <= 0) {
-            return ret;
+    char *bufp = buf;
+    int total_read = 0;
+    int ret = 0;
+
+    while (total_read < count) {
+        int nread = count - total_read;
+        if (fp->offset != fp->count) {
+            /* Drain readahead buffer first if it has any data */
+            if (nread > fp->count - fp->offset) {
+                nread = fp->count - fp->offset;
+            }
+
+            memcpy(&bufp[total_read], &fp->buf[fp->offset], nread);
+            fp->offset += nread;
+            total_read += nread;
+        } else if (nread < FILE_SMALLREAD) {
+            /*
+             * If the read is small, use readahead buffer (in the case
+             * of many small reads, this saves on syscalls at a cost of
+             * extra copies, so tune accordingly).
+             */
+            ret = file_readahead(fp);
+            if (ret <= 0) {
+                goto exit;
+            }
+        } else {
+            /* Read directly into provided buffer */
+            ret = file_read(fp, &bufp[total_read], nread);
+            if (ret <= 0) {
+                goto exit;
+            }
+            total_read += ret;
         }
     }
 
-    /* Clamp this read to the amount of readahead */
-    if (count > fp->count - fp->offset) {
-        count = fp->count - fp->offset;
+exit:
+    if (total_read > 0) {
+        return total_read;
+    } else {
+        return ret;
     }
-
-    /* Copy data from readahead buffer into output buf */
-    memcpy(buf, &fp->buf[fp->offset], count);
-    fp->offset += count;
-    return count;
 }
 
 /*
@@ -224,7 +264,27 @@ fwrite(const void *buf, int size, int count, FILE *fp)
         }
     }
 
-    return write(fp->fd, buf, count);
+    const char *bufp = buf;
+    int total_written = 0;
+    int ret = 0;
+
+    while (total_written < count) {
+        int nwrite = count - total_written;
+        ret = write(fp->fd, &bufp[total_written], nwrite);
+        if (ret == -EAGAIN || ret == -EINTR) {
+            continue;
+        } else if (ret < 0) {
+            break;
+        } else {
+            total_written += ret;
+        }
+    }
+
+    if (total_written > 0) {
+        return total_written;
+    } else {
+        return ret;
+    }
 }
 
 /*
