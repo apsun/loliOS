@@ -182,6 +182,15 @@ sb16_read(file_obj_t *file, void *buf, int nbytes)
 static int
 sb16_get_writable_count(int nbytes)
 {
+    /* 0 means to check for an empty slot */
+    if (nbytes == 0) {
+        if (audio_buf_count == 0) {
+            return 0;
+        } else {
+            return -EAGAIN;
+        }
+    }
+
     int to_write = nbytes;
 
     /* Limit writable bytes to one region */
@@ -207,16 +216,16 @@ sb16_get_writable_count(int nbytes)
  * SB16 write() syscall handler. If audio is not already
  * playing, this will begin playback. To set playback
  * parameters, use ioctl().
+ *
+ * If nbytes == 0, this blocks until there is at least one
+ * empty buffer slot (i.e. when both slots are full, waits
+ * until the first one completes playback), then returns 0.
  */
 static int
 sb16_write(file_obj_t *file, const void *buf, int nbytes)
 {
-    if (nbytes < 0) {
-        return -1;
-    } else if (nbytes == 0) {
-        return 0;
-    } else if (nbytes < bits_per_sample / 8) {
-        /* Must write at least one sample */
+    /* Must write at least one complete sample */
+    if (nbytes != 0 && nbytes < bits_per_sample / 8) {
         return -1;
     }
 
@@ -225,7 +234,7 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
         sb16_get_writable_count(nbytes),
         write_sleep_queue,
         file->nonblocking);
-    if (to_write < 0) {
+    if (to_write <= 0) {
         return to_write;
     }
 
