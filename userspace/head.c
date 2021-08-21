@@ -59,7 +59,7 @@ parse_args(args_t *args)
 /*
  * Writes all bytes in buf. Returns either size, or < 0 on error.
  */
-int
+static int
 write_all(int fd, const char *buf, int size)
 {
     int written = 0;
@@ -81,7 +81,7 @@ write_all(int fd, const char *buf, int size)
  * 
  * Upon return, size contains the new number of characters in buf.
  */
-int
+static int
 write_bytes(int fd, char *buf, int *size, int limit)
 {
     int to_write = *size;
@@ -107,7 +107,7 @@ write_bytes(int fd, char *buf, int *size, int limit)
  *
  * Upon return, size contains the new number of characters in buf.
  */
-int
+static int
 write_line(int fd, char *buf, int *size)
 {
     int to_write = *size;
