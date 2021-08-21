@@ -550,7 +550,7 @@ terminal_interrupt(void)
         debugf("No foreground process group in display terminal\n");
         return;
     }
-    signal_kill(-pgrp, SIG_INTERRUPT);
+    signal_kill(-pgrp, SIGINT);
 }
 
 /*

@@ -59,13 +59,14 @@
 #define EPIPE  4
 
 /* signal.h */
-#define SIG_DIV_ZERO  0
-#define SIG_SEGFAULT  1
-#define SIG_INTERRUPT 2
-#define SIG_ALARM     3
-#define SIG_USER1     4
-#define SIG_KILL      5
-#define SIG_PIPE      6
+#define SIGFPE 0
+#define SIGSEGV 1
+#define SIGINT 2
+#define SIGALRM 3
+#define SIGUSR1 4
+#define SIGKILL 5
+#define SIGPIPE 6
+#define SIGABRT 7
 
 /* signal.h */
 #define SIGMASK_NONE    0

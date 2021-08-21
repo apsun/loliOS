@@ -117,7 +117,7 @@ __cdecl int
 signal_sigaction(int signum, void *handler_address)
 {
     /* Check signal number range */
-    if (signum < 0 || signum >= NUM_SIGNALS || signum == SIG_KILL) {
+    if (signum < 0 || signum >= NUM_SIGNALS || signum == SIGKILL) {
         return -1;
     }
 
@@ -141,7 +141,7 @@ signal_sigreturn(
     int_regs_t *kernel_regs)
 {
     /* Check signal number range */
-    if (signum < 0 || signum >= NUM_SIGNALS || signum == SIG_KILL) {
+    if (signum < 0 || signum >= NUM_SIGNALS || signum == SIGKILL) {
         debugf("Invalid signal number\n");
         return -1;
     }
@@ -191,7 +191,7 @@ signal_sigreturn(
 __cdecl int
 signal_sigmask(int signum, int action)
 {
-    if (signum < 0 || signum >= NUM_SIGNALS || signum == SIG_KILL) {
+    if (signum < 0 || signum >= NUM_SIGNALS || signum == SIGKILL) {
         return -1;
     }
 
@@ -293,7 +293,7 @@ static bool
 signal_handle(signal_info_t *sig, int_regs_t *regs)
 {
     /* Kill signal should be handled entirely by kernel */
-    if (sig->signum == SIG_KILL) {
+    if (sig->signum == SIGKILL) {
         debugf("Killing process due to SIGKILL\n");
         process_halt_impl(128 + sig->signum);
         return true;
@@ -310,14 +310,19 @@ signal_handle(signal_info_t *sig, int_regs_t *regs)
     }
 
     /* Run default handler if no handler or masked */
-    if (sig->signum == SIG_DIV_ZERO || sig->signum == SIG_SEGFAULT) {
+    if (sig->signum == SIGFPE ||
+        sig->signum == SIGSEGV)
+    {
         debugf("Killing process due to exception\n");
         process_halt_impl(256);
         return true;
     }
 
     /* Halt with appropriate code if default action is to kill process */
-    if (sig->signum == SIG_INTERRUPT || sig->signum == SIG_PIPE) {
+    if (sig->signum == SIGINT ||
+        sig->signum == SIGPIPE ||
+        sig->signum == SIGABRT)
+    {
         debugf("Killing process by default action\n");
         process_halt_impl(128 + sig->signum);
         return true;
@@ -407,11 +412,12 @@ signal_has_pending(signal_info_t *signals)
              * default actions kill the process.
              */
             switch (sig->signum) {
-            case SIG_DIV_ZERO:
-            case SIG_SEGFAULT:
-            case SIG_INTERRUPT:
-            case SIG_KILL:
-            case SIG_PIPE:
+            case SIGFPE:
+            case SIGSEGV:
+            case SIGINT:
+            case SIGKILL:
+            case SIGPIPE:
+            case SIGABRT:
                 return true;
             }
         }

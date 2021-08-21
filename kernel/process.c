@@ -27,7 +27,7 @@
 #define INIT_PROCESS "shell"
 
 /* Period of the alarm signal in milliseconds */
-#define SIG_ALARM_PERIOD_MS 10000
+#define SIGALRM_PERIOD_MS 10000
 
 /* Kernel stack struct */
 typedef struct {
@@ -300,15 +300,15 @@ process_iret(int_regs_t *regs, void *kernel_stack)
 }
 
 /*
- * SIGALARM timer callback, raises the signal and
+ * SIGALRM timer callback, raises the signal and
  * restarts the timer.
  */
 static void
 process_alarm_callback(timer_t *timer)
 {
     pcb_t *pcb = timer_entry(timer, pcb_t, alarm_timer);
-    signal_kill(pcb->pid, SIG_ALARM);
-    timer_setup(timer, SIG_ALARM_PERIOD_MS, process_alarm_callback);
+    signal_kill(pcb->pid, SIGALRM);
+    timer_setup(timer, SIGALRM_PERIOD_MS, process_alarm_callback);
 }
 
 /*
@@ -499,7 +499,7 @@ process_create_user(char *command, int terminal)
     terminal_open_streams(pcb->files);
     signal_init(pcb->signals);
     timer_init(&pcb->alarm_timer);
-    timer_setup(&pcb->alarm_timer, SIG_ALARM_PERIOD_MS, process_alarm_callback);
+    timer_setup(&pcb->alarm_timer, SIGALRM_PERIOD_MS, process_alarm_callback);
     timer_init(&pcb->sleep_timer);
     heap_init(&pcb->heap, USER_HEAP_START, USER_HEAP_END, true);
 
@@ -610,8 +610,8 @@ process_exec_impl(pcb_t *pcb, int_regs_t *regs, const char *command)
     /* Reset child process heap */
     heap_clear(&pcb->heap);
 
-    /* Restart SIGALARM timer */
-    timer_setup(&pcb->alarm_timer, SIG_ALARM_PERIOD_MS, process_alarm_callback);
+    /* Restart SIGALRM timer */
+    timer_setup(&pcb->alarm_timer, SIGALRM_PERIOD_MS, process_alarm_callback);
 
     /* Copy our program into physical memory */
     uint32_t entry_point = paging_load_user_page(inode_idx, pcb->user_paddr);

@@ -174,7 +174,7 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
         file->nonblocking);
     if (to_write < 0) {
         if (to_write == -EPIPE) {
-            signal_raise_executing(SIG_PIPE);
+            signal_raise_executing(SIGPIPE);
         }
         return to_write;
     }

@@ -47,5 +47,8 @@ exit(int status)
 __attribute__((noreturn)) void
 abort(void)
 {
+    kill(getpid(), SIGABRT);
+
+    /* Unreachable, but needed to satisfy compiler */
     halt(1);
 }

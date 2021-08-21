@@ -431,7 +431,7 @@ sock_output(int sockfd, char *buf, int *count, sock_addr_t *addr)
 }
 
 static void
-sig_interrupt_handler(int signum)
+sigint_handler(int signum)
 {
     stop = true;
 }
@@ -590,7 +590,7 @@ int
 main(void)
 {
     /* Set signal handler */
-    if (sigaction(SIG_INTERRUPT, sig_interrupt_handler) < 0) {
+    if (sigaction(SIGINT, sigint_handler) < 0) {
         fprintf(stderr, "Could not set interrupt handler\n");
         return 1;
     }

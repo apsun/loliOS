@@ -130,9 +130,9 @@ handle_user_exception(int_regs_t *regs)
 {
     debugf("%s in userspace at 0x%08x\n", exception_names[regs->int_num], regs->eip);
     if (regs->int_num == EXC_DE) {
-        signal_raise_executing(SIG_DIV_ZERO);
+        signal_raise_executing(SIGFPE);
     } else {
-        signal_raise_executing(SIG_SEGFAULT);
+        signal_raise_executing(SIGSEGV);
     }
 }
 

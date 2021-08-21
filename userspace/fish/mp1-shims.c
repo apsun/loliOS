@@ -8,16 +8,16 @@
 static jmp_buf memcpy_env;
 
 static void
-segv_handler(int signum)
+sigsegv_handler(int signum)
 {
-    sigmask(SIG_SEGFAULT, SIGMASK_UNBLOCK);
+    sigmask(SIGSEGV, SIGMASK_UNBLOCK);
     longjmp(memcpy_env, 1);
 }
 
 ASM_VISIBLE int
 mp1_copy_to_user(void *dest, const void *src, int n)
 {
-    sigaction(SIG_SEGFAULT, segv_handler);
+    sigaction(SIGSEGV, sigsegv_handler);
     int ret;
     if (setjmp(memcpy_env) == 0) {
         memcpy(dest, src, n);
@@ -25,7 +25,7 @@ mp1_copy_to_user(void *dest, const void *src, int n)
     } else {
         ret = n;
     }
-    sigaction(SIG_SEGFAULT, NULL);
+    sigaction(SIGSEGV, NULL);
     return ret;
 }
 
