@@ -332,37 +332,40 @@ test_stdio_file(void)
     f = fopen("TEST_FILE", "w+");
     assert(f != NULL);
 
-    ret = fwrite(f, "foobar", 6);
+    ret = fwrite("foobar", 1, 6, f);
     assert(ret == 6);
 
-    ret = fread(f, buf, sizeof(buf));
+    ret = fread(buf, 1, sizeof(buf), f);
     assert(ret == 0);
 
     ret = fseek(f, 0, SEEK_SET);
     assert(ret == 0);
+    assert(ftell(f) == 0);
 
-    ret = fread(f, buf, 1);
+    ret = fread(buf, 1, 1, f);
     assert(ret == 1);
     assert(buf[0] == 'f');
 
     ret = fseek(f, 3, SEEK_SET);
-    assert(ret == 3);
+    assert(ret == 0);
+    assert(ftell(f) == 3);
 
-    ret = fread(f, buf, 1);
+    ret = fread(buf, 1, 1, f);
     assert(ret == 1);
     assert(buf[0] == 'b');
 
-    ret = fwrite(f, "x", 1);
+    ret = fwrite("x", 1, 1, f);
     assert(ret == 1);
 
-    ret = fread(f, buf, 1);
+    ret = fread(buf, 1, 1, f);
     assert(ret == 1);
     assert(buf[0] == 'r');
 
     ret = fseek(f, 0, SEEK_SET);
     assert(ret == 0);
+    assert(ftell(f) == 0);
 
-    ret = fread(f, buf, sizeof(buf));
+    ret = fread(buf, 1, sizeof(buf), f);
     assert(ret == 6);
     assert(memcmp(buf, "foobxr", ret) == 0);
 
@@ -382,26 +385,28 @@ test_stdio_file_append(void)
     f = fopen("TEST_FILE", "a+");
     assert(f != NULL);
 
-    ret = fwrite(f, "foobar", 6);
+    ret = fwrite("foobar", 1, 6, f);
     assert(ret == 6);
 
     ret = fseek(f, 0, SEEK_SET);
     assert(ret == 0);
+    assert(ftell(f) == 0);
 
-    ret = fread(f, buf, 1);
+    ret = fread(buf, 1, 1, f);
     assert(ret == 1);
     assert(buf[0] == 'f');
 
-    ret = fwrite(f, "baz", 3);
+    ret = fwrite("baz", 1, 3, f);
     assert(ret == 3);
 
-    ret = fread(f, buf, sizeof(buf));
+    ret = fread(buf, 1, sizeof(buf), f);
     assert(ret == 0);
 
     ret = fseek(f, 0, SEEK_SET);
     assert(ret == 0);
+    assert(ftell(f) == 0);
 
-    ret = fread(f, buf, sizeof(buf));
+    ret = fread(buf, 1, sizeof(buf), f);
     assert(ret == 9);
     assert(memcmp(buf, "foobarbaz", ret) == 0);
 
@@ -421,21 +426,59 @@ test_stdio_fseek_relative(void)
     f = fopen("TEST_FILE", "w+");
     assert(f != NULL);
 
-    ret = fwrite(f, "foobar", 6);
+    ret = fwrite("foobar", 1, 6, f);
     assert(ret == 6);
 
     ret = fseek(f, 0, SEEK_SET);
     assert(ret == 0);
+    assert(ftell(f) == 0);
 
-    ret = fread(f, buf, 4);
+    ret = fread(buf, 1, 4, f);
     assert(ret == 4);
 
     ret = fseek(f, -1, SEEK_CUR);
-    assert(ret == 3);
+    assert(ret == 0);
+    assert(ftell(f) == 3);
 
-    ret = fread(f, buf, 1);
+    ret = fread(buf, 1, 1, f);
     assert(ret == 1);
     assert(buf[0] == 'b');
+
+    fclose(f);
+
+    ret = unlink("TEST_FILE");
+    assert(ret == 0);
+}
+
+static void
+test_stdio_ftell(void)
+{
+    FILE *f;
+    int ret;
+    char buf[128];
+
+    f = fopen("TEST_FILE", "w+");
+    assert(f != NULL);
+
+    ret = fwrite("foobar", 1, 6, f);
+    assert(ret == 6);
+
+    ret = fseek(f, 0, SEEK_SET);
+    assert(ret == 0);
+    assert(ftell(f) == 0);
+
+    ret = fread(buf, 1, 4, f);
+    assert(ret == 4);
+    assert(ftell(f) == 4);
+
+    ret = fseek(f, -1, SEEK_CUR);
+    assert(ret == 0);
+    assert(ftell(f) == 3);
+
+    ret = fread(buf, 1, 1, f);
+    assert(ret == 1);
+    assert(buf[0] == 'b');
+    assert(ftell(f) == 4);
 
     fclose(f);
 
@@ -460,6 +503,7 @@ main(void)
     test_stdio_file();
     test_stdio_file_append();
     test_stdio_fseek_relative();
+    test_stdio_ftell();
     printf("All tests passed!\n");
     return 0;
 }

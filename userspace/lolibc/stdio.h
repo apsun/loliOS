@@ -2,6 +2,7 @@
 #define _LOLIBC_STDIO_H
 
 #include <stdarg.h>
+#include <syscall.h>
 
 #define STDIN_FILENO 0
 #define STDOUT_FILENO 1
@@ -30,10 +31,11 @@ extern FILE __stderr;
 
 FILE *fdopen(int fd, const char *mode);
 FILE *fopen(const char *name, const char *mode);
-int fread(FILE *fp, void *buf, int size);
-int fwrite(FILE *fp, const void *buf, int size);
+int fread(void *buf, int size, int count, FILE *fp);
+int fwrite(const void *buf, int size, int count, FILE *fp);
 int fclose(FILE *fp);
 int fseek(FILE *fp, int offset, int mode);
+int ftell(FILE *fp);
 
 int fputc(char c, FILE *fp);
 int fputs(const char *s, FILE *fp);

@@ -155,14 +155,16 @@ fopen(const char *name, const char *mode)
 
 /*
  * Wrapper around read() syscall. WARNING: This API is
- * intentionally incompatible with the libc API.
+ * intentionally incompatible with the libc API. size MUST
+ * be 1, and will return negative value on error.
  */
 int
-fread(FILE *fp, void *buf, int size)
+fread(void *buf, int size, int count, FILE *fp)
 {
-    assert(fp != NULL);
     assert(buf != NULL);
-    assert(size >= 0);
+    assert(size == 1);
+    assert(count >= 0);
+    assert(fp != NULL);
 
     /* Pull data into our readahead buffer */
     if (fp->offset == fp->count) {
@@ -173,26 +175,28 @@ fread(FILE *fp, void *buf, int size)
     }
 
     /* Clamp this read to the amount of readahead */
-    if (size > fp->count - fp->offset) {
-        size = fp->count - fp->offset;
+    if (count > fp->count - fp->offset) {
+        count = fp->count - fp->offset;
     }
 
     /* Copy data from readahead buffer into output buf */
-    memcpy(buf, &fp->buf[fp->offset], size);
-    fp->offset += size;
-    return size;
+    memcpy(buf, &fp->buf[fp->offset], count);
+    fp->offset += count;
+    return count;
 }
 
 /*
  * Wrapper around write() syscall. WARNING: this API is
- * intentionally incompatible with the libc API.
+ * intentionally incompatible with the libc API. size MUST
+ * be 1, and will return negative value on error.
  */
 int
-fwrite(FILE *fp, const void *buf, int size)
+fwrite(const void *buf, int size, int count, FILE *fp)
 {
-    assert(fp != NULL);
     assert(buf != NULL);
-    assert(size >= 0);
+    assert(size == 1);
+    assert(count >= 0);
+    assert(fp != NULL);
 
     /*
      * If we have anything in our readahead buffer, we need
@@ -220,12 +224,12 @@ fwrite(FILE *fp, const void *buf, int size)
         }
     }
 
-    return write(fp->fd, buf, size);
+    return write(fp->fd, buf, count);
 }
 
 /*
- * Wrapper around seek() syscall. WARNING: this API is
- * intentionally incompatible with the libc API.
+ * Sets the current position of the file. Returns 0 on success,
+ * negative value on error.
  */
 int
 fseek(FILE *fp, int offset, int mode)
@@ -235,7 +239,7 @@ fseek(FILE *fp, int offset, int mode)
      * that we have prefetched.
      */
     if (mode == SEEK_CUR) {
-        offset -= fp->count - fp->offset;
+        offset += fp->offset - fp->count;
     }
 
     int ret = seek(fp->fd, offset, mode);
@@ -248,6 +252,27 @@ fseek(FILE *fp, int offset, int mode)
          */
         fp->offset = 0;
         fp->count = 0;
+        ret = 0;
+    }
+    return ret;
+}
+
+/*
+ * Returns the current position of the file. Returns negative
+ * value on error.
+ */
+int
+ftell(FILE *fp)
+{
+    /*
+     * Don't invalidate the readahead buffer like fseek since
+     * we're not modifying state, just adjust the offset we
+     * get back from seek().
+     */
+    int offset = fp->offset - fp->count;
+    int ret = seek(fp->fd, 0, SEEK_CUR);
+    if (ret >= 0) {
+        return ret + offset;
     }
     return ret;
 }
@@ -278,7 +303,7 @@ fputc(char c, FILE *fp)
 
     int ret;
     do {
-        ret = fwrite(fp, &c, 1);
+        ret = fwrite(&c, 1, 1, fp);
     } while (ret == -EAGAIN || ret == -EINTR);
 
     if (ret < 0) {
@@ -302,7 +327,7 @@ fputs(const char *s, FILE *fp)
     int len = strlen(s);
     int total = 0;
     while (total < len) {
-        int ret = fwrite(fp, &s[total], len - total);
+        int ret = fwrite(&s[total], 1, len - total, fp);
         if (ret == -EAGAIN || ret == -EINTR) {
             continue;
         } else if (ret < 0) {
