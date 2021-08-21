@@ -106,7 +106,7 @@ parse_args(args_t *args)
                     break;
                 default:
                     fprintf(stderr, "Unknown option: %c\n", c);
-                    return NULL;
+                    return false;
                 }
             }
         } else {
