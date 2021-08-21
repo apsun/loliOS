@@ -50,8 +50,11 @@ static int bits_per_sample = 8;
 /* Whether there is currently audio being played */
 static bool is_playing = false;
 
-/* Sleep queue for audio playback */
-static list_declare(sleep_queue);
+/* Queue for writing audio samples */
+static list_declare(write_sleep_queue);
+
+/* Queue for waiting for audio playback to complete */
+static list_declare(read_sleep_queue);
 
 /* Writes a single byte to the SB16 DSP */
 static void
@@ -160,6 +163,19 @@ sb16_open(file_obj_t *file)
 }
 
 /*
+ * SB16 read() syscall handler. Waits until audio playback
+ * completes, then returns 0 (or -EINTR if signal is pending).
+ */
+static int
+sb16_read(file_obj_t *file, void *buf, int nbytes)
+{
+    return BLOCKING_WAIT(
+        is_playing ? -EAGAIN : 0,
+        read_sleep_queue,
+        file->nonblocking);
+}
+
+/*
  * Returns the maximum number of bytes that may be written
  * to the SB16 DMA buffer.
  */
@@ -207,7 +223,7 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
     /* Wait until buffer is writable */
     int to_write = BLOCKING_WAIT(
         sb16_get_writable_count(nbytes),
-        sleep_queue,
+        write_sleep_queue,
         file->nonblocking);
     if (to_write < 0) {
         return to_write;
@@ -330,15 +346,17 @@ sb16_handle_irq(void)
     if (audio_buf_count > 0) {
         sb16_start_playback();
         sb16_swap_buffers();
-        scheduler_wake_all(&sleep_queue);
+        scheduler_wake_all(&write_sleep_queue);
     } else {
         is_playing = false;
+        scheduler_wake_all(&read_sleep_queue);
     }
 }
 
 /* Sound Blaster 16 file ops */
 static const file_ops_t sb16_fops = {
     .open = sb16_open,
+    .read = sb16_read,
     .write = sb16_write,
     .close = sb16_close,
     .ioctl = sb16_ioctl,
