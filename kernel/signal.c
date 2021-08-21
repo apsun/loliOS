@@ -316,9 +316,9 @@ signal_handle(signal_info_t *sig, int_regs_t *regs)
         return true;
     }
 
-    /* Interrupt signal halts with exit code 130 (SIGINT) */
-    if (sig->signum == SIG_INTERRUPT) {
-        debugf("Killing process due to SIGINT\n");
+    /* Halt with appropriate code if default action is to kill process */
+    if (sig->signum == SIG_INTERRUPT || sig->signum == SIG_PIPE) {
+        debugf("Killing process by default action\n");
         process_halt_impl(128 + sig->signum);
         return true;
     }
@@ -411,9 +411,19 @@ signal_has_pending(signal_info_t *signals)
             case SIG_SEGFAULT:
             case SIG_INTERRUPT:
             case SIG_KILL:
+            case SIG_PIPE:
                 return true;
             }
         }
     }
     return false;
+}
+
+/*
+ * Raises a signal for the executing process.
+ */
+void
+signal_raise_executing(int signum)
+{
+    signal_raise(get_executing_pcb(), signum);
 }

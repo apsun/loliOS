@@ -11,7 +11,8 @@
 #define SIG_ALARM     3
 #define SIG_USER1     4
 #define SIG_KILL      5
-#define NUM_SIGNALS   6
+#define SIG_PIPE      6
+#define NUM_SIGNALS   7
 
 /* sigmask() actions and return values */
 #define SIGMASK_NONE    0
@@ -66,6 +67,9 @@ void signal_handle_all(signal_info_t *signals, int_regs_t *regs);
 
 /* Checks whether a process has a pending signal */
 bool signal_has_pending(signal_info_t *signals);
+
+/* Raises a signal for the executing process */
+void signal_raise_executing(int signum);
 
 #endif /* ASM */
 

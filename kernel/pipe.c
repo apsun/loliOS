@@ -6,6 +6,7 @@
 #include "paging.h"
 #include "file.h"
 #include "scheduler.h"
+#include "signal.h"
 #include "syscall.h"
 
 /*
@@ -130,7 +131,7 @@ pipe_get_writeable_count(pipe_state_t *pipe, int nbytes)
     /* If the reader is gone, writes should fail */
     if (pipe->half_closed) {
         debugf("Writing to half-duplex pipe\n");
-        return -1;
+        return -EPIPE;
     }
 
     /* If the head comes before the tail, it must wrap around */
@@ -172,6 +173,9 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
         pipe->write_queue,
         file->nonblocking);
     if (to_write < 0) {
+        if (to_write == -EPIPE) {
+            signal_raise_executing(SIG_PIPE);
+        }
         return to_write;
     }
 

@@ -54,6 +54,7 @@
 
 #define EINTR  2
 #define EAGAIN 3
+#define EPIPE  4
 
 #ifndef ASM
 

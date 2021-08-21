@@ -366,7 +366,7 @@ cleanup:
         proc_t *next = root->next;
         if (root->pid >= 0) {
             exit_code = root->exit_code;
-            if (exit_code != 0 && exit_code != 127) {
+            if (exit_code != 0 && exit_code != 127 && exit_code != 128 + SIG_PIPE) {
                 fprintf(stderr, "%s finished with exit code %d\n", root->cmd->name, exit_code);
             }
         }

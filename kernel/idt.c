@@ -129,11 +129,10 @@ __used static void
 handle_user_exception(int_regs_t *regs)
 {
     debugf("%s in userspace at 0x%08x\n", exception_names[regs->int_num], regs->eip);
-    pcb_t *pcb = get_executing_pcb();
     if (regs->int_num == EXC_DE) {
-        signal_kill(pcb->pid, SIG_DIV_ZERO);
+        signal_raise_executing(SIG_DIV_ZERO);
     } else {
-        signal_kill(pcb->pid, SIG_SEGFAULT);
+        signal_raise_executing(SIG_SEGFAULT);
     }
 }
 

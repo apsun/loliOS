@@ -56,6 +56,7 @@
 /* syscall.h */
 #define EINTR  2
 #define EAGAIN 3
+#define EPIPE  4
 
 /* signal.h */
 #define SIG_DIV_ZERO  0
@@ -64,6 +65,7 @@
 #define SIG_ALARM     3
 #define SIG_USER1     4
 #define SIG_KILL      5
+#define SIG_PIPE      6
 
 /* signal.h */
 #define SIGMASK_NONE    0
