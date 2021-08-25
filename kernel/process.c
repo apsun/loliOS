@@ -370,7 +370,7 @@ static void
 process_fill_user_regs(int_regs_t *regs, uint32_t entry_point)
 {
     uint32_t eflags;
-    asm volatile("pushfl; popl %0" : "=g"(eflags));
+    asm volatile("pushfl; popl %0" : "=r"(eflags));
 
     regs->ds = USER_DS;
     regs->es = USER_DS;
@@ -397,7 +397,7 @@ static void
 process_fill_idle_regs(int_regs_t *regs)
 {
     uint32_t eflags;
-    asm volatile("pushfl; popl %0" : "=g"(eflags));
+    asm volatile("pushfl; popl %0" : "=r"(eflags));
 
     regs->ds = KERNEL_DS;
     regs->es = KERNEL_DS;
