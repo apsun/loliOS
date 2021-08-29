@@ -14,9 +14,6 @@
 #define MAX_RAM MB(256)
 #define MAX_PAGES (MAX_RAM / PAGE_SIZE)
 
-/* Where in the user page to begin copying the userspace program */
-#define PROCESS_OFFSET 0x48000
-
 /* Structure for 4KB page table entry */
 typedef struct {
     uint32_t present        : 1;
