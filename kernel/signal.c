@@ -114,7 +114,7 @@ signal_deliver(signal_info_t *sig, int_regs_t *regs)
  * used to handle the specified signal.
  */
 __cdecl int
-signal_sigaction(int signum, void *handler_address)
+signal_sigaction(int signum, void (*handler_address)(int))
 {
     /* Check signal number range */
     if (signum < 0 || signum >= NUM_SIGNALS || signum == SIGKILL) {
@@ -215,14 +215,17 @@ signal_sigmask(int signum, int action)
 
 /*
  * Marks a signal as pending for the given process, and
- * wakes it if it's sleeping.
+ * wakes it if it's sleeping and the signal needs to be
+ * delivered.
  */
 static void
 signal_raise(pcb_t *pcb, int signum)
 {
-    pcb->signals[signum].pending = true;
-    if (signal_has_pending(pcb->signals)) {
-        scheduler_wake(pcb);
+    if (pcb->signals[signum].handler_addr != SIG_IGN) {
+        pcb->signals[signum].pending = true;
+        if (signal_has_pending(pcb->signals)) {
+            scheduler_wake(pcb);
+        }
     }
 }
 
@@ -299,17 +302,29 @@ signal_handle(signal_info_t *sig, int_regs_t *regs)
         return true;
     }
 
-    /* If handler is set and signal isn't masked, run it */
-    if (sig->handler_addr != NULL && !sig->masked) {
-        /* If no more space on stack to push signal context, kill process */
+    /* If signal is masked, keep it pending but skip over it */
+    if (sig->masked) {
+        return false;
+    }
+
+    /* If user asked to ignore the signal, clear it immediately */
+    if (sig->handler_addr == SIG_IGN) {
+        sig->pending = false;
+        return false;
+    }
+
+    /* If a handler is explicitly set, run it */
+    if (sig->handler_addr != SIG_DFL) {
         if (!signal_deliver(sig, regs)) {
+            /* If no more space on stack to push signal context, kill process */
             debugf("Failed to push signal context, killing process\n");
             process_halt_impl(256);
         }
+
         return true;
     }
 
-    /* Run default handler if no handler or masked */
+    /* These should halt with a status of 256 according to the spec */
     if (sig->signum == SIGFPE ||
         sig->signum == SIGSEGV)
     {
@@ -328,7 +343,7 @@ signal_handle(signal_info_t *sig, int_regs_t *regs)
         return true;
     }
 
-    /* Default action is to ignore the signal */
+    /* All other signals should be ignored by default */
     sig->pending = false;
     return false;
 }
@@ -343,7 +358,7 @@ signal_init(signal_info_t *signals)
     for (i = 0; i < NUM_SIGNALS; ++i) {
         signal_info_t *sig = &signals[i];
         sig->signum = i;
-        sig->handler_addr = NULL;
+        sig->handler_addr = SIG_DFL;
         sig->masked = false;
         sig->pending = false;
     }
@@ -397,11 +412,21 @@ signal_has_pending(signal_info_t *signals)
         signal_info_t *sig = &signals[i];
 
         if (sig->pending) {
+            /* SIGKILL must always be handled */
+            if (sig->signum == SIGKILL) {
+                return true;
+            }
+
+            /* If signal is ignored or masked, skip over it */
+            if (sig->handler_addr == SIG_IGN || sig->masked) {
+                continue;
+            }
+
             /*
-             * If user manually registered a handler and the
-             * signal is not masked, then we always execute it.
+             * If user registered a handler and the signal is not
+             * masked, then we always execute it.
              */
-            if (sig->handler_addr != NULL && !sig->masked) {
+            if (sig->handler_addr != SIG_DFL) {
                 return true;
             }
 

@@ -73,6 +73,10 @@
 #define SIGMASK_BLOCK   1
 #define SIGMASK_UNBLOCK 2
 
+/* signal.h */
+#define SIG_IGN ((void (*)(int))1)
+#define SIG_DFL ((void (*)(int))0)
+
 /* socket.h */
 #define SOCK_TCP 1
 #define SOCK_UDP 2
@@ -140,7 +144,7 @@ __attribute__((cdecl)) int open(const char *filename);
 __attribute__((cdecl)) int close(int fd);
 __attribute__((cdecl)) int getargs(char *buf, int nbytes);
 __attribute__((cdecl)) int vidmap(uint8_t **screen_start);
-__attribute__((cdecl)) int sigaction(int signum, void (*handler)(int signum));
+__attribute__((cdecl)) int sigaction(int signum, void (*handler)(int));
 __attribute__((cdecl)) int sigreturn(int signum, void *user_regs);
 __attribute__((cdecl)) int sigmask(int signum, int action);
 __attribute__((cdecl)) int kill(int pid, int signum);

@@ -63,9 +63,15 @@ test_half_duplex_write(void)
     ret = pipe(&readfd, &writefd);
     assert(ret == 0);
 
+    ret = sigaction(SIGPIPE, SIG_IGN);
+    assert(ret == 0);
+
     close(readfd);
     ret = write(writefd, &x, sizeof(x));
-    assert(ret == -1);
+    assert(ret == -EPIPE);
+
+    ret = sigaction(SIGPIPE, SIG_DFL);
+    assert(ret == 0);
 
     close(writefd);
 }
