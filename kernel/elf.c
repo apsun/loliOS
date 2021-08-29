@@ -104,7 +104,10 @@ elf_load_impl_compat(elf_hdr_t *hdr, int inode_idx, uintptr_t paddr)
      * (i.e. .bss must be pre-expanded on disk).
      */
     char *vaddr = (char *)TEMP_PAGE_START + ELF_COMPAT_OFFSET;
-    fs_read_data(inode_idx, 0, vaddr, MB(4), memcpy);
+    if (fs_read_data(inode_idx, 0, vaddr, MB(4), memcpy) < 0) {
+        debugf("Failed to read program\n");
+        return 0;
+    }
     return hdr->entry;
 }
 
