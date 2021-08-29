@@ -332,40 +332,6 @@ paging_page_unmap(uintptr_t vaddr)
 }
 
 /*
- * Copies a program into the user page, and returns the virtual
- * address of the entry point. This does not clobber any
- * page mappings.
- */
-uint32_t
-paging_load_user_page(int inode_idx, uintptr_t paddr)
-{
-    paging_page_map(TEMP_PAGE_START, paddr, false);
-
-    /* Clear process page first */
-    memset((void *)TEMP_PAGE_START, 0, MB(4));
-
-    /* Copy program into memory */
-    int count;
-    int offset = 0;
-    do {
-        uint8_t *vaddr = (uint8_t *)TEMP_PAGE_START + PROCESS_OFFSET + offset;
-        count = fs_read_data(inode_idx, offset, vaddr, MB(4) - offset, memcpy);
-        offset += count;
-    } while (count > 0);
-
-    /*
-     * The entry point is located at bytes 24-27 of the executable.
-     * If the "executable" is less than 28 bytes long, this will just
-     * read garbage, which will cause the program to fault in userspace.
-     * No need to handle it here.
-     */
-    uint32_t entry = *(uint32_t *)(TEMP_PAGE_START + PROCESS_OFFSET + 24);
-
-    paging_page_unmap(TEMP_PAGE_START);
-    return entry;
-}
-
-/*
  * Copies the contents of the user page to the specified physical
  * address. This does not clobber any page mappings.
  */

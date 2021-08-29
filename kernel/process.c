@@ -4,6 +4,7 @@
 #include "string.h"
 #include "filesys.h"
 #include "paging.h"
+#include "elf.h"
 #include "terminal.h"
 #include "pit.h"
 #include "timer.h"
@@ -16,9 +17,6 @@
 
 /* Maximum number of processes, including idle process */
 #define MAX_PROCESSES 16
-
-/* Executable magic bytes ('\x7fELF') */
-#define EXE_MAGIC 0x464c457f
 
 /* Process data block size, MUST BE A POWER OF 2! */
 #define PROCESS_DATA_SIZE 8192
@@ -194,16 +192,8 @@ process_parse_cmd(char *command, int *out_inode_idx, char *out_args)
         return -1;
     }
 
-    /* Read the magic bytes from the file */
-    uint32_t magic;
-    if (fs_read_data(dentry->inode_idx, 0, &magic, sizeof(magic), memcpy) != sizeof(magic)) {
-        debugf("Could not read magic\n");
-        return -1;
-    }
-
-    /* Ensure it's an executable file */
-    if (magic != EXE_MAGIC) {
-        debugf("Magic mismatch - not an executable (got 0x%08x)\n", magic);
+    /* Check that it's a valid ELF file */
+    if (!elf_is_valid(dentry->inode_idx)) {
         return -1;
     }
 
@@ -367,7 +357,7 @@ process_idle(void)
  * executing a userspace process.
  */
 static void
-process_fill_user_regs(int_regs_t *regs, uint32_t entry_point)
+process_fill_user_regs(int_regs_t *regs, uintptr_t entry_point)
 {
     uint32_t eflags;
     asm volatile("pushfl; popl %0" : "=r"(eflags));
@@ -383,7 +373,7 @@ process_fill_user_regs(int_regs_t *regs, uint32_t entry_point)
     regs->esi = 0;
     regs->edi = 0;
     regs->ebp = 0;
-    regs->eip = entry_point;
+    regs->eip = (uint32_t)entry_point;
     regs->cs = USER_CS;
     regs->eflags = (eflags & ~EFLAGS_USER) | EFLAGS_IF;
     regs->esp = USER_PAGE_END;
@@ -507,7 +497,7 @@ process_create_user(char *command, int terminal)
     terminal_tcsetpgrp_impl(terminal, pcb->group);
 
     /* Copy our program into physical memory */
-    uint32_t entry_point = paging_load_user_page(inode_idx, paddr);
+    uintptr_t entry_point = elf_load(inode_idx, paddr);
     process_fill_user_regs(&pcb->regs, entry_point);
 
     /* Finally, schedule this process for execution */
@@ -614,7 +604,7 @@ process_exec_impl(pcb_t *pcb, int_regs_t *regs, const char *command)
     timer_setup(&pcb->alarm_timer, SIGALRM_PERIOD_MS, process_alarm_callback);
 
     /* Copy our program into physical memory */
-    uint32_t entry_point = paging_load_user_page(inode_idx, pcb->user_paddr);
+    uintptr_t entry_point = elf_load(inode_idx, pcb->user_paddr);
 
     /* Replace interrupt context used to return into userspace */
     process_fill_user_regs(regs, entry_point);
@@ -1031,7 +1021,8 @@ process_halt_impl(int status)
          */
         if (restart) {
             char cmd[] = INIT_PROCESS;
-            process_create_user(cmd, terminal);
+            pcb_t *pcb = process_create_user(cmd, terminal);
+            assert(pcb != NULL);
         }
     } else {
         /* Put child into zombie state */
@@ -1132,7 +1123,8 @@ process_start_shell(void)
     int i;
     for (i = 0; i < NUM_TERMINALS; ++i) {
         char cmd[] = INIT_PROCESS;
-        process_create_user(cmd, i);
+        pcb_t *pcb = process_create_user(cmd, i);
+        assert(pcb != NULL);
     }
     process_run(idle);
 }

@@ -48,7 +48,7 @@ fi
 if [ "$#" -gt 0 ] && [ "$1" = "debug" ]; then
     if [ "$#" -gt 1 ]; then
         gdb -x "${root_dir}/debug.gdbinit" \
-            -ex "add-symbol-file '${root_dir}/userspace/elf/$2'" \
+            -ex "add-symbol-file '${root_dir}/userspace/build/$2'" \
             "${root_dir}/kernel/bootimg"
     else
         gdb -x "${root_dir}/debug.gdbinit" "${root_dir}/kernel/bootimg"
@@ -69,7 +69,6 @@ if [ "$nobuild" != "true" ]; then
         cp "${root_dir}/filesys_img" "${root_dir}/filesys_img.new"
     else
         # Make binaries executable
-        chmod +x "${root_dir}/elfconvert"
         chmod +x "${root_dir}/createfs.py"
 
         # Compile userspace programs
