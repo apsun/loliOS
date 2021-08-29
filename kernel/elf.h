@@ -41,7 +41,7 @@ typedef struct {
 bool elf_is_valid(int inode_idx);
 
 /* Loads a program into the user page */
-uintptr_t elf_load(int inode_idx, uintptr_t paddr);
+uintptr_t elf_load(int inode_idx, uintptr_t paddr, bool compat);
 
 #endif /* ASM */
 

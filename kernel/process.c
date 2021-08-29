@@ -497,7 +497,7 @@ process_create_user(char *command, int terminal)
     terminal_tcsetpgrp_impl(terminal, pcb->group);
 
     /* Copy our program into physical memory */
-    uintptr_t entry_point = elf_load(inode_idx, paddr);
+    uintptr_t entry_point = elf_load(inode_idx, paddr, pcb->compat);
     process_fill_user_regs(&pcb->regs, entry_point);
 
     /* Finally, schedule this process for execution */
@@ -604,7 +604,7 @@ process_exec_impl(pcb_t *pcb, int_regs_t *regs, const char *command)
     timer_setup(&pcb->alarm_timer, SIGALRM_PERIOD_MS, process_alarm_callback);
 
     /* Copy our program into physical memory */
-    uintptr_t entry_point = elf_load(inode_idx, pcb->user_paddr);
+    uintptr_t entry_point = elf_load(inode_idx, pcb->user_paddr, pcb->compat);
 
     /* Replace interrupt context used to return into userspace */
     process_fill_user_regs(regs, entry_point);
@@ -922,6 +922,9 @@ process_execute(
         return -1;
     }
 
+    /* Since child was run using execute(), enable compat mode */
+    child_pcb->compat = true;
+
     /* Close everything except stdin and stdout */
     int fd;
     for (fd = 2; fd < MAX_FILES; ++fd) {
@@ -934,9 +937,6 @@ process_execute(
         process_free_pcb(child_pcb);
         return -1;
     }
-
-    /* Since child was run using execute(), enable compat mode */
-    child_pcb->compat = true;
 
     /* Next, change the child's group and set it as the foreground */
     child_pcb->group = child_pcb->pid;
