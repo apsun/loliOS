@@ -15,7 +15,7 @@
 
 /*
  * Offset into the user page at which we load executables when
- * using compatbility mode.
+ * using compatibility mode.
  */
 #define ELF_COMPAT_OFFSET 0x48000
 
