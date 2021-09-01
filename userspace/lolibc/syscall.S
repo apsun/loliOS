@@ -77,3 +77,13 @@ _start:
     call    main
     pushl   %eax
     call    exit
+
+/* Disable compatbility mode */
+.section ".note.loliOS", "a"
+    .long note_name_bottom - note_name
+    .long 0
+    .long 1337
+note_name:
+    .asciz "loliOS"
+note_name_bottom:
+    .align 4

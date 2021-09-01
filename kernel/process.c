@@ -168,10 +168,16 @@ process_free_pcb(pcb_t *pcb)
  * modified by this function.
  *
  * On success, writes the inode index of the file to out_inode_idx,
- * the arguments to out_args, and returns 0. Otherwise, returns -1.
+ * the arguments to out_args, whether the program should be loaded
+ * in compatbility mode to out_compat, and returns 0. Otherwise,
+ * returns < 0.
  */
 static int
-process_parse_cmd(char *command, int *out_inode_idx, char *out_args)
+process_parse_cmd(
+    char *command,
+    int *out_inode_idx,
+    char *out_args,
+    bool *out_compat)
 {
     /* Strip leading whitespace */
     command += strspn(command, " ");
@@ -193,7 +199,7 @@ process_parse_cmd(char *command, int *out_inode_idx, char *out_args)
     }
 
     /* Check that it's a valid ELF file */
-    if (!elf_is_valid(dentry->inode_idx)) {
+    if (!elf_is_valid(dentry->inode_idx, out_compat)) {
         return -1;
     }
 
@@ -463,7 +469,8 @@ process_create_user(char *command, int terminal)
 
     /* Parse command and find the executable inode */
     int inode_idx;
-    if (process_parse_cmd(command, &inode_idx, pcb->args) != 0) {
+    bool compat;
+    if (process_parse_cmd(command, &inode_idx, pcb->args, &compat) < 0) {
         debugf("Invalid command/executable file\n");
         process_free_pcb(pcb);
         return NULL;
@@ -482,9 +489,9 @@ process_create_user(char *command, int terminal)
     pcb->parent_pid = -1;
     pcb->terminal = terminal;
     pcb->user_paddr = paddr;
-    pcb->compat = false;
     pcb->group = pcb->pid;
     pcb->vidmap = false;
+    pcb->compat = compat;
     file_init(pcb->files);
     terminal_open_streams(pcb->files);
     signal_init(pcb->signals);
@@ -545,13 +552,13 @@ process_clone(pcb_t *parent_pcb, int_regs_t *regs, bool clone_pages)
     child_pcb->state = PROCESS_STATE_NEW;
     child_pcb->parent_pid = parent_pcb->pid;
     child_pcb->user_paddr = paddr;
-    child_pcb->compat = false;
 
     /* Set "return" value to zero in child */
     child_pcb->regs = *regs;
     child_pcb->regs.eax = 0;
 
     /* Clone the remaining state from the parent */
+    child_pcb->compat = parent_pcb->compat;
     child_pcb->terminal = parent_pcb->terminal;
     child_pcb->vidmap = parent_pcb->vidmap;
     child_pcb->group = parent_pcb->group;
@@ -589,10 +596,14 @@ process_exec_impl(pcb_t *pcb, int_regs_t *regs, const char *command)
 
     /* Parse command and find the executable inode */
     int inode_idx;
-    if (process_parse_cmd(cmd, &inode_idx, pcb->args) != 0) {
+    bool compat;
+    if (process_parse_cmd(cmd, &inode_idx, pcb->args, &compat) < 0) {
         debugf("Invalid command/executable file\n");
         return -1;
     }
+
+    /* Set compatibility mode */
+    pcb->compat = compat;
 
     /* Reset all signal state */
     signal_init(pcb->signals);
@@ -922,20 +933,19 @@ process_execute(
         return -1;
     }
 
-    /* Since child was run using execute(), enable compat mode */
-    child_pcb->compat = true;
-
-    /* Close everything except stdin and stdout */
-    int fd;
-    for (fd = 2; fd < MAX_FILES; ++fd) {
-        file_desc_unbind(child_pcb->files, fd);
-    }
-
     /* Next, perform exec() on behalf of the child process */
     if (process_exec_impl(child_pcb, &child_pcb->regs, command) < 0) {
         process_close(child_pcb);
         process_free_pcb(child_pcb);
         return -1;
+    }
+
+    /* Close everything except stdin and stdout if in compat mode */
+    if (child_pcb->compat) {
+        int fd;
+        for (fd = 2; fd < MAX_FILES; ++fd) {
+            file_desc_unbind(child_pcb->files, fd);
+        }
     }
 
     /* Next, change the child's group and set it as the foreground */

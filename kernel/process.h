@@ -122,8 +122,11 @@ typedef struct {
 
     /*
      * Whether this process is being executed in compatibility mode.
-     * Currently, the only effect that this has is that closing
-     * stdin/stdout will fail.
+     * This currently has the following effects:
+     *
+     * - All files other than stdin/stdout will be closed at startup
+     * - stdin/stdout files cannot be closed
+     * - Will be loaded with memcpy rather than the proper ELF loader
      */
     bool compat : 1;
 
