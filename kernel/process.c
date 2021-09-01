@@ -169,7 +169,7 @@ process_free_pcb(pcb_t *pcb)
  *
  * On success, writes the inode index of the file to out_inode_idx,
  * the arguments to out_args, whether the program should be loaded
- * in compatbility mode to out_compat, and returns 0. Otherwise,
+ * in compatibility mode to out_compat, and returns 0. Otherwise,
  * returns < 0.
  */
 static int

@@ -78,7 +78,7 @@ _start:
     pushl   %eax
     call    exit
 
-/* Disable compatbility mode */
+/* Disable compatibility mode */
 .section ".note.loliOS", "a"
     .long note_name_bottom - note_name
     .long 0
