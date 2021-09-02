@@ -6,28 +6,24 @@ root_dir="$(readlink -e "$(dirname "$0")")"
 # trap "read -p 'Press ENTER to continue...'" ERR
 
 # Guard against sudo-happy users
-if [ "$EUID" -eq 0 ]; then
+if [ "${EUID}" -eq 0 ]; then
     echo "Do not run this script as root!"
     exit 1
 fi
 
 # Parse flag options
-compat="false"
-nobuild="false"
-optimize="false"
-while getopts ":cno" opt; do
-    case "$opt" in
+compat=0
+optimize=0
+while getopts ":co" opt; do
+    case "${opt}" in
     c)
-        compat="true"
-        ;;
-    n)
-        nobuild="true"
+        compat=1
         ;;
     o)
-        optimize="true"
+        optimize=1
         ;;
     *)
-        echo "Invalid option: -$OPTARG"
+        echo "Invalid option: -${OPTARG}"
         exit 1
         ;;
     esac
@@ -57,37 +53,36 @@ if [ "$#" -gt 0 ] && [ "$1" = "debug" ]; then
 fi
 
 # If optimize mode is set, compile in -O2
-if [ "$optimize" != "true" ]; then
-    export CFLAGS="${CFLAGS-} -Og -g -DDEBUG_PRINT=1"
-else
+if [ "${optimize}" -eq 1 ]; then
     export CFLAGS="${CFLAGS-} -O2"
+else
+    export CFLAGS="${CFLAGS-} -Og -g -DDEBUG_PRINT=1"
 fi
 
-if [ "$nobuild" != "true" ]; then
-    if [ "$compat" = "true" ]; then
-        # Copy filesys_img.new from original version
-        cp "${root_dir}/filesys_img" "${root_dir}/filesys_img.new"
-    else
-        # Make binaries executable
-        chmod +x "${root_dir}/createfs.py"
+# If compat mode is set, use the original filesystem image,
+# otherwise build it from filesystem/ + userspace/
+if [ "${compat}" -eq 1 ]; then
+    cp "${root_dir}/filesys_img" "${root_dir}/filesys_img.new"
+else
+    # Make binaries executable
+    chmod +x "${root_dir}/createfs.py"
 
-        # Compile userspace programs
-        make -C "${root_dir}/userspace"
-        cp "${root_dir}/userspace/build/"* "${root_dir}/filesystem/"
+    # Compile userspace programs
+    make -C "${root_dir}/userspace"
+    cp "${root_dir}/userspace/build/"* "${root_dir}/filesystem/"
 
-        # Build filesystem image
-        rm -f "${root_dir}/filesys_img.new"
-        "${root_dir}/createfs.py" -i "${root_dir}/filesystem" -o "${root_dir}/filesys_img.new"
-    fi
-
-    # Build kernel executable
-    make -C "${root_dir}/kernel"
-
-    # Generate disk image
-    chmod +x "${root_dir}/diskgen.sh"
-    cp "${root_dir}/orig.img" "${root_dir}/disk.img"
-    sudo "${root_dir}/diskgen.sh"
+    # Build filesystem image
+    rm -f "${root_dir}/filesys_img.new"
+    "${root_dir}/createfs.py" -i "${root_dir}/filesystem" -o "${root_dir}/filesys_img.new"
 fi
+
+# Build kernel executable
+make -C "${root_dir}/kernel"
+
+# Generate disk image
+chmod +x "${root_dir}/diskgen.sh"
+cp "${root_dir}/orig.img" "${root_dir}/disk.img"
+sudo "${root_dir}/diskgen.sh"
 
 # If command is "run", boot the VM
 if [ "$#" -gt 0 ] && [ "$1" = "run" ]; then

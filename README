@@ -71,9 +71,10 @@ build.sh
     This script builds the entire project, including the kernel and all
     userspace programs. Run it with the optional "clean" argument to
     delete all object files. Run it with "run" to also boot QEMU after a
-    successful build. The "-c" (compat) flag can be used to boot the
-    original filesystem image (filesys_img). The "-n" (nobuild) flag
-    can be used to prevent the script from recompiling the OS.
+    successful build. Run it with "debug" to launch GDB and attach to a
+    running QEMU instance. The "-c" (compat) flag can be used to boot the
+    original filesystem image (filesys_img). The "-o" (optimize) flag
+    can be used to compile with optimizations enabled.
 
 music.sh
     This script runs a TCP music streaming server. It takes the path to
