@@ -79,7 +79,8 @@ _start:
     call    exit
 
 /* Disable compatibility mode */
-.section ".note.loliOS", "a"
+.section ".note.lolios.ident", "a"
+    .align 4
     .long note_name_bottom - note_name
     .long 0
     .long 1337
