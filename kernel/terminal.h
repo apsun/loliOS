@@ -92,19 +92,19 @@ typedef struct {
 /* Sets the currently displayed terminal */
 void set_display_terminal(int index);
 
-/* Prints a character to the curently executing terminal */
+/* Prints a character to the currently executing terminal */
 void terminal_putc(char c);
 
 /* Prints a string to the currently displayed terminal */
 void terminal_puts(const char *s);
 
-/* Clears the curently displayed terminal */
+/* Clears the currently displayed terminal */
 void terminal_clear(void);
 
 /* Clears the specified terminal's input buffers */
 void terminal_clear_input(int terminal);
 
-/* Clears the curently displayed terminal for a BSOD */
+/* Clears the currently displayed terminal for a BSOD */
 void terminal_clear_bsod(void);
 
 /* Handles keyboard input */

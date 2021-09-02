@@ -282,7 +282,7 @@ terminal_puts(const char *s)
 }
 
 /*
- * Clears the curently displayed terminal screen and
+ * Clears the currently displayed terminal screen and
  * all associated input.
  */
 void

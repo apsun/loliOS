@@ -349,7 +349,7 @@ signal_handle(signal_info_t *sig, int_regs_t *regs)
 }
 
 /*
- * Initializes the signal state for a proces.
+ * Initializes the signal state for a process.
  */
 void
 signal_init(signal_info_t *signals)
