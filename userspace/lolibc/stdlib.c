@@ -49,6 +49,6 @@ abort(void)
 {
     kill(getpid(), SIGABRT);
 
-    /* Unreachable, but needed to satisfy compiler */
-    halt(1);
+    /* Needed in case SIGABRT handler returns */
+    halt(128 + SIGABRT);
 }
