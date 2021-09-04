@@ -75,12 +75,18 @@ static bool
 elf_is_valid_load(int inode_idx, elf_prog_hdr_t *phdr)
 {
     /* Limit ourselves to the 128-132MB page for now */
-    if (phdr->vaddr < USER_PAGE_START || phdr->vaddr + phdr->memsz >= USER_PAGE_END) {
+    if (phdr->vaddr < USER_PAGE_START ||
+        phdr->memsz >= USER_PAGE_END - USER_PAGE_START ||
+        phdr->vaddr + phdr->memsz >= USER_PAGE_END)
+    {
         debugf("Program segment exceeds memory bounds\n");
         return false;
     }
 
-    /* This is invalid according to the ELF spec */
+    /*
+     * This is invalid according to the ELF spec.
+     * This also implicitly checks that filesz fits in the user page.
+     */
     if (phdr->filesz > phdr->memsz) {
         debugf("Program segment file size is larger than memory size\n");
         return false;
@@ -117,9 +123,14 @@ elf_is_nocompat_note(int inode_idx, elf_note_hdr_t *nhdr, int offset)
 static bool
 elf_is_valid_note(int inode_idx, elf_prog_hdr_t *phdr, bool *out_compat)
 {
-    int count = 0;
-    while (count < (int)phdr->filesz) {
-        int offset = phdr->offset + count;
+    uint32_t count = 0;
+    while (count < phdr->filesz) {
+        uint32_t offset = phdr->offset + count;
+        if (offset > INT_MAX) {
+            debugf("Invalid note header offset\n");
+            return false;
+        }
+
         elf_note_hdr_t nhdr;
         if (fs_read_data(inode_idx, offset, &nhdr, sizeof(nhdr), memcpy) != sizeof(nhdr)) {
             debugf("Failed to read note header\n");
@@ -208,9 +219,14 @@ elf_is_valid(int inode_idx, bool *out_compat)
     /* Assume program needs compatibility mode unless proven otherwise */
     *out_compat = true;
 
-    int i;
-    for (i = 0; i < (int)hdr.phnum; ++i) {
-        int offset = hdr.phoff + i * sizeof(elf_prog_hdr_t);
+    uint32_t i;
+    for (i = 0; i < hdr.phnum; ++i) {
+        uint32_t offset = hdr.phoff + i * sizeof(elf_prog_hdr_t);
+        if (offset > INT_MAX) {
+            debugf("Invalid program header offset\n");
+            return false;
+        }
+
         elf_prog_hdr_t phdr;
         if (fs_read_data(inode_idx, offset, &phdr, sizeof(phdr), memcpy) != sizeof(phdr)) {
             debugf("Could not read ELF program header\n");
@@ -267,14 +283,14 @@ elf_load_impl_compat(elf_hdr_t *hdr, int inode_idx, uintptr_t paddr)
 static uintptr_t
 elf_load_impl(elf_hdr_t *hdr, int inode_idx, uintptr_t paddr)
 {
-    int i;
-    for (i = 0; i < (int)hdr->phnum; ++i) {
-        int offset = hdr->phoff + i * sizeof(elf_prog_hdr_t);
+    uint32_t i;
+    for (i = 0; i < hdr->phnum; ++i) {
+        uint32_t offset = hdr->phoff + i * sizeof(elf_prog_hdr_t);
+        assert(offset < INT_MAX);
+
         elf_prog_hdr_t phdr;
-        if (fs_read_data(inode_idx, offset, &phdr, sizeof(phdr), memcpy) != sizeof(phdr)) {
-            debugf("Could not read ELF program header\n");
-            return 0;
-        }
+        int ret = fs_read_data(inode_idx, offset, &phdr, sizeof(phdr), memcpy);
+        assert(ret == sizeof(phdr));
 
         /* Ignore anything that doesn't need to be loaded into memory */
         if (phdr.type != ELF_PROGRAM_TYPE_LOAD) {

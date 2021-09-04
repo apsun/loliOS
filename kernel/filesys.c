@@ -347,15 +347,15 @@ fs_read_data(
     assert(offset >= 0);
     assert(length >= 0);
 
-    /* Clamp read length to end of file */
+    /* If nothing left to read, we're done */
     inode_t *inode = fs_inode(inode_idx);
-    if (length > inode->size - offset) {
-        length = inode->size - offset;
+    if (offset >= inode->size) {
+        return 0;
     }
 
-    /* If nothing left to read, we're done */
-    if (length <= 0) {
-        return 0;
+    /* Clamp read length to end of file */
+    if (length > inode->size - offset) {
+        length = inode->size - offset;
     }
 
     /* Iterate data blocks, copying output to buf as we go */

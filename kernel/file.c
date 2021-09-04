@@ -257,11 +257,6 @@ file_deinit(file_obj_t **files)
 {
     int i;
     for (i = 0; i < MAX_FILES; ++i) {
-        /* Check for unclosed file descriptors */
-        if (i > 2 && files[i] != NULL) {
-            debugf("Failed to close fd %d, possible leak?\n", i);
-        }
-
         file_desc_unbind(files, i);
     }
 }

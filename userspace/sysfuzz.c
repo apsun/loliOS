@@ -83,15 +83,15 @@ fuzz(int fd)
 int
 main(void)
 {
-    int randfd = open("random");
+    int randfd = create("random", OPEN_READ);
     if (randfd < 0) {
-        fprintf(stderr, "Failed to get randomness\n");
+        fprintf(stderr, "Failed to open random file\n");
         return 1;
     }
 
     int iter = 0;
     while (1) {
-        printf("%d\n", iter++);
+        printf("%d\n", ++iter);
         int pid = fork();
         if (pid < 0) {
             fprintf(stderr, "Failed to fork\n");
