@@ -198,6 +198,7 @@ fs_acquire_inode(int inode_idx)
 {
     assert((uint32_t)inode_idx < fs_boot_block->inode_count);
     assert(bitmap_get(fs_inode_map, inode_idx));
+    assert(fs_inode(inode_idx)->refcnt < (1 << 9) - 1);
     fs_inode(inode_idx)->refcnt++;
     return inode_idx;
 }

@@ -168,6 +168,7 @@ socket_obj_free(net_sock_t *sock)
 net_sock_t *
 socket_obj_retain(net_sock_t *sock)
 {
+    assert(sock->refcnt < INT_MAX);
     sock->refcnt++;
     return sock;
 }

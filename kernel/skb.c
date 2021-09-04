@@ -43,6 +43,7 @@ skb_t *
 skb_retain(skb_t *skb)
 {
     assert(skb->refcnt > 0);
+    assert(skb->refcnt < (1 << 16) - 1);
     skb->refcnt++;
     return skb;
 }

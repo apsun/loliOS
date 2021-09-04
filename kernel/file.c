@@ -116,6 +116,7 @@ file_obj_free(file_obj_t *file, bool close)
 file_obj_t *
 file_obj_retain(file_obj_t *file)
 {
+    assert(file->refcnt < INT_MAX);
     file->refcnt++;
     return file;
 }
