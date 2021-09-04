@@ -378,6 +378,11 @@ ne2k_handle_rx(void)
 
         /* Check OK flag, drop packet if invalid */
         if ((hdr.status & NE2K_ENRSR_RXOK) != 0) {
+            if (hdr.size < sizeof(ne2k_hdr_t)) {
+                debugf("Invalid packet size\n");
+                break;
+            }
+
             /* Allocate SKB to hold frame */
             int eth_size = hdr.size - sizeof(ne2k_hdr_t);
             skb_t *skb = skb_alloc(eth_size);
