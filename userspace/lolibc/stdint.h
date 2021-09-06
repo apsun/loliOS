@@ -2,6 +2,7 @@
 #define _LOLIBC_STDINT_H
 
 #define SIZE_MAX (~(size_t)0)
+#define INT_MAX ((int)(~0U >> 1))
 
 typedef long long int64_t;
 typedef unsigned long long uint64_t;
