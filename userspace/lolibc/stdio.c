@@ -170,6 +170,17 @@ fopen(const char *name, const char *mode)
 }
 
 /*
+ * Returns the file descriptor associated with a FILE.
+ */
+int
+fileno(FILE *fp)
+{
+    assert(fp != NULL);
+
+    return fp->fd;
+}
+
+/*
  * Wrapper around read() syscall. WARNING: This API is
  * intentionally incompatible with the libc API. size MUST
  * be 1, and will return negative value on error.

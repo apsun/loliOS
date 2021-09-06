@@ -31,6 +31,7 @@ extern FILE __stderr;
 
 FILE *fdopen(int fd, const char *mode);
 FILE *fopen(const char *name, const char *mode);
+int fileno(FILE *fp);
 int fread(void *buf, int size, int count, FILE *fp);
 int fwrite(const void *buf, int size, int count, FILE *fp);
 int fclose(FILE *fp);
