@@ -6,7 +6,7 @@
 #ifndef ASM
 
 /*
- * Reads a byte from the specified I/O port.
+ * Reads a byte value from the specified I/O port.
  */
 static inline uint8_t
 inb(uint16_t port)
@@ -21,8 +21,7 @@ inb(uint16_t port)
 }
 
 /*
- * Reads 2 bytes from 2 consecutive I/O ports.
- * The value is returned as a single 16-bit int.
+ * Reads a 16-bit value from the specified I/O port.
  */
 static inline uint16_t
 inw(uint16_t port)
@@ -37,8 +36,7 @@ inw(uint16_t port)
 }
 
 /*
- * Reads 4 bytes from 4 consecutive I/O ports.
- * The value is returned as a single 32-bit int.
+ * Reads a 32-bit value from the specified I/O port.
  */
 static inline uint32_t
 inl(uint16_t port)
@@ -50,6 +48,19 @@ inl(uint16_t port)
         : "d"(port)
         : "memory");
     return val;
+}
+
+/*
+ * Reads n 32-bit values from the specified port.
+ */
+static inline void
+rep_insl(uint32_t *data, int n, uint16_t port)
+{
+    asm volatile(
+        "rep insl;"
+        : 
+        : "D"(data), "c"(n), "d"(port)
+        : "memory");
 }
 
 /*
@@ -66,7 +77,7 @@ outb(uint8_t data, uint16_t port)
 }
 
 /*
- * Writes two bytes to two consecutive ports.
+ * Writes a 16-bit value to the specified I/O port.
  */
 static inline void
 outw(uint16_t data, uint16_t port)
@@ -79,7 +90,7 @@ outw(uint16_t data, uint16_t port)
 }
 
 /*
- * Writes four bytes to four consecutive ports.
+ * Writes a 32-bit value to the specified I/O port.
  */
 static inline void
 outl(uint32_t data, uint16_t port)
@@ -88,6 +99,19 @@ outl(uint32_t data, uint16_t port)
         "outl %1, (%w0)"
         :
         : "d"(port), "a"(data)
+        : "memory");
+}
+
+/*
+ * Writes n 32-bit values to the specified port.
+ */
+static inline void
+rep_outsl(const uint32_t *data, int n, uint16_t port)
+{
+    asm volatile(
+        "rep outsl;"
+        :
+        : "S"(data), "c"(n), "d"(port)
         : "memory");
 }
 

@@ -39,7 +39,7 @@
  * SLIRP is implemented on top of the host OS's TCP sockets, which
  * means data will always arrive in-order.
  */
-#define TCP_DEBUG_DROP 1
+#define TCP_DEBUG_DROP 0
 #define TCP_DEBUG_RX_DROP_FREQ 5
 #define TCP_DEBUG_TX_DROP_FREQ 5
 
