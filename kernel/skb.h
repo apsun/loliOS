@@ -55,6 +55,9 @@ skb_t *skb_clone(skb_t *skb);
 /* Returns a pointer to the beginning of the data section */
 void *skb_data(skb_t *skb);
 
+/* Returns a pointer to the end of the data section */
+void *skb_tail(skb_t *skb);
+
 /* Returns the data length */
 int skb_len(skb_t *skb);
 
@@ -83,11 +86,16 @@ void skb_trim(skb_t *skb, int len);
 void skb_reserve(skb_t *skb, int len);
 
 /* Set the location of the headers to the start of the data section */
-void *skb_reset_mac_header(skb_t *skb);
-void *skb_reset_network_header(skb_t *skb);
-void *skb_reset_transport_header(skb_t *skb);
+void *skb_set_mac_header(skb_t *skb);
+void *skb_set_network_header(skb_t *skb);
+void *skb_set_transport_header(skb_t *skb);
 
-/* Returns the headers set by the skb_reset_*_header() functions */
+/* Clears the headers set by the skb_set_*_header() functions */
+void skb_clear_mac_header(skb_t *skb);
+void skb_clear_network_header(skb_t *skb);
+void skb_clear_transport_header(skb_t *skb);
+
+/* Returns the headers set by the skb_set_*_header() functions */
 void *skb_mac_header(skb_t *skb);
 void *skb_network_header(skb_t *skb);
 void *skb_transport_header(skb_t *skb);

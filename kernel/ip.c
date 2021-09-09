@@ -5,52 +5,87 @@
 #include "udp.h"
 
 /*
- * Computes a IPv4, TCP, or UDP checksum. The sum should
- * be computed from calling ip_partial_checksum().
+ * Whether to validate checksums on incoming packets.
+ * Set to 0 for full #yolo mode.
  */
-static uint16_t
-ip_checksum(uint32_t sum)
+#ifndef IP_VALIDATE_CHECKSUM
+#define IP_VALIDATE_CHECKSUM 1
+#endif
+
+/* IP pseudoheader used for checksum calculation */
+typedef struct {
+    ip_addr_t src_ip;
+    ip_addr_t dest_ip;
+    uint8_t zero;
+    uint8_t protocol;
+    be16_t be_length;
+} ip_pseudo_hdr_t;
+
+/*
+ * Computes an IPv4 checksum. The input should be obtained
+ * from ip_partial_checksum().
+ */
+static be16_t
+ip_fold_checksum(uint32_t sum)
 {
     while (sum & ~0xffff) {
         sum = (sum & 0xffff) + (sum >> 16);
     }
-    return ~sum & 0xffff;
+    return (be16_t){.raw = ~sum};
 }
 
 /*
- * Performs a partial checksum. Pass the sum of the
- * partial results to ip_checksum() to get the final
- * result.
+ * Performs a partial checksum over network-endian data. Combine
+ * the output with other partial checksums with addition, then
+ * pass the sum to ip_fold_checksum().
  */
 static uint32_t
 ip_partial_checksum(const void *buf, int len)
 {
     /*
-     * WARNING: Do not iterate the buffer in words, as it causes
-     * undefined behavior in -O2 when this function is inlined.
-     * Slow and steady wins the race here. See char aliasing rules.
+     * Implementation note: We don't need to convert the input
+     * to little endian, as long as we treat the output as big
+     * endian.
      */
-    const uint8_t *bufp = buf;
     uint32_t sum = 0;
+
+    const uint32_t *bufl = (const uint32_t *)buf;
     int i;
-    for (i = 0; i < (len & ~1); i += 2) {
-        sum += bufp[i] << 8 | bufp[i + 1];
+    for (i = 0; i < len / 4; ++i) {
+        uint32_t word = *bufl++;
+        sum += (word & 0xffff) + (word >> 16);
     }
-    if (len & 1) {
-        sum += bufp[len - 1] << 8;
+
+    const uint16_t *bufw = (const uint16_t *)bufl;
+    if (len & 0x2) {
+        sum += *bufw++;
     }
+
+    const uint8_t *bufb = (const uint8_t *)bufw;
+    if (len & 0x1) {
+        sum += *bufb++;
+    }
+
     return sum;
 }
 
 /*
- * Computes a TCP/UDP checksum. The SKB should contain the
- * transport header already, with the checksum set to zero. The
- * source IP is the address of the interface that will be
- * used to send the datagram.
+ * Computes a TCP/UDP checksum. The SKB must have only a
+ * transport header, with no network/mac header. The source
+ * IP is the address of the interface that will be used to
+ * send the datagram.
  */
-uint16_t
-ip_pseudo_checksum(skb_t *skb, ip_addr_t src_ip, ip_addr_t dest_ip, int protocol)
+be16_t
+ip_pseudo_checksum(
+    skb_t *skb,
+    ip_addr_t src_ip,
+    ip_addr_t dest_ip,
+    uint8_t protocol)
 {
+    assert(skb_transport_header(skb) != NULL);
+    assert(skb_network_header(skb) == NULL);
+    assert(skb_mac_header(skb) == NULL);
+
     ip_pseudo_hdr_t phdr;
     phdr.src_ip = src_ip;
     phdr.dest_ip = dest_ip;
@@ -59,11 +94,7 @@ ip_pseudo_checksum(skb_t *skb, ip_addr_t src_ip, ip_addr_t dest_ip, int protocol
     phdr.be_length = htons(skb_len(skb));
     uint32_t phdr_sum = ip_partial_checksum(&phdr, sizeof(phdr));
     uint32_t skb_sum = ip_partial_checksum(skb_data(skb), skb_len(skb));
-    uint16_t sum = ip_checksum(phdr_sum + skb_sum);
-    if (sum == 0) {
-        sum = 0xffff;
-    }
-    return sum;
+    return ip_fold_checksum(phdr_sum + skb_sum);
 }
 
 /*
@@ -73,7 +104,11 @@ ip_pseudo_checksum(skb_t *skb, ip_addr_t src_ip, ip_addr_t dest_ip, int protocol
 static bool
 ip_verify_checksum(const void *buf, int len)
 {
-    return ip_checksum(ip_partial_checksum(buf, len)) == 0;
+#if IP_VALIDATE_CHECKSUM
+    return ntohs(ip_fold_checksum(ip_partial_checksum(buf, len))) == 0;
+#else
+    return true;
+#endif
 }
 
 /*
@@ -95,7 +130,7 @@ ip_handle_rx(net_iface_t *iface, skb_t *skb)
     }
 
     /* Pop IP header, trim off Ethernet padding */
-    ip_hdr_t *hdr = skb_reset_network_header(skb);
+    ip_hdr_t *hdr = skb_set_network_header(skb);
     uint16_t ip_len = ntohs(hdr->be_total_length);
     if (ip_len < sizeof(ip_hdr_t) || ip_len > skb_len(skb)) {
         debugf("Invalid packet length\n");
@@ -142,10 +177,16 @@ ip_handle_rx(net_iface_t *iface, skb_t *skb)
  * or the gateway otherwise).
  */
 int
-ip_send(net_iface_t *iface, ip_addr_t neigh_ip, skb_t *skb, ip_addr_t dest_ip, int protocol)
+ip_send(
+    net_iface_t *iface,
+    ip_addr_t neigh_ip,
+    skb_t *skb,
+    ip_addr_t dest_ip,
+    uint8_t protocol)
 {
     assert(skb_network_header(skb) == NULL);
     ip_hdr_t *hdr = skb_push(skb, sizeof(ip_hdr_t));
+    skb_set_network_header(skb);
 
     /* Fill out IP header */
     hdr->ihl = sizeof(ip_hdr_t) / 4;
@@ -160,10 +201,11 @@ ip_send(net_iface_t *iface, ip_addr_t neigh_ip, skb_t *skb, ip_addr_t dest_ip, i
     hdr->src_ip = iface->ip_addr;
     hdr->dest_ip = dest_ip;
     hdr->be_checksum = htons(0);
-    hdr->be_checksum = htons(ip_checksum(ip_partial_checksum(hdr, sizeof(ip_hdr_t))));
+    hdr->be_checksum = ip_fold_checksum(ip_partial_checksum(hdr, sizeof(ip_hdr_t)));
 
     /* Forward to interface's IP packet handler */
     int ret = iface->send_ip_skb(iface, skb, neigh_ip);
+    skb_clear_network_header(skb);
     skb_pull(skb, sizeof(ip_hdr_t));
     return ret;
 }

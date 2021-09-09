@@ -33,7 +33,7 @@ udp_handle_rx(net_iface_t *iface, skb_t *skb)
 
     /* Pop UDP header */
     ip_hdr_t *ip_hdr = skb_network_header(skb);
-    udp_hdr_t *hdr = skb_reset_transport_header(skb);
+    udp_hdr_t *hdr = skb_set_transport_header(skb);
     if (ntohs(hdr->be_length) != skb_len(skb)) {
         debugf("UDP datagram size mismatch\n");
         return -1;
@@ -75,11 +75,23 @@ udp_send(net_sock_t *sock, skb_t *skb, ip_addr_t ip, uint16_t port)
 
     /* Prepend UDP header */
     udp_hdr_t *hdr = skb_push(skb, sizeof(udp_hdr_t));
+    skb_set_transport_header(skb);
     hdr->be_src_port = htons(sock->local.port);
     hdr->be_dest_port = htons(port);
     hdr->be_length = htons(skb_len(skb));
-    hdr->be_checksum = htons(0); /* First set to zero to compute checksum */
-    hdr->be_checksum = htons(ip_pseudo_checksum(skb, iface->ip_addr, ip, IPPROTO_UDP));
+
+    /*
+     * Compute UDP checksum. Note that UDP specifies that a
+     * checksum of zero indicates that there is no checksum,
+     * and if the checksum actually is zero, it shall be
+     * sent as all-1s instead.
+     */
+    hdr->be_checksum = htons(0);
+    hdr->be_checksum = ip_pseudo_checksum(skb, iface->ip_addr, ip, IPPROTO_UDP);
+    if (ntohs(hdr->be_checksum) == 0) {
+        hdr->be_checksum = htons(0xffff);
+    }
+
     return ip_send(iface, neigh_ip, skb, ip, IPPROTO_UDP);
 }
 

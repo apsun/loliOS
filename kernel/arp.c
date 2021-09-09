@@ -345,7 +345,7 @@ arp_handle_rx(net_dev_t *dev, skb_t *skb)
     }
 
     /* Pop ARP header */
-    arp_hdr_t *hdr = skb_reset_network_header(skb);
+    arp_hdr_t *hdr = skb_set_network_header(skb);
     skb_pull(skb, sizeof(arp_hdr_t));
 
     /* Ensure we have an Ethernet <-> IPv4 ARP packet */

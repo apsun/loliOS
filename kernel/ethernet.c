@@ -18,7 +18,7 @@ ethernet_handle_rx(net_dev_t *dev, skb_t *skb)
     }
 
     /* Pop Ethernet header */
-    ethernet_hdr_t *hdr = skb_reset_mac_header(skb);
+    ethernet_hdr_t *hdr = skb_set_mac_header(skb);
     skb_pull(skb, sizeof(ethernet_hdr_t));
 
     /* Only handle IPv4 and ARP packets */
@@ -42,11 +42,13 @@ ethernet_send_mac(net_dev_t *dev, skb_t *skb, mac_addr_t mac, int ethertype)
 {
     assert(skb_mac_header(skb) == NULL);
     ethernet_hdr_t *hdr = skb_push(skb, sizeof(ethernet_hdr_t));
+    skb_set_mac_header(skb);
     hdr->dest_addr = mac;
     hdr->src_addr = dev->mac_addr;
     hdr->be_ethertype = htons(ethertype);
 
     int ret = dev->send_mac_skb(dev, skb);
+    skb_clear_mac_header(skb);
     skb_pull(skb, sizeof(ethernet_hdr_t));
     return ret;
 }

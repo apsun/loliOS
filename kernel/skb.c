@@ -90,6 +90,16 @@ skb_data(skb_t *skb)
 }
 
 /*
+ * Returns a pointer to the end of the data section.
+ */
+void *
+skb_tail(skb_t *skb)
+{
+    assert(skb->refcnt > 0);
+    return &skb->buf[skb->tail];
+}
+
+/*
  * Returns the length of the data in the buffer.
  */
 int
@@ -218,9 +228,10 @@ skb_reserve(skb_t *skb, int len)
  * Ethernet header.
  */
 void *
-skb_reset_mac_header(skb_t *skb)
+skb_set_mac_header(skb_t *skb)
 {
     assert(skb->refcnt > 0);
+    assert(skb->mac_header == -1);
     return &skb->buf[skb->mac_header = skb->data];
 }
 
@@ -229,9 +240,10 @@ skb_reset_mac_header(skb_t *skb)
  * IP header.
  */
 void *
-skb_reset_network_header(skb_t *skb)
+skb_set_network_header(skb_t *skb)
 {
     assert(skb->refcnt > 0);
+    assert(skb->network_header == -1);
     return &skb->buf[skb->network_header = skb->data];
 }
 
@@ -240,14 +252,45 @@ skb_reset_network_header(skb_t *skb)
  * transport-layer header.
  */
 void *
-skb_reset_transport_header(skb_t *skb)
+skb_set_transport_header(skb_t *skb)
 {
     assert(skb->refcnt > 0);
+    assert(skb->transport_header == -1);
     return &skb->buf[skb->transport_header = skb->data];
 }
 
 /*
- * Returns the MAC header, if set by skb_reset_mac_header().
+ * Clears the Ethernet header marker.
+ */
+void
+skb_clear_mac_header(skb_t *skb)
+{
+    assert(skb->refcnt > 0);
+    skb->mac_header = -1;
+}
+
+/*
+ * Clears the network header marker.
+ */
+void
+skb_clear_network_header(skb_t *skb)
+{
+    assert(skb->refcnt > 0);
+    skb->network_header = -1;
+}
+
+/*
+ * Clears the transport header marker.
+ */
+void
+skb_clear_transport_header(skb_t *skb)
+{
+    assert(skb->refcnt > 0);
+    skb->transport_header = -1;
+}
+
+/*
+ * Returns the MAC header, if set by skb_set_mac_header().
  */
 void *
 skb_mac_header(skb_t *skb)
@@ -260,7 +303,7 @@ skb_mac_header(skb_t *skb)
 }
 
 /*
- * Returns the IP header, if set by skb_reset_network_header().
+ * Returns the IP header, if set by skb_set_network_header().
  */
 void *
 skb_network_header(skb_t *skb)
@@ -273,7 +316,7 @@ skb_network_header(skb_t *skb)
 }
 
 /*
- * Returns the transport header, if set by skb_reset_transport_header().
+ * Returns the transport header, if set by skb_set_transport_header().
  */
 void *
 skb_transport_header(skb_t *skb)

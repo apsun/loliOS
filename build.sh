@@ -14,13 +14,17 @@ fi
 # Parse flag options
 compat=0
 optimize=0
-while getopts ":co" opt; do
+netdebug=0
+while getopts ":con" opt; do
     case "${opt}" in
     c)
         compat=1
         ;;
     o)
         optimize=1
+        ;;
+    n)
+        netdebug=1
         ;;
     *)
         echo "Invalid option: -${OPTARG}"
@@ -84,6 +88,12 @@ chmod +x "${root_dir}/diskgen.sh"
 cp "${root_dir}/orig.img" "${root_dir}/disk.img"
 sudo "${root_dir}/diskgen.sh"
 
+# If netdebug is set, dump net traffic to /tmp/net.pcap
+netfilter=()
+if [ "${netdebug}" -eq 1 ]; then
+    netfilter=("-object" "filter-dump,id=ne2k_filter,netdev=ne2k,file=/tmp/net.pcap")
+fi
+
 # If command is "run", boot the VM
 if [ "$#" -gt 0 ] && [ "$1" = "run" ]; then
     qemu-system-i386 \
@@ -96,5 +106,5 @@ if [ "$#" -gt 0 ] && [ "$1" = "run" ]; then
         -device sb16 \
         -device ne2k_isa,netdev=ne2k \
         -netdev user,id=ne2k,hostfwd=udp::4321-:4321,hostfwd=tcp::5432-:5432 \
-        -object filter-dump,id=ne2k_filter,netdev=ne2k,file=/tmp/net.pcap
+        "${netfilter[@]}"
 fi

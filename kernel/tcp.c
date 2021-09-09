@@ -39,7 +39,7 @@
  * SLIRP is implemented on top of the host OS's TCP sockets, which
  * means data will always arrive in-order.
  */
-#define TCP_DEBUG_DROP 0
+#define TCP_DEBUG_DROP 1
 #define TCP_DEBUG_RX_DROP_FREQ 5
 #define TCP_DEBUG_TX_DROP_FREQ 5
 
@@ -210,20 +210,8 @@ tcp_body_len(skb_t *skb)
 {
     tcp_hdr_t *hdr = skb_transport_header(skb);
     int tcp_hdr_len = hdr->data_offset * 4;
-
-    /*
-     * We need to handle both outgoing and incoming packets.
-     * Incoming packets have an IP header and maybe an Ethernet
-     * header; outgoing packets only have a TCP header.
-     */
-    ip_hdr_t *iphdr = skb_network_header(skb);
-    if (iphdr == NULL) {
-        /* No IP or Ethernet header */
-        return skb_len(skb) - tcp_hdr_len;
-    } else {
-        /* IP, maybe Ethernet headers */
-        return ntohs(iphdr->be_total_length) - iphdr->ihl * 4 - tcp_hdr_len;
-    }
+    char *pkt_body = (char *)hdr + tcp_hdr_len;
+    return (char *)skb_tail(skb) - pkt_body;
 }
 
 /*
@@ -415,7 +403,7 @@ tcp_alloc_skb(int body_len)
 
     skb_reserve(skb, hdr_len);
     tcp_hdr_t *hdr = skb_push(skb, sizeof(tcp_hdr_t));
-    skb_reset_transport_header(skb);
+    skb_set_transport_header(skb);
     hdr->be_src_port = htons(0);
     hdr->be_dest_port = htons(0);
     hdr->be_seq_num = htonl(0);
@@ -446,7 +434,11 @@ tcp_alloc_skb(int body_len)
 static int
 tcp_send_raw(net_iface_t *iface, ip_addr_t dest_ip, skb_t *skb)
 {
-    /* Determine next-hop IP address */
+    /*
+     * Determine next-hop IP address. Note that the interface
+     * is guaranteed to not change (assuming net_route() doesn't
+     * fail and return NULL).
+     */
     ip_addr_t neigh_ip;
     iface = net_route(iface, dest_ip, &neigh_ip);
     if (iface == NULL) {
@@ -456,8 +448,8 @@ tcp_send_raw(net_iface_t *iface, ip_addr_t dest_ip, skb_t *skb)
     /* Re-compute checksum */
     tcp_hdr_t *hdr = skb_transport_header(skb);
     hdr->be_checksum = htons(0);
-    hdr->be_checksum = htons(ip_pseudo_checksum(
-        skb, iface->ip_addr, dest_ip, IPPROTO_TCP));
+    hdr->be_checksum = ip_pseudo_checksum(
+        skb, iface->ip_addr, dest_ip, IPPROTO_TCP);
 
     /* If debugging is enabled, randomly drop some packets */
 #if TCP_DEBUG_DROP
@@ -1330,7 +1322,7 @@ tcp_handle_rx(net_iface_t *iface, skb_t *skb)
         tcp_debugf("TCP packet too small: cannot pull header\n");
         return -1;
     }
-    tcp_hdr_t *hdr = skb_reset_transport_header(skb);
+    tcp_hdr_t *hdr = skb_set_transport_header(skb);
     skb_pull(skb, sizeof(tcp_hdr_t));
 
     /* Pop and ignore options */
