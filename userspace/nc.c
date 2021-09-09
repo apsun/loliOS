@@ -506,7 +506,7 @@ nc_loop(ip_addr_t ip, uint16_t port, args_t *args)
         CALL(input(STDIN_FILENO, send_buf, sizeof(send_buf), &send_offset, args->crlf));
 
         /* If done reading from stdin, send a FIN in TCP mode */
-        if (ret == 0 && send_offset == 0 && !args->udp) {
+        if (ret == 0 && send_offset == 0 && !args->udp && !send_done) {
             CALL(shutdown(sockfd));
             send_done = true;
         }
