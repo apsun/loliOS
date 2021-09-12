@@ -4,7 +4,8 @@
 #include <string.h>
 #include <syscall.h>
 
-#define CHILD_NAME "execfuzz.child"
+#define EXEC_NAME "execfuzz.child"
+#define EXEC_SIZE 8192
 
 #define ELF_MAGIC 0x464c457f
 #define ELF_CLASS_32 1
@@ -75,6 +76,57 @@ randchoice(size_t a, size_t b)
     }
 }
 
+__attribute__((no_sanitize("alignment")))
+static void
+make_fake_elf(char buf[EXEC_SIZE])
+{
+    /*
+     * Prefill some reasonable values so we can get past the
+     * basic constant checks and spend time actually testing
+     * edge case code paths.
+     */
+    elf_hdr_t *hdr = (elf_hdr_t *)buf;
+    hdr->magic = ELF_MAGIC;
+    hdr->class = ELF_CLASS_32;
+    hdr->data = ELF_DATA_2LSB;
+    hdr->ident_version = ELF_VERSION_CURRENT;
+    hdr->type = ELF_TYPE_EXEC;
+    hdr->machine = ELF_MACHINE_386;
+    hdr->version = ELF_VERSION_CURRENT;
+    hdr->entry = randsize(EXEC_SIZE);
+    hdr->phoff = randsize(EXEC_SIZE);
+    hdr->ehsize = sizeof(elf_hdr_t);
+    hdr->phentsize = sizeof(elf_prog_hdr_t);
+    hdr->phnum = randsize(2);
+
+    uint32_t i;
+    for (i = 0; i < hdr->phnum; ++i) {
+        if (hdr->phoff >= EXEC_SIZE - (i + 1) * sizeof(elf_prog_hdr_t)) {
+            break;
+        }
+
+        elf_prog_hdr_t *phdr = (elf_prog_hdr_t *)&buf[hdr->phoff] + i;
+        phdr->type = randchoice(ELF_PROGRAM_TYPE_LOAD, ELF_PROGRAM_TYPE_NOTE);
+        phdr->offset = randsize(EXEC_SIZE);
+        phdr->filesz = randsize(EXEC_SIZE);
+        phdr->memsz = randsize(EXEC_SIZE);
+        phdr->vaddr = 0x8000000 + randsize(0x400000);
+
+        if ((urand() & 1) &&
+            phdr->type == ELF_PROGRAM_TYPE_NOTE &&
+            phdr->offset < EXEC_SIZE - sizeof(elf_note_hdr_t))
+        {
+            elf_note_hdr_t *nhdr = (elf_note_hdr_t *)&buf[phdr->offset];
+            nhdr->namesz = sizeof(ELF_NOCOMPAT_NAME);
+            nhdr->descsz = 0;
+            nhdr->type = ELF_NOCOMPAT_TYPE;
+            if (phdr->offset < EXEC_SIZE - sizeof(elf_note_hdr_t) - nhdr->namesz) {
+                memcpy(nhdr + 1, ELF_NOCOMPAT_NAME, nhdr->namesz);
+            }
+        }
+    }
+}
+
 int
 main(void)
 {
@@ -84,7 +136,7 @@ main(void)
         return 1;
     }
 
-    FILE *elff = fopen(CHILD_NAME, "w");
+    FILE *elff = fopen(EXEC_NAME, "w");
     if (elff == NULL) {
         fprintf(stderr, "Failed to create child binary\n");
         return 1;
@@ -95,58 +147,13 @@ main(void)
         printf("%d\n", ++iter);
 
         /* Fill buffer with random data */
-        char buf[8192];
-        fread(buf, 1, sizeof(buf), randf);
-
-        /*
-         * Prefill some reasonable values so we can get past the
-         * basic constant checks and spend time actually testing
-         * edge case code paths.
-         */
-        elf_hdr_t *hdr = (elf_hdr_t *)buf;
-        hdr->magic = ELF_MAGIC;
-        hdr->class = ELF_CLASS_32;
-        hdr->data = ELF_DATA_2LSB;
-        hdr->ident_version = ELF_VERSION_CURRENT;
-        hdr->type = ELF_TYPE_EXEC;
-        hdr->machine = ELF_MACHINE_386;
-        hdr->version = ELF_VERSION_CURRENT;
-        hdr->entry = randsize(sizeof(buf));
-        hdr->phoff = randsize(sizeof(buf));
-        hdr->ehsize = sizeof(elf_hdr_t);
-        hdr->phentsize = sizeof(elf_prog_hdr_t);
-        hdr->phnum = randsize(2);
-
-        uint32_t i;
-        for (i = 0; i < hdr->phnum; ++i) {
-            if (hdr->phoff >= sizeof(buf) - (i + 1) * sizeof(elf_prog_hdr_t)) {
-                break;
-            }
-
-            elf_prog_hdr_t *phdr = (elf_prog_hdr_t *)&buf[hdr->phoff] + i;
-            phdr->type = randchoice(ELF_PROGRAM_TYPE_LOAD, ELF_PROGRAM_TYPE_NOTE);
-            phdr->offset = randsize(sizeof(buf));
-            phdr->filesz = randsize(sizeof(buf));
-            phdr->memsz = randsize(sizeof(buf));
-            phdr->vaddr = 0x8000000 + randsize(0x400000);
-
-            if ((urand() & 1) &&
-                phdr->type == ELF_PROGRAM_TYPE_NOTE &&
-                phdr->offset < sizeof(buf) - sizeof(elf_note_hdr_t))
-            {
-                elf_note_hdr_t *nhdr = (elf_note_hdr_t *)&buf[phdr->offset];
-                nhdr->namesz = sizeof(ELF_NOCOMPAT_NAME);
-                nhdr->descsz = 0;
-                nhdr->type = ELF_NOCOMPAT_TYPE;
-                if (phdr->offset < sizeof(buf) - sizeof(elf_note_hdr_t) - nhdr->namesz) {
-                    memcpy(nhdr + 1, ELF_NOCOMPAT_NAME, nhdr->namesz);
-                }
-            }
-        }
+        char buf[EXEC_SIZE];
+        fread(buf, 1, EXEC_SIZE, randf);
+        make_fake_elf(buf);
 
         /* Flush buffer out to file */
         fseek(elff, 0, SEEK_SET);
-        fwrite(buf, 1, sizeof(buf), elff);
+        fwrite(buf, 1, EXEC_SIZE, elff);
 
         int pid = fork();
         if (pid < 0) {
@@ -157,7 +164,7 @@ main(void)
             kill(pid, SIGKILL);
             wait(&pid);
         } else {
-            exec(CHILD_NAME);
+            exec(EXEC_NAME);
             exit(1);
         }
     }

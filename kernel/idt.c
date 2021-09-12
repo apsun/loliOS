@@ -12,7 +12,9 @@
 #include "loopback.h"
 
 /* Whether to display a BSOD on a userspace exception (for debugging) */
+#ifndef USER_BSOD
 #define USER_BSOD 0
+#endif
 
 /* Convenience wrapper around SET_IDT_ENTRY */
 #define WRITE_IDT_ENTRY(i, name) do {       \

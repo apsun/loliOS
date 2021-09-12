@@ -56,11 +56,12 @@ if [ "$#" -gt 0 ] && [ "$1" = "debug" ]; then
     exit 0
 fi
 
-# If optimize mode is set, compile in -O2
+# Set compiler flags based on optimize mode
 if [ "${optimize}" -eq 1 ]; then
     export CFLAGS="${CFLAGS-} -O2"
 else
-    export CFLAGS="${CFLAGS-} -Og -g -DDEBUG_PRINT=1"
+    export CFLAGS="${CFLAGS-} -Og -g -fsanitize=undefined -fsanitize-undefined-trap-on-error"
+    export CPPFLAGS="${CPPFLAGS-} -DDEBUG_PRINT=1"
 fi
 
 # If compat mode is set, use the original filesystem image,

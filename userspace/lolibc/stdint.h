@@ -1,8 +1,9 @@
 #ifndef _LOLIBC_STDINT_H
 #define _LOLIBC_STDINT_H
 
-#define SIZE_MAX (~(size_t)0)
-#define INT_MAX ((int)(~0U >> 1))
+#define SIZE_MAX 4294967295UL
+#define INT_MIN (-2147483647 - 1)
+#define INT_MAX 2147483647
 
 typedef long long int64_t;
 typedef unsigned long long uint64_t;

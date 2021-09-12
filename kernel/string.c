@@ -400,8 +400,12 @@ itoa(int value, char *buf, int radix)
         return utoa((unsigned int)value, buf, radix);
     }
 
+    if (value != INT_MIN) {
+        value = -value;
+    }
+
     buf[0] = '-';
-    utoa((unsigned int)-value, &buf[1], radix);
+    utoa((unsigned int)value, &buf[1], radix);
     return buf;
 }
 
@@ -492,29 +496,24 @@ memset(void *s, unsigned char c, int n)
      * Empirical testing suggests 8B is fastest on QEMU, about
      * 50% faster than REP STOSL.
      */
-    typedef unsigned long long word_t;
+    typedef struct { char bytes[8]; } word_t;
 
     /*
      * Pack c into a word for fast fill.
      */
-    word_t word = 0;
+    word_t word = {0};
     if (c != 0) {
-        word = \
-            ((word_t)c << 56) | \
-            ((word_t)c << 48) | \
-            ((word_t)c << 40) | \
-            ((word_t)c << 32) | \
-            ((word_t)c << 24) | \
-            ((word_t)c << 16) | \
-            ((word_t)c << 8)  | \
-            ((word_t)c << 0);
+        size_t i;
+        for (i = 0; i < sizeof(word.bytes); ++i) {
+            word.bytes[i] = c;
+        }
     }
 
     /*
      * Align dest ptr to word boundary.
      */
     unsigned char *sb = s;
-    int nalign = -(uintptr_t)sb & (__alignof__(word_t) - 1);
+    int nalign = -(uintptr_t)sb & (sizeof(word_t) - 1);
     if (n >= nalign) {
         n -= nalign;
         while (nalign--) {
@@ -599,14 +598,14 @@ memcpy(void *dest, const void *src, int n)
      * Empirical testing suggests 8B is fastest on QEMU, about
      * twice the speed of REP MOVSL.
      */
-    typedef unsigned long long word_t;
+    typedef struct { char bytes[8]; } word_t;
 
     /*
      * Align dest ptr to word boundary.
      */
     unsigned char *db = dest;
     const unsigned char *sb = src;
-    int nalign = -(uintptr_t)db & (__alignof__(word_t) - 1);
+    int nalign = -(uintptr_t)db & (sizeof(word_t) - 1);
     if (n >= nalign) {
         n -= nalign;
         while (nalign--) {
