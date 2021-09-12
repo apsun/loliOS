@@ -39,8 +39,11 @@ void timer_setup(timer_t *timer, int delay, void (*callback)(timer_t *));
 /* Starts a new timer with the specified target monotonic time and callback */
 void timer_setup_abs(timer_t *timer, int when, void (*callback)(timer_t *));
 
-/* Cancels a running timer */
+/* Cancels an active timer */
 void timer_cancel(timer_t *timer);
+
+/* Checks whether a timer is active */
+bool timer_is_active(timer_t *timer);
 
 #endif /* ASM */
 

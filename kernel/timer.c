@@ -1,5 +1,6 @@
 #include "timer.h"
 #include "types.h"
+#include "debug.h"
 #include "list.h"
 #include "pit.h"
 
@@ -13,6 +14,9 @@ static list_declare(timer_list);
 static void
 timer_insert_list(timer_t *timer)
 {
+    assert(timer != NULL);
+    assert(timer->callback != NULL);
+
     list_t *pos;
     list_for_each_prev(pos, &timer_list) {
         timer_t *qtimer = list_entry(pos, timer_t, list);
@@ -29,6 +33,8 @@ timer_insert_list(timer_t *timer)
 void
 timer_tick(int now)
 {
+    assert(now >= 0);
+
     while (!list_empty(&timer_list)) {
         timer_t *pending = list_first_entry(&timer_list, timer_t, list);
         if (pending->when > now) {
@@ -49,6 +55,7 @@ timer_tick(int now)
 void
 timer_init(timer_t *timer)
 {
+    assert(timer != NULL);
     timer->callback = NULL;
 }
 
@@ -59,6 +66,10 @@ timer_init(timer_t *timer)
 void
 timer_clone(timer_t *dest, timer_t *src)
 {
+    assert(src != NULL);
+    assert(dest != NULL);
+    assert(dest->callback == NULL);
+
     dest->callback = src->callback;
     if (dest->callback != NULL) {
         dest->when = src->when;
@@ -80,6 +91,10 @@ timer_clone(timer_t *dest, timer_t *src)
 void
 timer_setup(timer_t *timer, int delay, void (*callback)(timer_t *))
 {
+    assert(timer != NULL);
+    assert(delay >= 0);
+    assert(callback != NULL);
+
     timer_setup_abs(timer, pit_monotime() + delay, callback);
 }
 
@@ -91,6 +106,10 @@ timer_setup(timer_t *timer, int delay, void (*callback)(timer_t *))
 void
 timer_setup_abs(timer_t *timer, int when, void (*callback)(timer_t *))
 {
+    assert(timer != NULL);
+    assert(when >= 0);
+    assert(callback != NULL);
+
     if (timer->callback != NULL) {
         list_del(&timer->list);
     }
@@ -106,8 +125,20 @@ timer_setup_abs(timer_t *timer, int when, void (*callback)(timer_t *))
 void
 timer_cancel(timer_t *timer)
 {
+    assert(timer != NULL);
+
     if (timer->callback != NULL) {
         list_del(&timer->list);
         timer->callback = NULL;
     }
+}
+
+/*
+ * Returns whether a timer is currently active.
+ */
+bool
+timer_is_active(timer_t *timer)
+{
+    assert(timer != NULL);
+    return timer->callback != NULL;
 }
