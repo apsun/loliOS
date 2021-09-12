@@ -30,6 +30,8 @@ static net_iface_t lo = {
 static int
 loopback_send(net_iface_t *iface, skb_t *skb, ip_addr_t ip)
 {
+    assert(skb_mac_header(skb) == NULL);
+
     /*
      * You may be wondering, why can't we just deliver the packet
      * now? The problem is that our networking code is not re-entrant.
@@ -44,6 +46,8 @@ loopback_send(net_iface_t *iface, skb_t *skb, ip_addr_t ip)
         return -1;
     }
 
+    skb_clear_network_header(clone);
+    skb_clear_transport_header(clone);
     list_add_tail(&clone->list, &loopback_queue);
     return 0;
 }
