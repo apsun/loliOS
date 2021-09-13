@@ -660,6 +660,9 @@ tcp_outbox_transmit_all(tcp_sock_t *tcp)
         tcp_pkt_t *txpkt = list_entry(txpos, tcp_pkt_t, list);
         if (txpkt->num_transmissions == 0) {
             tcp_outbox_transmit_one(tcp, txpkt);
+            if (tcp_in_state(tcp, CLOSED)) {
+                return -1;
+            }
         }
     }
 
@@ -880,8 +883,9 @@ tcp_close_write(tcp_sock_t *tcp)
         if (tcp_outbox_insert_fin(tcp) == NULL) {
             tcp->reset = true;
             tcp_set_state(tcp, CLOSED);
+        } else {
+            tcp_outbox_transmit_all(tcp);
         }
-        tcp_outbox_transmit_all(tcp);
     } else if (tcp_in_state(tcp, CLOSE_WAIT)) {
         tcp_set_state(tcp, LAST_ACK);
         if (tcp_outbox_insert_fin(tcp) == NULL) {
@@ -891,8 +895,9 @@ tcp_close_write(tcp_sock_t *tcp)
              * need to set the reset flag.
              */
             tcp_set_state(tcp, CLOSED);
+        } else {
+            tcp_outbox_transmit_all(tcp);
         }
-        tcp_outbox_transmit_all(tcp);
     }
 }
 
@@ -1489,8 +1494,9 @@ tcp_dtor(net_sock_t *sock)
             tcp_set_state(pending, FIN_WAIT_1);
             if (tcp_outbox_insert_fin(pending) == NULL) {
                 tcp_set_state(pending, CLOSED);
+            } else {
+                tcp_outbox_transmit_all(pending);
             }
-            tcp_outbox_transmit_all(tcp);
         }
     }
 
