@@ -73,7 +73,7 @@ else
     chmod +x "${root_dir}/createfs.py"
 
     # Compile userspace programs
-    make -C "${root_dir}/userspace"
+    make -j "$(nproc)" -C "${root_dir}/userspace"
     cp "${root_dir}/userspace/build/"* "${root_dir}/filesystem/"
 
     # Build filesystem image
@@ -82,7 +82,7 @@ else
 fi
 
 # Build kernel executable
-make -C "${root_dir}/kernel"
+make -j "$(nproc)" -C "${root_dir}/kernel"
 
 # Generate disk image
 chmod +x "${root_dir}/diskgen.sh"
