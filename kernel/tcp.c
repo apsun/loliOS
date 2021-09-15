@@ -449,8 +449,7 @@ tcp_alloc_skb(int body_len)
 static int
 tcp_send_raw(net_iface_t *iface, ip_addr_t dest_ip, skb_t *skb)
 {
-    // TODO: fix this assert
-    // assert(iface != NULL);
+    assert(iface != NULL);
 
     /*
      * Determine next-hop IP address. Note that the interface
@@ -1568,35 +1567,24 @@ tcp_connect(net_sock_t *sock, const sock_addr_t *addr)
         goto exit;
     }
 
-    /* Attempt to connect */
-    if (socket_connect_addr(sock, tmp.ip, tmp.port) < 0) {
+    /* Save original socket state to undo auto-bind */
+    bool orig_bound = sock->bound;
+    sock_addr_t orig_local_addr = sock->local;
+    net_iface_t *orig_iface = sock->iface;
+
+    /* Attempt to connect, auto-binding the socket if needed */
+    if (socket_connect_and_bind_addr(sock, tmp.ip, tmp.port) < 0) {
         tcp_debugf("Could not connect socket\n");
         ret = -1;
         goto exit;
     }
 
-    /* Auto-bind socket if not done already */
-    bool autobound = false;
-    if (!sock->bound) {
-        if (socket_bind_addr(sock, ANY_IP, 0) < 0) {
-            sock->connected = false;
-            tcp_debugf("Could not auto-bind socket\n");
-            ret = -1;
-            goto exit;
-        }
-        autobound = true;
-    }
-
     /* Send our SYN packet */
     tcp_set_state(tcp, SYN_SENT);
     if (tcp_outbox_insert_syn(tcp) == NULL) {
-        sock->connected = false;
-        if (autobound) {
-            sock->bound = false;
-        }
         tcp_set_state(tcp, CLOSED);
         ret = -1;
-        goto exit;
+        goto unbind;
     }
     tcp_outbox_transmit_all(tcp);
 
@@ -1607,6 +1595,13 @@ exit:
         tcp_release(tcp);
     }
     return ret;
+
+unbind:
+    sock->connected = false;
+    sock->bound = orig_bound;
+    sock->iface = orig_iface;
+    sock->local = orig_local_addr;
+    goto exit;
 }
 
 /*

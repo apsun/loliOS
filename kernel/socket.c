@@ -585,25 +585,76 @@ socket_bind_addr(net_sock_t *sock, ip_addr_t ip, uint16_t port)
 }
 
 /*
- * Connects a socket to the specified remote (IP, port).
- * Returns 0 on success, -1 if the destination IP address
- * is not routable or the port is invalid. This does not
+ * Connects a socket to the specified remote (IP, port),
+ * without binding to an interface or checking if the
+ * destination is routable. Returns 0 on success, -1 if
+ * the destination IP/port are invalid. This does not
  * prevent re-connecting a connected socket.
  */
 int
 socket_connect_addr(net_sock_t *sock, ip_addr_t ip, uint16_t port)
 {
-    /* Check remote port is valid */
-    if (port == 0) {
+    /* Check remote port and IP addr are valid */
+    if (port == 0 || ip_equals(ip, INVALID_IP)) {
+        debugf("Invalid destination address\n");
         return -1;
     }
 
-    /* Ensure we can actually route to destination */
+    sock->connected = true;
+    sock->remote.ip = ip;
+    sock->remote.port = port;
+    return 0;
+}
+
+/*
+ * Connects a socket to the specified remote (IP, port),
+ * binding to an interface if not already done. Checks that
+ * the destination is routable. Returns 0 on success, -1 if
+ * the destination IP/port are invalid or the destination is
+ * not routable.
+ */
+int
+socket_connect_and_bind_addr(net_sock_t *sock, ip_addr_t ip, uint16_t port)
+{
+    /* Check remote port and IP addr are valid */
+    if (port == 0 || ip_equals(ip, INVALID_IP)) {
+        debugf("Invalid destination address\n");
+        return -1;
+    }
+
+    /*
+     * Ensure we can actually route to destination. Note that
+     * if the socket is already bound, sock->iface will be used
+     * as the routing interface.
+     */
     ip_addr_t neigh_ip;
     net_iface_t *iface = net_route(sock->iface, ip, &neigh_ip);
     if (iface == NULL) {
         debugf("Destination address not routable\n");
         return -1;
+    }
+
+    /*
+     * Bind the socket to the interface used for routing, if
+     * it wasn't already. Check for iface == NULL in case the
+     * socket was previously bound to all interfaces.
+     */
+    if (!sock->bound || sock->iface == NULL) {
+        uint16_t local_port;
+        if (sock->bound) {
+            local_port = sock->local.port;
+        } else {
+            local_port = socket_find_free_port(iface, sock->type);
+            if (local_port == 0) {
+                debugf("All ports already in use\n");
+                return -1;
+            }
+        }
+
+        sock->bound = true;
+        sock->iface = iface;
+        sock->local.ip = iface->ip_addr;
+        sock->local.port = local_port;
     }
 
     sock->connected = true;

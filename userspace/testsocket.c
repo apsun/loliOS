@@ -494,6 +494,57 @@ test_tcp_backlog(void)
     close(a);
 }
 
+static void
+test_tcp_autobind(void)
+{
+    int ret;
+    int a = socket(SOCK_TCP);
+    int b = socket(SOCK_TCP);
+
+    /* Create listening socket */
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    ret = bind2(a, &a_addr);
+    assert(ret == 0);
+    ret = listen(a, 1);
+    assert(ret == 0);
+
+    /* Bind second socket */
+    sock_addr_t b_addr = {.ip = IP(0, 0, 0, 0), .port = 0};
+    ret = bind2(b, &b_addr);
+    assert(ret == 0);
+
+    /* Try connecting to an invalid addr */
+    sock_addr_t invalid_addr = {.ip = IP(0, 0, 0, 0), .port = 0};
+    ret = connect(b, &invalid_addr);
+    assert(ret < 0);
+
+    /* Ensure bound addr hasn't changed */
+    sock_addr_t addr;
+    ret = getsockname(b, &addr);
+    assert(ret == 0);
+    assert(memcmp(addr.ip.bytes, IP(0, 0, 0, 0).bytes, 4) == 0);
+    assert(addr.port == b_addr.port);
+
+    /* Connect to listening socket */
+    ret = connect(b, &a_addr);
+    assert(ret == 0);
+
+    /* Check that bound IP addr takes iface addr */
+    ret = getsockname(b, &addr);
+    assert(ret == 0);
+    assert(memcmp(addr.ip.bytes, IP(127, 0, 0, 1).bytes, 4) == 0);
+    assert(addr.port == b_addr.port);
+
+    /* Check remote addr */
+    ret = getpeername(b, &addr);
+    assert(ret == 0);
+    assert(memcmp(addr.ip.bytes, IP(127, 0, 0, 1).bytes, 4) == 0);
+    assert(addr.port == a_addr.port);
+
+    close(b);
+    close(a);
+}
+
 int
 main(void)
 {
@@ -510,6 +561,7 @@ main(void)
     test_tcp_segmentation();
     test_tcp_shutdown();
     test_tcp_backlog();
+    test_tcp_autobind();
     printf("All tests passed!\n");
     return 0;
 }

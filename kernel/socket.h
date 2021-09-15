@@ -105,6 +105,9 @@ int socket_bind_addr(net_sock_t *sock, ip_addr_t ip, uint16_t port);
 /* Connects a socket to the specified remote (IP, port) combination */
 int socket_connect_addr(net_sock_t *sock, ip_addr_t ip, uint16_t port);
 
+/* Connects a socket to the specified remote (IP, port) combination, binding if needed */
+int socket_connect_and_bind_addr(net_sock_t *sock, ip_addr_t ip, uint16_t port);
+
 #endif /* ASM */
 
 #endif /* _SOCKET_H */
