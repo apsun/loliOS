@@ -37,11 +37,14 @@ ip_fold_checksum(uint32_t sum)
 /*
  * Performs a partial checksum over network-endian data. Combine
  * the output with other partial checksums with addition, then
- * pass the sum to ip_fold_checksum().
+ * pass the sum to ip_fold_checksum(). The data must be aligned
+ * at a 4-byte boundary.
  */
 static uint32_t
 ip_partial_checksum(const void *buf, int len)
 {
+    assert(((uintptr_t)buf & 0x3) == 0);
+
     /*
      * Implementation note: We don't need to convert the input
      * to little endian, as long as we treat the output as big
