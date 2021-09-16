@@ -141,13 +141,6 @@ typedef struct {
     int recv_wnd_size;
 
     /*
-     * Send window size of the socket. Used to limit the number of packets
-     * we send at once, so we don't overflow the receiver. Like recv_wnd_size,
-     * this value may be negative.
-     */
-    int send_wnd_size;
-
-    /*
      * Sequence number in our inbox that userspace has consumed up to. Used
      * to keep track of which bytes need to be copied from the inbox to
      * userspace on the next recvfrom() call. May be in the middle of a
@@ -174,6 +167,14 @@ typedef struct {
      * yet (i.e. sequence number of the first packet in our outbox).
      */
     uint32_t send_unack_num;
+
+    /*
+     * Send window size, and the seq + ack numbers used to last update the
+     * window size.
+     */
+    uint32_t send_wnd_seq;
+    uint32_t send_wnd_ack;
+    uint16_t send_wnd_size;
 
     /* Duplicate ACK counter for fast retransmission */
     uint8_t num_duplicate_acks : 2;
@@ -364,18 +365,6 @@ tcp_rwnd_size(tcp_sock_t *tcp)
         return 0;
     }
     return tcp->recv_wnd_size;
-}
-
-/*
- * Returns the send window size of the TCP connection.
- */
-static uint16_t __unused
-tcp_swnd_size(tcp_sock_t *tcp)
-{
-    if (tcp->send_wnd_size < 0) {
-        return 0;
-    }
-    return tcp->send_wnd_size;
 }
 
 /*
@@ -758,8 +747,6 @@ tcp_start_rto_timeout(tcp_sock_t *tcp)
 static tcp_pkt_t *
 tcp_outbox_insert(tcp_sock_t *tcp, skb_t *skb)
 {
-    // TODO: Update send window
-
     tcp_pkt_t *pkt = malloc(sizeof(tcp_pkt_t));
     if (pkt == NULL) {
         return NULL;
@@ -835,11 +822,65 @@ tcp_outbox_insert_fin(tcp_sock_t *tcp)
 }
 
 /*
+ * Removes a packet from the TCP outbox.
+ */
+static void
+tcp_outbox_remove(tcp_sock_t *tcp, tcp_pkt_t *pkt)
+{
+    list_del(&pkt->list);
+    skb_release(pkt->skb);
+    free(pkt);
+}
+
+/*
+ * Inserts a packet into the TCP inbox, if it is not an exact
+ * duplicate of an existing packet. Returns true if the packet
+ * was added, false otherwise.
+ */
+static bool
+tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
+{
+    tcp_hdr_t *hdr = skb_transport_header(skb);
+    int len = tcp_seg_len(skb);
+
+    /*
+     * Find appropriate place in the inbox queue to insert the packet.
+     * Iterate from the tail since most packets probably arrive in
+     * the correct order. Algorithm: find the latest position in
+     * the list where SEQ(new) > SEQ(entry), and insert the new packet
+     * after the existing entry. If it happens that the new packet
+     * belongs at the head of the queue, we rely on the implementation
+     * of list_for_each_prev to leave pos == head once the loop ends.
+     */
+    list_t *pos;
+    list_for_each_prev(pos, &tcp->inbox) {
+        skb_t *iskb = list_entry(pos, skb_t, list);
+        tcp_hdr_t *ihdr = skb_transport_header(iskb);
+        int c = cmp(seq(hdr), seq(ihdr));
+        if (c >= 0) {
+            /*
+             * If this is an exact overlap with an existing segment,
+             * discard it since it adds no new data.
+             */
+            if (c == 0 && len == tcp_seg_len(iskb)) {
+                tcp_debugf("Retransmission of existing packet, dropping\n");
+                return false;
+            }
+            break;
+        }
+    }
+    list_add(&skb_retain(skb)->list, pos);
+    tcp->recv_wnd_size -= len;
+    return true;
+}
+
+/*
  * Removes a packet from the TCP inbox.
  */
 static void
 tcp_inbox_remove(tcp_sock_t *tcp, skb_t *skb)
 {
+    tcp->recv_wnd_size += tcp_seg_len(skb);
     list_del(&skb->list);
 }
 
@@ -859,8 +900,7 @@ tcp_inbox_drain(tcp_sock_t *tcp)
          * If this packet hasn't been ACKed yet, we must have a hole,
          * so stop here.
          */
-        uint32_t pkt_seq_num = seq(hdr);
-        if (cmp(pkt_seq_num, tcp->recv_next_num) > 0) {
+        if (cmp(seq(hdr), tcp->recv_next_num) > 0) {
             break;
         }
 
@@ -908,25 +948,23 @@ tcp_close_write(tcp_sock_t *tcp)
  * the socket state.
  */
 static void
-tcp_outbox_handle_rx_ack(tcp_sock_t *tcp, uint32_t ack_num)
+tcp_outbox_handle_rx_ack(tcp_sock_t *tcp, tcp_hdr_t *hdr)
 {
-    // TODO: Update send window
-
     int num_acked = 0;
     list_t *pos, *next;
     list_for_each_safe(pos, next, &tcp->outbox) {
         tcp_pkt_t *opkt = list_entry(pos, tcp_pkt_t, list);
         skb_t *oskb = opkt->skb;
         tcp_hdr_t *ohdr = skb_transport_header(oskb);
+        int olen = tcp_seg_len(oskb);
 
         /*
          * Since ACK is for the next expected sequence number,
          * it's only useful when SEQ(pkt) + SEG_LEN(pkt) <= ack_num.
          * If this is an ACK for this specific packet, update the RTT.
          */
-        int d = cmp(seq(ohdr) + tcp_seg_len(oskb), ack_num);
+        int d = cmp(seq(ohdr) + olen, ack(hdr));
         if (d > 0) {
-            tcp->send_unack_num = seq(ohdr);
             break;
         } else if (d == 0) {
             /*
@@ -980,10 +1018,23 @@ tcp_outbox_handle_rx_ack(tcp_sock_t *tcp, uint32_t ack_num)
         }
 
         /* No longer need to keep track of this packet! */
-        list_del(pos);
-        skb_release(oskb);
-        free(opkt);
+        tcp->send_unack_num = seq(ohdr) + olen;
+        tcp_outbox_remove(tcp, opkt);
         num_acked++;
+    }
+
+    /*
+     * Update the send window if we think the window field in this
+     * packet is "newer" (algorithm blindly copied from RFC793).
+     */
+    if (cmp(ack(hdr), tcp->send_unack_num) > 0 &&
+        (cmp(seq(hdr), tcp->send_wnd_seq) > 0 ||
+         (cmp(seq(hdr), tcp->send_wnd_seq) == 0 &&
+          cmp(ack(hdr), tcp->send_wnd_ack) >= 0)))
+    {
+        tcp->send_wnd_size = ntohs(hdr->be_window_size);
+        tcp->send_wnd_seq = seq(hdr);
+        tcp->send_wnd_ack = ack(hdr);
     }
 
     /*
@@ -1016,35 +1067,10 @@ tcp_outbox_handle_rx_ack(tcp_sock_t *tcp, uint32_t ack_num)
 static void
 tcp_inbox_handle_rx_skb(tcp_sock_t *tcp, skb_t *skb)
 {
-    tcp_hdr_t *hdr = skb_transport_header(skb);
-
-    /*
-     * Find appropriate place in the inbox queue to insert the packet.
-     * Iterate from the tail since most packets probably arrive in
-     * the correct order. Algorithm: find the latest position in
-     * the list where SEQ(new) > SEQ(entry), and insert the new packet
-     * after the existing entry. If it happens that the new packet
-     * belongs at the head of the queue, we rely on the implementation
-     * of list_for_each_prev to leave pos == head once the loop ends.
-     */
-    list_t *pos;
-    list_for_each_prev(pos, &tcp->inbox) {
-        skb_t *iskb = list_entry(pos, skb_t, list);
-        tcp_hdr_t *ihdr = skb_transport_header(iskb);
-        int c = cmp(seq(hdr), seq(ihdr));
-        if (c >= 0) {
-            /*
-             * If this is an exact overlap with an existing segment,
-             * discard it since it adds no new data.
-             */
-            if (c == 0 && tcp_seg_len(skb) == tcp_seg_len(iskb)) {
-                tcp_debugf("Retransmission of existing packet, dropping\n");
-                return;
-            }
-            break;
-        }
+    /* Add packet to the inbox if it's not a duplicate */
+    if (!tcp_inbox_insert(tcp, skb)) {
+        return;
     }
-    list_add(&skb_retain(skb)->list, pos);
 
     /*
      * If we get more packets while the FIN timer is active, restart
@@ -1061,10 +1087,11 @@ tcp_inbox_handle_rx_skb(tcp_sock_t *tcp, skb_t *skb)
      * to the remote host in any packets containing an ACK. Basically,
      * just process the packets in order until we find a gap.
      */
-    list_t *next;
+    list_t *pos, *next;
     list_for_each_safe(pos, next, &tcp->inbox) {
         skb_t *iskb = list_entry(pos, skb_t, list);
         tcp_hdr_t *ihdr = skb_transport_header(iskb);
+        int ilen = tcp_seg_len(iskb);
 
         /* If seq > ack_num, we have a hole, so stop here */
         if (cmp(seq(ihdr), tcp->recv_next_num) > 0) {
@@ -1076,8 +1103,7 @@ tcp_inbox_handle_rx_skb(tcp_sock_t *tcp, skb_t *skb)
          * that some segments may overlap, so we check the ending
          * sequence number of the packet.
          */
-        uint32_t end = seq(ihdr) + tcp_seg_len(iskb);
-        if (cmp(end, tcp->recv_next_num) <= 0) {
+        if (cmp(seq(ihdr) + ilen, tcp->recv_next_num) <= 0) {
             continue;
         }
 
@@ -1089,7 +1115,7 @@ tcp_inbox_handle_rx_skb(tcp_sock_t *tcp, skb_t *skb)
         }
 
         /* Looks good, advance the ACK number */
-        tcp->recv_next_num = end;
+        tcp->recv_next_num = seq(ihdr) + ilen;
 
         /* Reached a FIN for the first time */
         if (ihdr->fin) {
@@ -1108,8 +1134,6 @@ tcp_inbox_handle_rx_skb(tcp_sock_t *tcp, skb_t *skb)
             }
         }
     }
-
-    // TODO: Update receive window
 }
 
 /*
@@ -1154,12 +1178,13 @@ tcp_handle_rx_syn_sent(tcp_sock_t *tcp, skb_t *skb)
      * Packet seems to be valid, let's handle the SYN now.
      */
     if (hdr->syn) {
-        tcp->recv_next_num = seq(hdr) + 1;
-        tcp->recv_read_num = tcp->recv_next_num;
+        tcp->recv_next_num = seq(hdr);
+        tcp->recv_read_num = seq(hdr);
+        tcp->send_wnd_seq = seq(hdr);
 
         /* Handle ACK for our SYN */
         if (hdr->ack) {
-            tcp_outbox_handle_rx_ack(tcp, ack(hdr));
+            tcp_outbox_handle_rx_ack(tcp, hdr);
         }
 
         /* Add incoming SYN packet to our inbox */
@@ -1284,7 +1309,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
      * Handle ACK. This may transmit packets or change the socket
      * state.
      */
-    tcp_outbox_handle_rx_ack(tcp, ack(hdr));
+    tcp_outbox_handle_rx_ack(tcp, hdr);
 
     /*
      * Add the incoming packet to our inbox. If the packet has
@@ -1456,6 +1481,7 @@ tcp_ctor(net_sock_t *sock)
         return -1;
     }
 
+    uint32_t seq = urand();
     tcp->sock = sock;
     tcp->state = CLOSED;
     list_init(&tcp->backlog);
@@ -1465,11 +1491,13 @@ tcp_ctor(net_sock_t *sock)
     timer_init(&tcp->rto_timer);
     tcp->backlog_capacity = 256;
     tcp->recv_wnd_size = TCP_INIT_WND_SIZE;
-    tcp->send_wnd_size = TCP_INIT_WND_SIZE;
     tcp->recv_read_num = 0;
     tcp->recv_next_num = 0;
-    tcp->send_next_num = urand();
-    tcp->send_unack_num = tcp->send_next_num;
+    tcp->send_next_num = seq;
+    tcp->send_unack_num = seq;
+    tcp->send_wnd_size = TCP_INIT_WND_SIZE;
+    tcp->send_wnd_ack = seq;
+    tcp->send_wnd_seq = 0;
     tcp->num_duplicate_acks = 0;
     tcp->reset = false;
     tcp->estimated_rtt = -1;
@@ -1503,14 +1531,13 @@ tcp_dtor(net_sock_t *sock)
     /* Clear inbox */
     list_for_each_safe(pos, next, &tcp->inbox) {
         skb_t *skb = list_entry(pos, skb_t, list);
-        skb_release(skb);
+        tcp_inbox_remove(tcp, skb);
     }
 
     /* Clear outbox */
     list_for_each_safe(pos, next, &tcp->outbox) {
         tcp_pkt_t *pkt = list_entry(pos, tcp_pkt_t, list);
-        skb_release(pkt->skb);
-        free(pkt);
+        tcp_outbox_remove(tcp, pkt);
     }
 
     /* Stop timers */
@@ -1745,13 +1772,12 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
          * If this packet hasn't been ACKed yet, we must have a hole,
          * so stop here.
          */
-        uint32_t pkt_seq_num = seq(hdr);
-        if (cmp(pkt_seq_num, tcp->recv_next_num) > 0) {
+        if (cmp(seq(hdr), tcp->recv_next_num) > 0) {
             break;
         }
 
         /* Consume SYN flag */
-        if (hdr->syn && tcp->recv_read_num == pkt_seq_num) {
+        if (hdr->syn && tcp->recv_read_num == seq(hdr)) {
             tcp->recv_read_num++;
         }
 
@@ -1760,7 +1786,7 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
          * and whether this segment contains a SYN (SYNs take up
          * one sequence number but no bytes).
          */
-        int seq_offset = tcp->recv_read_num - pkt_seq_num;
+        int seq_offset = (int)(tcp->recv_read_num - seq(hdr));
         int byte_offset = hdr->syn ? seq_offset - 1 : seq_offset;
         int bytes_remaining = tcp_body_len(skb) - byte_offset;
         if (bytes_remaining >= 0) {
@@ -1797,8 +1823,6 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
         tcp_inbox_remove(tcp, skb);
         skb_release(skb);
     }
-
-    // TODO: Update receive window
 
     /*
      * Only advertise window updates when we have at least
@@ -1862,13 +1886,20 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
         goto exit;
     }
 
-    /* Don't return -1 if nothing to copy */
-    if (nbytes == 0) {
-        ret = 0;
+    /* Limit number of bytes to remaining send window */
+    int outbox_used = (int)(tcp->send_next_num - tcp->send_unack_num);
+    int outbox_free = (int)tcp->send_wnd_size - outbox_used;
+    if (outbox_free <= 0) {
+        ret = -EAGAIN;
         goto exit;
     }
 
-    // TODO: Check send window
+    if (nbytes > outbox_free) {
+        nbytes = outbox_free;
+    } else if (nbytes == 0) {
+        ret = 0;
+        goto exit;
+    }
 
     /* Copy data from userspace into TCP outbox */
     const uint8_t *bufp = buf;
