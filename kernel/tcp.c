@@ -882,6 +882,7 @@ tcp_inbox_remove(tcp_sock_t *tcp, skb_t *skb)
 {
     tcp->recv_wnd_size += tcp_seg_len(skb);
     list_del(&skb->list);
+    skb_release(skb);
 }
 
 /*
@@ -905,7 +906,6 @@ tcp_inbox_drain(tcp_sock_t *tcp)
         }
 
         tcp_inbox_remove(tcp, skb);
-        skb_release(skb);
     }
 }
 
@@ -1110,7 +1110,6 @@ tcp_inbox_handle_rx_skb(tcp_sock_t *tcp, skb_t *skb)
         /* Discard any packets after a FIN */
         if (tcp_in_state(tcp, CLOSING | TIME_WAIT | CLOSE_WAIT | LAST_ACK | CLOSED)) {
             tcp_inbox_remove(tcp, iskb);
-            skb_release(iskb);
             continue;
         }
 
@@ -1495,9 +1494,9 @@ tcp_ctor(net_sock_t *sock)
     tcp->recv_next_num = 0;
     tcp->send_next_num = seq;
     tcp->send_unack_num = seq;
-    tcp->send_wnd_size = TCP_INIT_WND_SIZE;
-    tcp->send_wnd_ack = seq;
     tcp->send_wnd_seq = 0;
+    tcp->send_wnd_ack = seq;
+    tcp->send_wnd_size = TCP_INIT_WND_SIZE;
     tcp->num_duplicate_acks = 0;
     tcp->reset = false;
     tcp->estimated_rtt = -1;
@@ -1776,19 +1775,9 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
             break;
         }
 
-        /* Consume SYN flag */
-        if (hdr->syn && tcp->recv_read_num == seq(hdr)) {
-            tcp->recv_read_num++;
-        }
-
-        /*
-         * Find starting byte, based on how much we've already read
-         * and whether this segment contains a SYN (SYNs take up
-         * one sequence number but no bytes).
-         */
-        int seq_offset = (int)(tcp->recv_read_num - seq(hdr));
-        int byte_offset = hdr->syn ? seq_offset - 1 : seq_offset;
-        int bytes_remaining = tcp_body_len(skb) - byte_offset;
+        /* Find starting byte, based on how much we've already read */
+        int offset = (int)(tcp->recv_read_num - seq(hdr));
+        int bytes_remaining = tcp_body_len(skb) - offset;
         if (bytes_remaining >= 0) {
             /* Clamp to actual size of buffer */
             int bytes_to_copy = bytes_remaining;
@@ -1798,7 +1787,7 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
 
             /* Now do the copy, only return -1 if no bytes could be copied */
             uint8_t *body = skb_data(skb);
-            uint8_t *start = &body[byte_offset];
+            uint8_t *start = &body[offset];
             if (!copy_to_user(&bufp[copied], start, bytes_to_copy)) {
                 if (copied == 0) {
                     ret = -1;
@@ -1820,8 +1809,17 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
             }
         }
 
+        /* Consume SYN/FIN flag after all data has been read */
+        if (hdr->syn) {
+            tcp->recv_read_num++;
+        }
+        if (hdr->fin) {
+            tcp->recv_read_num++;
+        }
+        assert(tcp->recv_read_num == seq(hdr) + tcp_seg_len(skb));
+
+        /* Now that all data has been read, remove packet from inbox */
         tcp_inbox_remove(tcp, skb);
-        skb_release(skb);
     }
 
     /*
