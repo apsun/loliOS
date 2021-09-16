@@ -210,9 +210,11 @@ ne2k_read_mem(void *buf, int offset, int nbytes)
     outb(NE2K_CMD_NODMA | NE2K_CMD_RREAD, NE2K_CMD);
 
     /* Read in dwords (QEMU extension) */
+    int i;
     uint32_t *bufl = (uint32_t *)buf;
-    rep_insl(bufl, nbytes / 4, NE2K_DATA);
-    bufl += nbytes / 4;
+    for (i = 0; i < nbytes / 4; ++i) {
+        *bufl++ = inl(NE2K_DATA);
+    }
 
     /* Read in words (NE2K_DCFG_WORD must be set) */
     uint16_t *bufw = (uint16_t *)bufl;
@@ -243,9 +245,11 @@ ne2k_write_mem(int offset, const void *buf, int nbytes)
     outb(NE2K_CMD_NODMA | NE2K_CMD_RWRITE, NE2K_CMD);
 
     /* Write in dwords (QEMU extension) */
+    int i;
     const uint32_t *bufl = (const uint32_t *)buf;
-    rep_outsl(bufl, nbytes / 4, NE2K_DATA);
-    bufl += nbytes / 4;
+    for (i = 0; i < nbytes / 4; ++i) {
+        outl(*bufl++, NE2K_DATA);
+    }
 
     /* Write in words (NE2K_DCFG_WORD must be set) */
     const uint16_t *bufw = (const uint16_t *)bufl;

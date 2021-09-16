@@ -51,19 +51,6 @@ inl(uint16_t port)
 }
 
 /*
- * Reads n 32-bit values from the specified port.
- */
-static inline void
-rep_insl(uint32_t *data, int n, uint16_t port)
-{
-    asm volatile(
-        "rep insl;"
-        : 
-        : "D"(data), "c"(n), "d"(port)
-        : "memory");
-}
-
-/*
  * Writes a byte to the specified I/O port.
  */
 static inline void
@@ -99,19 +86,6 @@ outl(uint32_t data, uint16_t port)
         "outl %1, (%w0)"
         :
         : "d"(port), "a"(data)
-        : "memory");
-}
-
-/*
- * Writes n 32-bit values to the specified port.
- */
-static inline void
-rep_outsl(const uint32_t *data, int n, uint16_t port)
-{
-    asm volatile(
-        "rep outsl;"
-        :
-        : "S"(data), "c"(n), "d"(port)
         : "memory");
 }
 
