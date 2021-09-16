@@ -198,26 +198,37 @@ ne2k_config_dma(int offset, int nbytes)
     outb((offset >> 8) & 0xff, NE2K_RSARHI);
 }
 
-/* Reads the contents of the NE2k memory */
+/*
+ * Reads the contents of the NE2k memory. buf must be
+ * aligned to a 2-byte boundary.
+ */
 static void
 ne2k_read_mem(void *buf, int offset, int nbytes)
 {
-    assert((offset & 3) == 0);
+    assert((offset & 0x3) == 0);
+    assert(((uintptr_t)buf & 0x1) == 0);
 
     /* Set up transfer */
     ne2k_config_dma(offset, nbytes);
     outb(NE2K_ISR_RDC, NE2K_ISR);
     outb(NE2K_CMD_NODMA | NE2K_CMD_RREAD, NE2K_CMD);
 
+    /* Align to 4-byte boundary */
+    uint16_t *bufw = (uint16_t *)buf;
+    if (nbytes >= 2 && ((uintptr_t)buf & 0x2) != 0) {
+        *bufw++ = inw(NE2K_DATA);
+        nbytes -= 2;
+    }
+
     /* Read in dwords (QEMU extension) */
     int i;
-    uint32_t *bufl = (uint32_t *)buf;
+    uint32_t *bufl = (uint32_t *)bufw;
     for (i = 0; i < nbytes / 4; ++i) {
         *bufl++ = inl(NE2K_DATA);
     }
 
     /* Read in words (NE2K_DCFG_WORD must be set) */
-    uint16_t *bufw = (uint16_t *)bufl;
+    bufw = (uint16_t *)bufl;
     if (nbytes & 0x2) {
         *bufw++ = inw(NE2K_DATA);
     }
@@ -233,26 +244,37 @@ ne2k_read_mem(void *buf, int offset, int nbytes)
     outb(NE2K_ISR_RDC, NE2K_ISR);
 }
 
-/* Writes the contents of the NE2k memory */
+/*
+ * Writes the contents of the NE2k memory. buf must be
+ * aligned to a 2-byte boundary.
+ */
 static void
 ne2k_write_mem(int offset, const void *buf, int nbytes)
 {
-    assert((offset & 3) == 0);
+    assert((offset & 0x3) == 0);
+    assert(((uintptr_t)buf & 0x1) == 0);
 
     /* Set up transfer */
     ne2k_config_dma(offset, nbytes);
     outb(NE2K_ISR_RDC, NE2K_ISR);
     outb(NE2K_CMD_NODMA | NE2K_CMD_RWRITE, NE2K_CMD);
 
+    /* Align to 4-byte boundary */
+    const uint16_t *bufw = (const uint16_t *)buf;
+    if (nbytes >= 2 && ((uintptr_t)buf & 0x2) != 0) {
+        outw(*bufw++, NE2K_DATA);
+        nbytes -= 2;
+    }
+
     /* Write in dwords (QEMU extension) */
     int i;
-    const uint32_t *bufl = (const uint32_t *)buf;
+    const uint32_t *bufl = (const uint32_t *)bufw;
     for (i = 0; i < nbytes / 4; ++i) {
         outl(*bufl++, NE2K_DATA);
     }
 
     /* Write in words (NE2K_DCFG_WORD must be set) */
-    const uint16_t *bufw = (const uint16_t *)bufl;
+    bufw = (const uint16_t *)bufl;
     if (nbytes & 0x2) {
         outw(*bufw++, NE2K_DATA);
     }
