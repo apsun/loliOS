@@ -10,6 +10,7 @@
 #include "tcp.h"
 #include "types.h"
 #include "debug.h"
+#include "string.h"
 #include "list.h"
 #include "file.h"
 #include "pit.h"
@@ -300,7 +301,7 @@ __unused static const char *
 tcp_get_state_str(tcp_state_t state)
 {
     static const char *names[] = {
-#define ENTRY(x) [x] = #x
+#define ENTRY(x) #x
         ENTRY(LISTEN),
         ENTRY(SYN_SENT),
         ENTRY(SYN_RECEIVED),
@@ -314,7 +315,7 @@ tcp_get_state_str(tcp_state_t state)
         ENTRY(CLOSED),
 #undef ENTRY
     };
-    return names[state];
+    return names[ctz(state)];
 }
 
 /*
@@ -1866,6 +1867,8 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
         ret = 0;
         goto exit;
     }
+
+    // TODO: Check send window
 
     /* Copy data from userspace into TCP outbox */
     const uint8_t *bufp = buf;

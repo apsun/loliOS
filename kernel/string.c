@@ -659,3 +659,17 @@ memmove(void *dest, const void *src, int n)
 
     return dest;
 }
+
+/*
+ * Returns the number of trailing zeros in x.
+ * x must not be zero.
+ */
+int
+ctz(unsigned int x)
+{
+    assert(x != 0);
+
+    int i;
+    asm("bsfl %1, %0" : "=r"(i) : "g"(x) : "cc");
+    return i;
+}

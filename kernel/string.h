@@ -33,6 +33,7 @@ void *memset_word(void *s, uint16_t c, int n);
 void *memset_dword(void *s, uint32_t c, int n);
 void *memcpy(void *dest, const void *src, int n);
 void *memmove(void *dest, const void *src, int n);
+int ctz(unsigned int x);
 
 #endif /* ASM */
 

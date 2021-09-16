@@ -2,6 +2,7 @@
 #define _BITMAP_H
 
 #include "types.h"
+#include "string.h"
 #include "myalloc.h"
 
 #ifndef ASM
@@ -66,22 +67,6 @@ typedef uint32_t bitmap_t;
     (map)[bitmap_index(i)] &= ~(1 << bitmap_subindex(i))
 
 /*
- * Finds the index of the first set bit in value.
- * Behavior is undefined if value is all zero bits.
- */
-static inline int
-bitmap_bsfl(uint32_t value)
-{
-    int32_t i;
-    asm volatile(
-        "bsfl %1, %0"
-        : "=r"(i)
-        : "g"(value)
-        : "cc");
-    return i;
-}
-
-/*
  * Finds the index of the first '1' bit in the bitmap.
  * If there are no '1' bits, this will return an index
  * greater than or equal to the actual number of bits
@@ -93,7 +78,7 @@ bitmap_find_one(bitmap_t *map, int nbits)
     int i;
     for (i = 0; i < bitmap_nunits(nbits); ++i) {
         if (map[i] != 0) {
-            return i * bitmap_bitsizeof(bitmap_t) + bitmap_bsfl(map[i]);
+            return i * bitmap_bitsizeof(bitmap_t) + ctz(map[i]);
         }
     }
     return nbits;
@@ -111,7 +96,7 @@ bitmap_find_zero(bitmap_t *map, int nbits)
     int i;
     for (i = 0; i < bitmap_nunits(nbits); ++i) {
         if (~map[i] != 0) {
-            return i * bitmap_bitsizeof(bitmap_t) + bitmap_bsfl(~map[i]);
+            return i * bitmap_bitsizeof(bitmap_t) + ctz(~map[i]);
         }
     }
     return nbits;
