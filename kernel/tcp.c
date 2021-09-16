@@ -870,7 +870,6 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
         }
     }
     list_add(&skb_retain(skb)->list, pos);
-    tcp->recv_wnd_size -= len;
     return true;
 }
 
@@ -880,7 +879,6 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
 static void
 tcp_inbox_remove(tcp_sock_t *tcp, skb_t *skb)
 {
-    tcp->recv_wnd_size += tcp_seg_len(skb);
     list_del(&skb->list);
     skb_release(skb);
 }
@@ -1082,11 +1080,7 @@ tcp_inbox_handle_rx_skb(tcp_sock_t *tcp, skb_t *skb)
         tcp_restart_fin_timeout(tcp);
     }
 
-    /*
-     * Next, update our ACK number, which is what we will send
-     * to the remote host in any packets containing an ACK. Basically,
-     * just process the packets in order until we find a gap.
-     */
+    /* Process packets in the inbox in order until we find a gap */
     list_t *pos, *next;
     list_for_each_safe(pos, next, &tcp->inbox) {
         skb_t *iskb = list_entry(pos, skb_t, list);
@@ -1113,8 +1107,9 @@ tcp_inbox_handle_rx_skb(tcp_sock_t *tcp, skb_t *skb)
             continue;
         }
 
-        /* Looks good, advance the ACK number */
+        /* Looks good, advance the ACK number and adjust rwnd to compensate */
         tcp->recv_next_num = seq(ihdr) + ilen;
+        tcp->recv_wnd_size -= ilen;
 
         /* Reached a FIN for the first time */
         if (ihdr->fin) {
@@ -1173,9 +1168,7 @@ tcp_handle_rx_syn_sent(tcp_sock_t *tcp, skb_t *skb)
         return -1;
     }
 
-    /*
-     * Packet seems to be valid, let's handle the SYN now.
-     */
+    /* Packet seems to be valid, let's handle the SYN now */
     if (hdr->syn) {
         tcp->recv_next_num = seq(hdr);
         tcp->recv_read_num = seq(hdr);
@@ -1383,8 +1376,8 @@ tcp_handle_rx_listening(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
 
         /* Transition to SYN-received state */
         tcp_sock_t *conntcp = tcp_sock(connsock);
-        conntcp->recv_next_num = seq(hdr) + 1;
-        conntcp->recv_read_num = conntcp->recv_next_num;
+        conntcp->recv_next_num = seq(hdr);
+        conntcp->recv_read_num = seq(hdr);
         tcp_set_state(conntcp, SYN_RECEIVED);
 
         /* Insert SYN packet into inbox */
@@ -1818,7 +1811,11 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
         }
         assert(tcp->recv_read_num == seq(hdr) + tcp_seg_len(skb));
 
-        /* Now that all data has been read, remove packet from inbox */
+        /*
+         * Now that all data has been read, remove packet from inbox
+         * and expand rwnd accordingly.
+         */
+        tcp->recv_wnd_size += tcp_seg_len(skb);
         tcp_inbox_remove(tcp, skb);
     }
 
