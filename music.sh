@@ -1,19 +1,26 @@
 #!/bin/bash
 set -euo pipefail
+
 port=7878
+sample_rate=44100
+sample_fmt=pcm_s16le
+num_channels=2
+
 if [ "$#" -ne 1 ]; then
-    echo "usage: $0 input.mp3"
+    echo "usage: $0 <input>"
     exit 1
 fi
-mp3file="$1"
 
-# Convert audio to WAV
 wavfile="$(mktemp -u)"
-ffmpeg -i "${mp3file}" -f wav "${wavfile}"
+ffmpeg \
+    -i "$1" \
+    -ar "${sample_rate}" \
+    -ac "${num_channels}" \
+    -c:a "${sample_fmt}" \
+    -f wav \
+    "${wavfile}"
 trap 'rm -f "${wavfile}"' EXIT
 
-# Serve music using netcat
-echo "Serving '${mp3file}' at port ${port}..."
 trap "exit 0" INT
 while :; do
     nc -lp "${port}" < "${wavfile}" || true
