@@ -30,6 +30,9 @@ typedef struct {
     be16_t be_urg_ptr;
 } tcp_hdr_t;
 
+/* Delivers all pending ACKs */
+void tcp_deliver_ack(void);
+
 /* Handles reception of a TCP packet */
 int tcp_handle_rx(net_iface_t *iface, skb_t *skb);
 

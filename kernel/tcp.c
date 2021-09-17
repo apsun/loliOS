@@ -114,6 +114,11 @@ typedef struct {
     list_t outbox;
 
     /*
+     * This holds our node in the pending ACK queue.
+     */
+    list_t ack_queue;
+
+    /*
      * Timer for the TIME_WAIT and FIN_WAIT_2 states. When this timer expires,
      * the socket is released.
      */
@@ -220,6 +225,9 @@ typedef struct {
 #define cmp(a, b) ((int32_t)((a) - (b)))
 #define ack(hdr) (ntohl((hdr)->be_ack_num))
 #define seq(hdr) (ntohl((hdr)->be_seq_num))
+
+/* List of TCP sockets that have an ACK enqueued */
+static list_declare(ack_queue);
 
 /* Forward declaration */
 static void tcp_start_rto_timeout(tcp_sock_t *tcp);
@@ -563,6 +571,35 @@ tcp_reply_rst(net_iface_t *iface, skb_t *orig_skb)
     int ret = tcp_send_raw(iface, orig_iphdr->src_ip, skb);
     skb_release(skb);
     return ret;
+}
+
+/*
+ * Adds a socket to the pending ACK queue. ACKs are sent at the
+ * end of an interrupt, which lets us merge ACKs for packets received
+ * in the same interrupt.
+ */
+static void
+tcp_enqueue_ack(tcp_sock_t *tcp)
+{
+    if (list_empty(&tcp->ack_queue)) {
+        list_add(&tcp->ack_queue, &ack_queue);
+    }
+}
+
+/*
+ * Delivers all pending ACKs.
+ */
+void
+tcp_deliver_ack(void)
+{
+    list_t *pos, *next;
+    list_for_each_safe(pos, next, &ack_queue) {
+        tcp_sock_t *tcp = tcp_acquire(list_entry(pos, tcp_sock_t, ack_queue));
+        if (!tcp_in_state(tcp, CLOSED)) {
+            tcp_send_ack(tcp);
+        }
+        list_del(&tcp->ack_queue);
+    }
 }
 
 /*
@@ -1316,7 +1353,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
      * and had some data (wasn't just an empty ACK).
      */
     if (!hdr->rst && tcp_seg_len(skb) > 0) {
-        tcp_send_ack(tcp);
+        tcp_enqueue_ack(tcp);
     }
 
     return 0;
@@ -1479,6 +1516,7 @@ tcp_ctor(net_sock_t *sock)
     list_init(&tcp->backlog);
     list_init(&tcp->inbox);
     list_init(&tcp->outbox);
+    list_init(&tcp->ack_queue);
     timer_init(&tcp->fin_timer);
     timer_init(&tcp->rto_timer);
     tcp->backlog_capacity = 256;
@@ -1507,17 +1545,20 @@ tcp_dtor(net_sock_t *sock)
     tcp_sock_t *tcp = tcp_sock(sock);
     list_t *pos, *next;
 
-    /* If this is a listening socket, terminate all pending connections */
+    /* Terminate all pending connections */
     if (sock->listening) {
         list_for_each_safe(pos, next, &tcp->backlog) {
             tcp_sock_t *pending = list_entry(pos, tcp_sock_t, backlog);
             tcp_set_state(pending, FIN_WAIT_1);
             if (tcp_outbox_insert_fin(pending) == NULL) {
+                /* Note: This will call the pending socket's destructor */
                 tcp_set_state(pending, CLOSED);
             } else {
                 tcp_outbox_transmit_all(pending);
             }
         }
+    } else {
+        list_del(&tcp->backlog);
     }
 
     /* Clear inbox */
@@ -1531,6 +1572,9 @@ tcp_dtor(net_sock_t *sock)
         tcp_pkt_t *pkt = list_entry(pos, tcp_pkt_t, list);
         tcp_outbox_remove(tcp, pkt);
     }
+
+    /* Remove from ACK queue */
+    list_del(&tcp->ack_queue);
 
     /* Stop timers */
     timer_cancel(&tcp->fin_timer);

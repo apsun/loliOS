@@ -10,6 +10,7 @@
 #include "signal.h"
 #include "terminal.h"
 #include "loopback.h"
+#include "tcp.h"
 
 /* Whether to display a BSOD on a userspace exception (for debugging) */
 #ifndef USER_BSOD
@@ -194,13 +195,11 @@ idt_handle_interrupt(int_regs_t *regs)
         debugf("Unknown interrupt: %d\n", regs->int_num);
     }
 
-    /*
-     * Deliver any queued up loopback packets now. This would
-     * probably be more elegant as a generic bottom half handler,
-     * but currently only the loopback code needs bottom halves,
-     * so we just call it directly here.
-     */
+    /* Deliver queued up loopback packets */
     loopback_deliver();
+
+    /* Deliver queued up ACKs */
+    tcp_deliver_ack();
 
     /*
      * If process has any pending signals, run their handlers.

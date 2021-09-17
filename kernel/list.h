@@ -107,8 +107,8 @@ list_del(list_t *node)
 {
     node->next->prev = node->prev;
     node->prev->next = node->next;
-    node->next = NULL;
-    node->prev = NULL;
+    node->next = node;
+    node->prev = node;
 }
 
 /*
