@@ -1415,6 +1415,7 @@ tcp_handle_rx_listening(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
         tcp_sock_t *conntcp = tcp_sock(connsock);
         conntcp->recv_next_num = seq(hdr);
         conntcp->recv_read_num = seq(hdr);
+        conntcp->send_wnd_seq = seq(hdr);
         tcp_set_state(conntcp, SYN_RECEIVED);
 
         /* Insert SYN packet into inbox */
