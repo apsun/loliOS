@@ -545,6 +545,29 @@ test_tcp_autobind(void)
     close(a);
 }
 
+static void
+test_tcp_unaccepted_close(void)
+{
+    int ret;
+    int a = socket(SOCK_TCP);
+    int b = socket(SOCK_TCP);
+
+    /* Create listening socket */
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    ret = bind2(a, &a_addr);
+    assert(ret == 0);
+    ret = listen(a, 128);
+    assert(ret == 0);
+
+    /* Connect to socket */
+    ret = connect(b, &a_addr);
+    assert(ret == 0);
+
+    /* Close without accepting */
+    close(b);
+    close(a);
+}
+
 int
 main(void)
 {
@@ -562,6 +585,7 @@ main(void)
     test_tcp_shutdown();
     test_tcp_backlog();
     test_tcp_autobind();
+    test_tcp_unaccepted_close();
     printf("All tests passed!\n");
     return 0;
 }
