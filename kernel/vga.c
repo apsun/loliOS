@@ -343,7 +343,7 @@ vga_vbemap(void **ptr, int xres, int yres, int bpp)
      * Check that we have enough space to hold all pixels, with
      * double buffering (hence divide by 2).
      */
-    if (xres * yres * bytespp >= VBE_FB_SIZE / 2) {
+    if (xres * yres * bytespp > VBE_FB_SIZE / 2) {
         debugf("Resolution too large (%d*%d*%d)\n", xres, yres, bpp);
         return -1;
     }
