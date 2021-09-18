@@ -4,7 +4,7 @@ set -euo pipefail
 port=8989
 width=1024
 height=576
-pix_fmt=rgb565le
+pix_fmt=rgb565
 
 if [ "$#" -ne 1 ]; then
     echo "usage: $0 <input>"

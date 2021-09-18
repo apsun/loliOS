@@ -70,6 +70,7 @@ MAKE_SYS(monotime, SYS_MONOTIME)
 MAKE_SYS(monosleep, SYS_MONOSLEEP)
 MAKE_SYS(vbemap, SYS_VBEMAP)
 MAKE_SYS(vbeunmap, SYS_VBEUNMAP)
+MAKE_SYS(vbeflip, SYS_VBEFLIP)
 
 .globl _start
 _start:

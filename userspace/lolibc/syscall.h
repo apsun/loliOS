@@ -47,7 +47,8 @@
 #define SYS_MONOSLEEP   45
 #define SYS_VBEMAP      46
 #define SYS_VBEUNMAP    47
-#define NUM_SYSCALL     47
+#define SYS_VBEFLIP     48
+#define NUM_SYSCALL     48
 
 #ifndef ASM
 
@@ -182,6 +183,7 @@ __attribute__((cdecl)) int monotime(void);
 __attribute__((cdecl)) int monosleep(int target);
 __attribute__((cdecl)) int vbemap(void **ptr, int xres, int yres, int bpp);
 __attribute__((cdecl)) int vbeunmap(void *ptr);
+__attribute__((cdecl)) int vbeflip(void *ptr);
 
 #endif /* ASM */
 

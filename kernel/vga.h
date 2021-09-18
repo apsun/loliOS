@@ -8,6 +8,7 @@
 /* Syscall handlers */
 __cdecl int vga_vbemap(void **ptr, int xres, int yres, int bpp);
 __cdecl int vga_vbeunmap(void *ptr);
+__cdecl int vga_vbeflip(void *ptr);
 
 /* Sets the VGA cursor location */
 void vga_set_cursor_location(uint16_t location);

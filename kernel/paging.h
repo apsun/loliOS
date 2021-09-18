@@ -68,7 +68,10 @@ void paging_clone_user_page(uintptr_t dest_paddr);
 void paging_map_user_page(uintptr_t paddr);
 
 /* Updates the vidmap page to point to the specified address */
-void paging_update_vidmap_page(uint8_t *video_mem, bool present);
+void paging_update_vidmap_page(uintptr_t paddr, bool present);
+
+/* Enables or disables the VBE framebuffer pages */
+void paging_update_vbe_page(bool present);
 
 /* Checks if a range of memory is accessible */
 bool is_memory_accessible(const void *start, int nbytes, bool user, bool write);

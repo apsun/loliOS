@@ -59,6 +59,7 @@ syscall_jump_table:
     .long process_monosleep
     .long vga_vbemap
     .long vga_vbeunmap
+    .long vga_vbeflip
 
 .text
 

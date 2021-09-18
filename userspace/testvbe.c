@@ -1,6 +1,6 @@
-#include <stdio.h>
 #include <assert.h>
-#include <stdint.h>
+#include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <syscall.h>
@@ -25,6 +25,8 @@
  */
 #define WIDTH 1280
 #define HEIGHT 720
+#define BPP 32
+#define FBSIZE (WIDTH * HEIGHT * ((BPP + 1) / 8))
 
 int
 main(void)
@@ -41,7 +43,7 @@ main(void)
         }
     }
 
-    uint32_t *buf = malloc(WIDTH * HEIGHT * sizeof(uint32_t));
+    uint32_t *buf = malloc(FBSIZE);
     assert(buf != NULL);
 
     uint32_t col0 = 0x007f7fd5;
@@ -54,19 +56,21 @@ main(void)
             RGB32_B(col0) + (RGB32_B(col1) - RGB32_B(col0)) * (i % WIDTH) / WIDTH);
     }
 
-    uint32_t *vbemem;
-    vbemap((void **)&vbemem, WIDTH, HEIGHT, 32);
+    char *vbemem;
+    vbemap((void **)&vbemem, WIDTH, HEIGHT, BPP);
 
     int start = monotime();
     int end = start + secs * 1000;
 
     int iter = 0;
+    int flip = 0;
     while (monotime() < end) {
-        memcpy(vbemem, buf, WIDTH * HEIGHT * sizeof(uint32_t));
+        memcpy(&vbemem[flip * FBSIZE], buf, FBSIZE);
         iter++;
+        flip = vbeflip(vbemem);
     }
 
-    vbeunmap(&vbemem);
+    vbeunmap(vbemem);
     printf("\n%d frames @ %dx%d (~%d fps)\n", iter, WIDTH, HEIGHT, iter / secs);
     ret = 0;
 

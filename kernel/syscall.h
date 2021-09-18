@@ -50,7 +50,8 @@
 #define SYS_MONOSLEEP   45
 #define SYS_VBEMAP      46
 #define SYS_VBEUNMAP    47
-#define NUM_SYSCALL     47
+#define SYS_VBEFLIP     48
+#define NUM_SYSCALL     48
 
 #define EINTR  2
 #define EAGAIN 3

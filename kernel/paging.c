@@ -193,9 +193,9 @@ paging_init_vbe(void)
     uintptr_t addr;
     for (addr = VBE_PAGE_START; addr < VBE_PAGE_END; addr += MB(4)) {
         pde_4mb_t *pde = PDE_4MB(addr);
-        pde->present = 1;
+        pde->present = 0;
         pde->write = 1;
-        pde->user = 1;  // TODO: Use indirect pages with proper permissions
+        pde->user = 1;
         pde->size = SIZE_4MB;
         pde->base_addr = TO_4MB_BASE(addr);
     }
@@ -355,11 +355,25 @@ paging_map_user_page(uintptr_t paddr)
  * If present is false, the vidmap page is disabled.
  */
 void
-paging_update_vidmap_page(uint8_t *video_mem, bool present)
+paging_update_vidmap_page(uintptr_t paddr, bool present)
 {
     pte_t *table = PTE(VIDMAP_PAGE_START);
     table->present = present ? 1 : 0;
-    table->base_addr = TO_4KB_BASE(video_mem);
+    table->base_addr = TO_4KB_BASE(paddr);
+    paging_flush_tlb();
+}
+
+/*
+ * Enables or disables the VBE framebuffer pages.
+ */
+void
+paging_update_vbe_page(bool present)
+{
+    uintptr_t addr;
+    for (addr = VBE_PAGE_START; addr < VBE_PAGE_END; addr += MB(4)) {
+        pde_4mb_t *pde = PDE_4MB(addr);
+        pde->present = present ? 1 : 0;
+    }
     paging_flush_tlb();
 }
 

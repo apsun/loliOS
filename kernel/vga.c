@@ -141,6 +141,12 @@ static bool vga_text_font_saved = false;
 static bool vbe_available = false;
 
 /*
+ * Which "display" is currently being written to by userspace.
+ * Used to implement double buffering. Can be 0 or 1.
+ */
+static int vbe_flip = 0;
+
+/*
  * Helper for outb(lo, port); outb(hi, port + 1);
  */
 static void
@@ -298,7 +304,7 @@ vbe_get_register(uint16_t index)
  * framebuffer at any given time; call vbeunmap() to release the
  * framebuffer.
  *
- * Up to 8MB of video memory is supported (i.e. 1920x1080x32bpp).
+ * Up to 4MB of video memory is supported.
  */
 __cdecl int
 vga_vbemap(void **ptr, int xres, int yres, int bpp)
@@ -332,7 +338,12 @@ vga_vbemap(void **ptr, int xres, int yres, int bpp)
 
     /* +1 is needed to round 15bpp up to 2 bytes */
     int bytespp = (bpp + 1) / 8;
-    if (xres * yres * bytespp >= VBE_FB_SIZE) {
+
+    /*
+     * Check that we have enough space to hold all pixels, with
+     * double buffering (hence divide by 2).
+     */
+    if (xres * yres * bytespp >= VBE_FB_SIZE / 2) {
         debugf("Resolution too large (%d*%d*%d)\n", xres, yres, bpp);
         return -1;
     }
@@ -352,6 +363,10 @@ vga_vbemap(void **ptr, int xres, int yres, int bpp)
         vga_text_font_saved = true;
     }
 
+    /* Map and clear VBE page */
+    paging_update_vbe_page(true);
+    memset((void *)VBE_PAGE_START, 0, VBE_FB_SIZE);
+
     /* VBE must be disabled while we change xres/yres/bpp */
     vbe_set_register(VBE_DISPI_INDEX_ENABLE, 0);
     vbe_set_register(VBE_DISPI_INDEX_XRES, xres);
@@ -359,15 +374,26 @@ vga_vbemap(void **ptr, int xres, int yres, int bpp)
     vbe_set_register(VBE_DISPI_INDEX_BPP, bpp);
     vbe_set_register(VBE_DISPI_INDEX_ENABLE, VBE_DISPI_LFB_ENABLED | VBE_DISPI_ENABLED);
 
+    /* Set up virtual display for double buffering */
+    vbe_set_register(VBE_DISPI_INDEX_VIRT_WIDTH, xres);
+    vbe_set_register(VBE_DISPI_INDEX_X_OFFSET, 0);
+    vbe_set_register(VBE_DISPI_INDEX_Y_OFFSET, 0);
+    vbe_flip = 0;
+
     return 0;
 }
 
 /*
- * Releases the framebuffer.
+ * Releases the framebuffer, disabling VBE and returning to
+ * text mode.
  */
 __cdecl int
 vga_vbeunmap(void *ptr)
 {
+    if (ptr != (void *)VBE_PAGE_START) {
+        return -1;
+    }
+
     /* If we never saved the font, VBE was never enabled in the first place */
     if (!vga_text_font_saved) {
         return 0;
@@ -382,7 +408,32 @@ vga_vbeunmap(void *ptr)
     /* Restore font data */
     vga_write_font(vga_text_font);
 
+    /* Unmap VBE page */
+    paging_update_vbe_page(false);
+
     return 0;
+}
+
+/*
+ * Flips the active display. Returns the index of the display that
+ * should be written to (0 == write pixels at VBE_PAGE_START, 1 ==
+ * write pixels at VBE_PAGE_START + (xres * yres * bytespp) for the
+ * next call to vbeflip().
+ */
+__cdecl int
+vga_vbeflip(void *ptr)
+{
+    if (ptr != (void *)VBE_PAGE_START) {
+        return -1;
+    }
+
+    /* Point the display to the memory region we just wrote */
+    uint16_t yres = vbe_get_register(VBE_DISPI_INDEX_YRES);
+    vbe_set_register(VBE_DISPI_INDEX_Y_OFFSET, vbe_flip * yres);
+
+    /* Toggle the active region */
+    vbe_flip = !vbe_flip;
+    return vbe_flip;
 }
 
 /*

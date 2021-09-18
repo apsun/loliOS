@@ -60,7 +60,7 @@ fi
 if [ "${optimize}" -eq 1 ]; then
     export CFLAGS="${CFLAGS-} -O2"
 else
-    export CFLAGS="${CFLAGS-} -Og -g -fsanitize=undefined -fsanitize-undefined-trap-on-error"
+    export CFLAGS="${CFLAGS-} -O0 -g -fsanitize=undefined -fsanitize-undefined-trap-on-error"
     export CPPFLAGS="${CPPFLAGS-} -DDEBUG_PRINT=1"
 fi
 

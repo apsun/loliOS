@@ -257,7 +257,7 @@ set_display_terminal(int index)
      */
     terminal_state_t *exec = get_executing_terminal();
     if (exec->vidmap && (old == exec || new == exec)) {
-        paging_update_vidmap_page(exec->video_mem, true);
+        paging_update_vidmap_page((uintptr_t)exec->video_mem, true);
     }
 }
 
@@ -661,7 +661,7 @@ void
 terminal_update_vidmap(int term_index, bool present)
 {
     terminal_state_t *term = get_terminal(term_index);
-    paging_update_vidmap_page(term->video_mem, present);
+    paging_update_vidmap_page((uintptr_t)term->video_mem, present);
     term->vidmap = present;
 }
 
