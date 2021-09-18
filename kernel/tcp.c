@@ -574,6 +574,17 @@ tcp_reply_rst(net_iface_t *iface, skb_t *orig_skb)
 }
 
 /*
+ * Initializes socket fields that depend on the remote sequence number.
+ */
+static void
+tcp_init_remote_seq(tcp_sock_t *tcp, uint32_t seq_num)
+{
+    tcp->recv_next_num = seq_num;
+    tcp->recv_read_num = seq_num;
+    tcp->send_wnd_seq = seq_num;
+}
+
+/*
  * Adds a socket to the pending ACK queue. ACKs are sent at the
  * end of an interrupt, which lets us merge ACKs for packets received
  * in the same interrupt.
@@ -1207,9 +1218,8 @@ tcp_handle_rx_syn_sent(tcp_sock_t *tcp, skb_t *skb)
 
     /* Packet seems to be valid, let's handle the SYN now */
     if (hdr->syn) {
-        tcp->recv_next_num = seq(hdr);
-        tcp->recv_read_num = seq(hdr);
-        tcp->send_wnd_seq = seq(hdr);
+        /* Initialize remote sequence number */
+        tcp_init_remote_seq(tcp, seq(hdr));
 
         /* Handle ACK for our SYN */
         if (hdr->ack) {
@@ -1411,11 +1421,12 @@ tcp_handle_rx_listening(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
         connsock->remote.ip = iphdr->src_ip;
         connsock->remote.port = ntohs(hdr->be_src_port);
 
-        /* Transition to SYN-received state */
         tcp_sock_t *conntcp = tcp_sock(connsock);
-        conntcp->recv_next_num = seq(hdr);
-        conntcp->recv_read_num = seq(hdr);
-        conntcp->send_wnd_seq = seq(hdr);
+
+        /* Initialize remote sequence number */
+        tcp_init_remote_seq(conntcp, seq(hdr));
+
+        /* Transition to SYN-received state */
         tcp_set_state(conntcp, SYN_RECEIVED);
 
         /* Insert SYN packet into inbox */
@@ -1423,6 +1434,11 @@ tcp_handle_rx_listening(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
 
         /* Reply with SYN-ACK */
         if (tcp_outbox_insert_syn(conntcp) == NULL) {
+            /*
+             * Note: since socket was created with refcount 0 and
+             * the only living refcount is from the TCP state, this
+             * will deallocate the socket.
+             */
             tcp_set_state(conntcp, CLOSED);
             return -1;
         }
