@@ -23,5 +23,5 @@ trap 'rm -f "${wavfile}"' EXIT
 
 trap "exit 0" INT
 while :; do
-    nc -lp "${port}" < "${wavfile}" || true
+    nc -Nlp "${port}" < "${wavfile}" || true
 done

@@ -4,21 +4,7 @@
 #include "portio.h"
 #include "string.h"
 #include "paging.h"
-
-/*
- * Converts 8-bit R/G/B values to a single 32bpp pixel.
- */
-#define RGB32(r, g, b) ( \
-    (((r) & 0xff) << 16) | \
-    (((g) & 0xff) << 8) | \
-    (((b) & 0xff) << 0))
-
-/*
- * Decomposes a 32bpp pixel to the component colors.
- */
-#define RGB32_R(rgb32) (((rgb32) >> 16) & 0xff)
-#define RGB32_G(rgb32) (((rgb32) >> 8) & 0xff)
-#define RGB32_B(rgb32) (((rgb32) >> 0) & 0xff)
+#include "terminal.h"
 
 /*
  * IO port addresses to access the VBE registers.
@@ -410,6 +396,9 @@ vga_vbeunmap(void *ptr)
 
     /* Unmap VBE page */
     paging_update_vbe_page(false);
+
+    // TODO: Ugly circular dependency, move this to vga.c
+    terminal_clear();
 
     return 0;
 }

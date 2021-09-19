@@ -29,6 +29,7 @@ Since then, the following additional features have been added:
 - fork, exec, wait
 - pipes
 - writable in-memory filesystem
+- VBE framebuffer
 
 Note that this is a Linux-like operating system, not a Linux-compatible
 operating system. It is neither API nor ABI compatible with Linux, and
@@ -80,5 +81,11 @@ music.sh
     This script runs a TCP music streaming server. It takes the path to
     an audio file as an argument, converts it into WAV format, and serves
     it at port 7878 on the host. To play the music within the VM, connect
-    to 10.0.2.2:7878 using the nc program and pipe the output to the music
-    program.
+    to 10.0.2.2:7878 using the `nc` program and pipe the output to the
+    `music` program.
+
+video.sh
+    This script runs a TCP video streaming server. It takes the path to
+    a video file as an argument, converts it to our homebrew ELVI format,
+    and serves it at port 8989 on the host. On the VM side, use the
+    `video` program to watch the video.
