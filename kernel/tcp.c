@@ -73,12 +73,12 @@ typedef enum {
     SYN_SENT     = (1 << 1),  /* SYN sent, waiting for SYN-ACK */
     SYN_RECEIVED = (1 << 2),  /* SYN received, waiting for ACK */
     ESTABLISHED  = (1 << 3),  /* Three-way handshake complete */
-    FIN_WAIT_1   = (1 << 4),  /* close() */
-    FIN_WAIT_2   = (1 << 5),  /* close() -> ACK received */
-    CLOSING      = (1 << 6),  /* close() -> FIN received */
-    TIME_WAIT    = (1 << 7),  /* close() -> FIN received, ACK received */
+    FIN_WAIT_1   = (1 << 4),  /* shutdown() */
+    FIN_WAIT_2   = (1 << 5),  /* shutdown() -> ACK received */
+    CLOSING      = (1 << 6),  /* shutdown() -> FIN received */
+    TIME_WAIT    = (1 << 7),  /* shutdown() -> FIN received, ACK received */
     CLOSE_WAIT   = (1 << 8),  /* FIN received */
-    LAST_ACK     = (1 << 9),  /* FIN received -> close() called */
+    LAST_ACK     = (1 << 9),  /* FIN received -> shutdown() */
     CLOSED       = (1 << 10), /* Used when the connection is closed but file is still open */
 } tcp_state_t;
 
@@ -186,6 +186,13 @@ typedef struct {
 
     /* Whether the connection has been reset and cannot be read from */
     bool reset : 1;
+
+    /*
+     * Whether the socket is no longer accessible to userspace and thus
+     * will never be read from again. When this is true, the kernel will
+     * discard all incoming data as if userspace had read it.
+     */
+    bool read_closed : 1;
 
     /* Retransmission timer values, in milliseconds */
     int estimated_rtt;
@@ -932,6 +939,25 @@ tcp_inbox_remove(tcp_sock_t *tcp, skb_t *skb)
 }
 
 /*
+ * Called when a packet has been fully read (or drained).
+ * Advances the read number and adjusts the window size.
+ */
+static void
+tcp_inbox_done(tcp_sock_t *tcp, skb_t *skb)
+{
+    tcp_hdr_t *hdr = skb_transport_header(skb);
+    assert(tcp->recv_read_num >= seq(hdr));
+
+    int len = tcp_seg_len(skb);
+    if (tcp->recv_read_num < seq(hdr) + len) {
+        tcp->recv_read_num = seq(hdr) + len;
+    }
+
+    tcp->recv_wnd_size += tcp_seg_len(skb);
+    tcp_inbox_remove(tcp, skb);
+}
+
+/*
  * Used to drain the inbox if we know the user will never be
  * able to read its contents. This is used to free memory and
  * ensure the rwnd doesn't stay at zero forever.
@@ -939,6 +965,8 @@ tcp_inbox_remove(tcp_sock_t *tcp, skb_t *skb)
 static void
 tcp_inbox_drain(tcp_sock_t *tcp)
 {
+    assert(tcp->read_closed);
+
     while (!list_empty(&tcp->inbox)) {
         skb_t *skb = list_first_entry(&tcp->inbox, skb_t, list);
         tcp_hdr_t *hdr = skb_transport_header(skb);
@@ -951,7 +979,7 @@ tcp_inbox_drain(tcp_sock_t *tcp)
             break;
         }
 
-        tcp_inbox_remove(tcp, skb);
+        tcp_inbox_done(tcp, skb);
     }
 }
 
@@ -1175,6 +1203,14 @@ tcp_inbox_handle_rx_skb(tcp_sock_t *tcp, skb_t *skb)
                 tcp_restart_fin_timeout(tcp);
             }
         }
+    }
+
+    /*
+     * If the socket file is closed, we need to drain the inbox on
+     * behalf of userspace.
+     */
+    if (tcp->read_closed) {
+        tcp_inbox_drain(tcp);
     }
 }
 
@@ -1863,21 +1899,8 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
             }
         }
 
-        /* Consume SYN/FIN flag after all data has been read */
-        if (hdr->syn) {
-            tcp->recv_read_num++;
-        }
-        if (hdr->fin) {
-            tcp->recv_read_num++;
-        }
-        assert(tcp->recv_read_num == seq(hdr) + tcp_seg_len(skb));
-
-        /*
-         * Now that all data has been read, remove packet from inbox
-         * and expand rwnd accordingly.
-         */
-        tcp->recv_wnd_size += tcp_seg_len(skb);
-        tcp_inbox_remove(tcp, skb);
+        /* We're done with this packet, remove it and expand rwnd */
+        tcp_inbox_done(tcp, skb);
     }
 
     /*
@@ -2056,6 +2079,7 @@ void
 tcp_close(net_sock_t *sock)
 {
     tcp_sock_t *tcp = tcp_acquire(tcp_sock(sock));
+    tcp->read_closed = true;
     tcp_inbox_drain(tcp);
     tcp_close_write(tcp);
     tcp_release(tcp);
