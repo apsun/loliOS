@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <syscall.h>
@@ -119,7 +120,21 @@ play(int fd)
     }
 
     /*
+     * We use the sound device to synchronize our A/V streams. Our sequence
+     * of operations looks like this:
      *
+     * Audio(0); Wait(-1); Video(0);
+     * Audio(1); Wait(0); Video(1);
+     * Audio(2); Wait(1); Video(2);
+     * ...
+     *
+     * Essentially, at any given frame, we first write the audio samples
+     * for that frame while the audio for the previous frame is still
+     * playing. This ensures that we have gapless playback. Then, we wait
+     * for the previous frame to complete playback. As soon as the audio
+     * for the current frame starts playing, we flip the video buffer to
+     * show the video for the current frame. For the first frame, Wait(-1)
+     * is a no-op.
      */
     int fbsize = hdr.video_width * hdr.video_height * ((hdr.video_bits_per_pixel + 1) / 8);
     int flip = 0;
