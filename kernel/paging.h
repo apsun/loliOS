@@ -20,7 +20,7 @@
 #define SB16_PAGE_START     0x00100000
 #define SB16_PAGE_END       0x00104000
 
-#define TERMINAL_PAGE_START 0x00102000
+#define TERMINAL_PAGE_START 0x00104000
 /* End point is determined by the number of terminals */
 
 #define KERNEL_PAGE_START   0x00400000
