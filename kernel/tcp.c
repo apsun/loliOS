@@ -946,10 +946,10 @@ static void
 tcp_inbox_done(tcp_sock_t *tcp, skb_t *skb)
 {
     tcp_hdr_t *hdr = skb_transport_header(skb);
-    assert(tcp->recv_read_num >= seq(hdr));
+    assert(cmp(tcp->recv_read_num, seq(hdr)) >= 0);
 
     int len = tcp_seg_len(skb);
-    if (tcp->recv_read_num < seq(hdr) + len) {
+    if (cmp(tcp->recv_read_num, seq(hdr) + len) < 0) {
         tcp->recv_read_num = seq(hdr) + len;
     }
 
