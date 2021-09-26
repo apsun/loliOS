@@ -17,8 +17,11 @@
 #define NUM_ROWS 25
 #define ATTRIB 0x07
 #define ATTRIB_BSOD 0x1F
-#define VIDEO_MEM ((uint8_t *)VIDEO_PAGE_START)
 #define VIDEO_MEM_SIZE (NUM_ROWS * NUM_COLS * 2)
+
+/* Backing "video memory" when a terminal is in the background */
+__aligned(KB(4))
+static uint8_t terminal_backing_mem[NUM_TERMINALS][KB(4)];
 
 /* Holds information about each terminal */
 static terminal_state_t terminal_states[NUM_TERMINALS];
@@ -91,14 +94,14 @@ static void
 terminal_swap_buffer(terminal_state_t *old, terminal_state_t *new)
 {
     /* Old terminal must have been the display terminal */
-    assert(old->video_mem == VIDEO_MEM);
+    assert(old->video_mem == (uint8_t *)VGA_TEXT_PAGE_START);
 
     /*
      * Copy the global VGA memory to the previously displayed
      * terminal's backing buffer, then point its active video
      * memory to the backing buffer
      */
-    memcpy(old->backing_mem, VIDEO_MEM, VIDEO_MEM_SIZE);
+    memcpy(old->backing_mem, (uint8_t *)VGA_TEXT_PAGE_START, VIDEO_MEM_SIZE);
     old->video_mem = old->backing_mem;
 
     /*
@@ -106,8 +109,8 @@ terminal_swap_buffer(terminal_state_t *old, terminal_state_t *new)
      * into global VGA memory, then point its active video
      * memory to the global VGA memory
      */
-    memcpy(VIDEO_MEM, new->backing_mem, VIDEO_MEM_SIZE);
-    new->video_mem = VIDEO_MEM;
+    memcpy((uint8_t *)VGA_TEXT_PAGE_START, new->backing_mem, VIDEO_MEM_SIZE);
+    new->video_mem = (uint8_t *)VGA_TEXT_PAGE_START;
 }
 
 /*
@@ -769,7 +772,7 @@ terminal_init(void)
         terminal_state_t *term = &terminal_states[i];
 
         /* Point backing memory to the per-terminal page */
-        term->backing_mem = (uint8_t *)TERMINAL_PAGE_START + i * KB(4);
+        term->backing_mem = terminal_backing_mem[i];
 
         /* Active memory points to the backing memory */
         term->video_mem = term->backing_mem;
@@ -790,7 +793,7 @@ terminal_init(void)
     }
 
     /* First terminal's active video memory points to global VGA memory */
-    terminal_states[display_terminal].video_mem = VIDEO_MEM;
+    terminal_states[display_terminal].video_mem = (uint8_t *)VGA_TEXT_PAGE_START;
 
     /* Register mouse file ops (stdin/stdout handled specially) */
     file_register_type(FILE_TYPE_MOUSE, &terminal_mouse_fops);

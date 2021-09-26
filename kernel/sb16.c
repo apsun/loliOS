@@ -31,15 +31,19 @@
 #define SB16_CMD_BEGIN_MODE_STEREO (1 << 5)
 #define SB16_CMD_BEGIN_MODE_SIGNED (1 << 4)
 
-/* Sample DMA buffer */
-#define SB16_BUFFER_SIZE (SB16_PAGE_END - SB16_PAGE_START)
-#define SB16_HALF_BUFFER_SIZE (SB16_BUFFER_SIZE / 2)
+/* Size of half of the sample buffer */
+#define SB16_HALF_BUFFER_SIZE 0x2000
 
 /* Tracks the single open sound file */
 static file_obj_t *open_device = NULL;
 
-/* Tracks the currently active sample buffer */
-static uint8_t *audio_buf = (uint8_t *)SB16_PAGE_START;
+/* Sample data buffer (split into halves for gapless playback) */
+static uint8_t audio_buf[2][SB16_HALF_BUFFER_SIZE];
+
+/* Which buffer is being written to */
+static int audio_buf_flip = 0;
+
+/* Number of bytes in the buffer being written to */
 static int audio_buf_count = 0;
 
 /* Playback parameters (default = 11kHz, mono, 8bit) */
@@ -134,18 +138,12 @@ sb16_start_playback(void)
     sb16_out((len >> 0) & 0xff);
     sb16_out((len >> 8) & 0xff);
 
-    /* Start DMA transfer */
-    dma_start(audio_buf, audio_buf_count, channel, DMA_OP_READ | DMA_MODE_SINGLE);
+    /* Start DMA transfer, swap to other buffer half */
+    dma_start(audio_buf[audio_buf_flip], audio_buf_count, channel, DMA_OP_READ | DMA_MODE_SINGLE);
+    audio_buf_flip = !audio_buf_flip;
+    audio_buf_count = 0;
 
     is_playing = true;
-}
-
-/* Swaps the active audio buffer */
-static void
-sb16_swap_buffers(void)
-{
-    audio_buf = (uint8_t *)((uintptr_t)audio_buf ^ SB16_HALF_BUFFER_SIZE);
-    audio_buf_count = 0;
 }
 
 /* Acquires exclusive access to the Sound Blaster 16 device */
@@ -239,7 +237,7 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
     }
 
     /* Copy sample data into the audio buffer */
-    if (!copy_from_user(&audio_buf[audio_buf_count], buf, to_write)) {
+    if (!copy_from_user(&audio_buf[audio_buf_flip][audio_buf_count], buf, to_write)) {
         return -1;
     }
     audio_buf_count += to_write;
@@ -247,7 +245,6 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
     /* Start playback immediately if not already playing */
     if (!is_playing) {
         sb16_start_playback();
-        sb16_swap_buffers();
     }
 
     return to_write;
@@ -354,7 +351,6 @@ sb16_handle_irq(void)
     /* If more samples arrived during playback, restart */
     if (audio_buf_count > 0) {
         sb16_start_playback();
-        sb16_swap_buffers();
         scheduler_wake_all(&write_sleep_queue);
     } else {
         is_playing = false;

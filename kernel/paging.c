@@ -129,36 +129,43 @@ paging_init_kernel(void)
     bitmap_set(allocated_pages, 1);
 }
 
-/* Initializes the 4KB video memory pages */
+/* Initializes the VGA text mode page */
 static void
-paging_init_video(void)
+paging_init_vga_text(void)
 {
-    /* Global (VGA) video memory page */
-    pte_t *vga_pte = PTE(VIDEO_PAGE_START);
-    vga_pte->present = 1;
-    vga_pte->write = 1;
-    vga_pte->user = 0;
-    vga_pte->base_addr = TO_4KB_BASE(VIDEO_PAGE_START);
+    pte_t *pte = PTE(VGA_TEXT_PAGE_START);
+    pte->present = 1;
+    pte->write = 1;
+    pte->user = 0;
+    pte->base_addr = TO_4KB_BASE(VGA_TEXT_PAGE_START);
+}
 
-    /* VGA font pages */
-    uintptr_t vga_addr;
-    for (vga_addr = VGA_FONT_PAGE_START; vga_addr < VGA_FONT_PAGE_END; vga_addr += KB(4)) {
-        pte_t *font_pte = PTE(vga_addr);
-        font_pte->present = 1;
-        font_pte->write = 1;
-        font_pte->user = 0;
-        font_pte->base_addr = TO_4KB_BASE(vga_addr);
+/* Initializes the VGA font access pages */
+static void
+paging_init_vga_font(void)
+{
+    uintptr_t addr;
+    for (addr = VGA_FONT_PAGE_START; addr < VGA_FONT_PAGE_END; addr += KB(4)) {
+        pte_t *pte = PTE(addr);
+        pte->present = 1;
+        pte->write = 1;
+        pte->user = 0;
+        pte->base_addr = TO_4KB_BASE(addr);
     }
+}
 
-    /* Backing video memory pages, one per terminal */
-    int i;
-    for (i = 0; i < NUM_TERMINALS; ++i) {
-        uintptr_t tty_addr = TERMINAL_PAGE_START + i * KB(4);
-        pte_t *tty_pte = PTE(tty_addr);
-        tty_pte->present = 1;
-        tty_pte->write = 1;
-        tty_pte->user = 0;
-        tty_pte->base_addr = TO_4KB_BASE(tty_addr);
+/* Initializes the VBE framebuffer pages */
+static void
+paging_init_vga_vbe(void)
+{
+    uintptr_t addr;
+    for (addr = VGA_VBE_PAGE_START; addr < VGA_VBE_PAGE_END; addr += MB(4)) {
+        pde_4mb_t *pde = PDE_4MB(addr);
+        pde->present = 0;
+        pde->write = 1;
+        pde->user = 1;
+        pde->size = SIZE_4MB;
+        pde->base_addr = TO_4MB_BASE(addr);
     }
 }
 
@@ -170,35 +177,6 @@ paging_init_vidmap(void)
     pte->present = 0;
     pte->write = 1;
     pte->user = 1;
-}
-
-/* Initializes the SB16 DMA pages */
-static void
-paging_init_sb16(void)
-{
-    uintptr_t addr;
-    for (addr = SB16_PAGE_START; addr < SB16_PAGE_END; addr += KB(4)) {
-        pte_t *pte = PTE(addr);
-        pte->present = 1;
-        pte->write = 1;
-        pte->user = 0;
-        pte->base_addr = TO_4KB_BASE(addr);
-    }
-}
-
-/* Initializes the VBE framebuffer pages */
-static void
-paging_init_vbe(void)
-{
-    uintptr_t addr;
-    for (addr = VBE_PAGE_START; addr < VBE_PAGE_END; addr += MB(4)) {
-        pde_4mb_t *pde = PDE_4MB(addr);
-        pde->present = 0;
-        pde->write = 1;
-        pde->user = 1;
-        pde->size = SIZE_4MB;
-        pde->base_addr = TO_4MB_BASE(addr);
-    }
 }
 
 /*
@@ -252,10 +230,10 @@ paging_init(void)
     /* Initialize static page table entries */
     paging_init_common();
     paging_init_kernel();
-    paging_init_video();
+    paging_init_vga_text();
+    paging_init_vga_font();
+    paging_init_vga_vbe();
     paging_init_vidmap();
-    paging_init_sb16();
-    paging_init_vbe();
 
     /* Set control registers */
     paging_init_registers();
@@ -357,9 +335,9 @@ paging_map_user_page(uintptr_t paddr)
 void
 paging_update_vidmap_page(uintptr_t paddr, bool present)
 {
-    pte_t *table = PTE(VIDMAP_PAGE_START);
-    table->present = present ? 1 : 0;
-    table->base_addr = TO_4KB_BASE(paddr);
+    pte_t *pte = PTE(VIDMAP_PAGE_START);
+    pte->present = present ? 1 : 0;
+    pte->base_addr = TO_4KB_BASE(paddr);
     paging_flush_tlb();
 }
 
@@ -370,7 +348,7 @@ void
 paging_update_vbe_page(bool present)
 {
     uintptr_t addr;
-    for (addr = VBE_PAGE_START; addr < VBE_PAGE_END; addr += MB(4)) {
+    for (addr = VGA_VBE_PAGE_START; addr < VGA_VBE_PAGE_END; addr += MB(4)) {
         pde_4mb_t *pde = PDE_4MB(addr);
         pde->present = present ? 1 : 0;
     }

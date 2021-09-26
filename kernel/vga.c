@@ -43,7 +43,7 @@
 /*
  * How much memory is available for the VBE framebuffer.
  */
-#define VBE_FB_SIZE ((int)(VBE_PAGE_END - VBE_PAGE_START))
+#define VBE_FB_SIZE ((int)(VGA_VBE_PAGE_END - VGA_VBE_PAGE_START))
 
 /*
  * IO port addresses to access the VGA registers.
@@ -334,7 +334,7 @@ vga_vbemap(void **ptr, int xres, int yres, int bpp)
         return -1;
     }
 
-    void *p = (void *)VBE_PAGE_START;
+    void *p = (void *)VGA_VBE_PAGE_START;
     if (!copy_to_user(ptr, &p, sizeof(void *))) {
         return -1;
     }
@@ -351,7 +351,7 @@ vga_vbemap(void **ptr, int xres, int yres, int bpp)
 
     /* Map and clear VBE page */
     paging_update_vbe_page(true);
-    memset((void *)VBE_PAGE_START, 0, VBE_FB_SIZE);
+    memset((void *)VGA_VBE_PAGE_START, 0, VBE_FB_SIZE);
 
     /* VBE must be disabled while we change xres/yres/bpp */
     vbe_set_register(VBE_DISPI_INDEX_ENABLE, 0);
@@ -376,7 +376,7 @@ vga_vbemap(void **ptr, int xres, int yres, int bpp)
 __cdecl int
 vga_vbeunmap(void *ptr)
 {
-    if (ptr != (void *)VBE_PAGE_START) {
+    if (ptr != (void *)VGA_VBE_PAGE_START) {
         return -1;
     }
 
@@ -412,7 +412,7 @@ vga_vbeunmap(void *ptr)
 __cdecl int
 vga_vbeflip(void *ptr)
 {
-    if (ptr != (void *)VBE_PAGE_START) {
+    if (ptr != (void *)VGA_VBE_PAGE_START) {
         return -1;
     }
 
