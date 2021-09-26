@@ -302,7 +302,7 @@ elf_load_impl(elf_hdr_t *hdr, int inode_idx, uintptr_t paddr)
          * in which case the extra space is filled with zeros (we already
          * memset the page to zeros, so it's a op-op).
          */
-        char *vaddr = (char *)TEMP_PAGE_START + (phdr.vaddr - USER_PAGE_START);
+        char *vaddr = (char *)(TEMP_PAGE_START + (phdr.vaddr - USER_PAGE_START));
         if (fs_read_data(inode_idx, phdr.offset, vaddr, phdr.filesz, memcpy) != (int)phdr.filesz) {
             debugf("Failed to read program segment\n");
             return 0;
