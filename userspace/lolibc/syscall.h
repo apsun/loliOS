@@ -45,9 +45,9 @@
 #define SYS_REALTIME    43
 #define SYS_MONOTIME    44
 #define SYS_MONOSLEEP   45
-#define SYS_VBEMAP      46
-#define SYS_VBEUNMAP    47
-#define SYS_VBEFLIP     48
+#define SYS_FBMAP       46
+#define SYS_FBUNMAP     47
+#define SYS_FBFLIP      48
 #define NUM_SYSCALL     48
 
 #ifndef ASM
@@ -181,9 +181,9 @@ __attribute__((cdecl)) int stat(const char *filename, stat_t *buf);
 __attribute__((cdecl)) int realtime(void);
 __attribute__((cdecl)) int monotime(void);
 __attribute__((cdecl)) int monosleep(int target);
-__attribute__((cdecl)) int vbemap(void **ptr, int xres, int yres, int bpp);
-__attribute__((cdecl)) int vbeunmap(void *ptr);
-__attribute__((cdecl)) int vbeflip(void *ptr);
+__attribute__((cdecl)) int fbmap(void **ptr, int xres, int yres, int bpp);
+__attribute__((cdecl)) int fbunmap(void *ptr);
+__attribute__((cdecl)) int fbflip(void *ptr);
 
 #endif /* ASM */
 

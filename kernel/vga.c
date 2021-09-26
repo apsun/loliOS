@@ -293,7 +293,7 @@ vbe_get_register(uint16_t index)
  * Up to 4MB of video memory is supported.
  */
 __cdecl int
-vga_vbemap(void **ptr, int xres, int yres, int bpp)
+vga_fbmap(void **ptr, int xres, int yres, int bpp)
 {
     if (!vbe_available) {
         debugf("VBE is not supported on this system\n");
@@ -374,7 +374,7 @@ vga_vbemap(void **ptr, int xres, int yres, int bpp)
  * text mode.
  */
 __cdecl int
-vga_vbeunmap(void *ptr)
+vga_fbunmap(void *ptr)
 {
     if (ptr != (void *)VGA_VBE_PAGE_START) {
         return -1;
@@ -410,7 +410,7 @@ vga_vbeunmap(void *ptr)
  * next call to vbeflip().
  */
 __cdecl int
-vga_vbeflip(void *ptr)
+vga_fbflip(void *ptr)
 {
     if (ptr != (void *)VGA_VBE_PAGE_START) {
         return -1;

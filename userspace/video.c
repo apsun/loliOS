@@ -69,7 +69,7 @@ play(int fd)
     elvi_header_t hdr;
     char *audio_buf = NULL;
     int soundfd = -1;
-    char *vbemem = NULL;
+    char *fbmem = NULL;
 
     error[0] = '\0';
 #define FAIL(...) snprintf(error, sizeof(error), __VA_ARGS__)
@@ -109,13 +109,13 @@ play(int fd)
         goto exit;
     }
 
-    if (vbemap(
-        (void **)&vbemem,
+    if (fbmap(
+        (void **)&fbmem,
         (int)hdr.video_width,
         (int)hdr.video_height,
         (int)hdr.video_bits_per_pixel) < 0)
     {
-        fprintf(stderr, "Could not enable VBE mode\n");
+        fprintf(stderr, "Could not map framebuffer\n");
         goto exit;
     }
 
@@ -140,7 +140,7 @@ play(int fd)
     int flip = 0;
     while (!interrupted) {
         /* Read pixels into video memory back buffer */
-        int rret = read_all(fd, &vbemem[flip * fbsize], fbsize);
+        int rret = read_all(fd, &fbmem[flip * fbsize], fbsize);
         if (rret == 0) {
             break;
         } else if (rret < 0) {
@@ -179,14 +179,14 @@ play(int fd)
         }
 
         /* Flip video front and back buffers */
-        flip = vbeflip(vbemem);
+        flip = fbflip(fbmem);
     }
 
     ret = 0;
 
 exit:
-    if (vbemem != NULL) {
-        vbeunmap(vbemem);
+    if (fbmem != NULL) {
+        fbunmap(fbmem);
     }
     if (soundfd >= 0) {
         close(soundfd);

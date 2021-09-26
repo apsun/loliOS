@@ -68,9 +68,9 @@ MAKE_SYS(stat, SYS_STAT)
 MAKE_SYS(realtime, SYS_REALTIME)
 MAKE_SYS(monotime, SYS_MONOTIME)
 MAKE_SYS(monosleep, SYS_MONOSLEEP)
-MAKE_SYS(vbemap, SYS_VBEMAP)
-MAKE_SYS(vbeunmap, SYS_VBEUNMAP)
-MAKE_SYS(vbeflip, SYS_VBEFLIP)
+MAKE_SYS(fbmap, SYS_FBMAP)
+MAKE_SYS(fbunmap, SYS_FBUNMAP)
+MAKE_SYS(fbflip, SYS_FBFLIP)
 
 .globl _start
 _start:

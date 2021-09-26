@@ -48,9 +48,9 @@
 #define SYS_REALTIME    43
 #define SYS_MONOTIME    44
 #define SYS_MONOSLEEP   45
-#define SYS_VBEMAP      46
-#define SYS_VBEUNMAP    47
-#define SYS_VBEFLIP     48
+#define SYS_FBMAP       46
+#define SYS_FBUNMAP     47
+#define SYS_FBFLIP      48
 #define NUM_SYSCALL     48
 
 #define EINTR  2

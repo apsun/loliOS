@@ -57,9 +57,9 @@ syscall_jump_table:
     .long rtc_realtime
     .long pit_monotime
     .long process_monosleep
-    .long vga_vbemap
-    .long vga_vbeunmap
-    .long vga_vbeflip
+    .long vga_fbmap
+    .long vga_fbunmap
+    .long vga_fbflip
 
 .text
 
