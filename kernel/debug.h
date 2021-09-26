@@ -2,12 +2,27 @@
 #define _DEBUG_H
 
 #include "printf.h"
+#include "idt.h"
 
 #ifndef ASM
+
+/* Triggers a kernel panic */
+#define panic(...) \
+    idt_panic(__FILE__, __LINE__, __VA_ARGS__)
 
 /* Whether to enable assertions */
 #ifndef DEBUG_ASSERT
 #define DEBUG_ASSERT 1
+#endif
+
+#if DEBUG_ASSERT
+    #define assert(x) do {                  \
+        if (!(x)) {                         \
+            panic("Assertion failed: " #x); \
+        }                                   \
+    } while(0)
+#else
+    #define assert(x) ((void)0)
 #endif
 
 /* Whether to enable debugf printing */
@@ -15,57 +30,14 @@
 #define DEBUG_PRINT 0
 #endif
 
-/* Whether to BSOD on a panic */
-#ifndef DEBUG_PANIC_BSOD
-#define DEBUG_PANIC_BSOD 0
-#endif
-
-#define loop() do {                 \
-    asm volatile("hlt; jmp . - 1"); \
-} while (0)
-
-#if DEBUG_PANIC_BSOD
-
-#define panic(msg) do {  \
-    asm volatile("ud2"); \
-} while (0)
-
-#else /* DEBUG_PANIC_BSOD */
-
-#define panic(msg) do {                                    \
-    asm volatile("cli");                                   \
-    printf("%s:%d: Panic: %s\n", __FILE__, __LINE__, msg); \
-    loop();                                                \
-} while (0)
-
-#endif /* DEBUG_PANIC_BSOD */
-
-#if DEBUG_ASSERT
-
-#define assert(x) do {                  \
-    if (!(x)) {                         \
-        panic("Assertion failed: " #x); \
-    }                                   \
-} while(0)
-
-#else /* DEBUG_ASSERT */
-
-#define assert(x) ((void)0)
-
-#endif /* DEBUG_ASSERT */
-
 #if DEBUG_PRINT
-
-#define debugf(...) do {                   \
-    printf("%s:%u: ", __FILE__, __LINE__); \
-    printf(__VA_ARGS__);                   \
-} while(0)
-
-#else /* DEBUG_PRINT */
-
-#define debugf(...) ((void)0)
-
-#endif /* DEBUG_PRINT */
+    #define debugf(...) do {                   \
+        printf("%s:%d: ", __FILE__, __LINE__); \
+        printf(__VA_ARGS__);                   \
+    } while(0)
+#else
+    #define debugf(...) ((void)0)
+#endif
 
 #endif /* ASM */
 

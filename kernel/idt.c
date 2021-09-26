@@ -17,6 +17,11 @@
 #define USER_BSOD 0
 #endif
 
+/* Whether to display a BSOD on kernel panics */
+#ifndef PANIC_BSOD
+#define PANIC_BSOD 0
+#endif
+
 /* Convenience wrapper around SET_IDT_ENTRY */
 #define WRITE_IDT_ENTRY(i, name) do {       \
     extern void name(void);                 \
@@ -46,6 +51,14 @@ static const char *exception_names[NUM_EXC] = {
     "Machine-check exception",
     "SIMD floating-point exception",
 };
+
+/* Loops forever */
+__noreturn static void
+loop(void)
+{
+    asm volatile("hlt; jmp . - 1");
+    __unreachable;
+}
 
 /* Prints all interrupt registers */
 static void
@@ -128,7 +141,7 @@ dump_callstack(uint32_t eip, uint32_t ebp, int limit)
  * If a signal handler is available, will cause that to
  * be executed. Otherwise, kills the process.
  */
-__used static void
+__unused static void
 handle_user_exception(int_regs_t *regs)
 {
     debugf("%s in userspace at 0x%08x\n", exception_names[regs->int_num], regs->eip);
@@ -175,6 +188,22 @@ handle_syscall(int_regs_t *regs)
     regs->eax = syscall_handle(
         regs->ebx, regs->ecx, regs->edx, regs->esi, regs->edi,
         regs, regs->eax);
+}
+
+/* Triggers a kernel panic */
+__noreturn void
+idt_panic(const char *file, int line, const char *fmt, ...)
+{
+#if PANIC_BSOD
+    asm volatile("ud2");
+#else
+    printf("%s:%d: Panic: ", file, line);
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+#endif
+    loop();
 }
 
 /*

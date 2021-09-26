@@ -60,8 +60,8 @@ fi
 if [ "${optimize}" -eq 1 ]; then
     export CFLAGS="${CFLAGS-} -O2"
 else
-    export CFLAGS="${CFLAGS-} -O0 -g -fsanitize=undefined -fsanitize-undefined-trap-on-error"
-    export CPPFLAGS="${CPPFLAGS-} -DDEBUG_PRINT=1"
+    export CFLAGS="${CFLAGS-} -O0 -g -fsanitize=undefined"
+    export CPPFLAGS="${CPPFLAGS-} -DDEBUG_PRINT=1 -DUBSAN_ENABLED=1"
 fi
 
 # If compat mode is set, use the original filesystem image,

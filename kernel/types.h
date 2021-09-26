@@ -16,6 +16,8 @@
 #define __packed __attribute__((packed))
 #define __aligned(x) __attribute__((aligned(x)))
 #define __fallthrough __attribute__((fallthrough))
+#define __noreturn __attribute__((noreturn))
+#define __unreachable __builtin_unreachable()
 
 typedef long long int64_t;
 typedef unsigned long long uint64_t;
