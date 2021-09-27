@@ -37,7 +37,7 @@ typedef struct {
     uint16_t shentsize;
     uint16_t shnum;
     uint16_t shstrndx;
-} elf_hdr_t;
+} __attribute__((packed)) elf_hdr_t;
 
 typedef struct {
     uint32_t type;
@@ -48,13 +48,13 @@ typedef struct {
     uint32_t memsz;
     uint32_t flags;
     uint32_t align;
-} elf_prog_hdr_t;
+} __attribute__((packed)) elf_prog_hdr_t;
 
 typedef struct {
     uint32_t namesz;
     uint32_t descsz;
     uint32_t type;
-} elf_note_hdr_t;
+} __attribute__((packed)) elf_note_hdr_t;
 
 static size_t
 randsize(size_t max)
@@ -76,7 +76,6 @@ randchoice(size_t a, size_t b)
     }
 }
 
-__attribute__((no_sanitize("alignment")))
 static void
 make_fake_elf(char buf[EXEC_SIZE])
 {

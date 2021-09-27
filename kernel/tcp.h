@@ -28,7 +28,7 @@ typedef struct {
     be16_t be_window_size;
     be16_t be_checksum;
     be16_t be_urg_ptr;
-} tcp_hdr_t;
+} __packed tcp_hdr_t;
 
 /* Delivers all pending ACKs */
 void tcp_deliver_ack(void);

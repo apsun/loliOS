@@ -48,9 +48,9 @@ typedef union {
         uint8_t line_status      : 1;
         uint8_t modem_status     : 1;
         uint8_t reserved         : 4;
-    } __packed;
+    };
     uint8_t raw;
-} serial_int_enable_t;
+} __packed serial_int_enable_t;
 
 /* Serial FIFO control struct */
 typedef union {
@@ -61,9 +61,9 @@ typedef union {
         uint8_t dma_mode      : 1;
         uint8_t reserved      : 2;
         uint8_t trigger_level : 2;
-    } __packed;
+    };
     uint8_t raw;
-} serial_fifo_ctrl_t;
+} __packed serial_fifo_ctrl_t;
 
 /* Serial line control struct */
 typedef union {
@@ -73,9 +73,9 @@ typedef union {
         uint8_t parity    : 3;
         uint8_t reserved  : 1;
         uint8_t dlab      : 1;
-    } __packed;
+    };
     uint8_t raw;
-} serial_line_ctrl_t;
+} __packed serial_line_ctrl_t;
 
 /* Serial line status struct */
 typedef union {
@@ -88,9 +88,9 @@ typedef union {
         uint8_t empty_tx_holding   : 1;
         uint8_t empty_data_holding : 1;
         uint8_t rx_error           : 1;
-    } __packed;
+    };
     uint8_t raw;
-} serial_line_status_t;
+} __packed serial_line_status_t;
 
 /* Serial modem control struct */
 typedef union {
@@ -102,9 +102,9 @@ typedef union {
         uint8_t loopback            : 1;
         uint8_t autoflow_control    : 1;
         uint8_t reserved            : 2;
-    } __packed;
+    };
     uint8_t raw;
-} serial_modem_ctrl_t;
+} __packed serial_modem_ctrl_t;
 
 /* Checks whether there is data available to read */
 bool serial_can_read(int which);

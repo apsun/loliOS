@@ -171,7 +171,7 @@ typedef struct {
     uint8_t status;
     uint8_t next;
     uint16_t size;
-} ne2k_hdr_t;
+} __packed ne2k_hdr_t;
 
 /* Whether we're currently transmitting a packet */
 static bool tx_busy = false;
@@ -215,7 +215,6 @@ ne2k_config_dma(int offset, int nbytes)
  * A few ideas on how to fix this:
  *
  * - Don't rely on auto-wraparound. Perform two separate reads.
- * - Perform a single 2-byte read, then another read for the rest.
  * - Don't read in dwords, and use word access only.
  *
  * For now though, just take the lazy way out and allow unaligned

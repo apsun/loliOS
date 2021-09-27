@@ -14,7 +14,7 @@ typedef struct {
     be16_t be_dest_port;
     be16_t be_length;
     be16_t be_checksum;
-} udp_hdr_t;
+} __packed udp_hdr_t;
 
 /* Handles reception of a UDP datagram */
 int udp_handle_rx(net_iface_t *iface, skb_t *skb);

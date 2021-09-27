@@ -24,7 +24,7 @@ typedef struct {
     be16_t be_checksum;
     ip_addr_t src_ip;
     ip_addr_t dest_ip;
-} ip_hdr_t;
+} __packed ip_hdr_t;
 
 /* Computes a TCP or UDP checksum */
 be16_t ip_pseudo_checksum(skb_t *skb, ip_addr_t src_ip, ip_addr_t dest_ip, uint8_t protocol);

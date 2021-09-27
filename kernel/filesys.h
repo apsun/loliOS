@@ -22,7 +22,7 @@ typedef struct {
 
     /* Pad struct to 64 bytes */
     uint8_t reserved[24];
-} dentry_t;
+} __packed dentry_t;
 
 /* Boot block structure */
 typedef struct {
@@ -42,7 +42,7 @@ typedef struct {
 
     /* Remaining entries hold our directory entries */
     dentry_t dir_entries[MAX_DENTRIES];
-} boot_block_t;
+} __packed boot_block_t;
 
 /* inode block structure */
 typedef struct {
@@ -71,7 +71,7 @@ typedef struct {
 
     /* Array of data block indices that hold the file data */
     uint32_t data_blocks[MAX_DATA_BLOCKS];
-} inode_t;
+} __packed inode_t;
 
 /* Filesystem syscall helpers */
 int fs_create_file(const char *filename, dentry_t **dentry);

@@ -28,34 +28,31 @@
 
 /* This structure is used to load descriptor base registers
  * like the GDTR and IDTR */
-typedef struct x86_desc {
+typedef struct {
     uint16_t padding;
     uint16_t size;
     uint32_t addr;
-} x86_desc_t;
+} __packed x86_desc_t;
 
 /* This is a segment descriptor.  It goes in the GDT. */
-typedef union seg_desc {
-    uint32_t val[2];
-    struct {
-        uint16_t seg_lim_15_00;
-        uint16_t base_15_00;
-        uint8_t base_23_16;
-        uint16_t type          : 4;
-        uint16_t sys           : 1;
-        uint16_t dpl           : 2;
-        uint16_t present       : 1;
-        uint16_t seg_lim_19_16 : 4;
-        uint16_t avail         : 1;
-        uint16_t reserved      : 1;
-        uint16_t opsize        : 1;
-        uint16_t granularity   : 1;
-        uint8_t base_31_24;
-    } __packed;
-} seg_desc_t;
+typedef struct {
+    uint16_t seg_lim_15_00;
+    uint16_t base_15_00;
+    uint8_t base_23_16;
+    uint16_t type          : 4;
+    uint16_t sys           : 1;
+    uint16_t dpl           : 2;
+    uint16_t present       : 1;
+    uint16_t seg_lim_19_16 : 4;
+    uint16_t avail         : 1;
+    uint16_t reserved      : 1;
+    uint16_t opsize        : 1;
+    uint16_t granularity   : 1;
+    uint8_t base_31_24;
+} __packed seg_desc_t;
 
 /* TSS structure */
-typedef struct __packed tss {
+typedef struct {
     uint16_t prev_task_link;
     uint16_t prev_task_link_pad;
 
@@ -109,20 +106,32 @@ typedef struct __packed tss {
     uint16_t debug_trap : 1;
     uint16_t io_pad : 15;
     uint16_t io_base_addr;
-} tss_t;
+} __packed tss_t;
+
+/* An interrupt descriptor entry (goes into the IDT) */
+typedef struct {
+    uint16_t offset_15_00;
+    uint16_t seg_selector;
+    uint8_t reserved;
+    uint8_t type        : 4;
+    uint8_t storage_seg : 1;
+    uint8_t dpl         : 2;
+    uint8_t present     : 1;
+    uint16_t offset_31_16;
+} __packed idt_desc_t;
 
 /* Some external descriptors declared in .S files */
 extern x86_desc_t gdt_desc;
-
 extern uint16_t ldt_desc;
 extern uint32_t ldt_size;
 extern seg_desc_t ldt_desc_ptr;
 extern seg_desc_t gdt_ptr;
 extern uint32_t ldt;
-
 extern uint32_t tss_size;
 extern seg_desc_t tss_desc_ptr;
 extern tss_t tss;
+extern idt_desc_t idt[NUM_VEC];
+extern x86_desc_t idt_desc_ptr;
 
 /* Sets runtime-settable parameters in the GDT entry for the LDT */
 #define SET_LDT_PARAMS(str, addr, lim) do {                 \
@@ -141,27 +150,6 @@ extern tss_t tss;
     str.seg_lim_19_16 = ((lim) & 0x000F0000) >> 16;         \
     str.seg_lim_15_00 = (lim) & 0x0000FFFF;                 \
 } while(0)
-
-/* An interrupt descriptor entry (goes into the IDT) */
-typedef union idt_desc_t {
-    uint32_t val[2];
-    struct {
-        uint16_t offset_15_00;
-        uint16_t seg_selector;
-        uint8_t reserved;
-        uint8_t type        : 4;
-        uint8_t storage_seg : 1;
-        uint8_t dpl         : 2;
-        uint8_t present     : 1;
-        uint16_t offset_31_16;
-    } __packed;
-} idt_desc_t;
-
-/* The IDT itself (declared in x86_desc.S */
-extern idt_desc_t idt[NUM_VEC];
-
-/* The descriptor used to load the IDTR */
-extern x86_desc_t idt_desc_ptr;
 
 /* Sets runtime parameters for an IDT entry */
 #define SET_IDT_ENTRY(str, handler) do {                         \

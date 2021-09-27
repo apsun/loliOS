@@ -496,7 +496,9 @@ memset(void *s, unsigned char c, int n)
      * Empirical testing suggests 8B is fastest on QEMU, about
      * 50% faster than REP STOSL.
      */
-    typedef struct { char bytes[8]; } word_t;
+    typedef struct {
+        char bytes[8];
+    } __packed word_t;
 
     /*
      * Pack c into a word for fast fill.
@@ -598,7 +600,9 @@ memcpy(void *dest, const void *src, int n)
      * Empirical testing suggests 8B is fastest on QEMU, about
      * twice the speed of REP MOVSL.
      */
-    typedef struct { char bytes[8]; } word_t;
+    typedef struct {
+        char bytes[8];
+    } __packed word_t;
 
     /*
      * Align dest ptr to word boundary.

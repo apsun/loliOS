@@ -14,7 +14,7 @@
 #ifndef ASM
 
 /* IRQ handler */
-typedef struct irq_handler {
+typedef struct {
     /* Callback to run when the interrupt occurs */
     void (*callback)(void);
 } irq_handler_t;
