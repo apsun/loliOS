@@ -125,13 +125,14 @@ elf_is_valid_note(int inode_idx, elf_prog_hdr_t *phdr, bool *out_compat)
 {
     uint32_t count = 0;
     while (count < phdr->filesz) {
+        elf_note_hdr_t nhdr;
+
         uint32_t offset = phdr->offset + count;
-        if (offset > INT_MAX) {
+        if (offset > INT_MAX - sizeof(nhdr)) {
             debugf("Invalid note header offset\n");
             return false;
         }
 
-        elf_note_hdr_t nhdr;
         if (fs_read_data(inode_idx, offset, &nhdr, sizeof(nhdr), memcpy) != sizeof(nhdr)) {
             debugf("Failed to read note header\n");
             return false;
@@ -139,6 +140,12 @@ elf_is_valid_note(int inode_idx, elf_prog_hdr_t *phdr, bool *out_compat)
 
         if (elf_is_nocompat_note(inode_idx, &nhdr, offset + sizeof(nhdr))) {
             *out_compat = false;
+        }
+
+        /* Realistically nothing should ever be this big */
+        if (nhdr.namesz > INT_MAX / 2 || nhdr.descsz > INT_MAX / 2) {
+            debugf("Note namesz/descsz too large\n");
+            return false;
         }
 
         /* Move to the next note, rounding up name/desc size to multiple of 4 */
@@ -295,6 +302,12 @@ elf_load_impl(elf_hdr_t *hdr, int inode_idx, uintptr_t paddr)
         /* Ignore anything that doesn't need to be loaded into memory */
         if (phdr.type != ELF_PROGRAM_TYPE_LOAD) {
             continue;
+        }
+
+        /* Ensure that offset and size look sane */
+        if (phdr.offset > INT_MAX || phdr.filesz > INT_MAX) {
+            debugf("Program header offset/filesz too large\n");
+            return 0;
         }
 
         /*
