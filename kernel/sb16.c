@@ -37,7 +37,11 @@
 /* Tracks the single open sound file */
 static file_obj_t *open_device = NULL;
 
-/* Sample data buffer (split into halves for gapless playback) */
+/*
+ * Sample data buffer (split into halves for gapless playback).
+ * Needs to be word-aligned to perform 16-bit DMA.
+ */
+__aligned(2)
 static uint8_t audio_buf[2][SB16_HALF_BUFFER_SIZE];
 
 /* Which buffer is being written to */
