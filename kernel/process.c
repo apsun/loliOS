@@ -446,7 +446,7 @@ process_create_idle(void)
     signal_init(pcb->signals);
     timer_init(&pcb->alarm_timer);
     timer_init(&pcb->sleep_timer);
-    heap_init(&pcb->heap, 0, 0, false);
+    heap_init_kernel(&pcb->heap, 0, 0, NULL);
 
     process_fill_idle_regs(&pcb->regs);
     return pcb;
@@ -498,7 +498,7 @@ process_create_user(char *command, int terminal)
     timer_init(&pcb->alarm_timer);
     timer_setup(&pcb->alarm_timer, SIGALRM_PERIOD_MS, process_alarm_callback);
     timer_init(&pcb->sleep_timer);
-    heap_init(&pcb->heap, USER_HEAP_START, USER_HEAP_END, true);
+    heap_init_user(&pcb->heap, USER_HEAP_START, USER_HEAP_END);
 
     /* Set terminal foreground group since this is the only process */
     terminal_tcsetpgrp_impl(terminal, pcb->group);
@@ -545,7 +545,7 @@ process_clone(pcb_t *parent_pcb, int_regs_t *regs, bool clone_pages)
             return NULL;
         }
     } else {
-        heap_init(&child_pcb->heap, USER_HEAP_START, USER_HEAP_END, true);
+        heap_init_user(&child_pcb->heap, USER_HEAP_START, USER_HEAP_END);
     }
 
     /* Some state isn't cloned - set those here */

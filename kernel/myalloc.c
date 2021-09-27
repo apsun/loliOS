@@ -175,6 +175,7 @@ static bool mya_initialized = false;
 /*
  * The kernel's heap state.
  */
+static uintptr_t mya_kernel_heap_paddrs[(KERNEL_HEAP_END - KERNEL_HEAP_START) / PAGE_SIZE];
 static heap_t mya_kernel_heap;
 
 /*
@@ -329,7 +330,7 @@ mya_initialize(void)
      */
 
     /* Initialize the kernel heap state */
-    heap_init(&mya_kernel_heap, KERNEL_HEAP_START, KERNEL_HEAP_END, false);
+    heap_init_kernel(&mya_kernel_heap, KERNEL_HEAP_START, KERNEL_HEAP_END, mya_kernel_heap_paddrs);
     heap_map(&mya_kernel_heap);
 
     /* Allocate some starting memory */

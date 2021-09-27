@@ -3,9 +3,6 @@
 
 #include "types.h"
 
-/* Needs to be at least as large as end_vaddr - start_vaddr */
-#define MAX_HEAP_PAGES 32
-
 #ifndef ASM
 
 /* Heap state (can be either user or kernel) */
@@ -25,15 +22,21 @@ typedef struct {
     /* Size of the heap in bytes, might not be a multiple of page size */
     int size;
 
-    /* Number of valid entries in the array below */
+    /* Number of valid entries in the page vector */
     int num_pages;
 
-    /* List of physical pages that are allocated for this heap */
-    uintptr_t page_paddrs[MAX_HEAP_PAGES];
+    /* Current capacity of page vector */
+    int cap_pages;
+
+    /* Vector of pages (physical addrs) that are allocated for this heap */
+    uintptr_t *paddrs;
 } heap_t;
 
-/* Initializes a heap */
-void heap_init(heap_t *heap, uintptr_t start_vaddr, uintptr_t end_vaddr, bool user);
+/* Initializes a userspace heap */
+void heap_init_user(heap_t *heap, uintptr_t start_vaddr, uintptr_t end_vaddr);
+
+/* Initializes a kernel heap with preallocated paddrs array */
+void heap_init_kernel(heap_t *heap, uintptr_t start_vaddr, uintptr_t end_vaddr, uintptr_t *paddrs);
 
 /* Expands or shrinks the heap */
 void *heap_sbrk(heap_t *heap, int delta);

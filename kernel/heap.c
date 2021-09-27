@@ -3,22 +3,93 @@
 #include "types.h"
 #include "paging.h"
 #include "string.h"
+#include "myalloc.h"
 
 /*
- * Initializes a new heap.
+ * Returns the maximum number of pages to hold the given address
+ * range.
+ */
+static int
+heap_max_pages(uintptr_t start_vaddr, uintptr_t end_vaddr)
+{
+    return (end_vaddr - start_vaddr + PAGE_SIZE - 1) / PAGE_SIZE;
+}
+
+/*
+ * Initializes a new userspace heap.
  */
 void
-heap_init(heap_t *heap, uintptr_t start_vaddr, uintptr_t end_vaddr, bool user)
+heap_init_user(heap_t *heap, uintptr_t start_vaddr, uintptr_t end_vaddr)
 {
-    int npages = (end_vaddr - start_vaddr + PAGE_SIZE - 1) / PAGE_SIZE;
-    assert(npages <= MAX_HEAP_PAGES);
-
     heap->start_vaddr = start_vaddr;
     heap->end_vaddr = end_vaddr;
-    heap->user = user;
+    heap->user = true;
     heap->mapped = false;
     heap->size = 0;
     heap->num_pages = 0;
+    heap->cap_pages = 0;
+    heap->paddrs = NULL;
+}
+
+/*
+ * Initializes a new kernel heap. paddrs must point to a
+ * statically allocated array (otherwise, expanding the kernel
+ * heap would call malloc, which depends on the kernel heap,
+ * which would call malloc, ...), and be large enough to hold
+ * all pages needed for the given virtual address range.
+ */
+void
+heap_init_kernel(heap_t *heap, uintptr_t start_vaddr, uintptr_t end_vaddr, uintptr_t *paddrs)
+{
+    heap->start_vaddr = start_vaddr;
+    heap->end_vaddr = end_vaddr;
+    heap->user = false;
+    heap->mapped = false;
+    heap->size = 0;
+    heap->num_pages = 0;
+    heap->cap_pages = heap_max_pages(start_vaddr, end_vaddr);
+    heap->paddrs = paddrs;
+}
+
+/*
+ * Ensures that paddrs can hold at least the specified number
+ * of pages.
+ */
+static int
+heap_realloc_paddrs(heap_t *heap, int new_num_pages)
+{
+    /* Check if we already have enough space */
+    if (new_num_pages <= heap->cap_pages) {
+        return 0;
+    }
+
+    /* Check that we won't exceed the max heap size */
+    int max_pages = heap_max_pages(heap->start_vaddr, heap->end_vaddr);
+    if (new_num_pages > max_pages) {
+        return -1;
+    }
+
+    /* max(new_num_pages, 8) <= cap_pages * 1.5 <= max_pages */
+    int new_cap_pages = heap->cap_pages * 3 / 2;
+    if (new_cap_pages > max_pages) {
+        new_cap_pages = max_pages;
+    } else {
+        if (new_cap_pages < 8) {
+            new_cap_pages = 8;
+        }
+        if (new_cap_pages < new_num_pages) {
+            new_cap_pages = new_num_pages;
+        }
+    }
+
+    void *new_paddrs = realloc(heap->paddrs, new_cap_pages * sizeof(uintptr_t));
+    if (new_paddrs == NULL) {
+        return -1;
+    }
+
+    heap->paddrs = new_paddrs;
+    heap->cap_pages = new_cap_pages;
+    return 0;
 }
 
 /*
@@ -27,12 +98,12 @@ heap_init(heap_t *heap, uintptr_t start_vaddr, uintptr_t end_vaddr, bool user)
 static void
 heap_shrink(heap_t *heap, int new_pages)
 {
-    assert(new_pages >= 0 && new_pages <= MAX_HEAP_PAGES);
+    assert(new_pages >= 0);
 
     while (heap->num_pages > new_pages) {
         int i = --heap->num_pages;
         uintptr_t vaddr = heap->start_vaddr + i * PAGE_SIZE;
-        uintptr_t paddr = heap->page_paddrs[i];
+        uintptr_t paddr = heap->paddrs[i];
 
         if (heap->mapped) {
             paging_page_unmap(vaddr);
@@ -51,7 +122,12 @@ heap_shrink(heap_t *heap, int new_pages)
 static int
 heap_grow(heap_t *heap, int new_pages)
 {
-    assert(new_pages >= 0 && new_pages <= MAX_HEAP_PAGES);
+    assert(new_pages >= 0);
+
+    if (heap_realloc_paddrs(heap, new_pages) < 0) {
+        debugf("Failed to realloc paddrs vector\n");
+        return -1;
+    }
 
     int orig_num_pages = heap->num_pages;
     while (heap->num_pages < new_pages) {
@@ -68,7 +144,7 @@ heap_grow(heap_t *heap, int new_pages)
             paging_page_map(vaddr, paddr, heap->user);
         }
 
-        heap->page_paddrs[heap->num_pages++] = paddr;
+        heap->paddrs[heap->num_pages++] = paddr;
     }
 
     return 0;
@@ -146,9 +222,21 @@ heap_clone(heap_t *dest, heap_t *src)
     dest->user = src->user;
     dest->mapped = false;
 
+    /* Create empty paddrs vector */
+    dest->cap_pages = src->cap_pages;
+    dest->paddrs = NULL;
+    if (dest->cap_pages > 0) {
+        dest->paddrs = malloc(dest->cap_pages * sizeof(uintptr_t));
+        if (dest->paddrs == NULL) {
+            return -1;
+        }
+    }
+
     /* Allocate same number of pages as src */
     dest->num_pages = 0;
     if (heap_grow(dest, src->num_pages) < 0) {
+        free(dest->paddrs);
+        dest->paddrs = NULL;
         return -1;
     }
 
@@ -159,13 +247,13 @@ heap_clone(heap_t *dest, heap_t *src)
      */
     int i;
     for (i = 0; i < dest->num_pages; ++i) {
-        paging_page_map(TEMP_PAGE_START, dest->page_paddrs[i], false);
+        paging_page_map(TEMP_PAGE_START, dest->paddrs[i], false);
         uintptr_t src_vaddr = src->start_vaddr + i * PAGE_SIZE;
         memcpy((void *)TEMP_PAGE_START, (const void *)src_vaddr, PAGE_SIZE);
     }
+    dest->size = src->size;
 
     paging_page_unmap(TEMP_PAGE_START);
-    dest->size = src->size;
     return 0;
 }
 
@@ -197,7 +285,7 @@ heap_map(heap_t *heap)
     int i;
     for (i = 0; i < heap->num_pages; ++i) {
         uintptr_t vaddr = heap->start_vaddr + i * PAGE_SIZE;
-        paging_page_map(vaddr, heap->page_paddrs[i], heap->user);
+        paging_page_map(vaddr, heap->paddrs[i], heap->user);
     }
 }
 
@@ -210,4 +298,7 @@ heap_clear(heap_t *heap)
 {
     heap->size = 0;
     heap_shrink(heap, 0);
+    heap->cap_pages = 0;
+    free(heap->paddrs);
+    heap->paddrs = NULL;
 }
