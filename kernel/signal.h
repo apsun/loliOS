@@ -20,12 +20,12 @@
 #define SIGMASK_BLOCK   1
 #define SIGMASK_UNBLOCK 2
 
+#ifndef ASM
+
 /* sigaction() special handlers */
 typedef void (__cdecl *sighandler_t)(int);
 #define SIG_IGN ((sighandler_t)1)
 #define SIG_DFL ((sighandler_t)0)
-
-#ifndef ASM
 
 typedef struct {
     /*
