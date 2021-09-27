@@ -87,7 +87,7 @@ signal_deliver(signal_info_t *sig, int_regs_t *regs)
     }
 
     /* Change EIP of userspace program to the signal handler */
-    regs->eip = (uint32_t)sig->handler_addr;
+    regs->eip = (uint32_t)sig->handler;
 
     /* Change ESP to point to new stack bottom */
     regs->esp = (uint32_t)esp;
@@ -114,7 +114,7 @@ signal_deliver(signal_info_t *sig, int_regs_t *regs)
  * used to handle the specified signal.
  */
 __cdecl int
-signal_sigaction(int signum, void (*handler_address)(int))
+signal_sigaction(int signum, sighandler_t handler)
 {
     /* Check signal number range */
     if (signum < 0 || signum >= NUM_SIGNALS || signum == SIGKILL) {
@@ -122,7 +122,7 @@ signal_sigaction(int signum, void (*handler_address)(int))
     }
 
     pcb_t *pcb = get_executing_pcb();
-    pcb->signals[signum].handler_addr = handler_address;
+    pcb->signals[signum].handler = handler;
     return 0;
 }
 
@@ -344,14 +344,14 @@ signal_handle(signal_info_t *sig, int_regs_t *regs)
         }
 
         /* If user asked to ignore the signal, clear it immediately */
-        if (sig->handler_addr == SIG_IGN) {
+        if (sig->handler == SIG_IGN) {
             sig->pending = false;
             return false;
         }
     }
 
     /* Try calling the handler, if the process set one */
-    if (!sig->masked && sig->handler_addr != SIG_DFL) {
+    if (!sig->masked && sig->handler != SIG_DFL) {
         if (!signal_deliver(sig, regs)) {
             /* If no more space on stack to push signal context, kill process */
             debugf("Failed to push signal context, killing process\n");
@@ -410,8 +410,8 @@ signal_has_pending(signal_info_t *signals)
          * compatibility with the original userspace programs, since
          * they don't handle -EINTR at all.
          */
-        if (sig->handler_addr == SIG_IGN ||
-            (sig->handler_addr == SIG_DFL && !signal_is_default_kill(sig->signum)))
+        if (sig->handler == SIG_IGN ||
+            (sig->handler == SIG_DFL && !signal_is_default_kill(sig->signum)))
         {
             sig->pending = false;
             continue;
@@ -433,7 +433,7 @@ signal_init(signal_info_t *signals)
     for (i = 0; i < NUM_SIGNALS; ++i) {
         signal_info_t *sig = &signals[i];
         sig->signum = i;
-        sig->handler_addr = SIG_DFL;
+        sig->handler = SIG_DFL;
         sig->masked = false;
         sig->pending = false;
     }
@@ -451,7 +451,7 @@ signal_clone(signal_info_t *dest, signal_info_t *src)
         signal_info_t *di = &dest[i];
         signal_info_t *si = &src[i];
         di->signum = si->signum;
-        di->handler_addr = si->handler_addr;
+        di->handler = si->handler;
         di->masked = si->masked;
         di->pending = false;
     }

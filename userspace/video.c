@@ -36,7 +36,7 @@ typedef struct {
  */
 static volatile bool interrupted = false;
 
-static void
+__attribute__((cdecl)) static void
 sigint_handler(int signum)
 {
     interrupted = true;

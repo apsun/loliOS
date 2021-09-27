@@ -7,7 +7,7 @@
 
 static jmp_buf memcpy_env;
 
-static void
+__attribute__((cdecl)) static void
 sigsegv_handler(int signum)
 {
     sigmask(SIGSEGV, SIGMASK_UNBLOCK);

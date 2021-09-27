@@ -430,7 +430,7 @@ sock_output(int sockfd, char *buf, int *count, sock_addr_t *addr)
     return ret;
 }
 
-static void
+__attribute__((cdecl)) static void
 sigint_handler(int signum)
 {
     stop = true;

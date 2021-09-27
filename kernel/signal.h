@@ -21,8 +21,9 @@
 #define SIGMASK_UNBLOCK 2
 
 /* sigaction() special handlers */
-#define SIG_IGN ((void (*)(int))1)
-#define SIG_DFL ((void (*)(int))0)
+typedef void (__cdecl *sighandler_t)(int);
+#define SIG_IGN ((sighandler_t)1)
+#define SIG_DFL ((sighandler_t)0)
 
 #ifndef ASM
 
@@ -39,7 +40,7 @@ typedef struct {
      * SIG_DFL (the default) - no handler set
      * SIG_IGN - as if an empty handler has been set
      */
-    void (*handler_addr)(int);
+    sighandler_t handler;
 
     /*
      * Whether this signal is currently masked.
@@ -53,7 +54,7 @@ typedef struct {
 } signal_info_t;
 
 /* Signal syscall handlers */
-__cdecl int signal_sigaction(int signum, void (*handler_address)(int));
+__cdecl int signal_sigaction(int signum, sighandler_t handler);
 __cdecl int signal_sigreturn(
     int signum,
     int_regs_t *user_regs,
