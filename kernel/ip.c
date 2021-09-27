@@ -19,7 +19,7 @@ typedef struct {
     uint8_t zero;
     uint8_t protocol;
     be16_t be_length;
-} ip_pseudo_hdr_t;
+} __packed ip_pseudo_hdr_t;
 
 /*
  * Computes an IPv4 checksum. The input should be obtained

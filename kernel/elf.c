@@ -47,7 +47,7 @@ typedef struct {
     uint16_t shentsize;
     uint16_t shnum;
     uint16_t shstrndx;
-} elf_hdr_t;
+} __packed elf_hdr_t;
 
 /* ELF program (segment) header */
 typedef struct {
@@ -59,14 +59,14 @@ typedef struct {
     uint32_t memsz;
     uint32_t flags;
     uint32_t align;
-} elf_prog_hdr_t;
+} __packed elf_prog_hdr_t;
 
 /* ELF note header */
 typedef struct {
     uint32_t namesz;
     uint32_t descsz;
     uint32_t type;
-} elf_note_hdr_t;
+} __packed elf_note_hdr_t;
 
 /*
  * Checks whether the given PT_LOAD segment is valid.
