@@ -10,7 +10,7 @@
 void
 heap_init(heap_t *heap, uintptr_t start_vaddr, uintptr_t end_vaddr, bool user)
 {
-    int npages = (heap->end_vaddr - heap->start_vaddr + PAGE_SIZE - 1) / PAGE_SIZE;
+    int npages = (end_vaddr - start_vaddr + PAGE_SIZE - 1) / PAGE_SIZE;
     assert(npages <= MAX_HEAP_PAGES);
 
     heap->start_vaddr = start_vaddr;
