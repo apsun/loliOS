@@ -35,7 +35,7 @@
 __cdecl int scheduler_yield(void);
 
 /* Permanently yields the current process's timeslice */
-void scheduler_exit(void);
+__noreturn void scheduler_exit(void);
 
 /* Adds/removes a process from the scheduler */
 void scheduler_add(pcb_t *pcb);

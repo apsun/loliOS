@@ -17,7 +17,7 @@ serial_which_to_port_base(int which)
     case 2:
         return SERIAL_PORT_COM2;
     default:
-        panic("Unknown serial COM#");
+        panic("Unknown serial COM#\n");
         return 0;
     }
 }
@@ -198,6 +198,6 @@ serial_init(
     } else if (which == 2) {
         irq_register_handler(IRQ_COM2, irq_handler);
     } else {
-        panic("Unknown serial COM#");
+        panic("Unknown serial COM#\n");
     }
 }

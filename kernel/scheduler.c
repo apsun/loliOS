@@ -153,11 +153,11 @@ scheduler_yield(void)
  * into the PCB, avoiding a use-after-free. This function
  * does not return.
  */
-void
+__noreturn void
 scheduler_exit(void)
 {
     scheduler_yield_impl(NULL);
-    panic("Should not return from scheduler_exit()");
+    panic("Should not return from scheduler_exit()\n");
 }
 
 /*

@@ -401,7 +401,7 @@ consume_format:
 
         /* Fail on other characters */
         default:
-            panic("Invalid printf() format specifier");
+            panic("Invalid printf() format specifier\n");
             break;
         }
     }

@@ -137,7 +137,7 @@ typedef struct {
 /* net.h */
 #define IP(a, b, c, d) ((ip_addr_t){.bytes = {(a), (b), (c), (d)}})
 
-__attribute__((cdecl, noreturn)) int halt(int status);
+__attribute__((cdecl, noreturn)) void halt(int status);
 __attribute__((cdecl)) int execute(const char *command);
 __attribute__((cdecl)) int read(int fd, void *buf, int nbytes);
 __attribute__((cdecl)) int write(int fd, const void *buf, int nbytes);

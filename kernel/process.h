@@ -218,16 +218,16 @@ void process_unset_context(pcb_t *pcb);
 void process_set_context(pcb_t *pcb);
 
 /* Runs the specified process by jumping into userspace */
-void process_run(pcb_t *pcb);
+__noreturn void process_run(pcb_t *pcb);
 
 /* Halts the executing process with the specified status code */
-void process_halt_impl(int status);
+__noreturn void process_halt_impl(int status);
 
 /* Initializes processes */
 void process_init(void);
 
 /* Starts the initial shells */
-void process_start_shell(void);
+__noreturn void process_start_shell(void);
 
 #endif /* ASM */
 

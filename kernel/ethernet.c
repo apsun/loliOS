@@ -78,7 +78,7 @@ ethernet_send_ip(net_iface_t *iface, skb_t *skb, ip_addr_t ip)
     case ARP_REACHABLE:
         return ethernet_send_mac(dev, skb, mac, ETHERTYPE_IPV4);
     default:
-        panic("Unknown ARP state");
+        panic("Unknown ARP state\n");
         return -1;
     }
 }

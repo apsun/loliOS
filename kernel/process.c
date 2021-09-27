@@ -274,7 +274,7 @@ process_set_context(pcb_t *pcb)
  * kernel stack, then performs the IRET on behalf of that
  * process. This function does not return.
  */
-static void
+__noreturn static void
 process_iret(int_regs_t *regs, void *kernel_stack)
 {
     /*
@@ -292,7 +292,7 @@ process_iret(int_regs_t *regs, void *kernel_stack)
         :
         : "g"(dest));
 
-    panic("Should not return from process_iret()");
+    panic("Should not return from process_iret()\n");
 }
 
 /*
@@ -312,7 +312,7 @@ process_alarm_callback(timer_t *timer)
  * function does not return. The process must be in the NEW
  * state.
  */
-void
+__noreturn void
 process_run(pcb_t *pcb)
 {
     assert(pcb != NULL);
@@ -973,7 +973,7 @@ process_execute(
  * Process halt implementation. Unlike process_halt(),
  * the status is not truncated to 1 byte.
  */
-void
+__noreturn void
 process_halt_impl(int status)
 {
     /* This is the PCB of the child (halting) process */
@@ -1126,7 +1126,7 @@ process_init(void)
 }
 
 /* She spawns C shells by the seashore */
-void
+__noreturn void
 process_start_shell(void)
 {
     pcb_t *idle = process_create_idle();

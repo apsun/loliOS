@@ -26,7 +26,7 @@
 /* Check if the bit BIT in FLAGS is set. */
 #define CHECK_FLAG(flags, bit) ((flags) & (1 << (bit)))
 
-void
+__noreturn void
 entry(unsigned long magic, unsigned long addr)
 {
     /* Initialize terminals */
@@ -37,8 +37,7 @@ entry(unsigned long magic, unsigned long addr)
 
     /* Am I booted by a Multiboot-compliant boot loader? */
     if (magic != MULTIBOOT_BOOTLOADER_MAGIC) {
-        printf("Invalid magic number: 0x%08x\n", magic);
-        return;
+        panic("Invalid magic number: 0x%08x\n", magic);
     }
 
     /* Set MBI to the address of the Multiboot information structure. */
@@ -74,7 +73,7 @@ entry(unsigned long magic, unsigned long addr)
          */
         assert(mbi->mods_count == 1);
         if (mod->mod_end > KERNEL_PAGE_END) {
-            panic("Total filesystem size is too large!");
+            panic("Total filesystem size is too large!\n");
         }
         fs_start = mod->mod_start;
 
@@ -94,8 +93,7 @@ entry(unsigned long magic, unsigned long addr)
 
     /* Bits 4 and 5 are mutually exclusive! */
     if (CHECK_FLAG(mbi->flags, 4) && CHECK_FLAG(mbi->flags, 5)) {
-        printf("Both bits 4 and 5 are set.\n");
-        return;
+        panic("Both bits 4 and 5 are set.\n");
     }
 
     /* Is the section header table of ELF valid? */
@@ -230,5 +228,5 @@ entry(unsigned long magic, unsigned long addr)
     process_start_shell();
 
     /* Shouldn't get here... */
-    panic("Should not have returned from shell");
+    panic("Should not have returned from shell\n");
 }

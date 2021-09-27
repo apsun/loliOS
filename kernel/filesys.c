@@ -709,7 +709,7 @@ fs_generate_bitmaps(void)
     fs_inode_map = bitmap_alloc(fs_boot_block->inode_count);
     fs_data_block_map = bitmap_alloc(fs_boot_block->data_block_count);
     if (fs_dentry_map == NULL || fs_inode_map == NULL || fs_data_block_map == NULL) {
-        panic("Failed to allocate filesystem bitmaps");
+        panic("Failed to allocate filesystem bitmaps\n");
     }
 
     int i;

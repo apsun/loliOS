@@ -16,10 +16,10 @@
 #endif
 
 #if DEBUG_ASSERT
-    #define assert(x) do {                  \
-        if (!(x)) {                         \
-            panic("Assertion failed: " #x); \
-        }                                   \
+    #define assert(x) do {                       \
+        if (!(x)) {                              \
+            panic("Assertion failed: %s\n", #x); \
+        }                                        \
     } while(0)
 #else
     #define assert(x) ((void)0)

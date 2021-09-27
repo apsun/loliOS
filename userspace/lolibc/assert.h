@@ -6,11 +6,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define assert(x) do {                                                   \
-    if (!(x)) {                                                          \
-        printf("%s:%d: Assertion failed: %s\n", __FILE__, __LINE__, #x); \
-        abort();                                                         \
-    }                                                                    \
+#define assert(x) do {                                                            \
+    if (!(x)) {                                                                   \
+        fprintf(stderr, "%s:%d: Assertion failed: %s\n", __FILE__, __LINE__, #x); \
+        abort();                                                                  \
+    }                                                                             \
 } while (0)
 
 #else /* NDEBUG */

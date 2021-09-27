@@ -591,7 +591,7 @@ handle_ctrl_input(kbd_input_ctrl_t ctrl)
         set_display_terminal(ctrl - KCTL_TERM1);
         break;
     default:
-        panic("Unknown control code");
+        panic("Unknown control code\n");
         break;
     }
 }
@@ -631,7 +631,7 @@ terminal_handle_kbd_input(kbd_input_t input)
     case KTYP_NONE:
         break;
     default:
-        panic("Unknown keyboard input type");
+        panic("Unknown keyboard input type\n");
         break;
     }
 }
