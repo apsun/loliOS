@@ -161,7 +161,7 @@ main(void)
         } else if (pid > 0) {
             /* We just care about exec(), kill child immediately */
             kill(pid, SIGKILL);
-            wait(&pid);
+            while (wait(&pid) == -EINTR);
         } else {
             exec(EXEC_NAME);
             exit(1);

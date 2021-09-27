@@ -353,7 +353,9 @@ cleanup:
     proc_t *curr;
     for (curr = root; curr != NULL; curr = curr->next) {
         if (curr->pid >= 0) {
-            curr->exit_code = wait(&curr->pid);
+            do {
+                curr->exit_code = wait(&curr->pid);
+            } while (curr->exit_code == -EINTR);
         }
     }
 

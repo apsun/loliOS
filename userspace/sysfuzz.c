@@ -100,7 +100,7 @@ main(void)
             /* Wait up to 3 seconds before killing the fuzzer */
             monosleep(monotime() + 3000);
             kill(pid, SIGKILL);
-            wait(&pid);
+            while (wait(&pid) == -EINTR);
         } else {
             fuzz(randfd);
         }

@@ -221,11 +221,9 @@ signal_sigmask(int signum, int action)
 static void
 signal_raise(pcb_t *pcb, int signum)
 {
-    if (pcb->signals[signum].handler_addr != SIG_IGN) {
-        pcb->signals[signum].pending = true;
-        if (signal_has_pending(pcb->signals)) {
-            scheduler_wake(pcb);
-        }
+    pcb->signals[signum].pending = true;
+    if (signal_has_pending(pcb->signals)) {
+        scheduler_wake(pcb);
     }
 }
 
@@ -287,6 +285,46 @@ signal_kill(int pid, int signum)
 }
 
 /*
+ * Returns true if a signal is fatal - that is, if unhandled, the
+ * process will be unable to make progress. These signals MUST be
+ * handled, either by calling a signal handler or killing the process.
+ * Ignoring them is not an option.
+ */
+static bool
+signal_is_fatal(int signum)
+{
+    switch (signum) {
+    case SIGFPE:
+    case SIGSEGV:
+    case SIGKILL:
+    case SIGABRT:
+        return true;
+    default:
+        return false;
+    }
+}
+
+/*
+ * Returns true if a signal has a default action to kill the process.
+ * These are not necessarily fatal; the process can ignore them.
+ */
+static bool
+signal_is_default_kill(int signum)
+{
+    if (signal_is_fatal(signum)) {
+        return true;
+    }
+
+    switch (signum) {
+    case SIGINT:
+    case SIGPIPE:
+        return true;
+    default:
+        return false;
+    }
+}
+
+/*
  * Attempts to deliver a signal to the currently
  * executing process. Returns true if the signal
  * was actually delivered or the process was
@@ -295,49 +333,35 @@ signal_kill(int pid, int signum)
 static bool
 signal_handle(signal_info_t *sig, int_regs_t *regs)
 {
-    /* Kill signal should be handled entirely by kernel */
-    if (sig->signum == SIGKILL) {
-        debugf("Killing process due to SIGKILL\n");
-        process_halt_impl(128 + sig->signum);
-        return true;
+    /*
+     * If the signal is fatal, ignore masked flag and SIG_IGN handler.
+     * Otherwise, the process will just fault in userspace endlessly.
+     */
+    if (!signal_is_fatal(sig->signum)) {
+        /* If signal is masked, keep it pending but skip over it */
+        if (sig->masked) {
+            return false;
+        }
+
+        /* If user asked to ignore the signal, clear it immediately */
+        if (sig->handler_addr == SIG_IGN) {
+            sig->pending = false;
+            return false;
+        }
     }
 
-    /* If signal is masked, keep it pending but skip over it */
-    if (sig->masked) {
-        return false;
-    }
-
-    /* If user asked to ignore the signal, clear it immediately */
-    if (sig->handler_addr == SIG_IGN) {
-        sig->pending = false;
-        return false;
-    }
-
-    /* If a handler is explicitly set, run it */
-    if (sig->handler_addr != SIG_DFL) {
+    /* Try calling the handler, if the process set one */
+    if (!sig->masked && sig->handler_addr != SIG_DFL) {
         if (!signal_deliver(sig, regs)) {
             /* If no more space on stack to push signal context, kill process */
             debugf("Failed to push signal context, killing process\n");
             process_halt_impl(256);
         }
-
         return true;
     }
 
-    /* These should halt with a status of 256 according to the spec */
-    if (sig->signum == SIGFPE ||
-        sig->signum == SIGSEGV)
-    {
-        debugf("Killing process due to exception\n");
-        process_halt_impl(256);
-        return true;
-    }
-
-    /* Halt with appropriate code if default action is to kill process */
-    if (sig->signum == SIGINT ||
-        sig->signum == SIGPIPE ||
-        sig->signum == SIGABRT)
-    {
+    /* If the default action is to kill the process, do so now */
+    if (signal_is_default_kill(sig->signum)) {
         debugf("Killing process by default action\n");
         process_halt_impl(128 + sig->signum);
         return true;
@@ -345,6 +369,57 @@ signal_handle(signal_info_t *sig, int_regs_t *regs)
 
     /* All other signals should be ignored by default */
     sig->pending = false;
+    return false;
+}
+
+/*
+ * Returns whether a process has a pending signal for which
+ * there exists a handler (or default action) that does something.
+ * This is used to abort long-running wait loops with -EINTR.
+ *
+ * The logic in this function must be kept in sync with
+ * signal_handle()!
+ */
+bool
+signal_has_pending(signal_info_t *signals)
+{
+    int i;
+    for (i = 0; i < NUM_SIGNALS; ++i) {
+        signal_info_t *sig = &signals[i];
+        if (!sig->pending) {
+            continue;
+        }
+
+        /*
+         * If we got a fatal signal, we're going to handle it
+         * one way or another, even if it's masked.
+         */
+        if (signal_is_fatal(sig->signum)) {
+            return true;
+        }
+
+        /* If signal is masked, ignore it for now */
+        if (sig->masked) {
+            continue;
+        }
+
+        /*
+         * If the signal is set to ignore, or if the default action
+         * is to ignore it, immediately clear the signal so that we
+         * don't generate a useless -EINTR. This is required for
+         * compatibility with the original userspace programs, since
+         * they don't handle -EINTR at all.
+         */
+        if (sig->handler_addr == SIG_IGN ||
+            (sig->handler_addr == SIG_DFL && !signal_is_default_kill(sig->signum)))
+        {
+            sig->pending = false;
+            continue;
+        }
+
+        /* We need to call a handler or kill the process */
+        return true;
+    }
     return false;
 }
 
@@ -397,57 +472,6 @@ signal_handle_all(signal_info_t *signals, int_regs_t *regs)
             break;
         }
     }
-}
-
-/*
- * Returns whether a process has a pending signal for which
- * there exists a handler (or default action) that does something.
- * This is used to abort long-running wait loops with -EINTR.
- */
-bool
-signal_has_pending(signal_info_t *signals)
-{
-    int i;
-    for (i = 0; i < NUM_SIGNALS; ++i) {
-        signal_info_t *sig = &signals[i];
-
-        if (sig->pending) {
-            /* SIGKILL must always be handled */
-            if (sig->signum == SIGKILL) {
-                return true;
-            }
-
-            /* If signal is ignored or masked, skip over it */
-            if (sig->handler_addr == SIG_IGN || sig->masked) {
-                continue;
-            }
-
-            /*
-             * If user registered a handler and the signal is not
-             * masked, then we always execute it.
-             */
-            if (sig->handler_addr != SIG_DFL) {
-                return true;
-            }
-
-            /*
-             * If there's no manually registered handler, check
-             * if default action actually does something. Here we
-             * ignore whether the signal is masked since all our
-             * default actions kill the process.
-             */
-            switch (sig->signum) {
-            case SIGFPE:
-            case SIGSEGV:
-            case SIGINT:
-            case SIGKILL:
-            case SIGPIPE:
-            case SIGABRT:
-                return true;
-            }
-        }
-    }
-    return false;
 }
 
 /*
