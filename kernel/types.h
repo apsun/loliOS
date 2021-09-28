@@ -51,7 +51,7 @@ typedef char *va_list;
  * Returns the offset of a field inside a structure.
  */
 #define offsetof(type, member) \
-    ((size_t)&(((type *)NULL)->member))
+    __builtin_offsetof(type, member)
 
 /*
  * Returns a pointer to the parent structure of the

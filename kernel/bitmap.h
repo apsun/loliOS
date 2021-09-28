@@ -10,7 +10,7 @@
 /*
  * Bitmap unit type.
  */
-typedef uint32_t bitmap_t;
+typedef unsigned int bitmap_t;
 
 /*
  * Returns the size of the parameter in bits.
@@ -52,19 +52,19 @@ typedef uint32_t bitmap_t;
  * Reads the specified bit in the bitmap.
  */
 #define bitmap_get(map, i) \
-    (!!((map)[bitmap_index(i)] & (1 << bitmap_subindex(i))))
+    (!!((map)[bitmap_index(i)] & (1U << bitmap_subindex(i))))
 
 /*
  * Sets the specified bit in the bitmap.
  */
 #define bitmap_set(map, i) \
-    (map)[bitmap_index(i)] |= (1 << bitmap_subindex(i))
+    (map)[bitmap_index(i)] |= (1U << bitmap_subindex(i))
 
 /*
  * Clears the specified bit in the bitmap.
  */
 #define bitmap_clear(map, i) \
-    (map)[bitmap_index(i)] &= ~(1 << bitmap_subindex(i))
+    (map)[bitmap_index(i)] &= ~(1U << bitmap_subindex(i))
 
 /*
  * Finds the index of the first '1' bit in the bitmap.
