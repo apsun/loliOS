@@ -250,7 +250,7 @@ test_memset(void)
     memset(buf, 0xbb, 1);
     assert(buf[0] == 0xbb);
     assert(buf[1] == 0xaa);
-    memset(&buf[1], 0, sizeof(buf));
+    memset(&buf[1], 0, sizeof(buf) - 1);
     assert(buf[0] == 0xbb);
     assert(buf[1] == 0);
     assert(buf[122] == 0);
