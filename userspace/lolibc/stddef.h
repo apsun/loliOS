@@ -8,6 +8,6 @@ typedef unsigned long size_t;
 typedef long ptrdiff_t;
 
 #define offsetof(type, member) \
-    ((size_t)&(((type *)NULL)->member))
+    __builtin_offsetof(type, member)
 
 #endif /* _LOLIBC_STDDEF_H */
