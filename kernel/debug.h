@@ -7,8 +7,8 @@
 #ifndef ASM
 
 /* Triggers a kernel panic */
-#define panic(...) \
-    idt_panic(__FILE__, __LINE__, __VA_ARGS__)
+#define panic(fmt, ...) \
+    idt_panic("%s:%d: Panic: " fmt, __FILE__, __LINE__, ## __VA_ARGS__)
 
 /* Whether to enable assertions */
 #ifndef DEBUG_ASSERT
@@ -31,10 +31,8 @@
 #endif
 
 #if DEBUG_PRINT
-    #define debugf(...) do {                   \
-        printf("%s:%d: ", __FILE__, __LINE__); \
-        printf(__VA_ARGS__);                   \
-    } while(0)
+    #define debugf(fmt, ...) \
+        printf("%s:%d: " fmt, __FILE__, __LINE__, ## __VA_ARGS__)
 #else
     #define debugf(...) ((void)0)
 #endif

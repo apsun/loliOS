@@ -82,7 +82,7 @@ typedef struct {
 void idt_init(void);
 
 /* Triggers a kernel panic */
-__noreturn void idt_panic(const char *file, int line, const char *fmt, ...);
+__noreturn void idt_panic(const char *fmt, ...);
 
 /* Interrupt handler routine */
 __cdecl void idt_handle_interrupt(int_regs_t *regs);

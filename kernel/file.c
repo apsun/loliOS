@@ -478,7 +478,7 @@ file_stat(const char *filename, stat_t *buf)
         debugf("File: %s() requires %s permissions\n", #fn, #md); \
         return -1;                                                \
     }                                                             \
-    return file->ops_table->fn(file, ##__VA_ARGS__);              \
+    return file->ops_table->fn(file, ## __VA_ARGS__);             \
 } while (0)
 
 /*

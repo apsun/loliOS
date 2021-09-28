@@ -190,22 +190,6 @@ handle_syscall(int_regs_t *regs)
         regs, regs->eax);
 }
 
-/* Triggers a kernel panic */
-__noreturn void
-idt_panic(const char *file, int line, const char *fmt, ...)
-{
-#if PANIC_BSOD
-    asm volatile("ud2");
-#else
-    printf("%s:%d: Panic: ", file, line);
-    va_list args;
-    va_start(args, fmt);
-    vprintf(fmt, args);
-    va_end(args);
-#endif
-    loop();
-}
-
 /*
  * Called when an interrupt occurs (from idtthunk.S).
  * The registers in regs should not be modified unless
@@ -239,6 +223,22 @@ idt_handle_interrupt(int_regs_t *regs)
     if (regs->cs == USER_CS) {
         signal_handle_all(get_executing_pcb()->signals, regs);
     }
+}
+
+/* Triggers a kernel panic */
+__noreturn void
+idt_panic(const char *fmt, ...)
+{
+#if PANIC_BSOD
+    asm volatile("ud2");
+    __unreachable;
+#else
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+    loop();
+#endif
 }
 
 /*

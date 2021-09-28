@@ -284,7 +284,7 @@ socket_socket(int type)
         debugf("Socket: %s() not implemented\n", #fn); \
         return -1;                                     \
     }                                                  \
-    return sock->ops_table->fn(sock, ##__VA_ARGS__);   \
+    return sock->ops_table->fn(sock, ## __VA_ARGS__);  \
 } while (0)
 
 /*
