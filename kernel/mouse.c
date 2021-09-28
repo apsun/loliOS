@@ -1,5 +1,6 @@
 #include "mouse.h"
 #include "types.h"
+#include "debug.h"
 #include "terminal.h"
 #include "ps2.h"
 
@@ -8,10 +9,18 @@ void
 mouse_handle_irq(void)
 {
     /* Read mouse packets from PS/2 data port */
+    int flags = ps2_read_data();
+    int dx = ps2_read_data();
+    int dy = ps2_read_data();
+    if (flags < 0 || dx < 0 || dy < 0) {
+        debugf("Got mouse IRQ but no data to read\n");
+        return;
+    }
+
     mouse_input_t input;
-    input.flags = ps2_read_data();
-    input.dx = ps2_read_data();
-    input.dy = ps2_read_data();
+    input.flags = flags;
+    input.dx = dx;
+    input.dy = dy;
 
     /* Deliver input to terminal */
     terminal_handle_mouse_input(input);

@@ -1,5 +1,6 @@
 #include "keyboard.h"
 #include "types.h"
+#include "debug.h"
 #include "terminal.h"
 #include "ps2.h"
 
@@ -276,7 +277,11 @@ void
 keyboard_handle_irq(void)
 {
     /* Read keycode packet */
-    uint8_t packet = ps2_read_data();
+    int packet = ps2_read_data();
+    if (packet < 0) {
+        debugf("Got keyboard IRQ but no data to read\n");
+        return;
+    }
 
     /* Process packet, updating internal state if necessary */
     kbd_input_t input = process_packet(packet);
@@ -294,7 +299,10 @@ keyboard_init(void)
 
     /* Read config byte */
     ps2_write_command(PS2_CMD_READ_CONFIG);
-    uint8_t config_byte = ps2_read_data();
+    int config_byte;
+    do {
+        config_byte = ps2_read_data();
+    } while (config_byte < 0);
 
     /* Enable keyboard interrupts */
     config_byte |= 0x01;

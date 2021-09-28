@@ -16,21 +16,22 @@ ps2_read_status(void)
 }
 
 /*
- * Waits for the PS/2 input buffer to be empty.
+ * Waits for the PS/2 input buffer to be empty (meaning
+ * we can write to it).
  */
 static void
-ps2_wait_input(void)
+ps2_wait_write(void)
 {
     while ((ps2_read_status() & PS2_STATUS_HAS_IN) != 0);
 }
 
 /*
- * Waits for the PS/2 output buffer to be full.
+ * Checks if the PS/2 output buffer has data to read.
  */
-static void
-ps2_wait_output(void)
+static bool
+ps2_can_read(void)
 {
-    while ((ps2_read_status() & PS2_STATUS_HAS_OUT) == 0);
+    return (ps2_read_status() & PS2_STATUS_HAS_OUT) != 0;
 }
 
 /*
@@ -39,7 +40,7 @@ ps2_wait_output(void)
 void
 ps2_write_command(uint8_t cmd)
 {
-    ps2_wait_input();
+    ps2_wait_write();
     outb(cmd, PS2_PORT_CMD);
 }
 
@@ -49,17 +50,20 @@ ps2_write_command(uint8_t cmd)
 void
 ps2_write_data(uint8_t data)
 {
-    ps2_wait_input();
+    ps2_wait_write();
     outb(data, PS2_PORT_DATA);
 }
 
 /*
- * Reads a byte from the PS/2 data port.
+ * Reads a byte from the PS/2 data port. If there is
+ * no data available, returns -1.
  */
-uint8_t
+int
 ps2_read_data(void)
 {
-    ps2_wait_output();
+    if (!ps2_can_read()) {
+        return -1;
+    }
     return inb(PS2_PORT_DATA);
 }
 

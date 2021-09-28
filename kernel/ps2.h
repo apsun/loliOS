@@ -28,7 +28,7 @@ void ps2_write_command(uint8_t cmd);
 void ps2_write_data(uint8_t data);
 
 /* Reads a byte from the PS/2 data port. */
-uint8_t ps2_read_data(void);
+int ps2_read_data(void);
 
 /* Waits for a PS/2 ACK packet. */
 void ps2_wait_ack(void);
