@@ -504,12 +504,10 @@ memset(void *s, unsigned char c, int n)
     /*
      * Pack c into a word for fast fill.
      */
-    word_t word = {0};
-    if (c != 0) {
-        size_t i;
-        for (i = 0; i < sizeof(word.bytes); ++i) {
-            word.bytes[i] = c;
-        }
+    word_t word;
+    size_t i;
+    for (i = 0; i < sizeof(word.bytes); ++i) {
+        word.bytes[i] = c;
     }
 
     /*
