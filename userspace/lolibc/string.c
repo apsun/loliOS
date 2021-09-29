@@ -501,18 +501,7 @@ memset(void *s, unsigned char c, int n)
         char bytes[8];
     } __attribute__((packed)) word_t;
 
-    /*
-     * Pack c into a word for fast fill.
-     */
-    word_t word;
-    size_t i;
-    for (i = 0; i < sizeof(word.bytes); ++i) {
-        word.bytes[i] = c;
-    }
-
-    /*
-     * Align dest ptr to word boundary.
-     */
+    /* Align dest ptr to word boundary */
     unsigned char *sb = s;
     int nalign = -(uintptr_t)sb & (sizeof(word_t) - 1);
     if (n >= nalign) {
@@ -522,19 +511,21 @@ memset(void *s, unsigned char c, int n)
         }
     }
 
-    /*
-     * Do a fast word-by-word copy.
-     */
+    /* Pack c into a word for fast fill */
+    word_t word;
+    size_t i;
+    for (i = 0; i < sizeof(word.bytes); ++i) {
+        word.bytes[i] = c;
+    }
+
+    /* Do a fast word-by-word copy */
     word_t *sw = (word_t *)sb;
     int nword = n / sizeof(word_t);
     while (nword--) {
         *sw++ = word;
     }
 
-    /*
-     * Handle trailing bytes at the end with a byte-by-byte copy.
-     * The switch must handle up to sizeof(word_t) - 1.
-     */
+    /* Handle trailing bytes at the end with a byte-by-byte copy */
     sb = (unsigned char *)sw;
     int ntrailing = n & (sizeof(word_t) - 1);
     while (ntrailing--) {
@@ -563,9 +554,7 @@ memcpy(void *dest, const void *src, int n)
         char bytes[8];
     } __attribute__((packed)) word_t;
 
-    /*
-     * Align dest ptr to word boundary.
-     */
+    /* Align dest ptr to word boundary */
     unsigned char *db = dest;
     const unsigned char *sb = src;
     int nalign = -(uintptr_t)db & (sizeof(word_t) - 1);
@@ -576,9 +565,7 @@ memcpy(void *dest, const void *src, int n)
         }
     }
 
-    /*
-     * Do a fast word-by-word copy.
-     */
+    /* Do a fast word-by-word copy */
     word_t *dw = (word_t *)db;
     const word_t *sw = (const word_t *)sb;
     int nword = n / sizeof(word_t);
@@ -586,9 +573,7 @@ memcpy(void *dest, const void *src, int n)
         *dw++ = *sw++;
     }
 
-    /*
-     * Handle trailing bytes at the end with a byte-by-byte copy.
-     */
+    /* Handle trailing bytes at the end with a byte-by-byte copy */
     db = (unsigned char *)dw;
     sb = (const unsigned char *)sw;
     int ntrailing = n & (sizeof(word_t) - 1);
