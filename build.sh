@@ -13,18 +13,30 @@ fi
 
 # Parse flag options
 compat=0
-optimize=0
+debug=0
+optlevel=
 netdebug=0
-while getopts ":con" opt; do
+rebuild=0
+ubsan=0
+while getopts ":cgO:nru" opt; do
     case "${opt}" in
     c)
         compat=1
         ;;
-    o)
-        optimize=1
+    g)
+        debug=1
+        ;;
+    O)
+        optlevel="${OPTARG}"
         ;;
     n)
         netdebug=1
+        ;;
+    r)
+        rebuild=1
+        ;;
+    u)
+        ubsan=1
         ;;
     *)
         echo "Invalid option: -${OPTARG}"
@@ -34,14 +46,16 @@ while getopts ":con" opt; do
 done
 shift $((OPTIND-1))
 
-# If command is "clean", run make clean and git clean
-if [ "$#" -gt 0 ] && [ "$1" = "clean" ]; then
+# If command is "clean" or -r flag is passed, run make clean and git clean
+if [ "${rebuild}" -eq 1 ] || { [ "$#" -gt 0 ] && [ "$1" = "clean" ]; }; then
     command -v git >/dev/null && git clean -fx "${root_dir}/filesystem"
     make -C "${root_dir}/userspace" clean
     make -C "${root_dir}/kernel" clean
     rm -f "${root_dir}/filesys_img.new"
     rm -f "${root_dir}/disk.img"
-    exit 0
+    if [ "$#" -gt 0 ] && [ "$1" = "clean" ]; then
+        exit 0
+    fi
 fi
 
 # If command is "debug", start GDB attached to QEMU
@@ -56,12 +70,18 @@ if [ "$#" -gt 0 ] && [ "$1" = "debug" ]; then
     exit 0
 fi
 
-# Set compiler flags based on optimize mode
-if [ "${optimize}" -eq 1 ]; then
-    export CFLAGS="${CFLAGS-} -O2"
-else
-    export CFLAGS="${CFLAGS-} -O0 -g -fsanitize=undefined"
-    export CPPFLAGS="${CPPFLAGS-} -DDEBUG_PRINT=1 -DUBSAN_ENABLED=1"
+if [ ! -z "${optlevel}" ]; then
+    export CFLAGS="${CFLAGS-} -O${optlevel}"
+fi
+
+if [ "${debug}" -eq 1 ]; then
+    export CFLAGS="${CFLAGS-} -g"
+    export CPPFLAGS="${CPPFLAGS-} -DDEBUG_PRINT=1"
+fi
+
+if [ "${ubsan}" -eq 1 ]; then
+    export CFLAGS="${CFLAGS-} -fsanitize=undefined"
+    export CPPFLAGS="${CPPFLAGS-} -DUBSAN_ENABLED=1"
 fi
 
 # If compat mode is set, use the original filesystem image,
