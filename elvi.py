@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# ELVI: Extemely Lightweight Video Interleaved
+# ELVI: Extremely Lightweight Video Interleaved
 #
 # ELVI is a very naive container format for audio and video, designed
 # to be as close as possible to a raw stream of pixels and audio
