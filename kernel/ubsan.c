@@ -10,7 +10,7 @@ typedef struct {
 } ubsan_source_loc_t;
 
 #define MAKE_UBSAN_HANDLER(name)                      \
-    __noreturn void                                   \
+    __noreturn __used void                            \
     __ubsan_handle_##name(ubsan_source_loc_t *source) \
     {                                                 \
         panic(                                        \

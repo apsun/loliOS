@@ -10,7 +10,7 @@ typedef struct {
 } ubsan_source_loc_t;
 
 #define MAKE_UBSAN_HANDLER(name)                      \
-    __attribute__((noreturn)) void                    \
+    __attribute__((noreturn, used)) void              \
     __ubsan_handle_##name(ubsan_source_loc_t *source) \
     {                                                 \
         fprintf(                                      \
