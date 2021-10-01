@@ -34,11 +34,11 @@ typedef unsigned long uintptr_t;
 typedef long ptrdiff_t;
 typedef enum { false, true } bool;
 
-typedef char *va_list;
-#define va_start(list, last) ((list) = (char *)(&(last) + 1))
-#define va_arg(list, T) ((list) += sizeof(T), *(T *)((list) - sizeof(T)))
-#define va_copy(dest, src) ((dest) = (src))
-#define va_end(list) ((void)0)
+typedef __builtin_va_list va_list;
+#define va_start(list, last) __builtin_va_start(list, last)
+#define va_arg(list, T) __builtin_va_arg(list, T)
+#define va_copy(dest, src) __builtin_va_copy(dest, src)
+#define va_end(list) __builtin_va_end(list)
 
 /*
  * Returns the length of an array. Only works on actual
