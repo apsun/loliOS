@@ -1,10 +1,19 @@
-CFLAGS += -std=gnu90 -Wall -Wextra -Werror \
-	-Wno-unused-parameter -Wshadow -Wpointer-arith \
-	-fno-builtin -fno-stack-protector -fno-omit-frame-pointer \
-	-fno-asynchronous-unwind-tables -fno-strict-aliasing \
-	-ffreestanding -fno-pie \
-	-m32 -march=i386 -mno-sse -nostdinc -Ilolibc
-ASFLAGS += -Wall -Wextra -m32 -Ilolibc
+CFLAGS += \
+	-std=gnu90 \
+	-m32 -march=i386 \
+	-Wall -Wextra -Werror \
+	-Wno-unused-parameter \
+	-Wshadow \
+	-Wpointer-arith \
+	-ffreestanding \
+	-fno-builtin \
+	-fno-strict-aliasing \
+	-fno-pie \
+	-fno-stack-protector \
+	-fno-asynchronous-unwind-tables \
+	-fno-omit-frame-pointer
+CPPFLAGS += -nostdinc -Ilolibc
+ASFLAGS += -m32
 LDFLAGS += -nostdlib -static -melf_i386
 
 objs = $(patsubst %.c,%.o,$(patsubst %.S,%.o,$(wildcard $(1)/*.c $(1)/*.S)))

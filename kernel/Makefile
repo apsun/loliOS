@@ -1,10 +1,19 @@
-CFLAGS += -std=gnu90 -Wall -Wextra -Werror \
-	-Wno-unused-parameter -Wshadow -Wpointer-arith \
-	-fno-builtin -fno-stack-protector -fno-omit-frame-pointer \
-	-fno-asynchronous-unwind-tables -fno-strict-aliasing \
-	-ffreestanding -fno-pie \
-	-m32 -march=i386 -mno-sse -nostdinc
-ASFLAGS += -Wall -Wextra -m32
+CFLAGS += \
+	-std=gnu90 \
+	-m32 -march=i386 \
+	-Wall -Wextra -Werror \
+	-Wno-unused-parameter \
+	-Wshadow \
+	-Wpointer-arith \
+	-ffreestanding \
+	-fno-builtin \
+	-fno-strict-aliasing \
+	-fno-pie \
+	-fno-stack-protector \
+	-fno-asynchronous-unwind-tables \
+	-fno-omit-frame-pointer
+CPPFLAGS += -nostdinc
+ASFLAGS += -m32
 LDFLAGS += -nostdlib -static -melf_i386
 
 # This generates the list of source files
@@ -16,7 +25,7 @@ OBJS += $(filter-out boot.o,$(patsubst %.S,%.o,$(filter %.S,$(SRC))))
 OBJS += $(patsubst %.c,%.o,$(filter %.c,$(SRC)))
 
 bootimg: Makefile $(OBJS)
-	$(LD) $(LDFLAGS) $(OBJS) -Tmemory.lds -o bootimg
+	$(LD) $(LDFLAGS) $(OBJS) -Tmemory.lds -o $@
 
 Makefile.dep: $(SRC)
 	$(CC) -MM $(CPPFLAGS) $(SRC) > $@
