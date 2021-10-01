@@ -11,10 +11,11 @@ CFLAGS += \
 	-fno-pie \
 	-fno-stack-protector \
 	-fno-asynchronous-unwind-tables \
-	-fno-omit-frame-pointer
+	-fno-omit-frame-pointer \
+	-static \
+	-nostdlib
 CPPFLAGS += -nostdinc
 ASFLAGS += -m32
-LDFLAGS += -nostdlib -static -melf_i386
 
 # This generates the list of source files
 SRC = $(wildcard *.S) $(wildcard *.c) $(wildcard */*.S) $(wildcard */*.c)
@@ -25,7 +26,7 @@ OBJS += $(filter-out boot.o,$(patsubst %.S,%.o,$(filter %.S,$(SRC))))
 OBJS += $(patsubst %.c,%.o,$(filter %.c,$(SRC)))
 
 bootimg: Makefile $(OBJS)
-	$(LD) $(LDFLAGS) $(OBJS) -Tmemory.lds -o $@
+	$(CC) $(CFLAGS) $(OBJS) -Tmemory.lds -o $@
 
 Makefile.dep: $(SRC)
 	$(CC) -MM $(CPPFLAGS) $(SRC) > $@

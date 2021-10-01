@@ -14,17 +14,21 @@ fi
 # Parse flag options
 compat=0
 debug=0
+lto=0
 optlevel=
 netdebug=0
 rebuild=0
 ubsan=0
-while getopts ":cgO:nru" opt; do
+while getopts ":cglO:nru" opt; do
     case "${opt}" in
     c)
         compat=1
         ;;
     g)
         debug=1
+        ;;
+    l)
+        lto=1
         ;;
     O)
         optlevel="${OPTARG}"
@@ -82,6 +86,10 @@ fi
 if [ "${ubsan}" -eq 1 ]; then
     export CFLAGS="${CFLAGS-} -fsanitize=undefined"
     export CPPFLAGS="${CPPFLAGS-} -DUBSAN_ENABLED=1"
+fi
+
+if [ "${lto}" -eq 1 ]; then
+    export CFLAGS="${CFLAGS-} -flto"
 fi
 
 # If compat mode is set, use the original filesystem image,

@@ -11,10 +11,11 @@ CFLAGS += \
 	-fno-pie \
 	-fno-stack-protector \
 	-fno-asynchronous-unwind-tables \
-	-fno-omit-frame-pointer
+	-fno-omit-frame-pointer \
+	-static \
+	-nostdlib
 CPPFLAGS += -nostdinc -Ilolibc
 ASFLAGS += -m32
-LDFLAGS += -nostdlib -static -melf_i386
 
 objs = $(patsubst %.c,%.o,$(patsubst %.S,%.o,$(wildcard $(1)/*.c $(1)/*.S)))
 LOLIBC_OBJ = $(call objs,lolibc)
@@ -33,15 +34,15 @@ build:
 
 .PRECIOUS: build/missiles
 build/missiles: $(MISSILES_OBJ) $(LOLIBC_OBJ) | build
-	$(LD) $(LDFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^
 
 .PRECIOUS: build/fish
 build/fish: $(FISH_OBJ) $(LOLIBC_OBJ) | build
-	$(LD) $(LDFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^
 
 .PRECIOUS: build/%
 build/%: %.o $(LOLIBC_OBJ) | build
-	$(LD) $(LDFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^
 
 .PHONY: clean
 clean:
