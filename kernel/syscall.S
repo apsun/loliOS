@@ -60,16 +60,19 @@ syscall_jump_table:
     .long vga_fbmap
     .long vga_fbunmap
     .long vga_fbflip
+.type syscall_jump_table, %object
+.size syscall_jump_table, .-syscall_jump_table
 
 .text
 
 /*
  * Dummy syscall handler that always returns -1.
  */
-.globl syscall_unimplemented
 syscall_unimplemented:
     movl $-1, %eax
     ret
+.type syscall_unimplemented, %function
+.size syscall_unimplemented, .-syscall_unimplemented
 
 /*
  * int syscall_handle(
@@ -93,8 +96,10 @@ syscall_handle:
     movl 28(%esp), %eax
     decl %eax
     cmpl $NUM_SYSCALL, %eax
-    jae syscall_handle_invalid
+    jae .Lsyscall_handle_invalid
     jmp *syscall_jump_table(, %eax, 4)
-syscall_handle_invalid:
+.Lsyscall_handle_invalid:
     movl $-1, %eax
     ret
+.type syscall_handle, %function
+.size syscall_handle, .-syscall_handle

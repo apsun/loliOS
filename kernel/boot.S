@@ -1,4 +1,5 @@
 #define ASM 1
+
 #include "multiboot.h"
 #include "x86_desc.h"
 
@@ -10,23 +11,16 @@
     .long -(MULTIBOOT_HEADER_MAGIC+MULTIBOOT_HEADER_FLAGS)
 
 # Entrypoint to the kernel
-.globl  start, _start
-
-.align 4
+.globl start, _start
 start:
 _start:
-    # Make sure interrupts are off
-    cli
-    jmp     continue
-
-continue:
     # Load the GDT
     lgdt    gdt_desc_ptr
 
     # Load CS with the new descriptor value
-    ljmp    $KERNEL_CS, $keep_going
+    ljmp    $KERNEL_CS, $.Lkeep_going
 
-keep_going:
+.Lkeep_going:
     # Set up ESP so we can have an initial stack
     movl    $0x800000, %esp
 
@@ -48,6 +42,10 @@ keep_going:
     call    entry
 
     # We'll never get back here, but we put in a hlt anyway.
-halt:
+.Lhalt:
     hlt
-    jmp     halt
+    jmp     .Lhalt
+.type _start, %function
+.size _start, .-_start
+.type start, %function
+.size start, .-start

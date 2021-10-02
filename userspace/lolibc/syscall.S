@@ -2,27 +2,32 @@
 
 #include <syscall.h>
 
-.globl syscall_bottom;
-syscall_bottom:
-    pushl   %ebx;              \
-    pushl   %esi;              \
-    pushl   %edi;              \
-    movl    16(%esp), %ebx;    \
-    movl    20(%esp), %ecx;    \
-    movl    24(%esp), %edx;    \
-    movl    28(%esp), %esi;    \
-    movl    32(%esp), %edi;    \
-    int     $0x80;             \
-    popl    %edi;              \
-    popl    %esi;              \
-    popl    %ebx;              \
-    ret;
+.text
 
-#define MAKE_SYS(name, number) \
-.globl name;                   \
-name:                          \
-    movl    $number, %eax;     \
-    jmp     syscall_bottom;
+syscall_bottom:
+    pushl   %ebx
+    pushl   %esi
+    pushl   %edi
+    movl    16(%esp), %ebx
+    movl    20(%esp), %ecx
+    movl    24(%esp), %edx
+    movl    28(%esp), %esi
+    movl    32(%esp), %edi
+    int     $0x80
+    popl    %edi
+    popl    %esi
+    popl    %ebx
+    ret
+.type syscall_bottom, %function
+.size syscall_bottom, .-syscall_bottom
+
+#define MAKE_SYS(name, number)     \
+    .globl name;                   \
+    name:                          \
+        movl    $number, %eax;     \
+        jmp     syscall_bottom;    \
+    .type name, %function;         \
+    .size name, .-name
 
 MAKE_SYS(halt, SYS_HALT)
 MAKE_SYS(execute, SYS_EXECUTE)
@@ -78,14 +83,16 @@ _start:
     call    main
     pushl   %eax
     call    exit
+.type _start, %function
+.size _start, .-_start
 
 /* Disable compatibility mode */
 .section ".note.lolios.ident", "a"
     .align 4
-    .long note_name_bottom - note_name
+    .long .Lnote_name_bottom - .Lnote_name
     .long 0
     .long 1337
-note_name:
+.Lnote_name:
     .asciz "loliOS"
-note_name_bottom:
+.Lnote_name_bottom:
     .align 4

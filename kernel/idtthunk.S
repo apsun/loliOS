@@ -1,23 +1,28 @@
 #define ASM 1
+
 #include "idt.h"
 #include "x86_desc.h"
 
+.text
+
 /* Interrupt handler thunk without error code */
-#define MAKE_THUNK(code, name)                   \
+#define MAKE_THUNK(num, name)                    \
     .globl name;                                 \
     name:                                        \
         pushl $0; /* Dummy value */              \
-        pushl $code;                             \
-        jmp idt_handle_common_thunk;
+        pushl $num;                              \
+        jmp idt_handle_common_thunk;             \
+    .type name, %function;                       \
+    .size name, .-name
 
 /* Interrupt handler thunk with error code */
-#define MAKE_THUNK_WITH_ERR(code, name)          \
+#define MAKE_THUNK_WITH_ERR(num, name)           \
     .globl name;                                 \
     name:                                        \
-        pushl $code;                             \
-        jmp idt_handle_common_thunk;
-
-.text
+        pushl $num;                              \
+        jmp idt_handle_common_thunk;             \
+    .type name, %function;                       \
+    .size name, .-name
 
 /* Generate interrupt handler thunks */
 MAKE_THUNK(EXC_DE, idt_handle_exc_de)
@@ -108,8 +113,12 @@ idt_unwind_stack:
     popw %es
     popw %ds
 
-    /* Pop IRQ vector number and error code */
+    /* Pop interrupt number and error code */
     addl $8, %esp
 
     /* Return from interrupt */
     iret
+.type idt_unwind_stack, %function
+.size idt_unwind_stack, .-idt_unwind_stack
+.type idt_handle_common_thunk, %function
+.size idt_handle_common_thunk, .-idt_handle_common_thunk

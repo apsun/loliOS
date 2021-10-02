@@ -1,13 +1,14 @@
 #define ASM 1
+
 #include "x86_desc.h"
 
 .text
 
-.globl  ldt_size, tss_size
-.globl  gdt_desc, ldt_desc, tss_desc
-.globl  tss, tss_desc_ptr, ldt, ldt_desc_ptr
-.globl  gdt_ptr, gdt_desc_ptr
-.globl  idt_desc_ptr, idt
+.globl ldt_size, tss_size
+.globl gdt_desc, ldt_desc, tss_desc
+.globl tss, tss_desc_ptr, ldt, ldt_desc_ptr
+.globl gdt_ptr, gdt_desc_ptr
+.globl idt_desc_ptr, idt
 
 .align 4
 
@@ -30,10 +31,9 @@ _tss:
     .endr
 tss_bottom:
 
-    .align  16
+    .align 16
 gdt:
 _gdt:
-
     # First GDT entry cannot be used
     .quad 0
 
@@ -97,11 +97,10 @@ idt_desc_ptr:
     .word idt_bottom - idt - 1
     .long idt
 
-    .align  16
+    .align 16
 idt:
 _idt:
     .rept NUM_VEC
     .quad 0
     .endr
-
 idt_bottom:

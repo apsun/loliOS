@@ -17,6 +17,8 @@ longjmp:
     movl 8(%esp), %esp
     movl %ecx, 0(%esp)
     ret
+.type longjmp, %function
+.size longjmp, .-longjmp
 
 /*
  * int __setjmp_ptr(jmp_buf *env)
@@ -37,3 +39,5 @@ __setjmp_ptr:
     movl %edi, 20(%eax)
     xorl %eax, %eax
     ret
+.type __setjmp_ptr, %function
+.size __setjmp_ptr, .-__setjmp_ptr
