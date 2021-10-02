@@ -2,7 +2,7 @@
 
 #include "x86_desc.h"
 
-.text
+.data
 
 .globl ldt_size, tss_size
 .globl gdt_desc, ldt_desc, tss_desc

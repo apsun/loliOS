@@ -5,10 +5,13 @@
 
 .text
 
-    # Multiboot header (required for GRUB to boot us)
+# Multiboot header (required for GRUB to boot us)
+multiboot_header:
     .long MULTIBOOT_HEADER_MAGIC
     .long MULTIBOOT_HEADER_FLAGS
     .long -(MULTIBOOT_HEADER_MAGIC+MULTIBOOT_HEADER_FLAGS)
+.type multiboot_header, %object
+.size multiboot_header, .-multiboot_header
 
 # Entrypoint to the kernel
 .globl start, _start
