@@ -18,6 +18,11 @@
 #define ELVI_MAGIC 0x49564c45
 
 /*
+ * Rounds x up to the next multiple of align.
+ */
+#define ROUND_UP(x, align) (((x) + (align) - 1) & -(align))
+
+/*
  * ELVI format header definition.
  */
 typedef struct {
@@ -84,12 +89,12 @@ play(int fd)
         goto exit;
     }
 
-    if (hdr.max_audio_size > INT_MAX) {
+    if (hdr.max_audio_size > INT_MAX - 3) {
         fprintf(stderr, "Invalid max audio size\n");
         goto exit;
     }
 
-    audio_buf = malloc(hdr.max_audio_size);
+    audio_buf = malloc(ROUND_UP(hdr.max_audio_size, 4));
     if (audio_buf == NULL) {
         fprintf(stderr, "Invalid or too large max audio size\n");
         goto exit;
@@ -161,7 +166,8 @@ play(int fd)
         }
 
         /* Read audio samples */
-        if (read_all(fd, audio_buf, (int)audio_size) < (int)audio_size) {
+        int audio_nread = (int)ROUND_UP(audio_size, 4);
+        if (read_all(fd, audio_buf, audio_nread) < audio_nread) {
             FAIL("Could not read audio samples\n");
             goto exit;
         }
