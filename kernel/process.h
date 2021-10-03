@@ -23,7 +23,7 @@
 
 #ifndef ASM
 
-/* Execution state of the process. */
+/* Execution state of the process */
 typedef enum {
     /*
      * The process's state has been created, but has not
@@ -50,9 +50,7 @@ typedef enum {
     PROCESS_STATE_ZOMBIE,
 } process_state_t;
 
-/*
- * Process control block structure
- */
+/* Process control block structure */
 typedef struct {
     /*
      * PID of the this process. If the PCB is not valid, this will contain

@@ -3,16 +3,16 @@
 
 #ifndef ASM
 
-/* Initialize both PICs */
+/* Initializes both PICs */
 void i8259_init(void);
 
-/* Enable (unmask) the specified IRQ */
+/* Enables (unmasks) the specified IRQ */
 void i8259_enable_irq(int irq_num);
 
-/* Disable (mask) the specified IRQ */
+/* Disables (masks) the specified IRQ */
 void i8259_disable_irq(int irq_num);
 
-/* Send end-of-interrupt signal for the specified IRQ */
+/* Sends end-of-interrupt signal for the specified IRQ */
 void i8259_send_eoi(int irq_num);
 
 #endif /* ASM */

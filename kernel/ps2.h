@@ -21,26 +21,26 @@
 
 #ifndef ASM
 
-/* Sends a command to the PS/2 controller. */
+/* Sends a command to the PS/2 controller */
 void ps2_write_command(uint8_t cmd);
 
-/* Writes a byte to the PS/2 data port. */
+/* Writes a byte to the PS/2 data port */
 void ps2_write_data(uint8_t data);
 
-/* Reads a byte from the PS/2 data port. */
+/* Reads a byte from the PS/2 data port */
 uint8_t ps2_read_data_blocking(void);
 int ps2_read_data_nonblocking(void);
 
-/* Waits for a PS/2 ACK packet. */
+/* Waits for a PS/2 ACK packet */
 void ps2_wait_ack(void);
 
-/* Sends a byte to the PS/2 keyboard. */
+/* Sends a byte to the PS/2 keyboard */
 void ps2_write_keyboard(uint8_t data);
 
-/* Sends a byte to the PS/2 mouse. */
+/* Sends a byte to the PS/2 mouse */
 void ps2_write_mouse(uint8_t data);
 
-/* Initializes PS/2 devices and sets up IRQs. */
+/* Initializes PS/2 devices and sets up IRQs */
 void ps2_init(void);
 
 #endif /* ASM */

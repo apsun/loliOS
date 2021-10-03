@@ -26,15 +26,17 @@
 
 #ifndef ASM
 
-/* This structure is used to load descriptor base registers
- * like the GDTR and IDTR */
+/*
+ * This structure is used to load descriptor base registers
+ * like the GDTR and IDTR.
+ */
 typedef struct {
     uint16_t padding;
     uint16_t size;
     uint32_t addr;
 } __packed x86_desc_t;
 
-/* This is a segment descriptor.  It goes in the GDT. */
+/* This is a segment descriptor. It goes in the GDT. */
 typedef struct {
     uint16_t seg_lim_15_00;
     uint16_t base_15_00;
@@ -157,35 +159,44 @@ extern x86_desc_t idt_desc_ptr;
     str.offset_15_00 = ((uint32_t)(handler) & 0xFFFF);           \
 } while(0)
 
-/* Load task register.  This macro takes a 16-bit index into the GDT,
- * which points to the TSS entry.  x86 then reads the GDT's TSS
+/*
+ * Load task register. This macro takes a 16-bit index into the GDT,
+ * which points to the TSS entry. x86 then reads the GDT's TSS
  * descriptor and loads the base address specified in that descriptor
- * into the task register */
+ * into the task register.
+ */
 #define ltr(desc) do {                  \
-    asm volatile("ltr %w0"              \
+    asm volatile(                       \
+        "ltr %w0"                       \
         :                               \
         : "r"(desc)                     \
         : "memory");                    \
 } while(0)
 
-/* Load the interrupt descriptor table (IDT).  This macro takes a 32-bit
- * address which points to a 6-byte structure.  The 6-byte structure
- * (defined as "struct x86_desc" above) contains a 2-byte size field
+/*
+ * Load the interrupt descriptor table (IDT). This macro takes a 32-bit
+ * address which points to a 6-byte structure. The 6-byte structure
+ * (defined as "x86_desc_t" above) contains a 2-byte size field
  * specifying the size of the IDT, and a 4-byte address field specifying
- * the base address of the IDT. */
+ * the base address of the IDT.
+ */
 #define lidt(desc) do {                 \
-    asm volatile("lidt %0"              \
+    asm volatile(                       \
+        "lidt %0"                       \
         :                               \
         : "m"(desc)                     \
         : "memory");                    \
 } while(0)
 
-/* Load the local descriptor table (LDT) register.  This macro takes a
- * 16-bit index into the GDT, which points to the LDT entry.  x86 then
+/*
+ * Load the local descriptor table (LDT) register. This macro takes a
+ * 16-bit index into the GDT, which points to the LDT entry. x86 then
  * reads the GDT's LDT descriptor and loads the base address specified
- * in that descriptor into the LDT register */
+ * in that descriptor into the LDT register.
+ */
 #define lldt(desc) do {                 \
-    asm volatile("lldt %%ax"            \
+    asm volatile(                       \
+        "lldt %%ax"                     \
         :                               \
         : "a"(desc)                     \
         : "memory");                    \

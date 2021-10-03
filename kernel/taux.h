@@ -1,9 +1,7 @@
 #ifndef _TAUX_H
 #define _TAUX_H
 
-/*
- * Accepted ioctl() request values.
- */
+/* Accepted ioctl() request values */
 #define TAUX_SET_LED     0x10
 #define TAUX_READ_LED    0x11
 #define TAUX_BUTTONS     0x12

@@ -28,9 +28,9 @@
 #define SIGALRM_PERIOD_MS 10000
 
 /* Kernel stack struct */
-typedef struct {
+typedef union {
     pcb_t *pcb;
-    uint8_t kernel_stack[PROCESS_DATA_SIZE - sizeof(pcb_t *)];
+    uint8_t kernel_stack[PROCESS_DATA_SIZE];
 } process_data_t;
 
 /* Process control blocks */
