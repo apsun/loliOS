@@ -1152,11 +1152,6 @@ tcp_outbox_handle_rx_ack(tcp_sock_t *tcp, tcp_hdr_t *hdr)
 static void
 tcp_inbox_handle_rx_skb(tcp_sock_t *tcp, skb_t *skb)
 {
-    /* Add packet to the inbox if it's not a duplicate */
-    if (!tcp_inbox_insert(tcp, skb)) {
-        return;
-    }
-
     /*
      * If we get more packets while the FIN timer is active, restart
      * the timeout. In TIME_WAIT state, this means that the remote
@@ -1165,6 +1160,11 @@ tcp_inbox_handle_rx_skb(tcp_sock_t *tcp, skb_t *skb)
      */
     if (tcp_in_state(tcp, TIME_WAIT | FIN_WAIT_2)) {
         tcp_restart_fin_timeout(tcp);
+    }
+
+    /* Add packet to the inbox if it's not a duplicate or empty */
+    if (!tcp_inbox_insert(tcp, skb)) {
+        return;
     }
 
     /* Process packets in the inbox in order until we find a gap */
