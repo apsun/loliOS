@@ -26,6 +26,16 @@ ps2_wait_write(void)
 }
 
 /*
+ * Waits for the PS/2 output buffer to be non-empty (meaning
+ * we can read from it).
+ */
+static void
+ps2_wait_read(void)
+{
+    while ((ps2_read_status() & PS2_STATUS_HAS_OUT) == 0);
+}
+
+/*
  * Checks if the PS/2 output buffer has data to read.
  */
 static bool
@@ -35,7 +45,8 @@ ps2_can_read(void)
 }
 
 /*
- * Sends a command to the PS/2 controller.
+ * Sends a command to the PS/2 controller. This blocks
+ * until the write completes.
  */
 void
 ps2_write_command(uint8_t cmd)
@@ -45,7 +56,8 @@ ps2_write_command(uint8_t cmd)
 }
 
 /*
- * Writes a byte to the PS/2 data port.
+ * Writes a byte to the PS/2 data port. This blocks until
+ * the write completes.
  */
 void
 ps2_write_data(uint8_t data)
@@ -55,14 +67,25 @@ ps2_write_data(uint8_t data)
 }
 
 /*
- * Reads a byte from the PS/2 data port. If there is
- * no data available, returns -1.
+ * Reads a byte from the PS/2 data port. This blocks until
+ * the read completes.
+ */
+uint8_t
+ps2_read_data_blocking(void)
+{
+    ps2_wait_read();
+    return inb(PS2_PORT_DATA);
+}
+
+/*
+ * Reads a byte from the PS/2 data port. This does not block;
+ * if there is no data available, returns -EAGAIN immediately.
  */
 int
-ps2_read_data(void)
+ps2_read_data_nonblocking(void)
 {
     if (!ps2_can_read()) {
-        return -1;
+        return -EAGAIN;
     }
     return inb(PS2_PORT_DATA);
 }
@@ -73,7 +96,7 @@ ps2_read_data(void)
 void
 ps2_wait_ack(void)
 {
-    uint8_t ack = ps2_read_data();
+    uint8_t ack = ps2_read_data_blocking();
     if (ack != PS2_DATA_ACK) {
         debugf("Received non-ACK PS/2 response\n");
     }

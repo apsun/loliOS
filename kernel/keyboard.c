@@ -283,7 +283,7 @@ void
 keyboard_handle_irq(void)
 {
     /* Read keycode packet */
-    int packet = ps2_read_data();
+    int packet = ps2_read_data_nonblocking();
     if (packet < 0) {
         debugf("Got keyboard IRQ but no data to read\n");
         return;
@@ -305,10 +305,7 @@ keyboard_init(void)
 
     /* Read config byte */
     ps2_write_command(PS2_CMD_READ_CONFIG);
-    int config_byte;
-    do {
-        config_byte = ps2_read_data();
-    } while (config_byte < 0);
+    uint8_t config_byte = ps2_read_data_blocking();
 
     /* Enable keyboard interrupts */
     config_byte |= 0x01;

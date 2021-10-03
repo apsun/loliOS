@@ -9,9 +9,9 @@ void
 mouse_handle_irq(void)
 {
     /* Read mouse packets from PS/2 data port */
-    int flags = ps2_read_data();
-    int dx = ps2_read_data();
-    int dy = ps2_read_data();
+    int flags = ps2_read_data_nonblocking();
+    int dx = ps2_read_data_nonblocking();
+    int dy = ps2_read_data_nonblocking();
     if (flags < 0 || dx < 0 || dy < 0) {
         debugf("Got mouse IRQ but no data to read\n");
         return;
@@ -35,7 +35,7 @@ mouse_init(void)
 
     /* Read config byte */
     ps2_write_command(PS2_CMD_READ_CONFIG);
-    uint8_t config_byte = ps2_read_data();
+    uint8_t config_byte = ps2_read_data_blocking();
 
     /* Enable mouse interrupts */
     config_byte |= 0x02;
