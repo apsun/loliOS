@@ -147,7 +147,7 @@ typedef struct {
     signal_info_t signals[NUM_SIGNALS];
 
     /*
-     * Timer for the SIGALARM signal.
+     * Timer for the SIGALRM signal.
      */
     timer_t alarm_timer;
 
