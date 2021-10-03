@@ -150,7 +150,7 @@ vbe_update_fbmap_page(bool fbmap)
  * or call fbunmap() before another process may call fbmap() again.
  *
  * Up to 8MB of video memory is supported (half that per frame,
- * due to double buffering) 
+ * due to double buffering).
  */
 __cdecl int
 vbe_fbmap(void **ptr, int xres, int yres, int bpp)

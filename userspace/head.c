@@ -78,7 +78,7 @@ write_all(int fd, const char *buf, int size)
 /*
  * Writes up to the specified limit number of bytes from buf.
  * Returns the number of bytes written, or < 0 on error.
- * 
+ *
  * Upon return, size contains the new number of characters in buf.
  */
 static int
@@ -143,7 +143,7 @@ main(void)
     char buf[8192];
     int offset = 0;
     int total = 0;
-    
+
     while (total < args.count) {
         int nr = read(STDIN_FILENO, &buf[offset], sizeof(buf) - offset);
         if (nr == 0 && offset == 0) {

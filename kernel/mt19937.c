@@ -17,7 +17,7 @@ srand(unsigned int seed)
 {
     state[0] = seed;
     for (index = 1; index < N; ++index) {
-        state[index] = (1812433253U * (state[index - 1] ^ (state[index - 1] >> 30)) + index); 
+        state[index] = (1812433253U * (state[index - 1] ^ (state[index - 1] >> 30)) + index);
     }
 }
 
@@ -48,7 +48,7 @@ urand(void)
 
         index = 0;
     }
-  
+
     unsigned int y = state[index++];
     y ^= (y >> 11);
     y ^= (y << 7) & 0x9d2c5680U;

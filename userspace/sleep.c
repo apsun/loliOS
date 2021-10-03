@@ -6,7 +6,7 @@ int
 main(void)
 {
     int ret = 1;
-    
+
     char args[128];
     if (getargs(args, sizeof(args)) < 0) {
         fprintf(stderr, "usage: sleep <secs>\n");

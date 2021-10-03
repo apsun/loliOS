@@ -281,7 +281,7 @@ test_open_append(void)
 
     ret = seek(fd, -3, SEEK_CUR);
     assert(ret == 6);
-    
+
     ret = read(fd, buf, sizeof(buf));
     assert(ret == 6);
     assert(memcmp(buf, "bazqux", ret) == 0);
