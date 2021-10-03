@@ -131,6 +131,7 @@ if [ "$#" -gt 0 ] && [ "$1" = "run" ]; then
         -cpu qemu32 \
         -drive format=raw,file="${root_dir}/disk.img" \
         -gdb tcp:127.0.0.1:1234 \
+        -serial stdio \
         -device isa-vga \
         -device sb16 \
         -device ne2k_isa,netdev=ne2k \

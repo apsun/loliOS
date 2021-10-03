@@ -51,7 +51,7 @@ serial_out(int which, int port_offset, uint8_t data)
  * queue available to be read immediately. If the rx queue
  * is empty, returns false.
  */
-bool
+static bool
 serial_can_read(int which)
 {
     serial_line_status_t status;
@@ -64,7 +64,7 @@ serial_can_read(int which)
  * UART tx queue. If the tx queue is full, returns
  * false.
  */
-bool
+static bool
 serial_can_write(int which)
 {
     serial_line_status_t status;
@@ -73,11 +73,11 @@ serial_can_write(int which)
 }
 
 /*
- * Reads a char from the serial UART rx queue. Blocks
- * until a char has been read.
+ * Reads a byte from the serial UART rx queue. Blocks
+ * until a byte has been read.
  */
 uint8_t
-serial_read(int which)
+serial_read_blocking(int which)
 {
     while (!serial_can_read(which));
     return serial_in(which, SERIAL_PORT_DATA);
@@ -85,11 +85,11 @@ serial_read(int which)
 
 /*
  * Reads as much data as is available from the serial
- * UART rx queue, up to len chars. Returns the actual
- * number of chars read.
+ * UART rx queue, up to len bytes. Returns the actual
+ * number of bytes read.
  */
 int
-serial_read_all(int which, uint8_t *buf, int len)
+serial_read_upto(int which, uint8_t *buf, int len)
 {
     int i = 0;
     while (i < len && serial_can_read(which)) {
@@ -99,11 +99,11 @@ serial_read_all(int which, uint8_t *buf, int len)
 }
 
 /*
- * Writes a char to the serial UART tx queue. Blocks
- * until the char has been written.
+ * Writes a byte to the serial UART tx queue. Blocks
+ * until the byte has been written.
  */
 void
-serial_write(int which, uint8_t data)
+serial_write_blocking(int which, uint8_t data)
 {
     while (!serial_can_write(which));
     serial_out(which, SERIAL_PORT_DATA, data);
@@ -111,11 +111,11 @@ serial_write(int which, uint8_t data)
 
 /*
  * Writes as much data as will fit to the serial UART
- * tx queue, up to len chars. Returns the actual number
- * of chars written.
+ * tx queue, up to len bytes. Returns the actual number
+ * of bytes written.
  */
 int
-serial_write_all(int which, const uint8_t *buf, int len)
+serial_write_upto(int which, const uint8_t *buf, int len)
 {
     int i = 0;
     while (i < len && serial_can_write(which)) {
@@ -125,12 +125,34 @@ serial_write_all(int which, const uint8_t *buf, int len)
 }
 
 /*
- * Initializes the serial driver for the specified COM
- * port with the specified parameters. This should be
- * called by the device drivers.
+ * Writes a string to the serial UART tx queue. Blocks
+ * until the entire string has been written.
  */
 void
-serial_init(
+serial_puts_blocking(int which, const char *s)
+{
+    while (*s) {
+        char c = *s++;
+        if (c == '\n') {
+            /*
+             * QEMU VC doesn't treat \n as \r\n, so we need
+             * to send the \r ourselves.
+             */
+            serial_write_blocking(which, '\r');
+            serial_write_blocking(which, '\n');
+        } else {
+            serial_write_blocking(which, c);
+        }
+    }
+}
+
+/*
+ * Configures the UART with the specified parameters
+ * and registers an IRQ handler (if not null). This
+ * must only be called once per COM port.
+ */
+void
+serial_configure(
     int which,
     int baud_rate,
     int char_bits,
@@ -193,11 +215,11 @@ serial_init(
     serial_out(which, SERIAL_PORT_INT_ENABLE, ie.raw);
 
     /* Register IRQ handler */
-    if (which == 1) {
-        irq_register_handler(IRQ_COM1, irq_handler);
-    } else if (which == 2) {
-        irq_register_handler(IRQ_COM2, irq_handler);
-    } else {
-        panic("Unknown serial COM#\n");
+    if (irq_handler != NULL) {
+        if (which == 1) {
+            irq_register_handler(IRQ_COM1, irq_handler);
+        } else if (which == 2) {
+            irq_register_handler(IRQ_COM2, irq_handler);
+        }
     }
 }

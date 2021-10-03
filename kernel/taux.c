@@ -58,7 +58,7 @@
 /*
  * Taux controller serial configuration.
  */
-#define TAUX_COM_PORT      1
+#define TAUX_COM_PORT      2
 #define TAUX_BAUD_RATE     9600
 #define TAUX_CHAR_BITS     SERIAL_LC_CHAR_BITS_8 /* 8-bit data */
 #define TAUX_PARITY        SERIAL_LC_PARITY_NONE /* no parity bit */
@@ -224,7 +224,7 @@ taux_convert_set_led_str(const char *str, uint8_t buf[4])
 static void
 taux_send_cmd(uint8_t cmd)
 {
-    serial_write(TAUX_COM_PORT, cmd);
+    serial_write_blocking(TAUX_COM_PORT, cmd);
     pending_acks++;
 }
 
@@ -247,7 +247,7 @@ taux_send_cmd_set_led(uint8_t segs[4])
 
     int i;
     for (i = 0; i < 6; ++i) {
-        serial_write(TAUX_COM_PORT, buf[i]);
+        serial_write_blocking(TAUX_COM_PORT, buf[i]);
     }
     pending_acks++;
     set_led_pending = false;
@@ -500,7 +500,7 @@ taux_handle_irq(void)
 
     /* Consume all available data */
     int read;
-    while ((read = serial_read_all(TAUX_COM_PORT, &buf[count], sizeof(buf) - count)) > 0) {
+    while ((read = serial_read_upto(TAUX_COM_PORT, &buf[count], sizeof(buf) - count)) > 0) {
         /* Update number of chars now in the buffer */
         count += read;
 
@@ -542,8 +542,8 @@ static const file_ops_t taux_fops = {
 void
 taux_init(void)
 {
-    /* Initialize serial channel and register IRQ handler */
-    serial_init(
+    /* Configure UART and register IRQ handler */
+    serial_configure(
         TAUX_COM_PORT,
         TAUX_BAUD_RATE,
         TAUX_CHAR_BITS,

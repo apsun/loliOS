@@ -4,6 +4,21 @@
 #include "string.h"
 #include "ctype.h"
 #include "terminal.h"
+#include "serial.h"
+
+/*
+ * Send kernel printf output to the current display terminal.
+ */
+#ifndef PRINTF_TERMINAL
+#define PRINTF_TERMINAL 1
+#endif
+
+/*
+ * Send kernel printf output to the specified serial port.
+ */
+#ifndef PRINTF_SERIAL_PORT
+#define PRINTF_SERIAL_PORT 1
+#endif
 
 /*
  * State for printf (and friends). Holds information about
@@ -34,13 +49,20 @@ typedef struct printf_arg {
 } printf_arg_t;
 
 /*
- * Kernel printf flush function: just dumps it to the
- * terminal.
+ * Kernel printf flush function: writes the string to the
+ * terminal and serial sinks, as configured.
  */
 static bool
 printf_write(printf_arg_t *a, const char *s, int len)
 {
+#if PRINTF_TERMINAL
     terminal_puts(s);
+#endif
+
+#if PRINTF_SERIAL_PORT
+    serial_puts_blocking(PRINTF_SERIAL_PORT, s);
+#endif
+
     return true;
 }
 

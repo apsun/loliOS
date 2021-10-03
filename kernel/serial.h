@@ -106,31 +106,24 @@ typedef union {
     uint8_t raw;
 } __packed serial_modem_ctrl_t;
 
-/* Checks whether there is data available to read */
-bool serial_can_read(int which);
+/* Reads a single byte from the UART rx queue (blocking) */
+uint8_t serial_read_blocking(int which);
 
-/* Checks whether there is space available to write */
-bool serial_can_write(int which);
+/* Reads multiple bytes from the UART rx queue (non-blocking) */
+int serial_read_upto(int which, uint8_t *buf, int len);
 
-/* Reads a single char from the UART rx queue (blocking) */
-uint8_t serial_read(int which);
+/* Writes a single byte to the UART tx queue (blocking) */
+void serial_write_blocking(int which, uint8_t data);
 
-/* Reads multiple chars from the UART rx queue (non-blocking) */
-int serial_read_all(int which, uint8_t *buf, int len);
+/* Writes multiple bytes to the UART tx queue (non-blocking) */
+int serial_write_upto(int which, const uint8_t *buf, int len);
 
-/* Writes a single char to the UART tx queue (blocking) */
-void serial_write(int which, uint8_t data);
+/* Writes a string to the UART tx queue (blocking) */
+void serial_puts_blocking(int which, const char *s);
 
-/* Writes multiple chars to the UART tx queue (non-blocking) */
-int serial_write_all(int which, const uint8_t *buf, int len);
-
-/*
- * Initializes the serial driver for the specified COM
- * port with the specified parameters. This should be
- * called by device drivers.
- */
+/* Configures the serial UART and registers an IRQ handler */
 void
-serial_init(
+serial_configure(
     int which,
     int baud_rate,
     int char_bits,
