@@ -54,7 +54,7 @@
 
 #include <stdint.h>
 
-/* syscall.h */
+/* types.h */
 #define EINTR  2
 #define EAGAIN 3
 #define EPIPE  4

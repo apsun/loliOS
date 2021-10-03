@@ -53,10 +53,6 @@
 #define SYS_FBFLIP      48
 #define NUM_SYSCALL     48
 
-#define EINTR  2
-#define EAGAIN 3
-#define EPIPE  4
-
 #ifndef ASM
 
 __cdecl int

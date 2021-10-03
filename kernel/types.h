@@ -6,6 +6,10 @@
 #define INT_MIN (-2147483647 - 1)
 #define INT_MAX 2147483647
 
+#define EINTR  2
+#define EAGAIN 3
+#define EPIPE  4
+
 #ifndef ASM
 
 #define __cdecl __attribute__((cdecl))

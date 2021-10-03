@@ -9,7 +9,6 @@
 #include "timer.h"
 #include "x86_desc.h"
 #include "scheduler.h"
-#include "syscall.h"
 #include "terminal.h"
 #include "vbe.h"
 

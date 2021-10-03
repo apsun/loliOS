@@ -7,7 +7,6 @@
 #include "file.h"
 #include "scheduler.h"
 #include "signal.h"
-#include "syscall.h"
 
 /*
  * How much storage to allocate for the kernel buffer.

@@ -6,7 +6,6 @@
 #include "file.h"
 #include "paging.h"
 #include "scheduler.h"
-#include "syscall.h"
 
 /* RTC IO ports */
 #define RTC_PORT_INDEX 0x70

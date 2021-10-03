@@ -8,7 +8,6 @@
 #include "irq.h"
 #include "dma.h"
 #include "scheduler.h"
-#include "syscall.h"
 
 /* DMA channels */
 #define SB16_DMA8_CHANNEL 1

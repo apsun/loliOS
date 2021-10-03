@@ -3,7 +3,6 @@
 #include "debug.h"
 #include "list.h"
 #include "myalloc.h"
-#include "syscall.h"
 #include "paging.h"
 #include "net.h"
 #include "ip.h"

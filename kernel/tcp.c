@@ -15,7 +15,6 @@
 #include "file.h"
 #include "pit.h"
 #include "timer.h"
-#include "syscall.h"
 #include "myalloc.h"
 #include "socket.h"
 #include "paging.h"

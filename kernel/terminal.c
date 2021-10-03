@@ -6,7 +6,6 @@
 #include "paging.h"
 #include "signal.h"
 #include "scheduler.h"
-#include "syscall.h"
 #include "vga.h"
 
 /*
