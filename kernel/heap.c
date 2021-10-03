@@ -6,7 +6,7 @@
 #include "myalloc.h"
 
 /*
- * Returns the maximum number of pages to hold the given address
+ * Returns the maximum number of pages needed to hold the given address
  * range.
  */
 static int
