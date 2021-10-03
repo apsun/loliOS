@@ -300,8 +300,8 @@ static void
 tcp_dump_pkt(const char *prefix, skb_t *skb)
 {
     tcp_hdr_t *hdr __unused = skb_transport_header(skb);
-    tcp_debugf("%s: SEQ=%u, LEN=%u, ACK=%u, CTL=%s%s%s%s%s\b\n",
-        prefix, seq(hdr), tcp_seg_len(skb), ack(hdr),
+    tcp_debugf("%s: SEQ=%u, LEN=%d, ACK=%u, WND=%d, CTL=%s%s%s%s%s\b\n",
+        prefix, seq(hdr), tcp_seg_len(skb), ack(hdr), ntohs(hdr->be_window_size),
         (hdr->fin) ? "FIN+" : "",
         (hdr->syn) ? "SYN+" : "",
         (hdr->rst) ? "RST+" : "",
@@ -898,6 +898,11 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
     tcp_hdr_t *hdr = skb_transport_header(skb);
     int len = tcp_seg_len(skb);
 
+    /* Don't bother adding ACK-only packets to inbox */
+    if (len == 0) {
+        return false;
+    }
+
     /*
      * Find appropriate place in the inbox queue to insert the packet.
      * Iterate from the tail since most packets probably arrive in
@@ -1100,11 +1105,17 @@ tcp_outbox_handle_rx_ack(tcp_sock_t *tcp, tcp_hdr_t *hdr)
     /*
      * Update the send window if we think the window field in this
      * packet is "newer" (algorithm blindly copied from RFC793).
+     *
+     * Note that the RFC specifies to update the send window if
+     * SND.UNA < SEG.ACK =< SND.NXT. This is broken, since it is
+     * possible that all of our packets have been ACK'd but the
+     * receiving end has not consumed them yet (i.e. window is
+     * full). When we eventually receive a "window update" packet,
+     * we need to update our window even if it didn't ACK any data.
      */
-    if (cmp(ack(hdr), tcp->send_unack_num) > 0 &&
-        (cmp(seq(hdr), tcp->send_wnd_seq) > 0 ||
-         (cmp(seq(hdr), tcp->send_wnd_seq) == 0 &&
-          cmp(ack(hdr), tcp->send_wnd_ack) >= 0)))
+    if (cmp(seq(hdr), tcp->send_wnd_seq) > 0 ||
+        (cmp(seq(hdr), tcp->send_wnd_seq) == 0 &&
+         cmp(ack(hdr), tcp->send_wnd_ack) >= 0))
     {
         tcp->send_wnd_size = ntohs(hdr->be_window_size);
         tcp->send_wnd_seq = seq(hdr);

@@ -568,6 +568,59 @@ test_tcp_unaccepted_close(void)
     close(a);
 }
 
+static void
+test_tcp_full_window(void)
+{
+    int ret;
+    int a = socket(SOCK_TCP);
+    int b = socket(SOCK_TCP);
+
+    /* Create listening socket */
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    ret = bind2(a, &a_addr);
+    assert(ret == 0);
+    ret = listen(a, 128);
+    assert(ret == 0);
+
+    /* Connect to socket */
+    ret = connect(b, &a_addr);
+    assert(ret == 0);
+    int aconn = accept(a, NULL);
+    assert(aconn >= 0);
+
+    /* Note: must be larger than window size */
+    char buf[16384];
+    fill_buffer(buf, sizeof(buf));
+
+    /* Fill receiving buffer */
+    int inflight = 0;
+    ret = write(aconn, buf, sizeof(buf));
+    assert(ret < (int)sizeof(buf));
+    inflight = ret;
+
+    /* Verify that send window is kicking in */
+    ret = write(aconn, buf, sizeof(buf));
+    assert(ret == -EAGAIN);
+
+    /* Drain receiving buffer */
+    char tmp[16384];
+    ret = read(b, tmp, sizeof(tmp));
+    assert(ret == inflight);
+    assert(memcmp(buf, tmp, inflight) == 0);
+
+    /* Verify buffer is empty */
+    ret = read(b, tmp, sizeof(tmp));
+    assert(ret == -EAGAIN);
+
+    /* Verify we can write again */
+    ret = write(aconn, buf, sizeof(buf));
+    assert(ret > 0);
+
+    close(aconn);
+    close(b);
+    close(a);
+}
+
 int
 main(void)
 {
@@ -586,6 +639,7 @@ main(void)
     test_tcp_backlog();
     test_tcp_autobind();
     test_tcp_unaccepted_close();
+    test_tcp_full_window();
     printf("All tests passed!\n");
     return 0;
 }
