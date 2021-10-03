@@ -259,7 +259,7 @@ vga_write_char(uint8_t *mem, int x, int y, char c)
  * the specified attribute byte.
  */
 static void
-vga_clear_region(uint8_t *mem, int nchars, char attrib)
+vga_clear_region(uint8_t *mem, int nchars, uint8_t attrib)
 {
     uint16_t pattern = ('\x00' << 0) | (attrib << 8);
     memset_word(mem, pattern, nchars);
@@ -269,7 +269,7 @@ vga_clear_region(uint8_t *mem, int nchars, char attrib)
  * Clears the screen in text mode.
  */
 void
-vga_clear_screen(uint8_t *mem, char attrib)
+vga_clear_screen(uint8_t *mem, uint8_t attrib)
 {
     vga_clear_region(mem, VGA_TEXT_CHARS, attrib);
 }
@@ -278,7 +278,7 @@ vga_clear_screen(uint8_t *mem, char attrib)
  * Scrolls the screen down one row in text mode.
  */
 void
-vga_scroll_down(uint8_t *mem, char attrib)
+vga_scroll_down(uint8_t *mem, uint8_t attrib)
 {
     int bytes_per_row = VGA_TEXT_COLS * 2;
     int shift_count = VGA_TEXT_SIZE - bytes_per_row;

@@ -22,10 +22,10 @@ void vga_set_cursor_location(int x, int y);
 void vga_write_char(uint8_t *mem, int x, int y, char c);
 
 /* Clears the screen in text mode */
-void vga_clear_screen(uint8_t *mem, char attrib);
+void vga_clear_screen(uint8_t *mem, uint8_t attrib);
 
 /* Scrolls the screen down one row in text mode */
-void vga_scroll_down(uint8_t *mem, char attrib);
+void vga_scroll_down(uint8_t *mem, uint8_t attrib);
 
 #endif /* ASM */
 
