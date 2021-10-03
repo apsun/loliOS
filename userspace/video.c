@@ -200,7 +200,7 @@ exit:
     if (audio_buf != NULL) {
         free(audio_buf);
     }
-    if (error[0] != '\0') {
+    if (!interrupted && error[0] != '\0') {
         fprintf(stderr, "%s", error);
     }
     return ret;

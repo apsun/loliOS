@@ -121,18 +121,18 @@ output_file.write(
 )
 
 video_buf = bytearray(video_frame_size)
-audio_written = 0
-audio_written_partial = fractions.Fraction(0)
+audio_samples_read = fractions.Fraction(0)
 while video_stream.stdout.readinto(video_buf):
     output_file.write(video_buf)
 
-    audio_written_partial += audio_samples_per_frame
-    audio_samples = int(audio_written_partial) - audio_written
-    audio_written += audio_samples
-    audio_size = audio_samples * audio_bytes_per_sample
-    output_file.write(struct.pack("<I", audio_size))
+    old_audio_samples_read = audio_samples_read
+    audio_samples_read += audio_samples_per_frame
+    audio_samples_to_read = int(audio_samples_read) - int(old_audio_samples_read)
+    audio_bytes_to_read = audio_samples_to_read * audio_bytes_per_sample
 
-    audio_buf = audio_stream.stdout.read(audio_size)
+    audio_buf = audio_stream.stdout.read(audio_bytes_to_read)
+    audio_size = len(audio_buf)
+    output_file.write(struct.pack("<I", audio_size))
     output_file.write(audio_buf + b"\x00" * (-audio_size & 3))
 
 video_stream.wait()
