@@ -168,6 +168,12 @@ keycode_to_ctrl(uint8_t keycode)
             return KCTL_TERM3;
         }
         break;
+    case KMOD_CTRL | KMOD_ALT:
+        switch (keycode) {
+        case KC_DELETE: /* CTRL-ALT-DEL */
+            return KCTL_PANIC;
+        }
+        break;
     }
     return KCTL_NONE;
 }

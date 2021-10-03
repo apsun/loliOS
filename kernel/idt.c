@@ -11,6 +11,7 @@
 #include "terminal.h"
 #include "loopback.h"
 #include "tcp.h"
+#include "vbe.h"
 
 /* Whether to display a BSOD on a userspace exception (for debugging) */
 #ifndef USER_BSOD
@@ -164,6 +165,7 @@ handle_exception(int_regs_t *regs)
     }
 #endif
 
+    vbe_reset();
     terminal_clear_bsod();
     printf("Exception: %s (%d)\n", exception_names[regs->int_num], regs->int_num);
     printf("\nRegisters:\n");
@@ -233,6 +235,7 @@ idt_panic(const char *fmt, ...)
     asm volatile("ud2");
     __unreachable;
 #else
+    vbe_reset();
     va_list args;
     va_start(args, fmt);
     vprintf(fmt, args);

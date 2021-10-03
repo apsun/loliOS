@@ -19,7 +19,7 @@ syscall_jump_table:
     .long file_open
     .long file_close
     .long process_getargs
-    .long process_vidmap
+    .long terminal_vidmap
     .long signal_sigaction
     .long signal_sigreturn
     .long signal_sigmask
@@ -57,9 +57,9 @@ syscall_jump_table:
     .long rtc_realtime
     .long pit_monotime
     .long process_monosleep
-    .long vga_fbmap
-    .long vga_fbunmap
-    .long vga_fbflip
+    .long vbe_fbmap
+    .long vbe_fbunmap
+    .long vbe_fbflip
 .type syscall_jump_table, %object
 .size syscall_jump_table, .-syscall_jump_table
 

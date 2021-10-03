@@ -5,12 +5,13 @@
 #include "filesys.h"
 #include "paging.h"
 #include "elf.h"
-#include "terminal.h"
 #include "pit.h"
 #include "timer.h"
 #include "x86_desc.h"
 #include "scheduler.h"
 #include "syscall.h"
+#include "terminal.h"
+#include "vbe.h"
 
 /* Maximum length of string passed to execute()/exec() */
 #define MAX_EXEC_LEN 128
@@ -263,7 +264,8 @@ process_set_context(pcb_t *pcb)
 {
     paging_map_user_page(pcb->user_paddr);
     heap_map(&pcb->heap);
-    terminal_update_vidmap(pcb->terminal, pcb->vidmap);
+    terminal_update_vidmap_page(pcb->terminal, pcb->vidmap);
+    vbe_update_fbmap_page(pcb->fbmap);
 
     /* Restore TSS entry */
     tss.esp0 = get_kernel_base_esp(pcb);
@@ -418,6 +420,7 @@ process_fill_idle_regs(int_regs_t *regs)
 static void
 process_close(pcb_t *pcb)
 {
+    vbe_release(pcb->fbmap);
     file_deinit(pcb->files);
     timer_cancel(&pcb->alarm_timer);
     heap_clear(&pcb->heap);
@@ -491,6 +494,7 @@ process_create_user(char *command, int terminal)
     pcb->user_paddr = paddr;
     pcb->group = pcb->pid;
     pcb->vidmap = false;
+    pcb->fbmap = false;
     pcb->compat = compat;
     file_init(pcb->files);
     terminal_open_streams(pcb->files);
@@ -561,6 +565,7 @@ process_clone(pcb_t *parent_pcb, int_regs_t *regs, bool clone_pages)
     child_pcb->compat = parent_pcb->compat;
     child_pcb->terminal = parent_pcb->terminal;
     child_pcb->vidmap = parent_pcb->vidmap;
+    child_pcb->fbmap = vbe_retain(parent_pcb->fbmap);
     child_pcb->group = parent_pcb->group;
     file_clone(child_pcb->files, parent_pcb->files);
     signal_clone(child_pcb->signals, parent_pcb->signals);
@@ -720,30 +725,6 @@ process_getargs(char *buf, int nbytes)
     if (!copy_to_user(buf, pcb->args, nbytes)) {
         return -1;
     }
-
-    return 0;
-}
-
-/*
- * vidmap() syscall handler. Enables the vidmap page and
- * copies its address to screen_start.
- */
-__cdecl int
-process_vidmap(uint8_t **screen_start)
-{
-    pcb_t *pcb = get_executing_pcb();
-
-    /* Check and copy before actually enabling vidmap */
-    uint8_t *addr = (uint8_t *)VIDMAP_PAGE_START;
-    if (!copy_to_user(screen_start, &addr, sizeof(addr))) {
-        return -1;
-    }
-
-    /* Update vidmap status */
-    terminal_update_vidmap(pcb->terminal, true);
-
-    /* Save vidmap state in PCB */
-    pcb->vidmap = true;
 
     return 0;
 }

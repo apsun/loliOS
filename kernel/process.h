@@ -121,6 +121,11 @@ typedef struct {
     bool vidmap : 1;
 
     /*
+     * Whether the process has the VBE framebuffer mapped in memory.
+     */
+    bool fbmap : 1;
+
+    /*
      * Whether this process is being executed in compatibility mode.
      * This currently has the following effects:
      *

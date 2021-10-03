@@ -9,30 +9,52 @@
 #include "syscall.h"
 #include "vga.h"
 
+/*
+ * Executing terminal: the terminal corresponding to the currently
+ * executing process.
+ *
+ * Display terminal: the terminal selected by the user using the
+ * ALT-F* keys. If the framebuffer is not active, this is also the
+ * foreground terminal.
+ *
+ * Foreground terminal: the terminal that is mapped to video memory.
+ * When the framebuffer is active, it is the foreground terminal.
+ * Otherwise, the display terminal is the foreground terminal.
+ */
+
 /* EOT (CTRL-D) character */
 #define EOT '\x04'
 
-/* Terminal config */
-#define NUM_COLS 80
-#define NUM_ROWS 25
+/* White text on black background */
 #define ATTRIB 0x07
+
+/* White text on blue background */
 #define ATTRIB_BSOD 0x1F
-#define VIDEO_MEM_SIZE (NUM_ROWS * NUM_COLS * 2)
 
 /* Backing "video memory" when a terminal is in the background */
 __aligned(KB(4))
-static uint8_t terminal_backing_mem[NUM_TERMINALS][KB(4)];
+static uint8_t terminal_bg_mem[NUM_TERMINALS][KB(4)];
 
 /* Holds information about each terminal */
-static terminal_state_t terminal_states[NUM_TERMINALS];
+static terminal_t terminal_states[NUM_TERMINALS];
 
-/* Index of the currently displayed terminal */
+/*
+ * Holds the index of the terminal that the user selected. May
+ * or may not be in the foreground, depending on whether the
+ * VBE framebuffer is currently active.
+ */
 static int display_terminal = 0;
+
+/*
+ * If >= 0, holds the terminal in which the VBE framebuffer is
+ * currently active. Otherwise, the VGA card is in text mode.
+ */
+static int fb_terminal = -1;
 
 /*
  * Returns a terminal given its index number.
  */
-static terminal_state_t *
+static terminal_t *
 get_terminal(int index)
 {
     assert(index >= 0 && index < NUM_TERMINALS);
@@ -44,7 +66,7 @@ get_terminal(int index)
  * executing process. Note that THIS IS NOT NECESSARILY
  * THE DISPLAY TERMINAL!
  */
-static terminal_state_t *
+static terminal_t *
 get_executing_terminal(void)
 {
     pcb_t *pcb = get_executing_pcb();
@@ -53,95 +75,169 @@ get_executing_terminal(void)
 }
 
 /*
- * Returns the terminal that is currently displayed on
- * the screen.
+ * Returns the display terminal. This is the terminal that
+ * kernel output should be sent to.
  */
-static terminal_state_t *
+static terminal_t *
 get_display_terminal(void)
 {
     return get_terminal(display_terminal);
 }
 
-/* Clears out a region of VGA memory (overwrites it with spaces) */
-static void
-terminal_clear_region(uint8_t *ptr, int num_chars, char attrib)
+/*
+ * Returns the foreground terminal. This is the terminal that
+ * user input should be sent to.
+ */
+static terminal_t *
+get_foreground_terminal(void)
 {
-    uint16_t pattern = (' ' << 0) | (attrib << 8);
-    memset_word(ptr, pattern, num_chars);
+    if (fb_terminal >= 0) {
+        return get_terminal(fb_terminal);
+    } else {
+        return get_terminal(display_terminal);
+    }
 }
 
 /*
- * Sets the VGA cursor position to the cursor position
- * in the specified terminal.
+ * Sets the global text mode cursor position from the given
+ * terminal, if it is the display terminal and the framebuffer
+ * is not active.
  */
 static void
-terminal_update_cursor(terminal_state_t *term)
+terminal_update_cursor(terminal_t *term)
 {
-    /* Ignore if this terminal isn't being displayed */
-    if (term != get_display_terminal()) {
+    if (fb_terminal < 0 && term == get_display_terminal()) {
+        vga_set_cursor_location(term->cursor.screen_x, term->cursor.screen_y);
+    }
+}
+
+/*
+ * Updates the vidmap page for the executing process to point
+ * to the correct location. Takes the process terminal and vidmap
+ * status as inputs to prevent a circular dependency with process.h.
+ */
+void
+terminal_update_vidmap_page(int terminal_idx, bool vidmap)
+{
+    terminal_t *term = get_terminal(terminal_idx);
+    paging_update_vidmap_page((uintptr_t)term->active_mem, vidmap);
+}
+
+/*
+ * Updates the vidmap page for the executing process to point
+ * to the correct location.
+ */
+static void
+terminal_update_executing_vidmap_page(void)
+{
+    pcb_t *pcb = get_executing_pcb();
+    terminal_update_vidmap_page(pcb->terminal, pcb->vidmap);
+}
+
+/*
+ * Copies the text-mode contents of the terminal to the
+ * background buffer and points the active memory to it.
+ */
+static void
+terminal_enter_background(terminal_t *term)
+{
+    assert(term->active_mem == (uint8_t *)VGA_TEXT_PAGE_START);
+    memcpy(term->bg_mem, (uint8_t *)VGA_TEXT_PAGE_START, VGA_TEXT_SIZE);
+    term->active_mem = term->bg_mem;
+}
+
+/*
+ * Copies the contents of the terminal from the background
+ * buffer into video memory and points the active memory to it.
+ */
+static void
+terminal_enter_foreground(terminal_t *term)
+{
+    assert(term->active_mem == term->bg_mem);
+    memcpy((uint8_t *)VGA_TEXT_PAGE_START, term->bg_mem, VGA_TEXT_SIZE);
+    term->active_mem = (uint8_t *)VGA_TEXT_PAGE_START;
+}
+
+/*
+ * Sets the display terminal index. Swaps the video memory
+ * and updates the text mode cursor location, if the framebuffer
+ * is not currently active.
+ */
+void
+terminal_set_display(int index)
+{
+    assert(index >= 0 && index < NUM_TERMINALS);
+
+    int old_index = display_terminal;
+    if (index == old_index) {
         return;
     }
 
-    /* Write the position to the VGA cursor position registers */
-    uint16_t pos = term->cursor.screen_y * NUM_COLS + term->cursor.screen_x;
-    vga_set_cursor_location(pos);
-}
-
-/*
- * Swaps the VGA video memory buffers.
- */
-static void
-terminal_swap_buffer(terminal_state_t *old, terminal_state_t *new)
-{
-    /* Old terminal must have been the display terminal */
-    assert(old->video_mem == (uint8_t *)VGA_TEXT_PAGE_START);
+    display_terminal = index;
 
     /*
-     * Copy the global VGA memory to the previously displayed
-     * terminal's backing buffer, then point its active video
-     * memory to the backing buffer
+     * If framebuffer is currently active, defer rest
+     * of the logic to terminal_reset_framebuffer().
      */
-    memcpy(old->backing_mem, (uint8_t *)VGA_TEXT_PAGE_START, VIDEO_MEM_SIZE);
-    old->video_mem = old->backing_mem;
+    if (fb_terminal >= 0) {
+        return;
+    }
 
-    /*
-     * Copy the contents of the new terminal's backing buffer
-     * into global VGA memory, then point its active video
-     * memory to the global VGA memory
-     */
-    memcpy((uint8_t *)VGA_TEXT_PAGE_START, new->backing_mem, VIDEO_MEM_SIZE);
-    new->video_mem = (uint8_t *)VGA_TEXT_PAGE_START;
+    terminal_t *old = get_terminal(old_index);
+    terminal_enter_background(old);
+
+    terminal_t *new = get_terminal(index);
+    terminal_enter_foreground(new);
+    terminal_update_cursor(new);
+    terminal_update_executing_vidmap_page();
 }
 
 /*
- * Scrolls the specified terminal down. This does
- * NOT decrement the cursor y position!
+ * Enables framebuffer mode in the given terminal. This makes
+ * it the foreground terminal and globally locks it in place
+ * until terminal_reset_framebuffer() is called. Must be called
+ * before VBE mode is enabled.
  */
-static void
-terminal_scroll_down(terminal_state_t *term)
+void
+terminal_set_framebuffer(int index)
 {
-    int bytes_per_row = NUM_COLS << 1;
-    int shift_count = VIDEO_MEM_SIZE - bytes_per_row;
+    assert(index >= 0 && index < NUM_TERMINALS);
+    assert(fb_terminal < 0);
 
-    /* Shift rows forward by one row */
-    memmove(term->video_mem, term->video_mem + bytes_per_row, shift_count);
+    terminal_t *term = get_display_terminal();
+    terminal_enter_background(term);
+    terminal_update_executing_vidmap_page();
 
-    /* Clear out last row */
-    terminal_clear_region(term->video_mem + shift_count, bytes_per_row / 2, term->attrib);
+    fb_terminal = index;
 }
 
 /*
- * Writes a character at the current cursor position
- * in the specified terminal. This does NOT update
- * the cursor position!
+ * Disables framebuffer mode. Must be called after text mode
+ * is restored.
+ */
+void
+terminal_reset_framebuffer(void)
+{
+    if (fb_terminal < 0) {
+        return;
+    }
+
+    fb_terminal = -1;
+
+    terminal_t *term = get_display_terminal();
+    terminal_enter_foreground(term);
+    terminal_update_cursor(term);
+    terminal_update_executing_vidmap_page();
+}
+
+/*
+ * Writes a character at the current cursor position.
  */
 static void
-terminal_write_char(terminal_state_t *term, char c)
+terminal_write_char(terminal_t *term, char c)
 {
-    int x = term->cursor.screen_x;
-    int y = term->cursor.screen_y;
-    int offset = (y * NUM_COLS + x) << 1;
-    term->video_mem[offset] = c;
+    cursor_pos_t *cur = &term->cursor;
+    vga_write_char(term->active_mem, cur->screen_x, cur->screen_y, c);
 }
 
 /*
@@ -149,7 +245,7 @@ terminal_write_char(terminal_state_t *term, char c)
  * This does NOT update the cursor position!
  */
 static void
-terminal_putc_impl(terminal_state_t *term, char c)
+terminal_putc_impl(terminal_t *term, char c)
 {
     cursor_pos_t *cur = &term->cursor;
 
@@ -160,8 +256,8 @@ terminal_putc_impl(terminal_state_t *term, char c)
         cur->screen_y++;
 
         /* Scroll if we're at the bottom */
-        if (cur->screen_y >= NUM_ROWS) {
-            terminal_scroll_down(term);
+        if (cur->screen_y >= VGA_TEXT_ROWS) {
+            vga_scroll_down(term->active_mem, term->attrib);
             cur->screen_y--;
         }
     } else if (c == '\r') {
@@ -181,11 +277,11 @@ terminal_putc_impl(terminal_state_t *term, char c)
             /* If we're off-screen, move the cursor back up a line */
             if (cur->screen_x < 0) {
                 cur->screen_y--;
-                cur->screen_x += NUM_COLS;
+                cur->screen_x += VGA_TEXT_COLS;
             }
 
             /* Clear the character under the cursor */
-            terminal_write_char(term, ' ');
+            terminal_write_char(term, '\x00');
         }
     } else {
         /* Write the character to screen */
@@ -194,73 +290,16 @@ terminal_putc_impl(terminal_state_t *term, char c)
         /* Move the cursor rightwards, with text wrapping */
         cur->logical_x++;
         cur->screen_x++;
-        if (cur->screen_x >= NUM_COLS) {
+        if (cur->screen_x >= VGA_TEXT_COLS) {
             cur->screen_y++;
-            cur->screen_x -= NUM_COLS;
+            cur->screen_x -= VGA_TEXT_COLS;
         }
 
         /* Scroll if we wrapped some text at the bottom */
-        if (cur->screen_y >= NUM_ROWS) {
-            terminal_scroll_down(term);
+        if (cur->screen_y >= VGA_TEXT_ROWS) {
+            vga_scroll_down(term->active_mem, term->attrib);
             cur->screen_y--;
         }
-    }
-}
-
-/*
- * Clears the specified terminal and resets the cursor
- * position. This does NOT clear the input buffer.
- */
-static void
-terminal_clear_impl(terminal_state_t *term)
-{
-    /* Clear screen */
-    terminal_clear_region(term->video_mem, VIDEO_MEM_SIZE / 2, term->attrib);
-
-    /* Reset cursor to top-left position */
-    term->cursor.logical_x = 0;
-    term->cursor.screen_x = 0;
-    term->cursor.screen_y = 0;
-
-    /* Update cursor position */
-    if (term == get_display_terminal()) {
-        terminal_update_cursor(term);
-    }
-}
-
-/*
- * Sets the index of the DISPLAYED terminal. This is
- * NOT the same as the EXECUTING terminal! The index
- * must be in the range [0, NUM_TERMINALS).
- */
-void
-set_display_terminal(int index)
-{
-    assert(index >= 0 && index < NUM_TERMINALS);
-    int old_index = display_terminal;
-    if (index == old_index) {
-        return;
-    }
-
-    /* Set the new display terminal */
-    terminal_state_t *old = get_display_terminal();
-    display_terminal = index;
-    terminal_state_t *new = get_display_terminal();
-
-    /* Swap active VGA memory buffers */
-    terminal_swap_buffer(old, new);
-
-    /* Update the cursor position for the new terminal screen */
-    terminal_update_cursor(new);
-
-    /*
-     * If the currently executing process has a vidmap
-     * page and that terminal had its active memory buffer
-     * swapped, update the vidmap page.
-     */
-    terminal_state_t *exec = get_executing_terminal();
-    if (exec->vidmap && (old == exec || new == exec)) {
-        paging_update_vidmap_page((uintptr_t)exec->video_mem, true);
     }
 }
 
@@ -268,7 +307,7 @@ set_display_terminal(int index)
 void
 terminal_putc(char c)
 {
-    terminal_state_t *term = get_display_terminal();
+    terminal_t *term = get_display_terminal();
     terminal_putc_impl(term, c);
     terminal_update_cursor(term);
 }
@@ -277,7 +316,7 @@ terminal_putc(char c)
 void
 terminal_puts(const char *s)
 {
-    terminal_state_t *term = get_display_terminal();
+    terminal_t *term = get_display_terminal();
     while (*s) {
         terminal_putc_impl(term, *s++);
     }
@@ -285,25 +324,19 @@ terminal_puts(const char *s)
 }
 
 /*
- * Clears the currently displayed terminal screen and
- * all associated input.
+ * Clears the specified terminal and resets the cursor
+ * position. This does NOT clear the input buffer.
  */
-void
-terminal_clear(void)
+static void
+terminal_clear_screen(terminal_t *term)
 {
-    terminal_state_t *term = get_display_terminal();
-    terminal_clear_impl(term);
-    term->kbd_input.count = 0;
-    term->mouse_input.count = 0;
-}
+    vga_clear_screen(term->active_mem, term->attrib);
 
-/* Clears the specified terminal's input buffers */
-void
-terminal_clear_input(int terminal)
-{
-    terminal_state_t *term = get_terminal(terminal);
-    term->kbd_input.count = 0;
-    term->mouse_input.count = 0;
+    /* Reset cursor to top-left position */
+    term->cursor.logical_x = 0;
+    term->cursor.screen_x = 0;
+    term->cursor.screen_y = 0;
+    terminal_update_cursor(term);
 }
 
 /*
@@ -313,9 +346,22 @@ terminal_clear_input(int terminal)
 void
 terminal_clear_bsod(void)
 {
-    terminal_state_t *term = get_display_terminal();
+    terminal_t *term = get_display_terminal();
     term->attrib = ATTRIB_BSOD;
-    terminal_clear_impl(term);
+    terminal_clear_screen(term);
+}
+
+/*
+ * Clears the currently displayed terminal screen and
+ * all associated input.
+ */
+void
+terminal_clear(void)
+{
+    terminal_t *term = get_display_terminal();
+    terminal_clear_screen(term);
+    term->kbd_input.count = 0;
+    term->mouse_input.count = 0;
 }
 
 /*
@@ -324,7 +370,7 @@ terminal_clear_bsod(void)
  * or -EAGAIN if there is currently nothing to read.
  */
 static int
-terminal_check_kbd_input(terminal_state_t *term, int nbytes)
+terminal_check_kbd_input(terminal_t *term, int nbytes)
 {
     pcb_t *pcb = get_executing_pcb();
     kbd_input_buf_t *input_buf = &term->kbd_input;
@@ -375,7 +421,7 @@ terminal_tty_read(file_obj_t *file, void *buf, int nbytes)
         return 0;
     }
 
-    terminal_state_t *term = get_executing_terminal();
+    terminal_t *term = get_executing_terminal();
     kbd_input_buf_t *input_buf = &term->kbd_input;
 
     /*
@@ -426,7 +472,7 @@ terminal_tty_write(file_obj_t *file, const void *buf, int nbytes)
     }
 
     /* Cannot write if not in foreground group */
-    terminal_state_t *term = get_executing_terminal();
+    terminal_t *term = get_executing_terminal();
     pcb_t *pcb = get_executing_pcb();
     if (term->fg_group != pcb->group) {
         debugf("Attempting to print from background group (fg=%d, curr=%d)\n",
@@ -484,7 +530,7 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
     }
 
     /* Check that caller is in the foreground group */
-    terminal_state_t *term = get_executing_terminal();
+    terminal_t *term = get_executing_terminal();
     pcb_t *pcb = get_executing_pcb();
     if (term->fg_group != pcb->group) {
         debugf("Attempting to read mouse from background group (fg=%d, curr=%d)\n",
@@ -547,7 +593,7 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
 static void
 terminal_interrupt(void)
 {
-    terminal_state_t *term = get_display_terminal();
+    terminal_t *term = get_foreground_terminal();
     int pgrp = term->fg_group;
     if (pgrp == 0) {
         debugf("No foreground process group in display terminal\n");
@@ -563,7 +609,7 @@ terminal_interrupt(void)
 static void
 terminal_eof(void)
 {
-    terminal_state_t *term = get_display_terminal();
+    terminal_t *term = get_foreground_terminal();
     kbd_input_buf_t *input_buf = &term->kbd_input;
     if (input_buf->count < array_len(input_buf->buf)) {
         input_buf->buf[input_buf->count++] = EOT;
@@ -588,7 +634,10 @@ handle_ctrl_input(kbd_input_ctrl_t ctrl)
     case KCTL_TERM1:
     case KCTL_TERM2:
     case KCTL_TERM3:
-        set_display_terminal(ctrl - KCTL_TERM1);
+        terminal_set_display(ctrl - KCTL_TERM1);
+        break;
+    case KCTL_PANIC:
+        panic("User-triggered panic from CTRL-ALT-DEL\n");
         break;
     default:
         panic("Unknown control code\n");
@@ -600,7 +649,7 @@ handle_ctrl_input(kbd_input_ctrl_t ctrl)
 static void
 handle_char_input(char c)
 {
-    terminal_state_t *term = get_display_terminal();
+    terminal_t *term = get_foreground_terminal();
     kbd_input_buf_t *input_buf = &term->kbd_input;
     if (c == '\b' && input_buf->count > 0 && term->cursor.logical_x > 0) {
         input_buf->count--;
@@ -640,7 +689,7 @@ terminal_handle_kbd_input(kbd_input_t input)
 void
 terminal_handle_mouse_input(mouse_input_t input)
 {
-    terminal_state_t *term = get_display_terminal();
+    terminal_t *term = get_foreground_terminal();
     mouse_input_buf_t *input_buf = &term->mouse_input;
 
     /*
@@ -653,19 +702,6 @@ terminal_handle_mouse_input(mouse_input_t input)
         input_buf->buf[input_buf->count++] = input.dy;
         scheduler_wake_all(&input_buf->sleep_queue);
     }
-}
-
-/*
- * Updates the vidmap page to point to the specified terminal's
- * active video memory page. If present is false, the vidmap page
- * is disabled.
- */
-void
-terminal_update_vidmap(int term_index, bool present)
-{
-    terminal_state_t *term = get_terminal(term_index);
-    paging_update_vidmap_page((uintptr_t)term->video_mem, present);
-    term->vidmap = present;
 }
 
 /* Combined file ops for the stdin/stdout streams */
@@ -722,9 +758,8 @@ terminal_open_streams(file_obj_t **files)
 void
 terminal_tcsetpgrp_impl(int terminal, int pgrp)
 {
-    terminal_state_t *term = get_terminal(terminal);
+    terminal_t *term = get_terminal(terminal);
     term->fg_group = pgrp;
-    scheduler_wake_all(&term->kbd_input.sleep_queue);
 }
 
 /*
@@ -735,7 +770,7 @@ terminal_tcsetpgrp_impl(int terminal, int pgrp)
 __cdecl int
 terminal_tcgetpgrp(void)
 {
-    terminal_state_t *term = get_executing_terminal();
+    terminal_t *term = get_executing_terminal();
     return term->fg_group;
 }
 
@@ -754,9 +789,27 @@ terminal_tcsetpgrp(int pgrp)
         pgrp = get_executing_pcb()->group;
     }
 
-    terminal_state_t *term = get_executing_terminal();
+    terminal_t *term = get_executing_terminal();
     term->fg_group = pgrp;
-    scheduler_wake_all(&term->kbd_input.sleep_queue);
+    return 0;
+}
+
+/*
+ * vidmap() syscall handler. Enables the vidmap page and
+ * copies its address to screen_start.
+ */
+__cdecl int
+terminal_vidmap(uint8_t **screen_start)
+{
+    pcb_t *pcb = get_executing_pcb();
+
+    uint8_t *addr = (uint8_t *)VIDMAP_PAGE_START;
+    if (!copy_to_user(screen_start, &addr, sizeof(addr))) {
+        return -1;
+    }
+
+    pcb->vidmap = true;
+    terminal_update_vidmap_page(pcb->terminal, pcb->vidmap);
     return 0;
 }
 
@@ -769,31 +822,22 @@ terminal_init(void)
 {
     int i;
     for (i = 0; i < NUM_TERMINALS; ++i) {
-        terminal_state_t *term = &terminal_states[i];
-
-        /* Point backing memory to the per-terminal page */
-        term->backing_mem = terminal_backing_mem[i];
-
-        /* Active memory points to the backing memory */
-        term->video_mem = term->backing_mem;
-
-        /* Set terminal text and background color */
+        terminal_t *term = &terminal_states[i];
+        term->bg_mem = terminal_bg_mem[i];
         term->attrib = ATTRIB;
-
-        /* Initialize the terminal memory region */
-        terminal_clear_region(term->backing_mem, VIDEO_MEM_SIZE / 2, term->attrib);
-
-        /* Initialize other fields */
-        term->vidmap = false;
         term->fg_group = -1;
         term->kbd_input.count = 0;
         term->mouse_input.count = 0;
         list_init(&term->kbd_input.sleep_queue);
         list_init(&term->mouse_input.sleep_queue);
-    }
 
-    /* First terminal's active video memory points to global VGA memory */
-    terminal_states[display_terminal].video_mem = (uint8_t *)VGA_TEXT_PAGE_START;
+        if (i == display_terminal) {
+            term->active_mem = (uint8_t *)VGA_TEXT_PAGE_START;
+        } else {
+            term->active_mem = term->bg_mem;
+            vga_clear_screen(term->active_mem, term->attrib);
+        }
+    }
 
     /* Register mouse file ops (stdin/stdout handled specially) */
     file_register_type(FILE_TYPE_MOUSE, &terminal_mouse_fops);

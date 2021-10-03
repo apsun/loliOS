@@ -20,7 +20,7 @@
 #include "null.h"
 #include "zero.h"
 #include "random.h"
-#include "vga.h"
+#include "vbe.h"
 #include "mt19937.h"
 
 /* Check if the bit BIT in FLAGS is set. */
@@ -214,8 +214,8 @@ entry(unsigned long magic, unsigned long addr)
     printf("Initializing random file driver...\n");
     random_init();
 
-    printf("Initializing VGA driver...\n");
-    vga_init();
+    printf("Initializing VBE driver...\n");
+    vbe_init();
 
     /* We made it! */
     printf("Boot successful!\n");

@@ -4,46 +4,6 @@
 #include "portio.h"
 #include "string.h"
 #include "paging.h"
-#include "terminal.h"
-
-/*
- * IO port addresses to access the VBE registers.
- */
-#define VBE_DISPI_IOPORT_INDEX 0x01CE
-#define VBE_DISPI_IOPORT_DATA 0x01CF
-
-/*
- * VGA register index numbers.
- */
-#define VBE_DISPI_INDEX_ID 0
-#define VBE_DISPI_INDEX_XRES 1
-#define VBE_DISPI_INDEX_YRES 2
-#define VBE_DISPI_INDEX_BPP 3
-#define VBE_DISPI_INDEX_ENABLE 4
-#define VBE_DISPI_INDEX_BANK 5
-#define VBE_DISPI_INDEX_VIRT_WIDTH 6
-#define VBE_DISPI_INDEX_VIRT_HEIGHT 7
-#define VBE_DISPI_INDEX_X_OFFSET 8
-#define VBE_DISPI_INDEX_Y_OFFSET 9
-
-/*
- * Bits in the VBE_DISPI_INDEX_ID register.
- */
-#define VBE_DISPI_ENABLED 0x01
-#define VBE_DISPI_GETCAPS 0x02
-#define VBE_DISPI_8BIT_DAC 0x20
-#define VBE_DISPI_LFB_ENABLED 0x40
-#define VBE_DISPI_NOCLEARMEM 0x80
-
-/*
- * Magic constant for the minimum supported VBE version.
- */
-#define VBE_DISPI_ID_MAGIC 0xB0C4
-
-/*
- * How much memory is available for the VBE framebuffer.
- */
-#define VBE_FB_SIZE ((int)(VGA_VBE_PAGE_END - VGA_VBE_PAGE_START))
 
 /*
  * IO port addresses to access the VGA registers.
@@ -122,17 +82,6 @@ static uint8_t vga_text_font[256][16];
 static bool vga_text_font_saved = false;
 
 /*
- * Whether VBE is available on the system.
- */
-static bool vbe_available = false;
-
-/*
- * Which "display" is currently being written to by userspace.
- * Used to implement double buffering. Can be 0 or 1.
- */
-static int vbe_flip = 0;
-
-/*
  * Helper for outb(lo, port); outb(hi, port + 1);
  */
 static void
@@ -142,7 +91,7 @@ outlh(uint8_t lo, uint8_t hi, uint16_t port)
 }
 
 /*
- * Puts the VGA into font access mode. Fonts can be accessed
+ * Puts the VGA card into font access mode. Fonts can be accessed
  * in 0xA0000~0xB0000 in banks of 8KB (32B/char * 256chars).
  */
 static void
@@ -180,7 +129,7 @@ vga_begin_font_access(void)
 }
 
 /*
- * Puts the VGA back into text access mode.
+ * Puts the VGA card back into text access mode.
  */
 static void
 vga_end_font_access(void)
@@ -221,10 +170,24 @@ vga_write_font(const uint8_t font[256][16])
 }
 
 /*
- * Resets VGA into text mode.
+ * Saves the VGA text mode font. Must be called before
+ * vga_restore_text_mode().
  */
-static void
-vga_reset_text_mode(void)
+void
+vga_save_text_mode(void)
+{
+    if (!vga_text_font_saved) {
+        vga_read_font(vga_text_font);
+        vga_text_font_saved = true;
+    }
+}
+
+/*
+ * Puts the VGA card back into text mode and restores
+ * all font data.
+ */
+void
+vga_restore_text_mode(void)
 {
     int i;
 
@@ -260,198 +223,69 @@ vga_reset_text_mode(void)
 
     /* Disable blanking */
     outb(0x20, VGA_PORT_ATTR);
-}
-
-/*
- * Writes one of the VBE registers. The index must be one of the
- * VBE_DISPI_INDEX_* constants.
- */
-static void
-vbe_set_register(uint16_t index, uint16_t data)
-{
-    outw(index, VBE_DISPI_IOPORT_INDEX);
-    outw(data, VBE_DISPI_IOPORT_DATA);
-}
-
-/*
- * Reads one of the VBE registers. The index must be one of the
- * VBE_DISPI_INDEX_* constants.
- */
-static uint16_t
-vbe_get_register(uint16_t index)
-{
-    outw(index, VBE_DISPI_IOPORT_INDEX);
-    return inw(VBE_DISPI_IOPORT_DATA);
-}
-
-/*
- * Same as vidmap(), but in graphical mode instead of text mode.
- * One process per terminal can acquire exclusive access to the
- * framebuffer at any given time; call vbeunmap() to release the
- * framebuffer.
- *
- * Up to 4MB of video memory is supported.
- */
-__cdecl int
-vga_fbmap(void **ptr, int xres, int yres, int bpp)
-{
-    if (!vbe_available) {
-        debugf("VBE is not supported on this system\n");
-        return -1;
-    }
-
-    switch (bpp) {
-    case 8:
-    case 15:
-    case 16:
-    case 24:
-    case 32:
-        break;
-    default:
-        debugf("Unsupported bpp: %d\n", bpp);
-        return -1;
-    }
-
-    if ((xres & 0x7) || (yres & 0x7)) {
-        debugf("Resolution not 8-px aligned (%d,%d)\n", xres, yres);
-        return -1;
-    }
-
-    if (xres <= 0 || xres > 16000 || yres <= 0 || yres > 12000) {
-        debugf("Resolution out of range (%d,%d)\n", xres, yres);
-        return -1;
-    }
-
-    /* +1 is needed to round 15bpp up to 2 bytes */
-    int bytespp = (bpp + 1) / 8;
-
-    /*
-     * Check that we have enough space to hold all pixels, with
-     * double buffering (hence divide by 2).
-     */
-    if (xres * yres * bytespp > VBE_FB_SIZE / 2) {
-        debugf("Resolution too large (%d*%d*%d)\n", xres, yres, bpp);
-        return -1;
-    }
-
-    void *p = (void *)VGA_VBE_PAGE_START;
-    if (!copy_to_user(ptr, &p, sizeof(void *))) {
-        return -1;
-    }
-
-    /*
-     * Save the font glyph data so we can restore it when returning
-     * from VBE mode (as switching to VBE clobbers video memory,
-     * where the font data is stored).
-     */
-    if (!vga_text_font_saved) {
-        vga_read_font(vga_text_font);
-        vga_text_font_saved = true;
-    }
-
-    /* Map and clear VBE page */
-    paging_update_vbe_page(true);
-    memset((void *)VGA_VBE_PAGE_START, 0, VBE_FB_SIZE);
-
-    /* VBE must be disabled while we change xres/yres/bpp */
-    vbe_set_register(VBE_DISPI_INDEX_ENABLE, 0);
-    vbe_set_register(VBE_DISPI_INDEX_XRES, xres);
-    vbe_set_register(VBE_DISPI_INDEX_YRES, yres);
-    vbe_set_register(VBE_DISPI_INDEX_BPP, bpp);
-    vbe_set_register(VBE_DISPI_INDEX_ENABLE, VBE_DISPI_LFB_ENABLED | VBE_DISPI_ENABLED);
-
-    /* Set up virtual display for double buffering */
-    vbe_set_register(VBE_DISPI_INDEX_VIRT_WIDTH, xres);
-    vbe_set_register(VBE_DISPI_INDEX_X_OFFSET, 0);
-    vbe_set_register(VBE_DISPI_INDEX_Y_OFFSET, 0);
-    vbe_flip = 0;
-
-    return 0;
-}
-
-/*
- * Releases the framebuffer, disabling VBE and returning to
- * text mode.
- */
-__cdecl int
-vga_fbunmap(void *ptr)
-{
-    if (ptr != (void *)VGA_VBE_PAGE_START) {
-        return -1;
-    }
-
-    /* If we never saved the font, VBE was never enabled in the first place */
-    if (!vga_text_font_saved) {
-        return 0;
-    }
-
-    /* Disable VBE mode */
-    vbe_set_register(VBE_DISPI_INDEX_ENABLE, 0);
-
-    /* Return to VGA text mode */
-    vga_reset_text_mode();
 
     /* Restore font data */
-    vga_write_font(vga_text_font);
-
-    /* Unmap VBE page */
-    paging_update_vbe_page(false);
-
-    // TODO: Ugly circular dependency, move this to vga.c
-    terminal_clear();
-
-    return 0;
-}
-
-/*
- * Flips the active display. Returns the index of the display that
- * should be written to (0 == write pixels at VBE_PAGE_START, 1 ==
- * write pixels at VBE_PAGE_START + (xres * yres * bytespp) for the
- * next call to vbeflip().
- */
-__cdecl int
-vga_fbflip(void *ptr)
-{
-    if (ptr != (void *)VGA_VBE_PAGE_START) {
-        return -1;
+    if (vga_text_font_saved) {
+        vga_write_font(vga_text_font);
     }
-
-    /* Point the display to the memory region we just wrote */
-    uint16_t yres = vbe_get_register(VBE_DISPI_INDEX_YRES);
-    vbe_set_register(VBE_DISPI_INDEX_Y_OFFSET, vbe_flip * yres);
-
-    /* Toggle the active region */
-    vbe_flip = !vbe_flip;
-    return vbe_flip;
 }
 
 /*
- * Sets the VGA cursor location register.
+ * Sets the VGA text mode cursor location.
  */
 void
-vga_set_cursor_location(uint16_t location)
+vga_set_cursor_location(int x, int y)
 {
-    outlh(0x0E, (location >> 8) & 0xff, VGA_PORT_CRTC);
-    outlh(0x0F, (location >> 0) & 0xff, VGA_PORT_CRTC);
+    assert(x >= 0 && x < VGA_TEXT_COLS);
+    assert(y >= 0 && y < VGA_TEXT_ROWS);
+
+    uint16_t pos = y * VGA_TEXT_COLS + x;
+    outlh(0x0E, (pos >> 8) & 0xff, VGA_PORT_CRTC);
+    outlh(0x0F, (pos >> 0) & 0xff, VGA_PORT_CRTC);
 }
 
 /*
- * Initializes the VGA driver.
+ * Writes a single character at the specified location.
  */
 void
-vga_init(void)
+vga_write_char(uint8_t *mem, int x, int y, char c)
 {
-    /*
-     * Check if system supports the Bochs VBE extensions. QEMU
-     * supports up up to 0xB0C4 properly. To check for this, write
-     * the version to the ID register and try to read it back;
-     * if we get a lower or different number, it's unsupported.
-     */
-    vbe_set_register(VBE_DISPI_INDEX_ID, VBE_DISPI_ID_MAGIC);
-    uint16_t id = vbe_get_register(VBE_DISPI_INDEX_ID);
-    if (id != VBE_DISPI_ID_MAGIC) {
-        debugf("Hardware does not support VBE version 0x%04x (got 0x%04x)\n", VBE_DISPI_ID_MAGIC, id);
-    } else {
-        vbe_available = true;
-    }
+    int offset = (y * VGA_TEXT_COLS + x) * 2;
+    mem[offset] = c;
+}
+
+/*
+ * Clears a region of text mode memory starting at mem with
+ * the specified attribute byte.
+ */
+static void
+vga_clear_region(uint8_t *mem, int nchars, char attrib)
+{
+    uint16_t pattern = ('\x00' << 0) | (attrib << 8);
+    memset_word(mem, pattern, nchars);
+}
+
+/*
+ * Clears the screen in text mode.
+ */
+void
+vga_clear_screen(uint8_t *mem, char attrib)
+{
+    vga_clear_region(mem, VGA_TEXT_CHARS, attrib);
+}
+
+/*
+ * Scrolls the screen down one row in text mode.
+ */
+void
+vga_scroll_down(uint8_t *mem, char attrib)
+{
+    int bytes_per_row = VGA_TEXT_COLS * 2;
+    int shift_count = VGA_TEXT_SIZE - bytes_per_row;
+
+    /* Shift rows forward by one row */
+    memmove(mem, mem + bytes_per_row, shift_count);
+
+    /* Clear out last row */
+    vga_clear_region(mem + shift_count, VGA_TEXT_COLS, attrib);
 }

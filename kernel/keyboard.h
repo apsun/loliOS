@@ -34,6 +34,7 @@ typedef enum {
     KCTL_TERM1,     /* Switch to terminal 1 */
     KCTL_TERM2,     /* Switch to terminal 2 */
     KCTL_TERM3,     /* Switch to terminal 3 */
+    KCTL_PANIC,     /* Trigger a kernel panic */
 } kbd_input_ctrl_t;
 
 /* Keyboard input struct */

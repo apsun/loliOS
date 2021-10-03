@@ -30,7 +30,7 @@ typedef struct {
 typedef struct {
     /*
      * The cursor x-position in the current logical line.
-     * This value can extend beyond NUM_COLS. This is used
+     * This value can extend beyond VGA_TEXT_COLS. This is used
      * to determine whether we can backspace across screen lines.
      * This is reset to 0 whenever encountering a '\n' character.
      */
@@ -38,7 +38,7 @@ typedef struct {
 
     /*
      * The cursor x-position in the current screen line.
-     * This value must be less than NUM_COLS.
+     * This value must be less than VGA_TEXT_COLS.
      */
     int screen_x;
 
@@ -57,27 +57,30 @@ typedef struct {
     /* Cursor position */
     cursor_pos_t cursor;
 
-    /* Backing video memory */
-    uint8_t *backing_mem;
+    /*
+     * Pointer to a page-aligned buffer that acts as the virtual
+     * "text mode memory" when the terminal is in the background
+     * or the framebuffer is active. Never write to this directly;
+     * always use active_mem.
+     */
+    uint8_t *bg_mem;
 
     /*
-     * Pointer to the video memory where the contents
-     * of this terminal should be displayed. Either points
-     * to the global VGA video memory or to the per-terminal
-     * backing_mem field.
+     * Pointer to the page containing the contents of the terminal.
+     * Either points to the global VGA text-mode page if the
+     * terminal is in the foreground and fbmap is disabled, or to
+     * the bg_mem buffer otherwise.
+     *
+     * This pointer is always 1:1 mapped to a physical address.
+     * When vidmap is active, a vidmap page (constant virtual addr)
+     * will point to the same page as this.
      */
-    uint8_t *video_mem;
+    uint8_t *active_mem;
 
     /*
      * Attribute byte used to write characters in this terminal.
      */
-    char attrib;
-
-    /*
-     * True iff the process currently executing in this terminal
-     * has called vidmap.
-     */
-    bool vidmap : 1;
+    uint8_t attrib;
 
     /*
      * ID of the foreground process group in this terminal.
@@ -87,34 +90,35 @@ typedef struct {
      * this group.
      */
     int fg_group;
-} terminal_state_t;
+} terminal_t;
 
-/* Sets the currently displayed terminal */
-void set_display_terminal(int index);
+/* Updates the executing process's vidmap page */
+void terminal_update_vidmap_page(int terminal_idx, bool vidmap);
 
-/* Prints a character to the currently executing terminal */
+/* Sets the display terminal */
+void terminal_set_display(int index);
+
+/* Enables/disables the framebuffer terminal mode */
+void terminal_set_framebuffer(int index);
+void terminal_reset_framebuffer(void);
+
+/* Prints a character to the display terminal */
 void terminal_putc(char c);
 
-/* Prints a string to the currently displayed terminal */
+/* Prints a string to the display terminal */
 void terminal_puts(const char *s);
 
-/* Clears the currently displayed terminal */
-void terminal_clear(void);
-
-/* Clears the specified terminal's input buffers */
-void terminal_clear_input(int terminal);
-
-/* Clears the currently displayed terminal for a BSOD */
+/* Clears the display terminal's screen for a BSOD */
 void terminal_clear_bsod(void);
+
+/* Clears the display terminal's screen and input buffers */
+void terminal_clear(void);
 
 /* Handles keyboard input */
 void terminal_handle_kbd_input(kbd_input_t input);
 
 /* Handles mouse input */
 void terminal_handle_mouse_input(mouse_input_t input);
-
-/* Updates the vidmap status for the specified terminal */
-void terminal_update_vidmap(int term_index, bool present);
 
 /* Opens the stdin and stdout streams for a process */
 int terminal_open_streams(file_obj_t **files);
@@ -123,6 +127,9 @@ int terminal_open_streams(file_obj_t **files);
 void terminal_tcsetpgrp_impl(int terminal, int pgrp);
 __cdecl int terminal_tcgetpgrp(void);
 __cdecl int terminal_tcsetpgrp(int pgrp);
+
+/* vidmap() syscall handler */
+__cdecl int terminal_vidmap(uint8_t **screen_start);
 
 /* Initializes the terminal */
 void terminal_init(void);
