@@ -142,13 +142,11 @@ elf_is_valid_note(int inode_idx, elf_prog_hdr_t *phdr, bool *out_compat)
             *out_compat = false;
         }
 
-        /* Realistically nothing should ever be this big */
-        if (nhdr.namesz > INT_MAX / 2 || nhdr.descsz > INT_MAX / 2) {
-            debugf("Note namesz/descsz too large\n");
-            return false;
-        }
-
-        /* Move to the next note, rounding up name/desc size to multiple of 4 */
+        /*
+         * Move to the next note, rounding up name/desc size to multiple of 4.
+         * This may overflow; we don't care. Worst case, we read some garbage
+         * and accidentally treat the file as valid.
+         */
         count += sizeof(nhdr) + ((nhdr.namesz + 3) & -4) + ((nhdr.descsz + 3) & -4);
     }
 
