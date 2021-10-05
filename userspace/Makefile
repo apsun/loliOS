@@ -14,7 +14,7 @@ CFLAGS += \
 	-fno-omit-frame-pointer \
 	-static \
 	-nostdlib
-CPPFLAGS += -nostdinc -Ilolibc
+CPPFLAGS += -MMD -MP -nostdinc -Ilolibc
 ASFLAGS += -m32
 
 objs = $(patsubst %.c,%.o,$(patsubst %.S,%.o,$(wildcard $(1)/*.c $(1)/*.S)))
@@ -47,4 +47,9 @@ build/%: %.o $(LOLIBC_OBJ) | build
 .PHONY: clean
 clean:
 	$(RM) *.o */*.o
+	$(RM) *.d */*.d
 	$(RM) -r build
+
+-include $(LOLIBC_OBJ:%.o=%.d)
+-include $(MISSILES_OBJ:%.o=%.d)
+-include $(FISH_OBJ:%.o=%.d)

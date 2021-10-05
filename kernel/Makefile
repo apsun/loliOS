@@ -14,7 +14,7 @@ CFLAGS += \
 	-fno-omit-frame-pointer \
 	-static \
 	-nostdlib
-CPPFLAGS += -nostdinc
+CPPFLAGS += -MMD -MP -nostdinc
 ASFLAGS += -m32
 
 # This generates the list of source files
@@ -25,22 +25,13 @@ OBJS = boot.o
 OBJS += $(filter-out boot.o,$(patsubst %.S,%.o,$(filter %.S,$(SRC))))
 OBJS += $(patsubst %.c,%.o,$(filter %.c,$(SRC)))
 
-bootimg: Makefile $(OBJS)
+bootimg: $(OBJS)
 	$(CC) $(CFLAGS) $(OBJS) -Tmemory.lds -o $@
-
-Makefile.dep: $(SRC)
-	$(CC) -MM $(CPPFLAGS) $(SRC) > $@
-
-.PHONY: dep
-dep: Makefile.dep
 
 .PHONY: clean
 clean:
-	rm -f *.o */*.o Makefile.dep
-	rm -f bootimg
+	$(RM) *.o */*.o
+	$(RM) *.d */*.d
+	$(RM) bootimg
 
-ifneq ($(MAKECMDGOALS),dep)
-ifneq ($(MAKECMDGOALS),clean)
-include Makefile.dep
-endif
-endif
+-include $(OBJS:%.o=%.d)
