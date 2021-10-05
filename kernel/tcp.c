@@ -692,11 +692,11 @@ tcp_outbox_transmit_one(tcp_sock_t *tcp, tcp_pkt_t *pkt)
 }
 
 /*
- * Transmits all packets in the TCP outbox that are within the
- * send window and have not yet been transmitted.
+ * Transmits all packets in the TCP outbox that have not been
+ * transmitted yet.
  */
 static int
-tcp_outbox_transmit_all(tcp_sock_t *tcp)
+tcp_outbox_transmit_unsent(tcp_sock_t *tcp)
 {
     list_t *txpos;
     list_for_each(txpos, &tcp->outbox) {
@@ -1002,7 +1002,7 @@ tcp_close_write(tcp_sock_t *tcp)
             tcp->reset = true;
             tcp_set_state(tcp, CLOSED);
         } else {
-            tcp_outbox_transmit_all(tcp);
+            tcp_outbox_transmit_unsent(tcp);
         }
     } else if (tcp_in_state(tcp, CLOSE_WAIT)) {
         tcp_set_state(tcp, LAST_ACK);
@@ -1014,7 +1014,7 @@ tcp_close_write(tcp_sock_t *tcp)
              */
             tcp_set_state(tcp, CLOSED);
         } else {
-            tcp_outbox_transmit_all(tcp);
+            tcp_outbox_transmit_unsent(tcp);
         }
     }
 }
@@ -1070,7 +1070,7 @@ tcp_outbox_handle_rx_ack(tcp_sock_t *tcp, tcp_hdr_t *hdr)
              * not retransmit the SYN, since that must have had
              * num_transmissions > 0.
              */
-            tcp_outbox_transmit_all(tcp);
+            tcp_outbox_transmit_unsent(tcp);
         }
 
         /* We got an ACK for our FIN */
@@ -1488,7 +1488,7 @@ tcp_handle_rx_listening(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
             tcp_set_state(conntcp, CLOSED);
             return -1;
         }
-        tcp_outbox_transmit_all(conntcp);
+        tcp_outbox_transmit_unsent(conntcp);
 
         /* Add socket to backlog for accept() */
         list_add_tail(&conntcp->backlog, &tcp->backlog);
@@ -1617,7 +1617,7 @@ tcp_dtor(net_sock_t *sock)
                 /* Note: This will call the pending socket's destructor */
                 tcp_set_state(pending, CLOSED);
             } else {
-                tcp_outbox_transmit_all(pending);
+                tcp_outbox_transmit_unsent(pending);
             }
         }
     } else {
@@ -1713,7 +1713,7 @@ tcp_connect(net_sock_t *sock, const sock_addr_t *addr)
         ret = -1;
         goto unbind;
     }
-    tcp_outbox_transmit_all(tcp);
+    tcp_outbox_transmit_unsent(tcp);
 
     ret = 0;
 
@@ -2030,8 +2030,8 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
         sent += body_len;
     }
 
-    /* Transmit new packets immediately if within send window */
-    tcp_outbox_transmit_all(tcp);
+    /* Transmit new packets immediately */
+    tcp_outbox_transmit_unsent(tcp);
 
     /*
      * No bytes sent indicates complete failure;
