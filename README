@@ -5,42 +5,29 @@
 /_/\____/_/_/\____//____/
 A small + lightweight OS
 
-This is a Linux-like x86 operating system built from scratch.
-It was originally a course project at the University of Illinois
-at Urbana-Champaign. The original release included support for:
-
-- virtual memory
-- PS/2 keyboard
-- real-time clock
-- read-only filesystem
-- terminal I/O
-- userspace execution
-- preemptive multitasking
-
-Since then, the following additional features have been added:
+This is a Linux-like x86 operating system built from scratch. It was
+originally a course project at the University of Illinois at
+Urbana-Champaign. Since then, numerous additional features have been
+implemented, including:
 
 - signals
-- PS/2 mouse
-- serial I/O (Taux controller)
-- userspace libc
-- audio playback (Sound Blaster 16)
-- malloc (both kernel and userspace)
-- networking (NE2000 + ARP + IP + UDP + TCP + DNS)
-- fork, exec, wait
-- pipes
+- audio playback
+- dynamic memory allocator
+- TCP/IP network stack
+- pipelines (fork/exec/wait/pipe)
 - writable in-memory filesystem
-- VBE framebuffer
+- graphical framebuffer
+- ... and more!
 
 Note that this is a Linux-like operating system, not a Linux-compatible
-operating system. It is neither API nor ABI compatible with Linux, and
-the userspace libc is not standards-compliant either. This OS is not
-intended to be used in a production environment; it is for educational
-purposes only. Notable differences from Linux are:
+operating system. It is neither API nor ABI compatible with Linux, and the
+userspace libc is not standards-compliant either. This OS is not intended
+to be used in a production environment; it is for educational purposes only.
+Notable differences from Linux are:
 
 - minimal filesystem (no subdirectories, permissions, attributes, etc.)
 - no users or groups (essentially, everyone is root)
 - some APIs take different arguments (e.g. gets takes a buffer size)
-- syscalls return errors directly as negative values instead of via errno
 - floating point (x87, SSE, etc.) is not supported by the ABI
 - math.h, wchar.h, time.h, and a few other libraries are not implemented
 
