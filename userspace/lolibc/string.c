@@ -91,10 +91,9 @@ stpcpy(char *dest, const char *src)
 }
 
 /*
- * Copies a string, up to n characters, from
- * src to dest. If n is reached before the NUL
- * terminator, dest is NOT NUL-terminated! Returns
- * dest.
+ * Copies a string, up to n characters, from src to dest.
+ * If n is reached before the NUL terminator, dest is NOT
+ * NUL-terminated! Returns dest.
  */
 char *
 strncpy(char *dest, const char *src, int n)
@@ -109,18 +108,21 @@ strncpy(char *dest, const char *src, int n)
 }
 
 /*
- * Copies a string, up to n characters, from
- * src to dest. If n is reached before the NUL
- * terminator, dest is NUL-terminated and -1
- * is returned. Otherwise, the length of the
- * string is returned.
+ * Copies a string, up to n characters, from src to dest.
+ * If n is reached before the NUL terminator, dest is
+ * NUL-terminated (unless n == 0) and -1 is returned.
+ * Otherwise, the length of the string is returned.
  */
 int
 strscpy(char *dest, const char *src, int n)
 {
     assert(dest != NULL);
     assert(src != NULL);
-    assert(n > 0);
+    assert(n >= 0);
+
+    if (n == 0) {
+        return -1;
+    }
 
     int i;
     for (i = 0; i < n; ++i) {
@@ -156,7 +158,11 @@ strncat(char *dest, const char *src, int n)
 {
     assert(dest != NULL);
     assert(src != NULL);
-    assert(n > 0);
+    assert(n >= 0);
+
+    if (n == 0) {
+        return dest;
+    }
 
     char *destp = dest + strlen(dest);
     while (n && (*destp = *src)) {

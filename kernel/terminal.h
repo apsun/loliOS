@@ -102,11 +102,8 @@ void terminal_set_display(int index);
 void terminal_set_framebuffer(int index);
 void terminal_reset_framebuffer(void);
 
-/* Prints a character to the display terminal */
-void terminal_putc(char c);
-
-/* Prints a string to the display terminal */
-void terminal_puts(const char *s);
+/* Writes a char buffer to the display terminal */
+void terminal_write_chars(const char *buf, int len);
 
 /* Clears the display terminal's screen for a BSOD */
 void terminal_clear_bsod(void);

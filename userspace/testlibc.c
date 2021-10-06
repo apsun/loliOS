@@ -69,6 +69,8 @@ test_strscpy(void)
     assert(strcmp(buf, "Hello world!") == 0);
     assert(strscpy(buf, "AAAAAAAAAAAAAAAAAAAAAAAA", 5) < 0);
     assert(strcmp(buf, "AAAA") == 0);
+    assert(strscpy(buf, "foo", 0) < 0);
+    assert(strcmp(buf, "AAAA") == 0);
 }
 
 static void
@@ -92,6 +94,10 @@ test_strncat(void)
     assert(memcmp(buf, "foobarlon\0\xff", sizeof(buf)) == 0);
     assert(strncat(buf, "a", 3) == buf);
     assert(memcmp(buf, "foobarlona\0", sizeof(buf)) == 0);
+
+    char buf2[1] = {'A'};
+    assert(strncat(buf, "foo", 0) == buf);
+    assert(buf2[0] == 'A');
 }
 
 static void
@@ -353,6 +359,10 @@ test_snprintf(void)
     assert(strcmp(buf, "hi   ") == 0);
     assert(snprintf(buf, sizeof(buf), "") == 0);
     assert(strcmp(buf, "") == 0);
+
+    char buf2[1];
+    assert(snprintf(buf2, sizeof(buf2), "Hello!") == strlen("Hello!"));
+    assert(buf2[0] == '\0');
 }
 
 static void

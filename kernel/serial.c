@@ -125,14 +125,14 @@ serial_write_upto(int which, const uint8_t *buf, int len)
 }
 
 /*
- * Writes a string to the serial UART tx queue. Blocks
- * until the entire string has been written.
+ * Writes a buffer of characters to the serial UART tx queue.
+ * Blocks until the entire buffer has been written.
  */
 void
-serial_puts_blocking(int which, const char *s)
+serial_write_chars_blocking(int which, const char *buf, int len)
 {
-    while (*s) {
-        char c = *s++;
+    while (len--) {
+        char c = *buf++;
         if (c == '\n') {
             /*
              * QEMU VC doesn't treat \n as \r\n, so we need

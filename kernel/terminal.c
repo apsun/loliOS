@@ -302,22 +302,15 @@ terminal_putc_impl(terminal_t *term, char c)
     }
 }
 
-/* Prints a character to the currently displayed terminal */
+/*
+ * Writes a buffer of characters to the display terminal.
+ */
 void
-terminal_putc(char c)
+terminal_write_chars(const char *buf, int len)
 {
     terminal_t *term = get_display_terminal();
-    terminal_putc_impl(term, c);
-    terminal_update_cursor(term);
-}
-
-/* Prints a string to the currently displayed terminal */
-void
-terminal_puts(const char *s)
-{
-    terminal_t *term = get_display_terminal();
-    while (*s) {
-        terminal_putc_impl(term, *s++);
+    while (len--) {
+        terminal_putc_impl(term, *buf++);
     }
     terminal_update_cursor(term);
 }
@@ -339,8 +332,7 @@ terminal_clear_screen(terminal_t *term)
 }
 
 /*
- * Clears the currently displayed terminal and puts
- * it into a BSOD state.
+ * Clears the display terminal and puts it into a BSOD state.
  */
 void
 terminal_clear_bsod(void)
@@ -351,8 +343,7 @@ terminal_clear_bsod(void)
 }
 
 /*
- * Clears the currently displayed terminal screen and
- * all associated input.
+ * Clears the display terminal screen and all associated input.
  */
 void
 terminal_clear(void)

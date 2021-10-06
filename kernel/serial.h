@@ -118,8 +118,8 @@ void serial_write_blocking(int which, uint8_t data);
 /* Writes multiple bytes to the UART tx queue (non-blocking) */
 int serial_write_upto(int which, const uint8_t *buf, int len);
 
-/* Writes a string to the UART tx queue (blocking) */
-void serial_puts_blocking(int which, const char *s);
+/* Writes a char buffer to the UART tx queue (blocking) */
+void serial_write_chars_blocking(int which, const char *buf, int len);
 
 /* Configures the serial UART and registers an IRQ handler */
 void

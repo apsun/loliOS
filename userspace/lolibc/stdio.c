@@ -372,12 +372,7 @@ fputc(char c, FILE *fp)
 {
     assert(fp != NULL);
 
-    int ret;
-    do {
-        ret = fwrite(&c, 1, 1, fp);
-    } while (ret == -EAGAIN || ret == -EINTR);
-
-    if (ret < 0) {
+    if (fwrite(&c, 1, 1, fp) < 1) {
         return -1;
     } else {
         return (unsigned char)c;
@@ -396,19 +391,11 @@ fputs(const char *s, FILE *fp)
     assert(fp != NULL);
 
     int len = strlen(s);
-    int total = 0;
-    while (total < len) {
-        int ret = fwrite(&s[total], 1, len - total, fp);
-        if (ret == -EAGAIN || ret == -EINTR) {
-            continue;
-        } else if (ret < 0) {
-            return ret;
-        } else {
-            total += ret;
-        }
+    if (fwrite(s, 1, len, fp) < len) {
+        return -1;
+    } else {
+        return len;
     }
-
-    return total;
 }
 
 /*
@@ -592,12 +579,12 @@ typedef struct printf_arg {
 } printf_arg_t;
 
 /*
- * Userspace printf flush function: calls fputs().
+ * Userspace printf flush function: calls fwrite().
  */
 static bool
 printf_write(printf_arg_t *a, const char *s, int len)
 {
-    return fputs(s, a->fp) >= 0;
+    return fwrite(s, 1, len, a->fp) == len;
 }
 
 /*
@@ -680,6 +667,17 @@ printf_append_char(printf_arg_t *a, char c)
         }
         a->count = 0;
         return printf_append_char(a, c);
+    }
+
+    /* Bypass buffer if it's size 1 (which is valid but dumb) */
+    if (a->count == 0 && a->write != NULL) {
+        a->true_len++;
+        if (!a->write(a, &c, 1)) {
+            a->error = true;
+            a->buf = NULL;
+            return false;
+        }
+        return true;
     }
 
     /* Buffer is full and we have nowhere to flush it to */
@@ -965,7 +963,7 @@ consume_format:
     }
 
     /* Flush any remaining characters */
-    if (a.write != NULL && !a.write(&a, a.buf, a.count)) {
+    if (a.count > 0 && a.write != NULL && !a.write(&a, a.buf, a.count)) {
         a.error = true;
     }
 

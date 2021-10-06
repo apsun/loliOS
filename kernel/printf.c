@@ -49,18 +49,18 @@ typedef struct printf_arg {
 } printf_arg_t;
 
 /*
- * Kernel printf flush function: writes the string to the
+ * Kernel printf flush function: writes the buffer to the
  * terminal and serial sinks, as configured.
  */
 static bool
-printf_write(printf_arg_t *a, const char *s, int len)
+printf_write(printf_arg_t *a, const char *buf, int len)
 {
 #if PRINTF_TERMINAL
-    terminal_puts(s);
+    terminal_write_chars(buf, len);
 #endif
 
 #if PRINTF_SERIAL_PORT
-    serial_puts_blocking(PRINTF_SERIAL_PORT, s);
+    serial_write_chars_blocking(PRINTF_SERIAL_PORT, buf, len);
 #endif
 
     return true;
@@ -146,6 +146,17 @@ printf_append_char(printf_arg_t *a, char c)
         }
         a->count = 0;
         return printf_append_char(a, c);
+    }
+
+    /* Bypass buffer if it's size 1 (which is valid but dumb) */
+    if (a->count == 0 && a->write != NULL) {
+        a->true_len++;
+        if (!a->write(a, &c, 1)) {
+            a->error = true;
+            a->buf = NULL;
+            return false;
+        }
+        return true;
     }
 
     /* Buffer is full and we have nowhere to flush it to */
@@ -429,7 +440,7 @@ consume_format:
     }
 
     /* Flush any remaining characters */
-    if (a.write != NULL && !a.write(&a, a.buf, a.count)) {
+    if (a.count > 0 && a.write != NULL && !a.write(&a, a.buf, a.count)) {
         a.error = true;
     }
 
