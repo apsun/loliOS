@@ -302,7 +302,7 @@ sb16_ioctl_set_sample_rate(intptr_t arg)
         sb16_write_sample_rate();
         return 0;
     default:
-        debugf("Sample rate not supported: %d\n", arg);
+        debugf("Sample rate not supported: %d\n", (int)arg);
         return -1;
     }
 }

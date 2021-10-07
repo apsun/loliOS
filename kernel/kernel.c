@@ -27,7 +27,7 @@
 #define CHECK_FLAG(flags, bit) ((flags) & (1 << (bit)))
 
 __noreturn void
-entry(unsigned long magic, unsigned long addr)
+entry(uint32_t magic, uint32_t addr)
 {
     /* Initialize terminals */
     terminal_init();
