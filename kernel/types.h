@@ -2,7 +2,7 @@
 #define _TYPES_H
 
 #define NULL 0
-#define SIZE_MAX 4294967295UL
+#define SIZE_MAX 4294967295U
 #define INT_MIN (-2147483647 - 1)
 #define INT_MAX 2147483647
 
@@ -31,11 +31,11 @@ typedef short int16_t;
 typedef unsigned short uint16_t;
 typedef signed char int8_t;
 typedef unsigned char uint8_t;
-typedef long ssize_t;
-typedef unsigned long size_t;
-typedef long intptr_t;
-typedef unsigned long uintptr_t;
-typedef long ptrdiff_t;
+typedef int ssize_t;
+typedef unsigned int size_t;
+typedef int intptr_t;
+typedef unsigned int uintptr_t;
+typedef int ptrdiff_t;
 typedef enum { false, true } bool;
 
 typedef __builtin_va_list va_list;
