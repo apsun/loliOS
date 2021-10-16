@@ -809,6 +809,7 @@ tcp_outbox_insert(tcp_sock_t *tcp, skb_t *skb)
     list_add_tail(&pkt->list, &tcp->outbox);
 
     tcp->send_next_num += tcp_seg_len(skb);
+    tcp_debugf("Added 0x%08x to outbox\n", pkt);
     return pkt;
 }
 
@@ -877,6 +878,7 @@ tcp_outbox_insert_fin(tcp_sock_t *tcp)
 static void
 tcp_outbox_remove(tcp_sock_t *tcp, tcp_pkt_t *pkt)
 {
+    tcp_debugf("Removing 0x%08x from outbox\n", pkt);
     list_del(&pkt->list);
     skb_release(pkt->skb);
     free(pkt);
@@ -925,6 +927,7 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
         }
     }
     list_add(&skb_retain(skb)->list, pos);
+    tcp_debugf("Added 0x%08x to inbox\n", skb);
     return true;
 }
 
@@ -934,6 +937,7 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
 static void
 tcp_inbox_remove(tcp_sock_t *tcp, skb_t *skb)
 {
+    tcp_debugf("Removing 0x%08x from inbox\n", skb);
     list_del(&skb->list);
     skb_release(skb);
 }
@@ -1589,6 +1593,7 @@ tcp_ctor(net_sock_t *sock)
     tcp->send_wnd_size = TCP_INIT_WND_SIZE;
     tcp->num_duplicate_acks = 0;
     tcp->reset = false;
+    tcp->read_closed = false;
     tcp->estimated_rtt = -1;
     tcp->variance_rtt = -1;
     tcp->rto = TCP_INIT_RTO_MS;
