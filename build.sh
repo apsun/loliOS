@@ -80,7 +80,7 @@ fi
 
 if [ "${debug}" -eq 1 ]; then
     export CFLAGS="${CFLAGS-} -g"
-    export CPPFLAGS="${CPPFLAGS-} -DDEBUG_PRINT=1"
+    export CPPFLAGS="${CPPFLAGS-} -DDEBUG_PRINT=1 -DMYA_POISON=1"
 fi
 
 if [ "${ubsan}" -eq 1 ]; then

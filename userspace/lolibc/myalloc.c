@@ -27,10 +27,10 @@
  * catch usages of uninitialized/freed memory.
  */
 #ifndef MYA_POISON
-    #define MYA_POISON 1
+    #define MYA_POISON 0
 #endif
-#define MYA_POISON_UNINIT 0xba110ced
-#define MYA_POISON_FREED 0xdeadbeef
+#define MYA_POISON_UNINIT 0xba110cedU
+#define MYA_POISON_FREED 0xdeadbeefU
 
 /*
  * Whether we want to replace the C standard library functions.
@@ -282,13 +282,13 @@ static bool
 mya_sbrk(size_t delta, void **orig_brk, void **new_brk)
 {
     /* If allocation would overflow, fail fast */
-    if ((size_t)mya_last_brk + delta < (size_t)mya_last_brk) {
+    if (delta > INT_MAX || (size_t)mya_last_brk + delta < (size_t)mya_last_brk) {
         return false;
     }
 
     /* We know the allocation is safe, call sbrk */
     void *last_brk;
-    if (sbrk(delta, &last_brk) < 0) {
+    if (sbrk((int)delta, &last_brk) < 0) {
         return false;
     }
 
@@ -469,12 +469,12 @@ mya_split_block(mya_header_t *header, size_t aligned_size)
  * Fills a region of memory with the specified pattern.
  */
 static void
-mya_poison(void *ptr, size_t size, int pattern)
+mya_poison(void *ptr, size_t size, unsigned int pattern)
 {
 #if MYA_POISON
-    int *wptr = ptr;
+    unsigned int *wptr = ptr;
     size_t i;
-    for (i = 0; i < size / sizeof(int); ++i) {
+    for (i = 0; i < size / sizeof(unsigned int); ++i) {
         wptr[i] = pattern;
     }
 #endif
