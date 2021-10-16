@@ -4,14 +4,6 @@
 #include "tcp.h"
 #include "udp.h"
 
-/*
- * Whether to validate checksums on incoming packets.
- * Set to 0 for full #yolo mode.
- */
-#ifndef IP_VALIDATE_CHECKSUM
-#define IP_VALIDATE_CHECKSUM 1
-#endif
-
 /* IP pseudoheader used for checksum calculation */
 typedef struct {
     ip_addr_t src_ip;
@@ -107,11 +99,7 @@ ip_pseudo_checksum(
 static bool
 ip_verify_checksum(const void *buf, int len)
 {
-#if IP_VALIDATE_CHECKSUM
     return ntohs(ip_fold_checksum(ip_partial_checksum(buf, len))) == 0;
-#else
-    return true;
-#endif
 }
 
 /*
