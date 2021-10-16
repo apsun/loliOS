@@ -371,7 +371,7 @@ is_page_accessible(uintptr_t *addr, bool user, bool write)
 
     /* If it's a 4MB page, we're done. */
     if (pde->size == SIZE_4MB) {
-        *addr = (*addr + MB(4)) & -MB(4);
+        *addr = next_multiple_of(*addr, MB(4));
         return true;
     }
 
@@ -381,7 +381,7 @@ is_page_accessible(uintptr_t *addr, bool user, bool write)
         return false;
     }
 
-    *addr = (*addr + KB(4)) & -KB(4);
+    *addr = next_multiple_of(*addr, KB(4));
     return true;
 }
 

@@ -1,5 +1,6 @@
 #include "rtc.h"
 #include "types.h"
+#include "math.h"
 #include "portio.h"
 #include "list.h"
 #include "irq.h"
@@ -159,7 +160,7 @@ rtc_read(file_obj_t *file, void *buf, int nbytes)
     uint32_t max_ticks = RTC_HZ / (int)file->private;
 
     /* Wait until we reach the next multiple of max ticks */
-    uint32_t target_counter = (rtc_counter + max_ticks) & -max_ticks;
+    uint32_t target_counter = next_multiple_of(rtc_counter, max_ticks);
     return BLOCKING_WAIT(
         (int32_t)(rtc_counter - target_counter) >= 0 ? 0 : -EAGAIN,
         rtc_sleep_queue,
@@ -187,7 +188,7 @@ rtc_write(file_obj_t *file, const void *buf, int nbytes)
         return -1;
     }
 
-    if (freq < 2 || freq > 1024 || ((freq & (freq - 1)) != 0)) {
+    if (freq < 2 || freq > 1024 || !is_pow2(freq)) {
         return -1;
     }
 

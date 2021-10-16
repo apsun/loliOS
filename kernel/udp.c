@@ -1,6 +1,7 @@
 #include "udp.h"
 #include "types.h"
 #include "debug.h"
+#include "math.h"
 #include "list.h"
 #include "myalloc.h"
 #include "paging.h"
@@ -215,9 +216,7 @@ udp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
     }
 
     int len = skb_len(skb);
-    if (nbytes > len) {
-        nbytes = len;
-    }
+    nbytes = min(nbytes, len);
 
     /* If user asked for the src addr, copy it from the headers */
     if (addr != NULL) {

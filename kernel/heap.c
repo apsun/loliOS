@@ -1,6 +1,7 @@
 #include "heap.h"
 #include "debug.h"
 #include "types.h"
+#include "math.h"
 #include "paging.h"
 #include "string.h"
 #include "myalloc.h"
@@ -12,7 +13,7 @@
 static int
 heap_max_pages(uintptr_t start_vaddr, uintptr_t end_vaddr)
 {
-    return (end_vaddr - start_vaddr + PAGE_SIZE - 1) / PAGE_SIZE;
+    return div_round_up(end_vaddr - start_vaddr, PAGE_SIZE);
 }
 
 /*
@@ -71,16 +72,8 @@ heap_realloc_paddrs(heap_t *heap, int new_num_pages)
 
     /* max(new_num_pages, 8) <= cap_pages * 1.5 <= max_pages */
     int new_cap_pages = heap->cap_pages * 3 / 2;
-    if (new_cap_pages > max_pages) {
-        new_cap_pages = max_pages;
-    } else {
-        if (new_cap_pages < 8) {
-            new_cap_pages = 8;
-        }
-        if (new_cap_pages < new_num_pages) {
-            new_cap_pages = new_num_pages;
-        }
-    }
+    new_cap_pages = max(new_cap_pages, max(new_num_pages, 8));
+    new_cap_pages = min(new_cap_pages, max_pages);
 
     void *new_paddrs = realloc(heap->paddrs, new_cap_pages * sizeof(uintptr_t));
     if (new_paddrs == NULL) {
@@ -185,7 +178,7 @@ heap_sbrk(heap_t *heap, int delta)
     }
 
     int new_size = orig_size + delta;
-    int new_num_pages = (new_size + PAGE_SIZE - 1) / PAGE_SIZE;
+    int new_num_pages = div_round_up(new_size, PAGE_SIZE);
 
     /* Grow or shrink heap as necessary */
     int orig_num_pages = heap->num_pages;

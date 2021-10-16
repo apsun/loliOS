@@ -1,6 +1,7 @@
 #include "pipe.h"
 #include "types.h"
 #include "debug.h"
+#include "math.h"
 #include "list.h"
 #include "myalloc.h"
 #include "paging.h"
@@ -40,13 +41,8 @@ pipe_get_readable_count(pipe_state_t *pipe, int nbytes)
         head += PIPE_SIZE;
     }
 
-    /* Compute number of bytes left in the buffer */
-    int to_read = nbytes;
-    if (to_read > head - pipe->tail) {
-        to_read = head - pipe->tail;
-    }
-
     /* Have something to read immediately? */
+    int to_read = min(nbytes, head - pipe->tail);
     if (to_read > 0) {
         return to_read;
     }
@@ -91,10 +87,7 @@ pipe_read(file_obj_t *file, void *buf, int nbytes)
     char *bufp = buf;
     do {
         /* Read until the end of the buffer at most */
-        int this_read = to_read;
-        if (this_read > PIPE_SIZE - pipe->tail) {
-            this_read = PIPE_SIZE - pipe->tail;
-        }
+        int this_read = min(to_read, PIPE_SIZE - pipe->tail);
 
         /* Copy this chunk to userspace */
         if (!copy_to_user(&bufp[total_read], &pipe->buf[pipe->tail], this_read)) {
@@ -139,13 +132,8 @@ pipe_get_writeable_count(pipe_state_t *pipe, int nbytes)
         tail += PIPE_SIZE;
     }
 
-    /* Compute number of free bytes left in the buffer */
-    int to_write = nbytes;
-    if (to_write > tail - 1 - pipe->head) {
-        to_write = tail - 1 - pipe->head;
-    }
-
     /* Have some space to write? */
+    int to_write = min(nbytes, tail - 1 - pipe->head);
     if (to_write > 0) {
         return to_write;
     }
@@ -182,10 +170,7 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
     const char *bufp = buf;
     do {
         /* Read until the end of the buffer at most */
-        int this_write = to_write;
-        if (this_write > PIPE_SIZE - pipe->head) {
-            this_write = PIPE_SIZE - pipe->head;
-        }
+        int this_write = min(to_write, PIPE_SIZE - pipe->head);
 
         /* Copy this chunk to kernelspace */
         if (!copy_from_user(&pipe->buf[pipe->head], &bufp[total_write], this_write)) {

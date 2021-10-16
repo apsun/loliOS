@@ -1,6 +1,7 @@
 #include "process.h"
 #include "types.h"
 #include "debug.h"
+#include "math.h"
 #include "string.h"
 #include "filesys.h"
 #include "paging.h"
@@ -125,7 +126,7 @@ get_executing_pcb(void)
      */
     uint32_t esp;
     asm volatile("movl %%esp, %0" : "=g"(esp));
-    process_data_t *data = (process_data_t *)(esp & ~(PROCESS_DATA_SIZE - 1));
+    process_data_t *data = (process_data_t *)round_down(esp, PROCESS_DATA_SIZE);
     return data->pcb;
 }
 
@@ -702,23 +703,15 @@ process_getargs(char *buf, int nbytes)
     pcb_t *pcb = get_executing_pcb();
 
     /*
-     * Compute length of arguments. If they are empty, then we
-     * should fail, as per the spec.
+     * Compute length of arguments. If they are empty or we can't
+     * fit all the arguments in the buffer, then we should fail
+     * as per the spec.
      */
     int length = strlen(pcb->args) + 1;
-    if (length == 1) {
+    if (length == 1 || nbytes < length) {
         return -1;
     }
-
-    /*
-     * Limit the number of characters read (include NUL). Note
-     * that we fail if the buffer is too small, as per the spec.
-     */
-    if (nbytes > length) {
-        nbytes = length;
-    } else if (nbytes < length) {
-        return -1;
-    }
+    nbytes = min(nbytes, length);
 
     /* Copy arguments to userspace */
     if (!copy_to_user(buf, pcb->args, nbytes)) {

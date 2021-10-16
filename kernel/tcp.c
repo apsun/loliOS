@@ -10,6 +10,7 @@
 #include "tcp.h"
 #include "types.h"
 #include "debug.h"
+#include "math.h"
 #include "string.h"
 #include "list.h"
 #include "file.h"
@@ -642,12 +643,7 @@ tcp_update_rtt(tcp_sock_t *tcp, int sample_rtt)
 
     /* RTO = EstRTT + 4*VarRTT, clamped to [MIN_RTO, MAX_RTO] range */
     int rto = tcp->estimated_rtt + 4 * tcp->variance_rtt;
-    if (rto < TCP_MIN_RTO_MS) {
-        rto = TCP_MIN_RTO_MS;
-    } else if (rto > TCP_MAX_RTO_MS) {
-        rto = TCP_MAX_RTO_MS;
-    }
-    tcp->rto = rto;
+    tcp->rto = clamp(rto, TCP_MIN_RTO_MS, TCP_MAX_RTO_MS);
 
     assert(tcp->estimated_rtt >= 0);
     assert(tcp->variance_rtt >= 0);
@@ -1860,6 +1856,11 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
         goto exit;
     }
 
+    if (nbytes == 0) {
+        ret = 0;
+        goto exit;
+    }
+
     uint16_t original_rwnd = tcp_rwnd_size(tcp);
     uint8_t *bufp = buf;
     int copied = 0;
@@ -1880,10 +1881,7 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
         int bytes_remaining = tcp_body_len(skb) - offset;
         if (bytes_remaining >= 0) {
             /* Clamp to actual size of buffer */
-            int bytes_to_copy = bytes_remaining;
-            if (bytes_to_copy > nbytes - copied) {
-                bytes_to_copy = nbytes - copied;
-            }
+            int bytes_to_copy = min(bytes_remaining, nbytes - copied);
 
             /* Now do the copy, only return -1 if no bytes could be copied */
             uint8_t *body = skb_data(skb);
@@ -1975,6 +1973,11 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
         goto exit;
     }
 
+    if (nbytes == 0) {
+        ret = 0;
+        goto exit;
+    }
+
     /* Limit number of bytes to remaining send window */
     int outbox_used = (int)(tcp->send_next_num - tcp->send_unack_num);
     int outbox_free = (int)tcp->send_wnd_size - outbox_used;
@@ -1982,23 +1985,14 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
         ret = -EAGAIN;
         goto exit;
     }
-
-    if (nbytes > outbox_free) {
-        nbytes = outbox_free;
-    } else if (nbytes == 0) {
-        ret = 0;
-        goto exit;
-    }
+    nbytes = min(nbytes, outbox_free);
 
     /* Copy data from userspace into TCP outbox */
     const uint8_t *bufp = buf;
     int sent = 0;
     while (sent < nbytes) {
         /* Split into MSS packets */
-        int body_len = nbytes - sent;
-        if (body_len > TCP_MAX_LEN) {
-            body_len = TCP_MAX_LEN;
-        }
+        int body_len = min(nbytes - sent, TCP_MAX_LEN);
 
         /* Create new SKB for packet */
         skb_t *skb = tcp_alloc_skb(body_len);

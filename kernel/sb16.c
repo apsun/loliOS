@@ -1,6 +1,7 @@
 #include "sb16.h"
 #include "types.h"
 #include "debug.h"
+#include "math.h"
 #include "portio.h"
 #include "list.h"
 #include "file.h"
@@ -192,12 +193,8 @@ sb16_get_writable_count(int nbytes)
         }
     }
 
-    int to_write = nbytes;
-
     /* Limit writable bytes to one region */
-    if (to_write > SB16_HALF_BUFFER_SIZE - audio_buf_count) {
-        to_write = SB16_HALF_BUFFER_SIZE - audio_buf_count;
-    }
+    int to_write = min(nbytes, SB16_HALF_BUFFER_SIZE - audio_buf_count);
 
     /* If we're using the 16-bit DMA channel, nbytes must be even */
     to_write &= -(bits_per_sample / 8);

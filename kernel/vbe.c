@@ -1,6 +1,7 @@
 #include "vbe.h"
 #include "types.h"
 #include "debug.h"
+#include "math.h"
 #include "portio.h"
 #include "string.h"
 #include "paging.h"
@@ -187,13 +188,11 @@ vbe_fbmap(void **ptr, int xres, int yres, int bpp)
         return -1;
     }
 
-    /* +1 is needed to round 15bpp up to 2 bytes */
-    int bytespp = (bpp + 1) / 8;
-
     /*
      * Check that we have enough space to hold all pixels, with
      * double buffering (hence divide by 2).
      */
+    int bytespp = div_round_up(bpp, 8);
     if (xres * yres * bytespp > VBE_FB_SIZE / 2) {
         debugf("Resolution too large (%d*%d*%d)\n", xres, yres, bpp);
         return -1;

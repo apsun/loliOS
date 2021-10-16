@@ -2,6 +2,7 @@
 #define _BITMAP_H
 
 #include "types.h"
+#include "math.h"
 #include "string.h"
 #include "myalloc.h"
 
@@ -16,7 +17,7 @@ typedef unsigned int bitmap_t;
  * Returns the size of the parameter in bits.
  */
 #define bitmap_bitsizeof(x) \
-    (8 * sizeof(x))
+    (8 * (int)sizeof(x))
 
 /*
  * Returns the major (unit) component of a bit index.
@@ -34,7 +35,7 @@ typedef unsigned int bitmap_t;
  * Returns the number of units needed to hold a n-bit bitmap.
  */
 #define bitmap_nunits(nbits) \
-    ((int)(((nbits) + bitmap_bitsizeof(bitmap_t) - 1) / bitmap_bitsizeof(bitmap_t)))
+    div_round_up(nbits, bitmap_bitsizeof(bitmap_t))
 
 /*
  * Declares a new bitmap with the specified name and number of bits.

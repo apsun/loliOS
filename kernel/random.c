@@ -1,5 +1,6 @@
 #include "random.h"
 #include "types.h"
+#include "math.h"
 #include "file.h"
 #include "paging.h"
 #include "mt19937.h"
@@ -21,13 +22,11 @@ random_read(file_obj_t *file, void *buf, int nbytes)
     uint32_t block[64];
     uint8_t *bufp = buf;
     while (copied < nbytes) {
-        int to_copy = sizeof(block);
-        if (to_copy > nbytes - copied) {
-            to_copy = nbytes - copied;
-        }
+        int to_copy = min((int)sizeof(block), nbytes - copied);
+        int nwords = div_round_up(to_copy, sizeof(uint32_t));
 
         int i;
-        for (i = 0; i < (to_copy + 3) / 4; ++i) {
+        for (i = 0; i < nwords; ++i) {
             block[i] = urand();
         }
 

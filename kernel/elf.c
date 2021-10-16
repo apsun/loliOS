@@ -1,6 +1,7 @@
 #include "elf.h"
 #include "types.h"
 #include "debug.h"
+#include "math.h"
 #include "string.h"
 #include "paging.h"
 #include "filesys.h"
@@ -147,7 +148,7 @@ elf_is_valid_note(int inode_idx, elf_prog_hdr_t *phdr, bool *out_compat)
          * This may overflow; we don't care. Worst case, we read some garbage
          * and accidentally treat the file as valid.
          */
-        count += sizeof(nhdr) + ((nhdr.namesz + 3) & -4) + ((nhdr.descsz + 3) & -4);
+        count += sizeof(nhdr) + round_up(nhdr.namesz, 4) + round_up(nhdr.descsz, 4);
     }
 
     return true;

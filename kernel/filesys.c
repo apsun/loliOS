@@ -1,6 +1,7 @@
 #include "filesys.h"
 #include "types.h"
 #include "debug.h"
+#include "math.h"
 #include "string.h"
 #include "bitmap.h"
 #include "file.h"
@@ -10,7 +11,7 @@
 #define fs_dentry(idx) (&fs_boot_block->dir_entries[idx])
 #define fs_inode(idx) ((inode_t *)(fs_boot_block + 1 + (idx)))
 #define fs_data(idx) ((uint8_t *)(fs_boot_block + 1 + fs_boot_block->inode_count + (idx)))
-#define fs_nblocks(nbytes) (((nbytes) + FS_BLOCK_SIZE - 1) / FS_BLOCK_SIZE)
+#define fs_nblocks(nbytes) div_round_up((nbytes), FS_BLOCK_SIZE)
 
 /* Helpers for casting to/from file private data */
 #define get_off(f) ((int)(f)->private)
@@ -355,9 +356,7 @@ fs_read_data(
     }
 
     /* Clamp read length to end of file */
-    if (length > inode->size - offset) {
-        length = inode->size - offset;
-    }
+    length = min(length, inode->size - offset);
 
     /* Iterate data blocks, copying output to buf as we go */
     fs_read_data_private p;
@@ -403,10 +402,8 @@ fs_dir_read(file_obj_t *file, void *buf, int nbytes)
 
         /* Calculate length so we can copy in one go */
         dentry_t *dentry = fs_dentry(i);
-        int length = fs_namelen(dentry->name);
-        if (nbytes > length) {
-            nbytes = length;
-        }
+        int len = fs_namelen(dentry->name);
+        nbytes = min(nbytes, len);
 
         /* Perform copy */
         if (!copy_to_user(buf, dentry->name, nbytes)) {
@@ -580,9 +577,7 @@ fs_file_write(file_obj_t *file, const void *buf, int nbytes)
 
     /* Ensure we don't overflow the maximum file size */
     int offset = get_off(file);
-    if (nbytes > FS_MAX_FILE_SIZE - offset) {
-        nbytes = FS_MAX_FILE_SIZE - offset;
-    }
+    nbytes = min(nbytes, FS_MAX_FILE_SIZE - offset);
 
     /* Number of bytes we've successfully copied into the file */
     int copied = 0;
@@ -630,10 +625,7 @@ exit:
      * didn't get written at the end.
      */
     if (copied < nbytes) {
-        new_length = orig_length;
-        if (new_length < offset + copied) {
-            new_length = offset + copied;
-        }
+        new_length = max(orig_length, offset + copied);
         fs_resize_inode(inode, new_length, false);
     }
 
