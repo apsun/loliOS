@@ -49,7 +49,7 @@ dma_start_impl(
     outb(channel | DMA_MASK_DISABLE, dma->mask_port);
 
     /* Set DMA mode */
-    outb(mode, dma->mode_port);
+    outb(channel | mode, dma->mode_port);
 
     /* Set buffer offset */
     outb(0x00, dma->clear_ff_port);
@@ -74,14 +74,16 @@ dma_start(
     void *buf,
     int nbytes,
     int channel,
-    int mode)
+    dma_mode_t mode)
 {
     /* Basic sanity check */
+    assert(channel >= 0 && channel < 8);
     assert((mode & (~0xff | 3)) == 0);
 
     /* Buffer must be in the first 16MB = 2^24 bytes of memory */
     uintptr_t addr = (uintptr_t)buf;
     assert((addr & ~0xffffff) == 0);
+    assert((nbytes & ~0xffffff) == 0);
     assert(((addr + nbytes - 1) & ~0xffffff) == 0);
 
     if (channel < 4) {
@@ -89,7 +91,7 @@ dma_start(
         dma_start_impl(
             &dma1,
             channel,
-            mode | channel,
+            mode,
             (addr >> 16) & 0xff,
             (addr >> 0) & 0xffff,
             (nbytes >> 0) - 1);
@@ -100,7 +102,7 @@ dma_start(
         dma_start_impl(
             &dma2,
             channel - 4,
-            mode | (channel - 4),
+            mode,
             (addr >> 16) & 0xff,
             (addr >> 1) & 0xffff,
             (nbytes >> 1) - 1);

@@ -83,7 +83,7 @@ ip_pseudo_checksum(
     skb_t *skb,
     ip_addr_t src_ip,
     ip_addr_t dest_ip,
-    uint8_t protocol)
+    ipproto_t protocol)
 {
     assert(skb_transport_header(skb) != NULL);
     assert(skb_network_header(skb) == NULL);
@@ -185,7 +185,7 @@ ip_send(
     ip_addr_t neigh_ip,
     skb_t *skb,
     ip_addr_t dest_ip,
-    uint8_t protocol)
+    ipproto_t protocol)
 {
     assert(skb_network_header(skb) == NULL);
     ip_hdr_t *hdr = skb_push(skb, sizeof(ip_hdr_t));

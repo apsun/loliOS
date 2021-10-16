@@ -228,7 +228,7 @@ arp_get_state(net_dev_t *dev, ip_addr_t ip, mac_addr_t *mac)
  * BROADCAST_MAC if not known).
  */
 static int
-arp_send(net_iface_t *iface, ip_addr_t ip, mac_addr_t mac, int op)
+arp_send(net_iface_t *iface, ip_addr_t ip, mac_addr_t mac, uint16_t op)
 {
     /* Allocate new SKB */
     int hdr_len = sizeof(arp_hdr_t) + sizeof(ethernet_hdr_t);

@@ -5,10 +5,6 @@
 #include "skb.h"
 #include "types.h"
 
-#define IPPROTO_ICMP 0x01
-#define IPPROTO_TCP 0x06
-#define IPPROTO_UDP 0x11
-
 #ifndef ASM
 
 /* IP header */
@@ -26,14 +22,30 @@ typedef struct {
     ip_addr_t dest_ip;
 } __packed ip_hdr_t;
 
+/* IP protocol identifier constants */
+typedef enum {
+    IPPROTO_ICMP = 0x01,
+    IPPROTO_TCP = 0x06,
+    IPPROTO_UDP = 0x11,
+} ipproto_t;
+
 /* Computes a TCP or UDP checksum */
-be16_t ip_pseudo_checksum(skb_t *skb, ip_addr_t src_ip, ip_addr_t dest_ip, uint8_t protocol);
+be16_t ip_pseudo_checksum(
+    skb_t *skb,
+    ip_addr_t src_ip,
+    ip_addr_t dest_ip,
+    ipproto_t protocol);
 
 /* Handles an incoming IP packet */
 int ip_handle_rx(net_iface_t *iface, skb_t *skb);
 
 /* Sends an IP packet */
-int ip_send(net_iface_t *iface, ip_addr_t neigh_ip, skb_t *skb, ip_addr_t dest_ip, uint8_t protocol);
+int ip_send(
+    net_iface_t *iface,
+    ip_addr_t neigh_ip,
+    skb_t *skb,
+    ip_addr_t dest_ip,
+    ipproto_t protocol);
 
 #endif /* ASM */
 

@@ -38,7 +38,7 @@ ethernet_handle_rx(net_dev_t *dev, skb_t *skb)
  * specified MAC address.
  */
 int
-ethernet_send_mac(net_dev_t *dev, skb_t *skb, mac_addr_t mac, int ethertype)
+ethernet_send_mac(net_dev_t *dev, skb_t *skb, mac_addr_t mac, ethertype_t ethertype)
 {
     assert(skb_mac_header(skb) == NULL);
     ethernet_hdr_t *hdr = skb_push(skb, sizeof(ethernet_hdr_t));
