@@ -7,7 +7,9 @@
 #include "paging.h"
 #include "net.h"
 #include "ip.h"
+#include "socket.h"
 #include "ethernet.h"
+#include "scheduler.h"
 
 /* Maximum length of a UDP datagram body */
 #define UDP_MAX_LEN 1472
@@ -16,6 +18,9 @@
 typedef struct {
     /* Simple queue of incoming packets */
     list_t inbox;
+
+    /* Sleep queue for reading packets */
+    list_t read_queue;
 } udp_sock_t;
 
 /* Obtains a udp_sock_t reference from a net_sock_t */
@@ -52,6 +57,7 @@ udp_handle_rx(net_iface_t *iface, skb_t *skb)
     /* Append SKB to inbox queue */
     udp_sock_t *udp = udp_sock(sock);
     list_add_tail(&skb_retain(skb)->list, &udp->inbox);
+    scheduler_wake_all(&udp->read_queue);
     return 0;
 }
 
@@ -95,32 +101,6 @@ udp_send(net_sock_t *sock, skb_t *skb, ip_addr_t ip, uint16_t port)
     return ip_send(iface, neigh_ip, skb, ip, IPPROTO_UDP);
 }
 
-/*
- * Checks whether the specified packet should be passed to
- * the user when calling recvfrom(). As per the spec, if
- * the socket is connected, only packets from the connected
- * peer will be accepted.
- */
-static bool
-udp_can_recv(net_sock_t *sock, skb_t *skb)
-{
-    if (!sock->connected) {
-        return true;
-    }
-
-    ip_hdr_t *ip_hdr = skb_network_header(skb);
-    if (!ip_equals(sock->remote.ip, ip_hdr->src_ip)) {
-        return false;
-    }
-
-    udp_hdr_t *udp_hdr = skb_transport_header(skb);
-    if (sock->remote.port != ntohs(udp_hdr->be_src_port)) {
-        return false;
-    }
-
-    return true;
-}
-
 /* UDP socket constructor */
 int
 udp_ctor(net_sock_t *sock)
@@ -131,6 +111,7 @@ udp_ctor(net_sock_t *sock)
         return -1;
     }
     list_init(&udp->inbox);
+    list_init(&udp->read_queue);
     sock->private = udp;
     return 0;
 }
@@ -185,6 +166,41 @@ udp_connect(net_sock_t *sock, const sock_addr_t *addr)
 }
 
 /*
+ * Checks if there are any packets available to read. Returns
+ * -EAGAIN if the inbox is empty, > 0 otherwise.
+ */
+static int
+udp_can_read(udp_sock_t *udp)
+{
+    if (list_empty(&udp->inbox)) {
+        return -EAGAIN;
+    }
+    return 1;
+}
+
+/*
+ * Checks whether the specified packet should be passed to
+ * the user when calling recvfrom(). As per the spec, if
+ * the socket is connected, only packets from the connected
+ * peer will be accepted.
+ */
+static bool
+udp_matches_connected_addr(net_sock_t *sock, skb_t *skb)
+{
+    ip_hdr_t *ip_hdr = skb_network_header(skb);
+    if (!ip_equals(sock->remote.ip, ip_hdr->src_ip)) {
+        return false;
+    }
+
+    udp_hdr_t *udp_hdr = skb_transport_header(skb);
+    if (sock->remote.port != ntohs(udp_hdr->be_src_port)) {
+        return false;
+    }
+
+    return true;
+}
+
+/*
  * recvfrom() socketcall handler. Reads a single datagram
  * from the socket. The sender's address will be copied to
  * addr if it is not null.
@@ -198,19 +214,28 @@ udp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
         return -1;
     }
 
-    /* Find a packet that we can accept */
     udp_sock_t *udp = udp_sock(sock);
     skb_t *skb;
     while (1) {
-        if (list_empty(&udp->inbox)) {
-            return -EAGAIN;
+        /* Wait for a packet to arrive in our inbox */
+        int can_read = BLOCKING_WAIT(
+            udp_can_read(udp),
+            udp->read_queue,
+            socket_is_nonblocking(sock));
+        if (can_read < 0) {
+            return can_read;
         }
 
+        /*
+         * If we're unconnected, or the packet came from the address
+         * that we're connected to, accept the incoming packet.
+         */
         skb = list_first_entry(&udp->inbox, skb_t, list);
-        if (udp_can_recv(sock, skb)) {
+        if (!sock->connected || udp_matches_connected_addr(sock, skb)) {
             break;
         }
 
+        /* Otherwise, discard the packet */
         list_del(&skb->list);
         skb_release(skb);
     }
