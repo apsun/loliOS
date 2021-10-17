@@ -47,6 +47,12 @@ typedef struct {
     sock_addr_t local;
     sock_addr_t remote;
 
+    /*
+     * Pointer back to the file object. May be null if the file
+     * was closed but the socket still has refcnt > 0.
+     */
+    file_obj_t *file;
+
     /* Per-type private data */
     void *private;
 } net_sock_t;
@@ -87,6 +93,9 @@ net_sock_t *socket_obj_alloc(int type);
 void socket_obj_free(net_sock_t *sock);
 net_sock_t *socket_obj_retain(net_sock_t *sock);
 void socket_obj_release(net_sock_t *sock);
+
+/* Checks whether the socket is in non-blocking mode */
+bool socket_is_nonblocking(net_sock_t *sock);
 
 /* Binds a socket object to a file */
 int socket_obj_bind_file(file_obj_t **files, net_sock_t *sock);

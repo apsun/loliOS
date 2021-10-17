@@ -83,8 +83,9 @@ get_executing_sock(int fd)
 }
 
 /*
- * Initializes the specified socket's ops table for
- * the given socket type.
+ * Initializes the specified socket's fields for
+ * the given socket type. Does not call the per-type
+ * constructor.
  */
 static int
 socket_obj_init(net_sock_t *sock, int type)
@@ -100,7 +101,20 @@ socket_obj_init(net_sock_t *sock, int type)
         debugf("Unknown socket type: %d\n", type);
         return -1;
     }
+
     sock->type = type;
+    sock->refcnt = 0;
+    sock->bound = false;
+    sock->connected = false;
+    sock->listening = false;
+    sock->iface = NULL;
+    sock->local.ip = ANY_IP;
+    sock->local.port = 0;
+    sock->remote.ip = ANY_IP;
+    sock->remote.port = 0;
+    sock->file = NULL;
+    sock->private = NULL;
+    list_add_tail(&sock->list, &socket_list);
     return 0;
 }
 
@@ -113,32 +127,16 @@ socket_obj_init(net_sock_t *sock, int type)
 net_sock_t *
 socket_obj_alloc(int type)
 {
-    /* Allocate socket */
     net_sock_t *sock = malloc(sizeof(net_sock_t));
     if (sock == NULL) {
         return NULL;
     }
 
-    /* Set socket ops table */
     if (socket_obj_init(sock, type) < 0) {
         free(sock);
         return NULL;
     }
 
-    /* Initialize fields */
-    sock->refcnt = 0;
-    sock->bound = false;
-    sock->connected = false;
-    sock->listening = false;
-    sock->iface = NULL;
-    sock->local.ip = ANY_IP;
-    sock->local.port = 0;
-    sock->remote.ip = ANY_IP;
-    sock->remote.port = 0;
-    sock->private = NULL;
-    list_add_tail(&sock->list, &socket_list);
-
-    /* Call constructor */
     if (sock->ops_table->ctor != NULL && sock->ops_table->ctor(sock) < 0) {
         list_del(&sock->list);
         free(sock);
@@ -187,6 +185,18 @@ socket_obj_release(net_sock_t *sock)
 }
 
 /*
+ * Returns whether the socket is in non-blocking mode. This
+ * must only be called from within a socketcall syscall, which
+ * ensures that the socket is still associated with a file.
+ */
+bool
+socket_is_nonblocking(net_sock_t *sock)
+{
+    assert(sock->file != NULL);
+    return sock->file->nonblocking;
+}
+
+/*
  * Binds a socket object to a file. This will increment
  * the socket reference count on success. Returns the file
  * descriptor, or -1 if no files are available.
@@ -210,6 +220,7 @@ socket_obj_bind_file(file_obj_t **files, net_sock_t *sock)
     }
 
     file->private = (intptr_t)socket_obj_retain(sock);
+    sock->file = file;
     return fd;
 }
 
@@ -238,6 +249,7 @@ socket_close(file_obj_t *file)
     if (sock->ops_table->close != NULL) {
         sock->ops_table->close(sock);
     }
+    sock->file = NULL;
     file->private = NULL;
     socket_obj_release(sock);
 }
