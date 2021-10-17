@@ -30,7 +30,7 @@ FILE __stderr = {.fd = STDERR_FILENO};
  * OPEN_* flags. Returns 0 on failure.
  */
 static int
-parse_mode(const char *mode)
+file_parse_mode(const char *mode)
 {
     int flags = 0;
     do {
@@ -130,7 +130,7 @@ fdopen(int fd, const char *mode)
     assert(fd >= 0);
     assert(mode != NULL);
 
-    int flags = parse_mode(mode);
+    int flags = file_parse_mode(mode);
     if (flags == 0) {
         return NULL;
     }
@@ -139,9 +139,8 @@ fdopen(int fd, const char *mode)
 }
 
 /*
- * Opens a file with the specified mode. Supported
- * values are r, w, a, r+, w+, and a+. Behavior is
- * undefined if any other string is passed for mode.
+ * Opens a file with the specified mode. Behavior is
+ * undefined if an invalid mode is passed.
  */
 FILE *
 fopen(const char *name, const char *mode)
@@ -150,7 +149,7 @@ fopen(const char *name, const char *mode)
     assert(mode != NULL);
     assert(*mode != '\0');
 
-    int flags = parse_mode(mode);
+    int flags = file_parse_mode(mode);
     if (flags == 0) {
         return NULL;
     }
