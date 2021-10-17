@@ -1039,8 +1039,8 @@ tcp_inbox_drain(tcp_sock_t *tcp)
 }
 
 /*
- * Closes the write end of a full-duplex socket. No-op if the
- * write end is already closed. Advances the socket state.
+ * Closes the write end of a socket. No-op if the write end
+ * is already closed. Advances the socket state.
  */
 static void
 tcp_close_write(tcp_sock_t *tcp)
@@ -1070,6 +1070,18 @@ tcp_close_write(tcp_sock_t *tcp)
     } else {
         assert(tcp_in_state(tcp, LOCAL_FIN | CLOSED));
     }
+}
+
+/*
+ * Closes both read and write ends of a socket. Advances the
+ * socket state.
+ */
+static void
+tcp_close_read_write(tcp_sock_t *tcp)
+{
+    tcp->read_closed = true;
+    tcp_inbox_drain(tcp);
+    tcp_close_write(tcp);
 }
 
 /*
@@ -1703,17 +1715,26 @@ tcp_dtor(net_sock_t *sock)
     /* Terminate all pending connections */
     if (sock->listening) {
         list_for_each_safe(pos, next, &tcp->backlog) {
-            tcp_sock_t *pending = list_entry(pos, tcp_sock_t, backlog);
-            tcp_set_state(pending, FIN_WAIT_1);
-            if (tcp_outbox_insert_fin(pending) == NULL) {
-                /* Note: This will call the pending socket's destructor */
-                tcp_set_state(pending, CLOSED);
-            } else {
-                tcp_outbox_transmit_unsent(pending);
-            }
+            tcp_sock_t *pending = tcp_acquire(list_entry(pos, tcp_sock_t, backlog));
+
+            /*
+             * Detach pending socket from ourselves, since we're getting
+             * destroyed. This avoids a use-after-free when the pending
+             * connection eventually gets destroyed.
+             */
+            list_del(&pending->backlog);
+
+            /* Treat it as if we called close() on the pending socket */
+            tcp_close_read_write(pending);
+            tcp_release(pending);
         }
     } else {
-        list_del(&tcp->backlog);
+        /*
+         * If this is a pending socket, it can only be destroyed when
+         * the listening socket is also going away, in which case it
+         * will have already removed this socket from the backlog.
+         */
+        assert(list_empty(&tcp->backlog));
     }
 
     /* Clear inbox */
@@ -2262,8 +2283,6 @@ void
 tcp_close(net_sock_t *sock)
 {
     tcp_sock_t *tcp = tcp_acquire(tcp_sock(sock));
-    tcp->read_closed = true;
-    tcp_inbox_drain(tcp);
-    tcp_close_write(tcp);
+    tcp_close_read_write(tcp);
     tcp_release(tcp);
 }
