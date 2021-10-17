@@ -23,15 +23,21 @@
 #include "ip.h"
 #include "ethernet.h"
 #include "mt19937.h"
+#include "scheduler.h"
 
 /*
  * Enable for verbose TCP logging. Warning: very verbose.
  */
-#define TCP_DEBUG_PRINT 0
+#ifndef TCP_DEBUG_PRINT
+    #define TCP_DEBUG_PRINT 0
+#endif
+
 #if TCP_DEBUG_PRINT
-    #define tcp_debugf(...) debugf(__VA_ARGS__)
+    #define tcp_debugf(tcp, fmt, ...) debugf("tcp(0x%08x) " fmt, tcp, ## __VA_ARGS__)
+    #define skb_debugf(skb, fmt, ...) debugf("skb(0x%08x) " fmt, skb, ## __VA_ARGS__)
 #else
     #define tcp_debugf(...) ((void)0)
+    #define skb_debugf(...) ((void)0)
 #endif
 
 /*
@@ -80,6 +86,12 @@ typedef enum {
     CLOSE_WAIT   = (1 << 8),  /* FIN received */
     LAST_ACK     = (1 << 9),  /* FIN received -> shutdown() */
     CLOSED       = (1 << 10), /* Used when the connection is closed but file is still open */
+
+    /* All states in which we've sent a FIN (i.e. called shutdown/close) */
+    LOCAL_FIN    = (FIN_WAIT_1 | FIN_WAIT_2 | CLOSING | TIME_WAIT | LAST_ACK),
+
+    /* All states in which we've received an in-order FIN */
+    REMOTE_FIN   = (CLOSING | TIME_WAIT | CLOSE_WAIT | LAST_ACK),
 } tcp_state_t;
 
 /* TCP socket state */
@@ -117,6 +129,14 @@ typedef struct {
      * This holds our node in the pending ACK queue.
      */
     list_t ack_queue;
+
+    /*
+     * Sleep queues for accepting incoming connections and reading/writing
+     * data from/to the socket.
+     */
+    list_t accept_queue;
+    list_t read_queue;
+    list_t write_queue;
 
     /*
      * Timer for the TIME_WAIT and FIN_WAIT_2 states. When this timer expires,
@@ -294,13 +314,13 @@ tcp_seg_len(skb_t *skb)
 }
 
 /*
- * Prints the control information of a packet using tcp_debugf().
+ * Prints the control information of a packet.
  */
 static void
 tcp_dump_pkt(const char *prefix, skb_t *skb)
 {
     tcp_hdr_t *hdr __unused = skb_transport_header(skb);
-    tcp_debugf("%s: SEQ=%u, LEN=%d, ACK=%u, WND=%d, CTL=%s%s%s%s%s\b\n",
+    skb_debugf(skb, "%s: SEQ=%u, LEN=%d, ACK=%u, WND=%d, CTL=%s%s%s%s%s\b\n",
         prefix, seq(hdr), tcp_seg_len(skb), ack(hdr), ntohs(hdr->be_window_size),
         (hdr->fin) ? "FIN+" : "",
         (hdr->syn) ? "SYN+" : "",
@@ -344,20 +364,33 @@ static void
 tcp_set_state(tcp_sock_t *tcp, tcp_state_t state)
 {
     tcp_debugf(
-        "TCP state (0x%08x) %s -> %s\n",
         tcp,
+        "Socket state %s -> %s\n",
         tcp_get_state_str(tcp->state),
         tcp_get_state_str(state));
 
     if (tcp->state == state) {
         return;
-    } else if (tcp->state == CLOSED) {
+    }
+
+    if (tcp->state == CLOSED) {
         tcp_acquire(tcp);
-    } else if (state == CLOSED) {
-        tcp_release(tcp);
     }
 
     tcp->state = state;
+
+    /*
+     * Some operations may have become invalid when we
+     * changed the socket state. Wake readers and writers.
+     */
+    scheduler_wake_all(&tcp->accept_queue);
+    scheduler_wake_all(&tcp->read_queue);
+    scheduler_wake_all(&tcp->write_queue);
+
+    /* This must be done last, since release may free the socket */
+    if (state == CLOSED) {
+        tcp_release(tcp);
+    }
 }
 
 /*
@@ -404,6 +437,18 @@ tcp_in_rwnd(tcp_sock_t *tcp, uint32_t seq_num, int seg_len)
             && cmp(seq_num + seg_len - 1, ack_num) >= 0
             && cmp(seq_num + seg_len - 1, ack_num + rwnd_size) < 0);
     }
+}
+
+/*
+ * Returns the amount of available space in the send window.
+ * May return a negative number if the outbox is fuller than
+ * the send window.
+ */
+static int
+tcp_swnd_space(tcp_sock_t *tcp)
+{
+    uint32_t outbox_used = tcp->send_next_num - tcp->send_unack_num;
+    return (int)(tcp->send_wnd_size - outbox_used);
 }
 
 /*
@@ -617,6 +662,7 @@ tcp_deliver_ack(void)
             tcp_send_ack(tcp);
         }
         list_del(&tcp->ack_queue);
+        tcp_release(tcp);
     }
 }
 
@@ -675,7 +721,7 @@ tcp_outbox_transmit_one(tcp_sock_t *tcp, tcp_pkt_t *pkt)
     assert(!list_empty(&pkt->list));
 
     if (++pkt->num_transmissions > TCP_MAX_RETRANSMISSIONS) {
-        tcp_debugf("Too many retransmissions, giving up\n");
+        tcp_debugf(tcp, "Too many retransmissions, giving up\n");
         tcp->reset = true;
         tcp_set_state(tcp, CLOSED);
         return -1;
@@ -719,7 +765,7 @@ tcp_on_fin_timeout(timer_t *timer)
         goto exit;
     }
 
-    tcp_debugf("FIN timeout reached, closing\n");
+    tcp_debugf(tcp, "FIN timeout reached, closing\n");
     tcp_set_state(tcp, CLOSED);
 
 exit:
@@ -752,7 +798,7 @@ tcp_on_rto_timeout(timer_t *timer)
     tcp_add_backoff(tcp);
 
     /* Retransmit the first packet (also re-enables the timer) */
-    tcp_debugf("RTO reached, retransmitting earliest packet\n");
+    tcp_debugf(tcp, "RTO reached, retransmitting earliest packet\n");
     tcp_pkt_t *pkt = list_first_entry(&tcp->outbox, tcp_pkt_t, list);
     tcp_outbox_transmit_one(tcp, pkt);
 
@@ -809,7 +855,7 @@ tcp_outbox_insert(tcp_sock_t *tcp, skb_t *skb)
     list_add_tail(&pkt->list, &tcp->outbox);
 
     tcp->send_next_num += tcp_seg_len(skb);
-    tcp_debugf("Added 0x%08x to outbox\n", pkt);
+    tcp_debugf(tcp, "Added 0x%08x to outbox\n", pkt);
     return pkt;
 }
 
@@ -878,7 +924,7 @@ tcp_outbox_insert_fin(tcp_sock_t *tcp)
 static void
 tcp_outbox_remove(tcp_sock_t *tcp, tcp_pkt_t *pkt)
 {
-    tcp_debugf("Removing 0x%08x from outbox\n", pkt);
+    tcp_debugf(tcp, "Removing 0x%08x from outbox\n", pkt);
     list_del(&pkt->list);
     skb_release(pkt->skb);
     free(pkt);
@@ -897,6 +943,12 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
 
     /* Don't bother adding ACK-only packets to inbox */
     if (len == 0) {
+        return false;
+    }
+
+    /* Discard retransmissions of packets we've already completely read */
+    if (cmp(seq(hdr) + len, tcp->recv_read_num) <= 0) {
+        tcp_debugf(tcp, "Retransmission of packet outside rwnd, dropping\n");
         return false;
     }
 
@@ -920,14 +972,14 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
              * discard it since it adds no new data.
              */
             if (c == 0 && len == tcp_seg_len(iskb)) {
-                tcp_debugf("Retransmission of existing packet, dropping\n");
+                tcp_debugf(tcp, "Retransmission of existing packet, dropping\n");
                 return false;
             }
             break;
         }
     }
     list_add(&skb_retain(skb)->list, pos);
-    tcp_debugf("Added 0x%08x to inbox\n", skb);
+    tcp_debugf(tcp, "Added 0x%08x to inbox\n", skb);
     return true;
 }
 
@@ -937,7 +989,7 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
 static void
 tcp_inbox_remove(tcp_sock_t *tcp, skb_t *skb)
 {
-    tcp_debugf("Removing 0x%08x from inbox\n", skb);
+    tcp_debugf(tcp, "Removing 0x%08x from inbox\n", skb);
     list_del(&skb->list);
     skb_release(skb);
 }
@@ -950,14 +1002,13 @@ static void
 tcp_inbox_done(tcp_sock_t *tcp, skb_t *skb)
 {
     tcp_hdr_t *hdr = skb_transport_header(skb);
-    assert(cmp(tcp->recv_read_num, seq(hdr)) >= 0);
-
     int len = tcp_seg_len(skb);
+
     if (cmp(tcp->recv_read_num, seq(hdr) + len) < 0) {
         tcp->recv_read_num = seq(hdr) + len;
     }
 
-    tcp->recv_wnd_size += tcp_seg_len(skb);
+    tcp->recv_wnd_size += len;
     tcp_inbox_remove(tcp, skb);
 }
 
@@ -1016,6 +1067,8 @@ tcp_close_write(tcp_sock_t *tcp)
         } else {
             tcp_outbox_transmit_unsent(tcp);
         }
+    } else {
+        assert(tcp_in_state(tcp, LOCAL_FIN | CLOSED));
     }
 }
 
@@ -1134,13 +1187,21 @@ tcp_outbox_handle_rx_ack(tcp_sock_t *tcp, tcp_hdr_t *hdr)
     /* If we get three duplicate ACKs, retransmit the earliest packet */
     if (num_acked == 0 && !list_empty(&tcp->outbox)) {
         if (++tcp->num_duplicate_acks == 3) {
-            tcp_debugf("Performing fast retransmission of earliest packet\n");
+            tcp_debugf(tcp, "Performing fast retransmission of earliest packet\n");
             tcp_pkt_t *txpkt = list_first_entry(&tcp->outbox, tcp_pkt_t, list);
             tcp_outbox_transmit_one(tcp, txpkt);
             tcp->num_duplicate_acks = 0;
         }
     } else {
         tcp->num_duplicate_acks = 0;
+    }
+
+    /*
+     * If we freed up space in the outbox or the remote end increased
+     * their window size, wake writers.
+     */
+    if (tcp_swnd_space(tcp) > 0) {
+        scheduler_wake_all(&tcp->write_queue);
     }
 }
 
@@ -1173,7 +1234,7 @@ tcp_inbox_handle_rx_skb(tcp_sock_t *tcp, skb_t *skb)
         tcp_hdr_t *ihdr = skb_transport_header(iskb);
         int ilen = tcp_seg_len(iskb);
 
-        /* If seq > ack_num, we have a hole, so stop here */
+        /* If SEG.SEQ > RCV.NXT, we have a hole, so stop here */
         if (cmp(seq(ihdr), tcp->recv_next_num) > 0) {
             break;
         }
@@ -1187,13 +1248,23 @@ tcp_inbox_handle_rx_skb(tcp_sock_t *tcp, skb_t *skb)
             continue;
         }
 
-        /* Discard any packets after a FIN */
-        if (tcp_in_state(tcp, CLOSING | TIME_WAIT | CLOSE_WAIT | LAST_ACK | CLOSED)) {
+        /* Discard any packets after we've already received an in-order FIN */
+        if (tcp_in_state(tcp, REMOTE_FIN | CLOSED)) {
             tcp_inbox_remove(tcp, iskb);
             continue;
         }
 
-        /* Looks good, advance the ACK number and adjust rwnd to compensate */
+        /*
+         * Looks good, advance the ACK number and adjust rwnd to
+         * compensate. Note that this algorithm is slightly wrong in
+         * the case of overlapping packets, e.g.
+         *
+         * AAAAAA
+         *    BBBBBB
+         *
+         * The rwnd should by shrunk by (B.SEQ + B.LEN) - (A.SEQ + A.LEN),
+         * but instead it is shrunk by the entire B.LEN.
+         */
         tcp->recv_next_num = seq(ihdr) + ilen;
         tcp->recv_wnd_size -= ilen;
 
@@ -1213,6 +1284,20 @@ tcp_inbox_handle_rx_skb(tcp_sock_t *tcp, skb_t *skb)
                 tcp_restart_fin_timeout(tcp);
             }
         }
+
+        /*
+         * Automatically "read" packets with no data (i.e. SYN/FIN)
+         * to maintain the invariant that inbox != empty implies
+         * there is at least one byte of data to read.
+         */
+        if (tcp_body_len(iskb) == 0) {
+            tcp_inbox_done(tcp, iskb);
+        }
+    }
+
+    /* If we have any in-order data, wake readers */
+    if (cmp(tcp->recv_next_num, tcp->recv_read_num) > 0) {
+        scheduler_wake_all(&tcp->read_queue);
     }
 
     /*
@@ -1240,7 +1325,7 @@ tcp_handle_rx_syn_sent(tcp_sock_t *tcp, skb_t *skb)
         (cmp(ack(hdr), tcp->send_unack_num) < 0 ||
          cmp(ack(hdr), tcp->send_next_num) > 0))
     {
-        tcp_debugf("Unacceptable ACK received in SYN_SENT state\n");
+        tcp_debugf(tcp, "Unacceptable ACK received in SYN_SENT state\n");
         if (!hdr->rst) {
             tcp_reply_rst(net_sock(tcp)->iface, skb);
         }
@@ -1254,7 +1339,7 @@ tcp_handle_rx_syn_sent(tcp_sock_t *tcp, skb_t *skb)
      * grant their wish. Otherwise, ignore the reset.
      */
     if (hdr->rst) {
-        tcp_debugf("Received RST in SYN_SENT state\n");
+        tcp_debugf(tcp, "Received RST in SYN_SENT state\n");
         if (hdr->ack) {
             tcp->reset = true;
             tcp_set_state(tcp, CLOSED);
@@ -1293,7 +1378,7 @@ tcp_handle_rx_syn_sent(tcp_sock_t *tcp, skb_t *skb)
         return 0;
     }
 
-    tcp_debugf("Unhandled packet in SYN_SENT state, dropping\n");
+    tcp_debugf(tcp, "Unhandled packet in SYN_SENT state, dropping\n");
     return -1;
 }
 
@@ -1308,7 +1393,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
 
     /* If socket is closed, reply with RST */
     if (tcp_in_state(tcp, CLOSED)) {
-        tcp_debugf("Received packet to closed socket\n");
+        tcp_debugf(tcp, "Received packet to closed socket\n");
         if (!hdr->rst) {
             tcp_reply_rst(net_sock(tcp)->iface, skb);
         }
@@ -1330,14 +1415,14 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
      */
     bool in_rwnd = tcp_in_rwnd(tcp, seq(hdr), tcp_seg_len(skb));
     if (!in_rwnd) {
-        tcp_debugf("Packet outside receive window\n");
+        tcp_debugf(tcp, "Packet outside receive window\n");
     } else {
         /*
          * Handle RST (we use the sequence number instead of
          * ack number here, which is checked above).
          */
         if (hdr->rst) {
-            tcp_debugf("Received RST in middle of connection\n");
+            tcp_debugf(tcp, "Received RST in middle of connection\n");
             tcp->reset = true;
             tcp_set_state(tcp, CLOSED);
             return -1;
@@ -1348,7 +1433,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
          * reset the connection.
          */
         if (hdr->syn) {
-            tcp_debugf("Received SYN in middle of connection\n");
+            tcp_debugf(tcp, "Received SYN in middle of connection\n");
             tcp->reset = true;
             tcp_reply_rst(net_sock(tcp)->iface, skb);
             tcp_set_state(tcp, CLOSED);
@@ -1361,7 +1446,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
      * even if there's data in it.
      */
     if (!hdr->ack) {
-        tcp_debugf("No ACK in packet, dropping\n");
+        tcp_debugf(tcp, "No ACK in packet, dropping\n");
         return -1;
     }
 
@@ -1378,13 +1463,13 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
         if (cmp(ack(hdr), tcp->send_unack_num) < 0 ||
             cmp(ack(hdr), tcp->send_next_num) > 0)
         {
-            tcp_debugf("Invalid ACK in SYN_RECEIVED state\n");
+            tcp_debugf(tcp, "Invalid ACK in SYN_RECEIVED state\n");
             tcp_reply_rst(net_sock(tcp)->iface, skb);
             return -1;
         }
     } else {
         if (cmp(ack(hdr), tcp->send_next_num) > 0) {
-            tcp_debugf("Invalid ACK\n");
+            tcp_debugf(tcp, "Invalid ACK\n");
             tcp_send_ack(tcp);
             return -1;
         }
@@ -1400,7 +1485,7 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
      * Add the incoming packet to our inbox. If the packet has
      * a FIN flag, this will handle it.
      */
-    if (in_rwnd && tcp_in_state(tcp, ESTABLISHED | FIN_WAIT_1 | FIN_WAIT_2)) {
+    if (in_rwnd && !tcp_in_state(tcp, REMOTE_FIN | CLOSED)) {
         tcp_inbox_handle_rx_skb(tcp, skb);
     }
 
@@ -1434,7 +1519,7 @@ tcp_handle_rx_listening(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
 
     /* ACK to a LISTEN socket -> reply with RST */
     if (hdr->ack) {
-        tcp_debugf("Received ACK to listening socket\n");
+        tcp_debugf(tcp, "Received ACK to listening socket\n");
         return tcp_reply_rst(iface, skb);
     }
 
@@ -1442,14 +1527,14 @@ tcp_handle_rx_listening(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
     if (hdr->syn) {
         /* Reject if backlog is full */
         if (tcp->backlog_capacity == 0) {
-            tcp_debugf("Backlog full, dropping connection\n");
+            tcp_debugf(tcp, "Backlog full, dropping connection\n");
             return -1;
         }
 
         /* Create a new socket */
         net_sock_t *connsock = socket_obj_alloc(SOCK_TCP);
         if (connsock == NULL) {
-            tcp_debugf("Failed to allocate socket for incoming connection\n");
+            tcp_debugf(tcp, "Failed to allocate socket for incoming connection\n");
             return -1;
         }
 
@@ -1493,6 +1578,9 @@ tcp_handle_rx_listening(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
         /* Add socket to backlog for accept() */
         list_add_tail(&conntcp->backlog, &tcp->backlog);
         tcp->backlog_capacity--;
+
+        /* Wake anyone blocking on an accept() call */
+        scheduler_wake_all(&tcp->accept_queue);
         return 0;
     }
 
@@ -1506,7 +1594,7 @@ tcp_handle_rx(net_iface_t *iface, skb_t *skb)
 {
     /* Pop header */
     if (!skb_may_pull(skb, sizeof(tcp_hdr_t))) {
-        tcp_debugf("TCP packet too small: cannot pull header\n");
+        debugf("TCP packet too small: cannot pull header\n");
         return -1;
     }
     tcp_hdr_t *hdr = skb_set_transport_header(skb);
@@ -1515,7 +1603,7 @@ tcp_handle_rx(net_iface_t *iface, skb_t *skb)
     /* Pop and ignore options */
     int options_len = hdr->data_offset * 4 - sizeof(tcp_hdr_t);
     if (!skb_may_pull(skb, options_len)) {
-        tcp_debugf("TCP packet too small: cannot pull options\n");
+        debugf("TCP packet too small: cannot pull options\n");
         return -1;
     }
     skb_pull(skb, options_len);
@@ -1569,7 +1657,7 @@ tcp_ctor(net_sock_t *sock)
 {
     tcp_sock_t *tcp = malloc(sizeof(tcp_sock_t));
     if (tcp == NULL) {
-        tcp_debugf("Cannot allocate space for TCP data\n");
+        debugf("Cannot allocate space for TCP data\n");
         return -1;
     }
 
@@ -1580,6 +1668,9 @@ tcp_ctor(net_sock_t *sock)
     list_init(&tcp->inbox);
     list_init(&tcp->outbox);
     list_init(&tcp->ack_queue);
+    list_init(&tcp->accept_queue);
+    list_init(&tcp->read_queue);
+    list_init(&tcp->write_queue);
     timer_init(&tcp->fin_timer);
     timer_init(&tcp->rto_timer);
     tcp->backlog_capacity = 256;
@@ -1639,6 +1730,15 @@ tcp_dtor(net_sock_t *sock)
 
     /* Remove from ACK queue */
     list_del(&tcp->ack_queue);
+
+    /*
+     * Sleep queues must be empty, since this is the destructor,
+     * meaning refcnt == 0. We can't possibly have any waiters,
+     * since they must have incremented the refcnt before sleeping.
+     */
+    assert(list_empty(&tcp->accept_queue));
+    assert(list_empty(&tcp->read_queue));
+    assert(list_empty(&tcp->write_queue));
 
     /* Stop timers */
     timer_cancel(&tcp->fin_timer);
@@ -1702,7 +1802,7 @@ tcp_connect(net_sock_t *sock, const sock_addr_t *addr)
 
     /* Attempt to connect, auto-binding the socket if needed */
     if (socket_connect_and_bind_addr(sock, tmp.ip, tmp.port) < 0) {
-        tcp_debugf("Could not connect socket\n");
+        tcp_debugf(tcp, "Could not connect socket\n");
         ret = -1;
         goto exit;
     }
@@ -1770,6 +1870,25 @@ exit:
 }
 
 /*
+ * Checks whether there is an incoming connection that
+ * can be accepted. Returns -EAGAIN if no connection,
+ * < 0 on error, or > 0 otherwise.
+ */
+static int
+tcp_can_accept(tcp_sock_t *tcp)
+{
+    if (!tcp_in_state(tcp, LISTEN)) {
+        return -1;
+    }
+
+    if (list_empty(&tcp->backlog)) {
+        return -EAGAIN;
+    }
+
+    return 1;
+}
+
+/*
  * accept() socketcall handler. Accepts a single incoming
  * TCP connection. Copies the remote endpoint's address
  * into addr.
@@ -1786,16 +1905,14 @@ tcp_accept(net_sock_t *sock, sock_addr_t *addr)
         goto exit;
     }
 
-    /* Check that socket is still open */
     tcp = tcp_acquire(tcp_sock(sock));
-    if (!tcp_in_state(tcp, LISTEN)) {
-        ret = -1;
-        goto exit;
-    }
 
-    /* Check if we have anything in the backlog */
-    if (list_empty(&tcp->backlog)) {
-        ret = -EAGAIN;
+    /* Wait for an incoming connection */
+    ret = BLOCKING_WAIT(
+        tcp_can_accept(tcp),
+        tcp->accept_queue,
+        socket_is_nonblocking(sock));
+    if (ret < 0) {
         goto exit;
     }
 
@@ -1830,6 +1947,56 @@ exit:
 }
 
 /*
+ * Checks whether there are any bytes to read from the socket.
+ * Returns -EAGAIN if the handshake has not been completed or
+ * there are no in-order packets to consume, < 0 on error,
+ * == 0 on EOF, or > 0 otherwise (note: return value is NOT a
+ * byte count).
+ */
+static int
+tcp_can_read(tcp_sock_t *tcp, int nbytes)
+{
+    /*
+     * If the socket is closed due to an error (reset),
+     * reading from it is a failure. If it's closed but under
+     * normal conditions, let the user keep reading from the
+     * socket (this can occur if user calls shutdown() followed
+     * by read()).
+     */
+    if (tcp_in_state(tcp, CLOSED) && tcp->reset) {
+        return -1;
+    }
+
+    /* Nothing to read? Return immediately */
+    if (nbytes == 0) {
+        return 0;
+    }
+
+    /* Can't read before 3-way handshake is complete */
+    if (tcp_in_state(tcp, SYN_SENT | SYN_RECEIVED)) {
+        return -EAGAIN;
+    }
+
+    /*
+     * Check if we have any in-order data to read *before* checking
+     * the socket state (since socket state advances immediately
+     * when we receive an in-order FIN packet, not after the user
+     * reads it).
+     */
+    if (cmp(tcp->recv_next_num, tcp->recv_read_num) > 0) {
+        return 1;
+    }
+
+    /* No data to read and remote side has sent an in-order FIN -> EOF */
+    if (tcp_in_state(tcp, REMOTE_FIN | CLOSED)) {
+        return 0;
+    }
+
+    /* No in-order data to read, still waiting on remote side */
+    return -EAGAIN;
+}
+
+/*
  * recvfrom() socketcall handler. Reads the specified number of
  * bytes from the remote endpoint. addr is ignored.
  */
@@ -1845,31 +2012,21 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
         goto exit;
     }
 
-    /*
-     * If the socket is closed due to an error (reset),
-     * reading from it is a failure. If it's closed but under
-     * normal conditions, let the user keep reading from the
-     * socket (this can occur if user calls shutdown() followed
-     * by read()).
-     */
     tcp = tcp_acquire(tcp_sock(sock));
-    if (tcp_in_state(tcp, CLOSED) && tcp->reset) {
-        ret = -1;
-        goto exit;
-    } else if (tcp_in_state(tcp, SYN_SENT | SYN_RECEIVED)) {
-        ret = -EAGAIN;
-        goto exit;
-    }
 
-    if (nbytes == 0) {
-        ret = 0;
+    /* Wait until there are packets to read */
+    ret = BLOCKING_WAIT(
+        tcp_can_read(tcp, nbytes),
+        tcp->read_queue,
+        socket_is_nonblocking(sock));
+    if (ret <= 0) {
         goto exit;
     }
 
     uint16_t original_rwnd = tcp_rwnd_size(tcp);
     uint8_t *bufp = buf;
     int copied = 0;
-    while (!list_empty(&tcp->inbox)) {
+    while (copied < nbytes && !list_empty(&tcp->inbox)) {
         skb_t *skb = list_first_entry(&tcp->inbox, skb_t, list);
         tcp_hdr_t *hdr = skb_transport_header(skb);
 
@@ -1881,23 +2038,27 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
             break;
         }
 
-        /* Find starting byte, based on how much we've already read */
+        /*
+         * Find starting byte, based on how much we've already read.
+         * Note that bytes_remaining could be non-positive in the
+         * following scenario:
+         *
+         * 1. [SEQ=0, LEN=3] lost
+         * 2. [SEQ=3, LEN=3] received
+         * 3. [SEQ=0, LEN=6] retransmission
+         *
+         * Here, packet (2) becomes useless, because we've already
+         * read packet (3) which contained a superset of (2)'s data.
+         * In such cases, just skip over the packet.
+         */
         int offset = (int)(tcp->recv_read_num - seq(hdr));
         int bytes_remaining = tcp_body_len(skb) - offset;
-        if (bytes_remaining >= 0) {
-            /* Clamp to actual size of buffer */
+        if (bytes_remaining > 0) {
             int bytes_to_copy = min(bytes_remaining, nbytes - copied);
-
-            /* Now do the copy, only return -1 if no bytes could be copied */
             uint8_t *body = skb_data(skb);
             uint8_t *start = &body[offset];
             if (!copy_to_user(&bufp[copied], start, bytes_to_copy)) {
-                if (copied == 0) {
-                    ret = -1;
-                } else {
-                    ret = copied;
-                }
-                goto exit;
+                break;
             }
             tcp->recv_read_num += bytes_to_copy;
             copied += bytes_to_copy;
@@ -1923,32 +2084,58 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
      * ignoring our window update.
      */
     if (original_rwnd < TCP_MAX_LEN && tcp_rwnd_size(tcp) >= TCP_MAX_LEN) {
-        if (!tcp_in_state(tcp, TIME_WAIT | CLOSE_WAIT | LAST_ACK | CLOSED)) {
+        if (!tcp_in_state(tcp, REMOTE_FIN | CLOSED)) {
             tcp_send_ack(tcp);
         }
     }
 
     /*
-     * If we didn't copy anything and we're in a closing state, there's
-     * no more data in the stream to read. Otherwise, it just means
-     * we didn't get any data yet, so return -EAGAIN.
+     * If we didn't copy anything, it means that the copy failed
+     * (the inbox can't be empty since we checked beforehand).
      */
     if (copied == 0) {
-        if (tcp_in_state(tcp, TIME_WAIT | CLOSE_WAIT | LAST_ACK | CLOSED)) {
-            ret = 0;
-        } else {
-            ret = -EAGAIN;
-        }
-        goto exit;
+        ret = -1;
+    } else {
+        ret = copied;
     }
-
-    ret = copied;
 
 exit:
     if (tcp != NULL) {
         tcp_release(tcp);
     }
     return ret;
+}
+
+/*
+ * Returns the maximum number of bytes that can be written to
+ * the TCP socket, up to nbytes. Returns -EAGAIN if the handshake
+ * has not been completed or the send window is full, < 0 on
+ * error, and >= 0 otherwise.
+ */
+static int
+tcp_get_writable_bytes(tcp_sock_t *tcp, int nbytes)
+{
+    /* Reject if we've already closed the write end */
+    if (tcp_in_state(tcp, LOCAL_FIN | CLOSED)) {
+        return -1;
+    }
+
+    /* Nothing to write? Return immediately */
+    if (nbytes == 0) {
+        return 0;
+    }
+
+    /* Can't write before 3-way handshake is complete */
+    if (tcp_in_state(tcp, SYN_SENT | SYN_RECEIVED)) {
+        return -EAGAIN;
+    }
+
+    /* Limit number of bytes to remaining send window */
+    int swnd = tcp_swnd_space(tcp);
+    if (swnd <= 0) {
+        return -EAGAIN;
+    }
+    return min(nbytes, swnd);
 }
 
 /*
@@ -1968,29 +2155,17 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
         goto exit;
     }
 
-    /* Check that socket write end is still open */
     tcp = tcp_acquire(tcp_sock(sock));
-    if (tcp_in_state(tcp, CLOSED | FIN_WAIT_1 | FIN_WAIT_2 | CLOSING | TIME_WAIT)) {
-        ret = -1;
-        goto exit;
-    } else if (tcp_in_state(tcp, SYN_SENT | SYN_RECEIVED)) {
-        ret = -EAGAIN;
-        goto exit;
-    }
 
-    if (nbytes == 0) {
-        ret = 0;
+    /* Wait for space in outbox to write */
+    nbytes = BLOCKING_WAIT(
+        tcp_get_writable_bytes(tcp, nbytes),
+        tcp->write_queue,
+        socket_is_nonblocking(sock));
+    if (nbytes <= 0) {
+        ret = nbytes;
         goto exit;
     }
-
-    /* Limit number of bytes to remaining send window */
-    int outbox_used = (int)(tcp->send_next_num - tcp->send_unack_num);
-    int outbox_free = (int)tcp->send_wnd_size - outbox_used;
-    if (outbox_free <= 0) {
-        ret = -EAGAIN;
-        goto exit;
-    }
-    nbytes = min(nbytes, outbox_free);
 
     /* Copy data from userspace into TCP outbox */
     const uint8_t *bufp = buf;
@@ -2060,7 +2235,6 @@ tcp_shutdown(net_sock_t *sock)
     tcp_sock_t *tcp = NULL;
 
     if (!sock->connected) {
-        tcp_debugf("shutdown() called on an unconnected socket\n");
         ret = -1;
         goto exit;
     }
