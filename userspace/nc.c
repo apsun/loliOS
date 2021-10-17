@@ -468,11 +468,13 @@ nc_loop(ip_addr_t ip, uint16_t port, args_t *args)
         if (args->udp) {
             CALL(sockfd = socket(SOCK_UDP));
             CALL(bind(sockfd, &local_addr));
+            CALL(fcntl(sockfd, FCNTL_NONBLOCK, 1));
             bound = true;
         } else {
             CALL(listenfd = socket(SOCK_TCP));
             CALL(bind(listenfd, &local_addr));
             CALL(listen(listenfd, 128));
+            CALL(fcntl(listenfd, FCNTL_NONBLOCK, 1));
             bound = false;
         }
         connected = false;
@@ -481,9 +483,11 @@ nc_loop(ip_addr_t ip, uint16_t port, args_t *args)
         remote_addr.port = port;
         if (args->udp) {
             CALL(sockfd = socket(SOCK_UDP));
+            CALL(fcntl(sockfd, FCNTL_NONBLOCK, 1));
             bound = false;
         } else {
             CALL(sockfd = socket(SOCK_TCP));
+            CALL(fcntl(sockfd, FCNTL_NONBLOCK, 1));
             bound = true;
         }
         CALL(connect(sockfd, &remote_addr));
@@ -498,6 +502,7 @@ nc_loop(ip_addr_t ip, uint16_t port, args_t *args)
             if (sockfd == -EINTR || sockfd == -EAGAIN) {
                 continue;
             }
+            CALL(fcntl(sockfd, FCNTL_NONBLOCK, 1));
             connected = true;
             bound = true;
         }

@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -21,6 +22,13 @@ bind2(int fd, sock_addr_t *addr)
         ret = getsockname(fd, addr);
     }
     return ret;
+}
+
+static void
+nonblock(int fd, bool nonblock)
+{
+    int ret = fcntl(fd, FCNTL_NONBLOCK, nonblock);
+    assert(ret == !nonblock);
 }
 
 static void
@@ -78,8 +86,10 @@ test_udp_huge(void)
     assert(ret < 0);
 
     /* Shouldn't receive anything */
+    nonblock(b, true);
     ret = recvfrom(b, tmp, sizeof(tmp), NULL);
     assert(ret == -EAGAIN);
+    nonblock(b, false);
 
     close(a);
     close(b);
@@ -162,8 +172,11 @@ test_udp_connect(void)
 
     /* Check packets from non-connected peers are dropped */
     ret = sendto(c, buf, sizeof(buf), &b_addr);
+    assert(ret == sizeof(buf));
+    nonblock(b, true);
     ret = recvfrom(b, tmp, sizeof(tmp), NULL);
     assert(ret == -EAGAIN);
+    nonblock(b, false);
 
     close(a);
     close(b);
@@ -349,8 +362,10 @@ test_tcp_multi_accept(void)
     assert(ret == 0);
     ret = listen(a, 128);
     assert(ret == 0);
+    nonblock(a, true);
     ret = accept(a, NULL);
     assert(ret == -EAGAIN);
+    nonblock(a, false);
 
     /* Connect 2 sockets */
     ret = connect(b, &a_addr);
@@ -485,8 +500,10 @@ test_tcp_backlog(void)
     assert(aconn >= 0);
 
     /* Should only have one entry in backlog */
+    nonblock(a, true);
     ret = accept(a, NULL);
     assert(ret == -EAGAIN);
+    nonblock(a, false);
 
     close(aconn);
     close(c);
@@ -599,8 +616,10 @@ test_tcp_full_window(void)
     inflight = ret;
 
     /* Verify that send window is kicking in */
+    nonblock(aconn, true);
     ret = write(aconn, buf, sizeof(buf));
     assert(ret == -EAGAIN);
+    nonblock(aconn, false);
 
     /* Drain receiving buffer */
     char tmp[16384];
@@ -609,8 +628,10 @@ test_tcp_full_window(void)
     assert(memcmp(buf, tmp, inflight) == 0);
 
     /* Verify buffer is empty */
+    nonblock(b, true);
     ret = read(b, tmp, sizeof(tmp));
     assert(ret == -EAGAIN);
+    nonblock(b, false);
 
     /* Verify we can write again */
     ret = write(aconn, buf, sizeof(buf));
