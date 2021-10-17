@@ -32,19 +32,6 @@
 #define MYA_POISON_FREED 0xdeadbeefU
 
 /*
- * Whether we want to replace the C standard library functions.
- */
-#ifndef MYA_REPLACE_STD
-    #define MYA_REPLACE_STD 1
-#endif
-#if MYA_REPLACE_STD
-    #define mya_malloc malloc
-    #define mya_calloc calloc
-    #define mya_realloc realloc
-    #define mya_free free
-#endif
-
-/*
  * How much space the header info fields take up. This
  * is effectively the minimum amount of overhead per allocation.
  */
@@ -490,7 +477,7 @@ mya_poison(void *ptr, size_t size, unsigned int pattern)
  * more memory available, NULL is returned.
  */
 void *
-mya_malloc(size_t size)
+malloc(size_t size)
 {
     /* malloc(0) always returns NULL */
     if (size == 0) {
@@ -542,7 +529,7 @@ mya_malloc(size_t size)
  * calloc, or realloc. Calling free on NULL is a no-op.
  */
 void
-mya_free(void *ptr)
+free(void *ptr)
 {
     /* free(NULL) is a no-op */
     if (ptr == NULL) {
@@ -573,7 +560,7 @@ mya_free(void *ptr)
  * memory, NULL is returned.
  */
 void *
-mya_calloc(size_t num, size_t size)
+calloc(size_t num, size_t size)
 {
     /* calloc(num, 0) and calloc(0, size) always returns NULL */
     if (size == 0 || num == 0) {
@@ -586,7 +573,7 @@ mya_calloc(size_t num, size_t size)
     }
 
     /* Otherwise, simply use malloc() followed by memset() */
-    void *ptr = mya_malloc(num * size);
+    void *ptr = malloc(num * size);
     if (ptr != NULL) {
         memset(ptr, 0, num * size);
     }
@@ -601,11 +588,11 @@ mya_calloc(size_t num, size_t size)
  * ptr is NULL, this is equivalent to calling malloc(size).
  */
 void *
-mya_realloc(void *ptr, size_t size)
+realloc(void *ptr, size_t size)
 {
     /* realloc(NULL, size) is the same as malloc(size) */
     if (ptr == NULL) {
-        return mya_malloc(size);
+        return malloc(size);
     }
 
     /* realloc(ptr, 0) is the same as free(ptr) */
@@ -658,10 +645,10 @@ mya_realloc(void *ptr, size_t size)
      * We tried everything but we still can't resize it in-place,
      * fall back to malloc() followed by memcpy().
      */
-    void *new_ptr = mya_malloc(size);
+    void *new_ptr = malloc(size);
     if (new_ptr != NULL) {
         memcpy(new_ptr, ptr, orig_size);
-        mya_free(ptr);
+        free(ptr);
     }
     return new_ptr;
 }
