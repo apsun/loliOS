@@ -31,7 +31,6 @@
 #ifndef TCP_DEBUG_PRINT
     #define TCP_DEBUG_PRINT 0
 #endif
-
 #if TCP_DEBUG_PRINT
     #define tcp_debugf(tcp, fmt, ...) debugf("tcp(0x%08x) " fmt, tcp, ## __VA_ARGS__)
     #define skb_debugf(skb, fmt, ...) debugf("skb(0x%08x) " fmt, skb, ## __VA_ARGS__)
@@ -46,7 +45,9 @@
  * SLIRP is implemented on top of the host OS's TCP sockets, which
  * means data will always arrive in-order.
  */
-#define TCP_DEBUG_DROP 0
+#ifndef TCP_DEBUG_DROP
+    #define TCP_DEBUG_DROP 0
+#endif
 #define TCP_DEBUG_RX_DROP_FREQ 5
 #define TCP_DEBUG_TX_DROP_FREQ 5
 

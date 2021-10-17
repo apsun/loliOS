@@ -15,12 +15,12 @@
 
 /* Whether to display a BSOD on a userspace exception (for debugging) */
 #ifndef USER_BSOD
-#define USER_BSOD 0
+    #define USER_BSOD 0
 #endif
 
 /* Whether to display a BSOD on kernel panics */
 #ifndef PANIC_BSOD
-#define PANIC_BSOD 0
+    #define PANIC_BSOD 0
 #endif
 
 /* Convenience wrapper around SET_IDT_ENTRY */

@@ -10,14 +10,14 @@
  * Send kernel printf output to the current display terminal.
  */
 #ifndef PRINTF_TERMINAL
-#define PRINTF_TERMINAL 1
+    #define PRINTF_TERMINAL 1
 #endif
 
 /*
  * Send kernel printf output to the specified serial port.
  */
 #ifndef PRINTF_SERIAL_PORT
-#define PRINTF_SERIAL_PORT 1
+    #define PRINTF_SERIAL_PORT 1
 #endif
 
 /*

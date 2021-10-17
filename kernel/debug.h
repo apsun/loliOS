@@ -12,9 +12,8 @@
 
 /* Whether to enable assertions */
 #ifndef DEBUG_ASSERT
-#define DEBUG_ASSERT 1
+    #define DEBUG_ASSERT 1
 #endif
-
 #if DEBUG_ASSERT
     #define assert(x) do {                       \
         if (!(x)) {                              \
@@ -27,9 +26,8 @@
 
 /* Whether to enable debugf printing */
 #ifndef DEBUG_PRINT
-#define DEBUG_PRINT 0
+    #define DEBUG_PRINT 0
 #endif
-
 #if DEBUG_PRINT
     #define debugf(fmt, ...) \
         printf("%s:%d: " fmt, __FILE__, __LINE__, ## __VA_ARGS__)
