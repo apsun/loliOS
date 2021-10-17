@@ -180,13 +180,15 @@ udp_can_read(udp_sock_t *udp)
 
 /*
  * Checks whether the specified packet should be passed to
- * the user when calling recvfrom(). As per the spec, if
- * the socket is connected, only packets from the connected
- * peer will be accepted.
+ * the user when calling recvfrom() on a connected socket.
+ * As per the spec, only packets from the connected peer
+ * will be accepted.
  */
 static bool
 udp_matches_connected_addr(net_sock_t *sock, skb_t *skb)
 {
+    assert(sock->connected);
+
     ip_hdr_t *ip_hdr = skb_network_header(skb);
     if (!ip_equals(sock->remote.ip, ip_hdr->src_ip)) {
         return false;

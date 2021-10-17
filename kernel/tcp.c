@@ -1299,7 +1299,7 @@ tcp_inbox_handle_rx_skb(tcp_sock_t *tcp, skb_t *skb)
 
         /*
          * Automatically "read" packets with no data (i.e. SYN/FIN)
-         * to maintain the invariant that inbox != empty implies
+         * to maintain the invariant that next_num > read_num implies
          * there is at least one byte of data to read.
          */
         if (tcp_body_len(iskb) == 0) {
