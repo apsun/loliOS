@@ -118,7 +118,7 @@ pipe_read(file_obj_t *file, void *buf, int nbytes)
  * -EAGAIN if the pipe is full.
  */
 static int
-pipe_get_writeable_count(pipe_state_t *pipe, int nbytes)
+pipe_get_writable_count(pipe_state_t *pipe, int nbytes)
 {
     /* If the reader is gone, writes should fail */
     if (pipe->half_closed) {
@@ -156,7 +156,7 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
 
     pipe_state_t *pipe = (pipe_state_t *)file->private;
     int to_write = BLOCKING_WAIT(
-        pipe_get_writeable_count(pipe, nbytes),
+        pipe_get_writable_count(pipe, nbytes),
         pipe->write_queue,
         file->nonblocking);
     if (to_write < 0) {

@@ -523,7 +523,7 @@ file_seek(int fd, int offset, int mode)
 
 /*
  * truncate() syscall handler. Sets the file length to the specified
- * value. The file must be opened in writeable mode.
+ * value. The file must be opened in write mode.
  */
 __cdecl int
 file_truncate(int fd, int length)
