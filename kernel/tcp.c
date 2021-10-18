@@ -1731,11 +1731,11 @@ tcp_dtor(net_sock_t *sock)
         }
     } else {
         /*
-         * If this is a pending socket, it can only be destroyed when
-         * the listening socket is also going away, in which case it
-         * will have already removed this socket from the backlog.
+         * Needed in case a pending socket is destroyed while it is in the
+         * accept queue (e.g. if we never receive an ACK for our SYN-ACK
+         * and reach the retransmission limit, resetting the connection).
          */
-        assert(list_empty(&tcp->backlog));
+        list_del(&tcp->backlog);
     }
 
     /* Clear inbox */
