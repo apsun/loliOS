@@ -76,38 +76,12 @@ typedef struct {
     int terminal;
 
     /*
-     * Allocated physical address for this process's 128MB page.
-     */
-    uintptr_t user_paddr;
-
-    /*
-     * Initial state used to run the process. For the initial
-     * processes spawned by the kernel, this will be initialized
-     * manually. For child processes spawned by fork(), this will
-     * be a copy of the parent's registers.
-     */
-    int_regs_t regs;
-
-    /*
-     * List for use by the scheduler. Every process is either in a
-     * scheduler queue or a sleep queue.
-     */
-    list_t scheduler_list;
-
-    /*
-     * Kernel ESP/EBP of the process inside the scheduler. Used to
-     * context switch between processes. Only valid if state == RUNNING.
-     */
-    uint32_t scheduler_esp;
-    uint32_t scheduler_ebp;
-
-    /*
      * ID of the group that this process belongs to.
      */
     int group;
 
     /*
-     * Exit status of the process.
+     * Exit code of the process. Only valid if state == ZOMBIE.
      */
     int exit_code;
 
@@ -134,6 +108,11 @@ typedef struct {
     bool compat : 1;
 
     /*
+     * Allocated physical address for this process's 128MB page.
+     */
+    uintptr_t user_paddr;
+
+    /*
      * Array containing open file object pointers. The index in the
      * array corresponds to the file descriptor.
      */
@@ -143,6 +122,11 @@ typedef struct {
      * Signal handler and status array.
      */
     signal_info_t signals[NUM_SIGNALS];
+
+    /*
+     * Heap metadata for this process.
+     */
+    heap_t heap;
 
     /*
      * Timer for the SIGALRM signal.
@@ -155,15 +139,31 @@ typedef struct {
     timer_t sleep_timer;
 
     /*
-     * Heap metadata for this process.
+     * List for use by the scheduler. Every process is either in a
+     * scheduler queue or a sleep queue.
      */
-    heap_t heap;
+    list_t scheduler_list;
+
+    /*
+     * Kernel ESP/EBP of the process inside the scheduler. Used to
+     * context switch between processes. Only valid if state == RUNNING.
+     */
+    uint32_t scheduler_esp;
+    uint32_t scheduler_ebp;
 
     /*
      * Arguments passed when creating this process. Will always be
      * NUL-terminated (holds up to MAX_ARGS_LEN - 1 characters).
      */
     char args[MAX_ARGS_LEN];
+
+    /*
+     * Initial state used to run the process. For the initial
+     * processes spawned by the kernel, this will be initialized
+     * manually. For child processes spawned by fork(), this will
+     * be a copy of the parent's registers.
+     */
+    int_regs_t regs;
 } pcb_t;
 
 /* Iterator-like API for get_next_pcb() */
