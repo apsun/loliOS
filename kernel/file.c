@@ -326,7 +326,7 @@ file_create(const char *filename, int mode)
     /* Only real files have an associated inode */
     int inode_idx = -1;
     if (dentry->type == FILE_TYPE_FILE) {
-        inode_idx = fs_acquire_inode(dentry->inode_idx);
+        inode_idx = dentry->inode_idx;
     }
 
     /* Allocate and initialize a file object */
