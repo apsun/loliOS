@@ -204,6 +204,10 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
 static void
 pipe_close(file_obj_t *file)
 {
+    if (file->private == 0) {
+        return;
+    }
+
     pipe_state_t *pipe = (pipe_state_t *)file->private;
 
     /*
@@ -235,28 +239,20 @@ static const file_ops_t pipe_fops = {
 __cdecl int
 pipe_pipe(int *readfd, int *writefd)
 {
+    int ret;
+    pipe_state_t *pipe = NULL;
+    file_obj_t *read_file = NULL;
+    file_obj_t *write_file = NULL;
+    int kreadfd = -1;
+    int kwritefd = -1;
+    file_obj_t **files = get_executing_files();
+
     /* Allocate pipe data */
-    pipe_state_t *pipe = malloc(sizeof(pipe_state_t));
+    pipe = malloc(sizeof(pipe_state_t));
     if (pipe == NULL) {
         debugf("Cannot allocate space for pipe\n");
-        return -1;
-    }
-
-    /* Create read endpoint */
-    file_obj_t *read_file = file_obj_alloc(&pipe_fops, OPEN_READ, false);
-    if (read_file == NULL) {
-        debugf("Cannot allocate pipe read endpoint\n");
-        free(pipe);
-        return -1;
-    }
-
-    /* Create write endpoint */
-    file_obj_t *write_file = file_obj_alloc(&pipe_fops, OPEN_WRITE, false);
-    if (write_file == NULL) {
-        debugf("Cannot allocate pipe write endpoint\n");
-        file_obj_free(read_file, false);
-        free(pipe);
-        return -1;
+        ret = -1;
+        goto error;
     }
 
     /* Initialize pipe */
@@ -265,28 +261,37 @@ pipe_pipe(int *readfd, int *writefd)
     pipe->half_closed = false;
     list_init(&pipe->read_queue);
     list_init(&pipe->write_queue);
-    read_file->private = (intptr_t)pipe;
-    write_file->private = (intptr_t)pipe;
+
+    /* Create read endpoint */
+    read_file = file_obj_alloc(&pipe_fops, OPEN_READ);
+    if (read_file == NULL) {
+        debugf("Cannot allocate pipe read endpoint\n");
+        ret = -1;
+        goto error;
+    }
+
+    /* Create write endpoint */
+    write_file = file_obj_alloc(&pipe_fops, OPEN_WRITE);
+    if (write_file == NULL) {
+        debugf("Cannot allocate pipe write endpoint\n");
+        ret = -1;
+        goto error;
+    }
 
     /* Bind read descriptor */
-    file_obj_t **files = get_executing_files();
-    int kreadfd = file_desc_bind(files, -1, read_file);
+    kreadfd = file_desc_bind(files, -1, read_file);
     if (kreadfd < 0) {
         debugf("Cannot bind read descriptor\n");
-        file_obj_free(read_file, true);
-        file_obj_free(write_file, true);
-        /* close() will free the pipe */
-        return -1;
+        ret = -1;
+        goto error;
     }
 
     /* Bind write descriptor */
-    int kwritefd = file_desc_bind(files, -1, write_file);
+    kwritefd = file_desc_bind(files, -1, write_file);
     if (kwritefd < 0) {
         debugf("Cannot bind write descriptor\n");
-        file_desc_unbind(files, kreadfd);
-        file_obj_free(write_file, true);
-        /* close() will free the pipe */
-        return -1;
+        ret = -1;
+        goto error;
     }
 
     /* Copy descriptors to userspace */
@@ -294,11 +299,32 @@ pipe_pipe(int *readfd, int *writefd)
         !copy_to_user(writefd, &kwritefd, sizeof(int)))
     {
         debugf("Failed to copy descriptors to userspace\n");
-        file_desc_unbind(files, kreadfd);
-        file_desc_unbind(files, kwritefd);
-        /* close() will free the pipe */
-        return -1;
+        ret = -1;
+        goto error;
     }
 
-    return 0;
+    read_file->private = (intptr_t)pipe;
+    write_file->private = (intptr_t)pipe;
+    ret = 0;
+
+exit:
+    if (write_file != NULL) {
+        file_obj_release(write_file);
+    }
+    if (read_file != NULL) {
+        file_obj_release(read_file);
+    }
+    return ret;
+
+error:
+    if (kwritefd >= 0) {
+        file_desc_unbind(files, kwritefd);
+    }
+    if (kreadfd >= 0) {
+        file_desc_unbind(files, kreadfd);
+    }
+    if (pipe != NULL) {
+        free(pipe);
+    }
+    goto exit;
 }

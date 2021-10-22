@@ -20,6 +20,7 @@
 #include "string.h"
 #include "paging.h"
 #include "heap.h"
+#include "printf.h"
 
 /*
  * Whether to poison new allocations with an invalid pattern to
@@ -152,7 +153,7 @@ static mya_header_t *mya_free_list = NULL;
  * This caches the value of the last call to sbrk, so that we can
  * efficiently check if an allocation would overflow.
  */
-static void *mya_last_brk = (void *)KERNEL_HEAP_START;
+static void *mya_last_brk = NULL;
 
 /*
  * Whether we've initialized the global state.
@@ -319,6 +320,7 @@ mya_initialize(void)
     /* Initialize the kernel heap state */
     heap_init_kernel(&mya_kernel_heap, KERNEL_HEAP_START, KERNEL_HEAP_END, mya_kernel_heap_paddrs);
     heap_map(&mya_kernel_heap);
+    mya_last_brk = (void *)KERNEL_HEAP_START;
 
     /* Allocate some starting memory */
     void *orig_brk, *new_brk;
@@ -651,4 +653,26 @@ realloc(void *ptr, size_t size)
         free(ptr);
     }
     return new_ptr;
+}
+
+/*
+ * Prints a summary of the current heap state.
+ */
+void
+mya_dump_state(void)
+{
+    if (!mya_initialized) {
+        return;
+    }
+
+    printf("--- HEAP STATE BEGIN ---\n");
+    mya_header_t *hdr = (mya_header_t *)KERNEL_HEAP_START;
+    while (!mya_is_sentinel(curr, hdr)) {
+        printf(
+            "0x%08x: size=%u used=%d\n",
+            mya_header_to_data(hdr),
+            mya_size(curr, hdr),
+            mya_used(curr, hdr));
+        hdr = mya_next(hdr);
+    }
 }

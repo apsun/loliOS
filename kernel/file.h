@@ -96,9 +96,8 @@ void file_register_type(int file_type, const file_ops_t *ops_table);
 file_obj_t **get_executing_files(void);
 file_obj_t *get_executing_file(int fd);
 
-/* File object alloc/free/retain/release functions */
-file_obj_t *file_obj_alloc(const file_ops_t *ops_table, int mode, bool open);
-void file_obj_free(file_obj_t *file, bool close);
+/* File object alloc/retain/release functions */
+file_obj_t *file_obj_alloc(const file_ops_t *ops_table, int mode);
 file_obj_t *file_obj_retain(file_obj_t *file);
 void file_obj_release(file_obj_t *file);
 

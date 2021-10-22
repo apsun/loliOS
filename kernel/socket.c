@@ -13,45 +13,22 @@
 #define EPHEMERAL_PORT_START 49152
 #define MAX_PORT 65535
 
+/* Socket type to ops table mapping */
+static const sock_ops_t *sock_ops_tables[SOCK_TYPE_COUNT];
+
 /* Global list of sockets */
 static list_declare(socket_list);
 
 /* File operations syscall forward declarations */
-static int socket_open(file_obj_t *file);
 static int socket_read(file_obj_t *file, void *buf, int nbytes);
 static int socket_write(file_obj_t *file, const void *buf, int nbytes);
 static void socket_close(file_obj_t *file);
 
 /* Network socket file ops */
 static const file_ops_t socket_fops = {
-    .open = socket_open,
     .read = socket_read,
     .write = socket_write,
     .close = socket_close,
-};
-
-/* UDP socket operations table */
-static const sock_ops_t sops_udp = {
-    .ctor = udp_ctor,
-    .dtor = udp_dtor,
-    .bind = udp_bind,
-    .connect = udp_connect,
-    .recvfrom = udp_recvfrom,
-    .sendto = udp_sendto,
-};
-
-/* TCP socket operations table */
-static const sock_ops_t sops_tcp = {
-    .ctor = tcp_ctor,
-    .dtor = tcp_dtor,
-    .bind = tcp_bind,
-    .connect = tcp_connect,
-    .listen = tcp_listen,
-    .accept = tcp_accept,
-    .recvfrom = tcp_recvfrom,
-    .sendto = tcp_sendto,
-    .shutdown = tcp_shutdown,
-    .close = tcp_close,
 };
 
 /*
@@ -62,9 +39,32 @@ static net_sock_t *
 get_sock(file_obj_t *file)
 {
     if (file->ops_table != &socket_fops) {
+        debugf("Not a socket file\n");
         return NULL;
     }
     return (net_sock_t *)file->private;
+}
+
+/*
+ * Returns the sock ops table for a given socket type.
+ */
+static const sock_ops_t *
+get_sock_ops(int type)
+{
+    if (type < 0 || type >= SOCK_TYPE_COUNT) {
+        return NULL;
+    }
+    return sock_ops_tables[type];
+}
+
+/*
+ * Registers a sock ops table with its type.
+ */
+void
+socket_register_type(int type, const sock_ops_t *ops_table)
+{
+    assert(type >= 0 && type < SOCK_TYPE_COUNT);
+    sock_ops_tables[type] = ops_table;
 }
 
 /*
@@ -72,7 +72,7 @@ get_sock(file_obj_t *file)
  * for the currently executing process. Returns null if the
  * descriptor is invalid or does not correspond to a socket.
  */
-net_sock_t *
+static net_sock_t *
 get_executing_sock(int fd)
 {
     file_obj_t *file = get_executing_file(fd);
@@ -83,27 +83,47 @@ get_executing_sock(int fd)
 }
 
 /*
- * Initializes the specified socket's fields for
- * the given socket type. Does not call the per-type
- * constructor.
+ * Frees a socket object, optionally calling the destructor.
  */
-static int
-socket_obj_init(net_sock_t *sock, int type)
+static void
+socket_obj_free(net_sock_t *sock, bool call_dtor)
 {
-    switch (type) {
-    case SOCK_TCP:
-        sock->ops_table = &sops_tcp;
-        break;
-    case SOCK_UDP:
-        sock->ops_table = &sops_udp;
-        break;
-    default:
+    if (call_dtor && sock->ops_table->dtor != NULL) {
+        sock->ops_table->dtor(sock);
+    }
+    list_del(&sock->list);
+    free(sock);
+}
+
+/*
+ * Allocates and initializes a socket. This does not bind
+ * it with a file object. The type should be one of the
+ * SOCK_* constants. The socket has an initial reference
+ * count of one.
+ */
+net_sock_t *
+socket_obj_alloc(int type)
+{
+    net_sock_t *ret;
+    net_sock_t *sock = NULL;
+
+    const sock_ops_t *sops = get_sock_ops(type);
+    if (sops == NULL) {
         debugf("Unknown socket type: %d\n", type);
-        return -1;
+        ret = NULL;
+        goto error;
     }
 
+    sock = malloc(sizeof(net_sock_t));
+    if (sock == NULL) {
+        debugf("Failed to allocate space for socket object\n");
+        ret = NULL;
+        goto error;
+    }
+
+    sock->ops_table = sops;
     sock->type = type;
-    sock->refcnt = 0;
+    sock->refcnt = 1;
     sock->bound = false;
     sock->connected = false;
     sock->listening = false;
@@ -115,49 +135,22 @@ socket_obj_init(net_sock_t *sock, int type)
     sock->file = NULL;
     sock->private = NULL;
     list_add_tail(&sock->list, &socket_list);
-    return 0;
-}
-
-/*
- * Allocates and initializes a socket. This does not bind
- * it with a file object. The type should be one of the
- * SOCK_* constants. The socket has an initial reference
- * count of ZERO, not one.
- */
-net_sock_t *
-socket_obj_alloc(int type)
-{
-    net_sock_t *sock = malloc(sizeof(net_sock_t));
-    if (sock == NULL) {
-        return NULL;
-    }
-
-    if (socket_obj_init(sock, type) < 0) {
-        free(sock);
-        return NULL;
-    }
 
     if (sock->ops_table->ctor != NULL && sock->ops_table->ctor(sock) < 0) {
-        list_del(&sock->list);
-        free(sock);
-        return NULL;
+        ret = NULL;
+        goto error;
     }
 
-    return sock;
-}
+    ret = sock;
 
-/*
- * Frees a socket. The socket reference count must be zero.
- */
-void
-socket_obj_free(net_sock_t *sock)
-{
-    assert(sock->refcnt == 0);
-    if (sock->ops_table->dtor != NULL) {
-        sock->ops_table->dtor(sock);
+exit:
+    return ret;
+
+error:
+    if (sock != NULL) {
+        socket_obj_free(sock, false);
     }
-    list_del(&sock->list);
-    free(sock);
+    goto exit;
 }
 
 /*
@@ -180,7 +173,7 @@ socket_obj_release(net_sock_t *sock)
 {
     assert(sock->refcnt > 0);
     if (--sock->refcnt == 0) {
-        socket_obj_free(sock);
+        socket_obj_free(sock, true);
     }
 }
 
@@ -198,40 +191,48 @@ socket_is_nonblocking(net_sock_t *sock)
 
 /*
  * Binds a socket object to a file. This will increment
- * the socket reference count on success. Returns the file
- * descriptor, or -1 if no files are available.
+ * the socket reference count on success and return the file
+ * descriptor.
  */
 int
 socket_obj_bind_file(file_obj_t **files, net_sock_t *sock)
 {
-    /* Allocate a file object */
-    file_obj_t *file = file_obj_alloc(&socket_fops, OPEN_RDWR, false);
+    int ret;
+    file_obj_t *file = NULL;
+    int fd = -1;
+
+    /* Socket must not be already bound to a file */
+    assert(sock->file == NULL);
+
+    file = file_obj_alloc(&socket_fops, OPEN_RDWR);
     if (file == NULL) {
         debugf("Failed to allocate file\n");
-        return -1;
+        ret = -1;
+        goto error;
     }
 
-    /* Allocate a file descriptor */
-    int fd = file_desc_bind(files, -1, file);
+    fd = file_desc_bind(files, -1, file);
     if (fd < 0) {
         debugf("Failed to bind file descriptor\n");
-        file_obj_free(file, false);
-        return -1;
+        ret = -1;
+        goto error;
     }
 
     file->private = (intptr_t)socket_obj_retain(sock);
     sock->file = file;
-    return fd;
-}
+    ret = fd;
 
-/*
- * open() syscall for socket files. Always fails, since users
- * should never be able to open a socket the normal way.
- */
-static int
-socket_open(file_obj_t *file)
-{
-    return -1;
+exit:
+    if (file != NULL) {
+        file_obj_release(file);
+    }
+    return ret;
+
+error:
+    if (fd >= 0) {
+        file_desc_unbind(files, fd);
+    }
+    goto exit;
 }
 
 /*
@@ -244,11 +245,17 @@ socket_open(file_obj_t *file)
 static void
 socket_close(file_obj_t *file)
 {
+    if (file->private == 0) {
+        return;
+    }
+
     net_sock_t *sock = get_sock(file);
     assert(sock != NULL);
+
     if (sock->ops_table->close != NULL) {
         sock->ops_table->close(sock);
     }
+
     sock->file = NULL;
     file->private = NULL;
     socket_obj_release(sock);
@@ -262,22 +269,38 @@ socket_close(file_obj_t *file)
 __cdecl int
 socket_socket(int type)
 {
+    int ret;
+    net_sock_t *sock = NULL;
+    int fd = -1;
+    file_obj_t **files = get_executing_files();
+
     /* Allocate and initialize socket */
-    net_sock_t *sock = socket_obj_alloc(type);
+    sock = socket_obj_alloc(type);
     if (sock == NULL) {
-        debugf("Failed to allocate socket\n");
-        return -1;
+        ret = -1;
+        goto error;
     }
 
     /* Bind socket to a file */
-    int fd = socket_obj_bind_file(get_executing_files(), sock);
+    fd = socket_obj_bind_file(files, sock);
     if (fd < 0) {
-        debugf("Failed to bind to file\n");
-        socket_obj_free(sock);
-        return -1;
+        ret = -1;
+        goto error;
     }
 
-    return fd;
+    ret = fd;
+
+exit:
+    if (sock != NULL) {
+        socket_obj_release(sock);
+    }
+    return ret;
+
+error:
+    if (fd >= 0) {
+        file_desc_unbind(files, fd);
+    }
+    goto exit;
 }
 
 /*

@@ -23,7 +23,7 @@ get_file_ops(int file_type)
 }
 
 /*
- * Registers a file ops table with its type to be used by open().
+ * Registers a file ops table with its type.
  */
 void
 file_register_type(int file_type, const file_ops_t *ops_table)
@@ -49,69 +49,84 @@ get_executing_files(void)
 file_obj_t *
 get_executing_file(int fd)
 {
-    /* Ensure descriptor is in bounds */
     if (fd < 0 || fd >= MAX_FILES) {
         return NULL;
     }
-
-    /* Get corresponding file object */
     file_obj_t **files = get_executing_files();
     return files[fd];
 }
 
 /*
- * Allocates a new file object. Optionally calls open()
- * on the file object. Note that the new file object
- * starts with reference count ZERO, not one!
+ * Frees a file object, optionally calling close().
  */
-file_obj_t *
-file_obj_alloc(const file_ops_t *ops_table, int mode, bool open)
+static void
+file_obj_free(file_obj_t *file, bool call_close)
 {
-    /* Allocate file */
-    file_obj_t *file = malloc(sizeof(file_obj_t));
-    if (file == NULL) {
-        return NULL;
+    if (call_close && file->ops_table->close != NULL) {
+        file->ops_table->close(file);
     }
-
-    /* Initialize fields */
-    file->ops_table = ops_table;
-    file->refcnt = 0;
-    file->mode = mode;
-    file->nonblocking = false;
-    file->inode_idx = -1;
-    file->private = NULL;
-
-    /* Call open() if necessary */
-    if (open && file->ops_table->open != NULL) {
-        if (file->ops_table->open(file) < 0) {
-            return NULL;
-        }
-    }
-
-    return file;
-}
-
-/*
- * Frees a file object. The file reference count must be zero.
- * Optionally calls the close() function. This should only be
- * directly called if the file cannot be correctly initialized,
- * before it is associated with a file descriptor.
- */
-void
-file_obj_free(file_obj_t *file, bool close)
-{
-    assert(file->refcnt == 0);
     if (file->inode_idx >= 0) {
         fs_release_inode(file->inode_idx);
-    }
-    if (close && file->ops_table->close != NULL) {
-        file->ops_table->close(file);
     }
     free(file);
 }
 
 /*
- * Increments the reference count of a file.
+ * Allocates a new file object and calls open().
+ * The file object starts with a reference count of 1.
+ */
+static file_obj_t *
+file_obj_alloc_impl(const file_ops_t *ops_table, int mode, int inode_idx)
+{
+    file_obj_t *ret;
+    file_obj_t *file = NULL;
+
+    file = malloc(sizeof(file_obj_t));
+    if (file == NULL) {
+        debugf("Failed to allocate space for file object\n");
+        ret = NULL;
+        goto error;
+    }
+
+    file->ops_table = ops_table;
+    file->refcnt = 1;
+    file->mode = mode;
+    file->nonblocking = false;
+    file->inode_idx = -1;
+    file->private = 0;
+    if (inode_idx >= 0) {
+        file->inode_idx = fs_acquire_inode(inode_idx);
+    }
+
+    if (file->ops_table->open != NULL && file->ops_table->open(file) < 0) {
+        ret = NULL;
+        goto error;
+    }
+
+    ret = file;
+
+exit:
+    return ret;
+
+error:
+    if (file != NULL) {
+        file_obj_free(file, false);
+    }
+    goto exit;
+}
+
+/*
+ * Allocates a new file object with no associated inode and calls
+ * open(). The file object starts with a reference count of 1.
+ */
+file_obj_t *
+file_obj_alloc(const file_ops_t *ops_table, int mode)
+{
+    return file_obj_alloc_impl(ops_table, mode, -1);
+}
+
+/*
+ * Increments the reference count of a file object.
  */
 file_obj_t *
 file_obj_retain(file_obj_t *file)
@@ -122,7 +137,7 @@ file_obj_retain(file_obj_t *file)
 }
 
 /*
- * Decrements the reference count of a file. If the refcount
+ * Decrements the reference count of a file object. If the refcount
  * reaches zero, close() is called and the file object is freed.
  */
 void
@@ -147,6 +162,7 @@ file_desc_bind(file_obj_t **files, int fd, file_obj_t *file)
     if (fd >= 0) {
         /* Just check that the descriptor is valid and not in use */
         if (fd >= MAX_FILES || files[fd] != NULL) {
+            debugf("Attempting to bind to fd %d which is in use\n", fd);
             return -1;
         }
     } else {
@@ -157,6 +173,7 @@ file_desc_bind(file_obj_t **files, int fd, file_obj_t *file)
             }
         }
         if (fd == MAX_FILES) {
+            debugf("Reached max number of open file descriptors\n");
             return -1;
         }
     }
@@ -168,7 +185,7 @@ file_desc_bind(file_obj_t **files, int fd, file_obj_t *file)
 
 /*
  * Frees a file descriptor and decrements the reference count
- * of the corresponding file (may call close() if the refcount
+ * of the corresponding file object (may call close() if the refcount
  * reaches zero). Returns -1 if the fd does not refer to a
  * valid open file descriptor.
  */
@@ -270,11 +287,16 @@ file_deinit(file_obj_t **files)
 __cdecl int
 file_create(const char *filename, int mode)
 {
+    int ret;
+    file_obj_t *file = NULL;
+    int fd = -1;
+
     /* Copy filename into kernel memory */
     char tmp[MAX_FILENAME_LEN + 1];
     if (strscpy_from_user(tmp, filename, sizeof(tmp)) < 0) {
         debugf("Invalid string passed to open()\n");
-        return -1;
+        ret = -1;
+        goto error;
     }
 
     /* Try to read or create filesystem entry */
@@ -283,11 +305,13 @@ file_create(const char *filename, int mode)
         if (mode & OPEN_CREATE) {
             if (fs_create_file(tmp, &dentry) < 0) {
                 debugf("Failed to create file: %s\n", tmp);
-                return -1;
+                ret = -1;
+                goto error;
             }
         } else {
             debugf("File not found: %s\n", tmp);
-            return -1;
+            ret = -1;
+            goto error;
         }
     }
 
@@ -295,27 +319,28 @@ file_create(const char *filename, int mode)
     const file_ops_t *ops_table = get_file_ops(dentry->type);
     if (ops_table == NULL) {
         debugf("Unhandled file type: %u\n", dentry->type);
-        return -1;
+        ret = -1;
+        goto error;
+    }
+
+    /* Only real files have an associated inode */
+    int inode_idx = -1;
+    if (dentry->type == FILE_TYPE_FILE) {
+        inode_idx = fs_acquire_inode(dentry->inode_idx);
     }
 
     /* Allocate and initialize a file object */
-    file_obj_t *file = file_obj_alloc(ops_table, mode, true);
+    file = file_obj_alloc_impl(ops_table, mode, inode_idx);
     if (file == NULL) {
-        debugf("Failed to allocate file object\n");
-        return -1;
+        ret = -1;
+        goto error;
     }
 
     /* Bind file object to a new descriptor */
-    int fd = file_desc_bind(get_executing_files(), -1, file);
+    fd = file_desc_bind(get_executing_files(), -1, file);
     if (fd < 0) {
-        debugf("Failed to bind file descriptor\n");
-        file_obj_free(file, true);
-        return -1;
-    }
-
-    /* Increment inode refcount */
-    if (dentry->type == FILE_TYPE_FILE) {
-        file->inode_idx = fs_acquire_inode(dentry->inode_idx);
+        ret = -1;
+        goto error;
     }
 
     /* If truncate flag was specified, attempt to truncate the file */
@@ -323,7 +348,19 @@ file_create(const char *filename, int mode)
         file_truncate(fd, 0);
     }
 
-    return fd;
+    ret = fd;
+
+exit:
+    if (file != NULL) {
+        file_obj_release(file);
+    }
+    return ret;
+
+error:
+    if (fd >= 0) {
+        file_desc_unbind(get_executing_files(), fd);
+    }
+    goto exit;
 }
 
 /*

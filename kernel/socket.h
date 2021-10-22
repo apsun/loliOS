@@ -6,9 +6,9 @@
 #include "file.h"
 #include "net.h"
 
-#define SOCK_TCP 1
-#define SOCK_UDP 2
-#define SOCK_IP  3
+#define SOCK_TCP 0
+#define SOCK_UDP 1
+#define SOCK_TYPE_COUNT 2
 
 #ifndef ASM
 
@@ -73,6 +73,20 @@ struct sock_ops {
     void (*close)(net_sock_t *sock);
 };
 
+/* Registers a socket type */
+void socket_register_type(int type, const sock_ops_t *ops_table);
+
+/* Socket object alloc/free/retain/release functions */
+net_sock_t *socket_obj_alloc(int type);
+net_sock_t *socket_obj_retain(net_sock_t *sock);
+void socket_obj_release(net_sock_t *sock);
+
+/* Checks whether the socket is in non-blocking mode */
+bool socket_is_nonblocking(net_sock_t *sock);
+
+/* Binds a socket object to a file */
+int socket_obj_bind_file(file_obj_t **files, net_sock_t *sock);
+
 /* Socket syscall functions */
 __cdecl int socket_socket(int type);
 __cdecl int socket_bind(int fd, const sock_addr_t *addr);
@@ -84,21 +98,6 @@ __cdecl int socket_sendto(int fd, const void *buf, int nbytes, const sock_addr_t
 __cdecl int socket_shutdown(int fd);
 __cdecl int socket_getsockname(int fd, sock_addr_t *addr);
 __cdecl int socket_getpeername(int fd, sock_addr_t *addr);
-
-/* Returns the socket corresponding to the specified fd */
-net_sock_t *get_executing_sock(int fd);
-
-/* Socket object alloc/free/retain/release functions */
-net_sock_t *socket_obj_alloc(int type);
-void socket_obj_free(net_sock_t *sock);
-net_sock_t *socket_obj_retain(net_sock_t *sock);
-void socket_obj_release(net_sock_t *sock);
-
-/* Checks whether the socket is in non-blocking mode */
-bool socket_is_nonblocking(net_sock_t *sock);
-
-/* Binds a socket object to a file */
-int socket_obj_bind_file(file_obj_t **files, net_sock_t *sock);
 
 /* Finds a socket given a local (IP, port) combination */
 net_sock_t *get_sock_by_local_addr(int type, ip_addr_t ip, uint16_t port);

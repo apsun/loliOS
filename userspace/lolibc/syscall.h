@@ -80,9 +80,8 @@ typedef void (__attribute__((cdecl)) *sighandler_t)(int);
 #define SIG_DFL ((sighandler_t)0)
 
 /* socket.h */
-#define SOCK_TCP 1
-#define SOCK_UDP 2
-#define SOCK_IP  3
+#define SOCK_TCP 0
+#define SOCK_UDP 1
 
 /* sb16.h */
 #define SOUND_SET_BITS_PER_SAMPLE 1

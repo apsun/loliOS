@@ -7,6 +7,7 @@
 #include "signal.h"
 #include "scheduler.h"
 #include "vga.h"
+#include "myalloc.h"
 
 /*
  * Executing terminal: the terminal corresponding to the currently
@@ -621,13 +622,16 @@ handle_ctrl_input(kbd_input_ctrl_t ctrl)
     case KCTL_EOF:
         terminal_eof();
         break;
+    case KCTL_PANIC:
+        panic("User-triggered panic\n");
+        break;
+    case KCTL_MEMDUMP:
+        mya_dump_state();
+        break;
     case KCTL_TERM1:
     case KCTL_TERM2:
     case KCTL_TERM3:
         terminal_set_display(ctrl - KCTL_TERM1);
-        break;
-    case KCTL_PANIC:
-        panic("User-triggered panic from CTRL-ALT-DEL\n");
         break;
     default:
         panic("Unknown control code\n");
@@ -712,32 +716,52 @@ static const file_ops_t terminal_mouse_fops = {
 int
 terminal_open_streams(file_obj_t **files)
 {
+    int ret;
+    file_obj_t *in = NULL;
+    file_obj_t *out = NULL;
+    file_obj_t *err = NULL;
+
     /* Create stdin stream */
-    file_obj_t *in = file_obj_alloc(&terminal_tty_fops, OPEN_READ, true);
+    in = file_obj_alloc(&terminal_tty_fops, OPEN_READ);
     if (in == NULL) {
-        return -1;
+        ret = -1;
+        goto error;
     }
 
     /* Create stdout stream */
-    file_obj_t *out = file_obj_alloc(&terminal_tty_fops, OPEN_WRITE, true);
+    out = file_obj_alloc(&terminal_tty_fops, OPEN_WRITE);
     if (out == NULL) {
-        file_obj_free(in, true);
-        return -1;
+        ret = -1;
+        goto error;
     }
 
     /* Create stderr stream */
-    file_obj_t *err = file_obj_alloc(&terminal_tty_fops, OPEN_WRITE, true);
+    err = file_obj_alloc(&terminal_tty_fops, OPEN_WRITE);
     if (err == NULL) {
-        file_obj_free(in, true);
-        file_obj_free(out, true);
-        return -1;
+        ret = -1;
+        goto error;
     }
 
     /* Bind to file descriptors */
     file_desc_bind(files, 0, in);
     file_desc_bind(files, 1, out);
     file_desc_bind(files, 2, err);
-    return 0;
+    ret = 0;
+
+exit:
+    return ret;
+
+error:
+    if (err != NULL) {
+        file_obj_release(err);
+    }
+    if (out != NULL) {
+        file_obj_release(out);
+    }
+    if (in != NULL) {
+        file_obj_release(in);
+    }
+    goto exit;
 }
 
 /*

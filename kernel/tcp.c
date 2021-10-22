@@ -74,6 +74,28 @@
 /* Starting receive/send window size. Must be >= TCP_MAX_LEN. */
 #define TCP_INIT_WND_SIZE 8192
 
+/* TCP packet header structure */
+typedef struct {
+    be16_t be_src_port;
+    be16_t be_dest_port;
+    be32_t be_seq_num;
+    be32_t be_ack_num;
+    uint16_t ns : 1;
+    uint16_t reserved : 3;
+    uint16_t data_offset : 4;
+    uint16_t fin : 1;
+    uint16_t syn : 1;
+    uint16_t rst : 1;
+    uint16_t psh : 1;
+    uint16_t ack : 1;
+    uint16_t urg : 1;
+    uint16_t ece : 1;
+    uint16_t cwr : 1;
+    be16_t be_window_size;
+    be16_t be_checksum;
+    be16_t be_urg_ptr;
+} __packed tcp_hdr_t;
+
 /* State of a TCP connection */
 typedef enum {
     LISTEN       = (1 << 0),  /* Waiting for SYN */
@@ -1086,6 +1108,28 @@ tcp_close_read_write(tcp_sock_t *tcp)
 }
 
 /*
+ * Adds a socket to the listening socket's backlog.
+ */
+static void
+tcp_add_backlog(tcp_sock_t *listentcp, tcp_sock_t *conntcp)
+{
+    listentcp->backlog_capacity--;
+    tcp_acquire(conntcp);
+    list_add_tail(&conntcp->backlog, &listentcp->backlog);
+}
+
+/*
+ * Removes a socket from the listening socket's backlog.
+ */
+static void
+tcp_remove_backlog(tcp_sock_t *listentcp, tcp_sock_t *conntcp)
+{
+    list_del(&conntcp->backlog);
+    tcp_release(conntcp);
+    listentcp->backlog_capacity++;
+}
+
+/*
  * Handles an incoming ACK. Removes fully acked packets from the
  * outbox, updates SND.WND, and may transmit packets that enter
  * the send window or have received duplicate ACKs. May advance
@@ -1514,6 +1558,79 @@ tcp_handle_rx_connected(tcp_sock_t *tcp, skb_t *skb)
 }
 
 /*
+ * Handles an incoming new connection. Allocates a new
+ * socket and adds it to the given socket's backlog list.
+ */
+static int
+tcp_handle_new_connection(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
+{
+    int ret;
+    net_sock_t *connsock = NULL;
+    tcp_hdr_t *hdr = skb_transport_header(skb);
+
+    /* Create a new socket */
+    connsock = socket_obj_alloc(SOCK_TCP);
+    if (connsock == NULL) {
+        tcp_debugf(tcp, "Failed to allocate socket for incoming connection\n");
+        ret = -1;
+        goto error;
+    }
+
+    /*
+     * Bind and connect socket (bypass conflict checks, since
+     * a TCP socket is identified by both local and remote
+     * addresses, and listening sockets cannot be connected).
+     */
+    ip_hdr_t *iphdr = skb_network_header(skb);
+    connsock->bound = true;
+    connsock->iface = iface;
+    connsock->local.ip = iphdr->dest_ip;
+    connsock->local.port = ntohs(hdr->be_dest_port);
+    connsock->connected = true;
+    connsock->remote.ip = iphdr->src_ip;
+    connsock->remote.port = ntohs(hdr->be_src_port);
+
+    tcp_sock_t *conntcp = tcp_sock(connsock);
+
+    /* Initialize remote sequence number */
+    tcp_init_remote_seq(conntcp, seq(hdr));
+
+    /* Transition to SYN-received state */
+    tcp_set_state(conntcp, SYN_RECEIVED);
+
+    /* Insert SYN packet into inbox */
+    tcp_inbox_handle_rx_skb(conntcp, skb);
+
+    /* Reply with SYN-ACK */
+    if (tcp_outbox_insert_syn(conntcp) == NULL) {
+        tcp_debugf(conntcp, "Failed to send SYN-ACK for incoming connection\n");
+        ret = -1;
+        goto error;
+    }
+    tcp_outbox_transmit_unsent(conntcp);
+
+    /* Add socket to backlog for accept() */
+    tcp_add_backlog(tcp, conntcp);
+
+    /* Wake anyone blocking on an accept() call */
+    scheduler_wake_all(&tcp->accept_queue);
+
+    ret = 0;
+
+exit:
+    if (connsock != NULL) {
+        socket_obj_release(connsock);
+    }
+    return ret;
+
+error:
+    if (connsock != NULL) {
+        tcp_set_state(tcp_sock(connsock), CLOSED);
+    }
+    goto exit;
+}
+
+/*
  * Handles an incoming packet to a listening socket.
  * The iface parameter is required since the socket
  * may be bound to all interfaces, unlike connected
@@ -1536,69 +1653,18 @@ tcp_handle_rx_listening(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
         return tcp_reply_rst(iface, skb);
     }
 
-    /* New incoming connection! */
-    if (hdr->syn) {
-        /* Reject if backlog is full */
-        if (tcp->backlog_capacity == 0) {
-            tcp_debugf(tcp, "Backlog full, dropping connection\n");
-            return -1;
-        }
-
-        /* Create a new socket */
-        net_sock_t *connsock = socket_obj_alloc(SOCK_TCP);
-        if (connsock == NULL) {
-            tcp_debugf(tcp, "Failed to allocate socket for incoming connection\n");
-            return -1;
-        }
-
-        /*
-         * Bind and connect socket (bypass conflict checks, since
-         * a TCP socket is identified by both local and remote
-         * addresses, and listening sockets cannot be connected).
-         */
-        ip_hdr_t *iphdr = skb_network_header(skb);
-        connsock->bound = true;
-        connsock->iface = iface;
-        connsock->local.ip = iphdr->dest_ip;
-        connsock->local.port = ntohs(hdr->be_dest_port);
-        connsock->connected = true;
-        connsock->remote.ip = iphdr->src_ip;
-        connsock->remote.port = ntohs(hdr->be_src_port);
-
-        tcp_sock_t *conntcp = tcp_sock(connsock);
-
-        /* Initialize remote sequence number */
-        tcp_init_remote_seq(conntcp, seq(hdr));
-
-        /* Transition to SYN-received state */
-        tcp_set_state(conntcp, SYN_RECEIVED);
-
-        /* Insert SYN packet into inbox */
-        tcp_inbox_handle_rx_skb(conntcp, skb);
-
-        /* Reply with SYN-ACK */
-        if (tcp_outbox_insert_syn(conntcp) == NULL) {
-            /*
-             * Note: since socket was created with refcount 0 and
-             * the only living refcount is from the TCP state, this
-             * will deallocate the socket.
-             */
-            tcp_set_state(conntcp, CLOSED);
-            return -1;
-        }
-        tcp_outbox_transmit_unsent(conntcp);
-
-        /* Add socket to backlog for accept() */
-        list_add_tail(&conntcp->backlog, &tcp->backlog);
-        tcp->backlog_capacity--;
-
-        /* Wake anyone blocking on an accept() call */
-        scheduler_wake_all(&tcp->accept_queue);
-        return 0;
+    /* Drop anything that doesn't contain a SYN */
+    if (!hdr->syn) {
+        return -1;
     }
 
-    /* Drop everything else */
-    return -1;
+    /* Reject if backlog is full */
+    if (tcp->backlog_capacity == 0) {
+        tcp_debugf(tcp, "Backlog full, dropping connection\n");
+        return -1;
+    }
+
+    return tcp_handle_new_connection(iface, tcp, skb);
 }
 
 /* Handles reception of a TCP packet */
@@ -1665,7 +1731,7 @@ tcp_handle_rx(net_iface_t *iface, skb_t *skb)
 }
 
 /* TCP socket constructor */
-int
+static int
 tcp_ctor(net_sock_t *sock)
 {
     tcp_sock_t *tcp = malloc(sizeof(tcp_sock_t));
@@ -1707,7 +1773,7 @@ tcp_ctor(net_sock_t *sock)
 }
 
 /* TCP socket destructor */
-void
+static void
 tcp_dtor(net_sock_t *sock)
 {
     tcp_sock_t *tcp = tcp_sock(sock);
@@ -1723,7 +1789,7 @@ tcp_dtor(net_sock_t *sock)
              * destroyed. This avoids a use-after-free when the pending
              * connection eventually gets destroyed.
              */
-            list_del(&pending->backlog);
+            tcp_remove_backlog(tcp, pending);
 
             /* Treat it as if we called close() on the pending socket */
             tcp_close_read_write(pending);
@@ -1731,11 +1797,10 @@ tcp_dtor(net_sock_t *sock)
         }
     } else {
         /*
-         * Needed in case a pending socket is destroyed while it is in the
-         * accept queue (e.g. if we never receive an ACK for our SYN-ACK
-         * and reach the retransmission limit, resetting the connection).
+         * If this a pending socket, the listening socket maintains a
+         * reference to it, so it can't possibly be destroyed.
          */
-        list_del(&tcp->backlog);
+        assert(list_empty(&tcp->backlog));
     }
 
     /* Clear inbox */
@@ -1773,7 +1838,7 @@ tcp_dtor(net_sock_t *sock)
  * bind() socketcall handler. Only works on sockets that
  * have not yet been put into listening mode.
  */
-int
+static int
 tcp_bind(net_sock_t *sock, const sock_addr_t *addr)
 {
     /* Can't bind connected or listening sockets */
@@ -1795,7 +1860,7 @@ tcp_bind(net_sock_t *sock, const sock_addr_t *addr)
  * sockets that have not already been connected. Sends a SYN
  * to the specified remote address.
  */
-int
+static int
 tcp_connect(net_sock_t *sock, const sock_addr_t *addr)
 {
     int ret;
@@ -1803,7 +1868,8 @@ tcp_connect(net_sock_t *sock, const sock_addr_t *addr)
 
     /* Cannot connect already-connected or listening sockets */
     if (sock->connected || sock->listening) {
-        return -1;
+        ret = -1;
+        goto exit;
     }
 
     /* Socket must be closed at this point */
@@ -1858,7 +1924,7 @@ unbind:
  * listen() socketcall handler. Puts the socket into listening
  * mode. Only works on unconnected sockets.
  */
-int
+static int
 tcp_listen(net_sock_t *sock, int backlog)
 {
     int ret;
@@ -1915,7 +1981,7 @@ tcp_can_accept(tcp_sock_t *tcp)
  * TCP connection. Copies the remote endpoint's address
  * into addr.
  */
-int
+static int
 tcp_accept(net_sock_t *sock, sock_addr_t *addr)
 {
     int ret;
@@ -1956,8 +2022,7 @@ tcp_accept(net_sock_t *sock, sock_addr_t *addr)
     }
 
     /* Consume socket from backlog */
-    list_del(&conntcp->backlog);
-    conntcp->backlog_capacity++;
+    tcp_remove_backlog(tcp, conntcp);
 
     ret = fd;
 
@@ -2022,7 +2087,7 @@ tcp_can_read(tcp_sock_t *tcp, int nbytes)
  * recvfrom() socketcall handler. Reads the specified number of
  * bytes from the remote endpoint. addr is ignored.
  */
-int
+static int
 tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
 {
     int ret;
@@ -2165,7 +2230,7 @@ tcp_get_writable_bytes(tcp_sock_t *tcp, int nbytes)
  * TCP packets and sends them to the remote endpoint. Fails if
  * the writing end of the socket is closed. addr is ignored.
  */
-int
+static int
 tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *addr)
 {
     int ret;
@@ -2250,7 +2315,7 @@ exit:
  * shutdown() socketcall handler. Sends a FIN to the
  * remote endpoint and closes the writing end of the socket.
  */
-int
+static int
 tcp_shutdown(net_sock_t *sock)
 {
     int ret;
@@ -2280,10 +2345,33 @@ exit:
  * but will remain alive in the kernel until the FIN
  * has been ACK'd.
  */
-void
+static void
 tcp_close(net_sock_t *sock)
 {
     tcp_sock_t *tcp = tcp_acquire(tcp_sock(sock));
     tcp_close_read_write(tcp);
     tcp_release(tcp);
+}
+
+/* TCP socket operations table */
+static const sock_ops_t sops_tcp = {
+    .ctor = tcp_ctor,
+    .dtor = tcp_dtor,
+    .bind = tcp_bind,
+    .connect = tcp_connect,
+    .listen = tcp_listen,
+    .accept = tcp_accept,
+    .recvfrom = tcp_recvfrom,
+    .sendto = tcp_sendto,
+    .shutdown = tcp_shutdown,
+    .close = tcp_close,
+};
+
+/*
+ * Registers the TCP socket type.
+ */
+void
+tcp_init(void)
+{
+    socket_register_type(SOCK_TCP, &sops_tcp);
 }

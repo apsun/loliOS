@@ -22,6 +22,8 @@
 #include "random.h"
 #include "vbe.h"
 #include "mt19937.h"
+#include "tcp.h"
+#include "udp.h"
 
 /* Check if the bit BIT in FLAGS is set. */
 #define CHECK_FLAG(flags, bit) ((flags) & (1 << (bit)))
@@ -216,6 +218,12 @@ entry(uint32_t magic, uint32_t addr)
 
     printf("Initializing VBE driver...\n");
     vbe_init();
+
+    printf("Initializing TCP driver...\n");
+    tcp_init();
+
+    printf("Initializing UDP driver...\n");
+    udp_init();
 
     /* We made it! */
     printf("Boot successful!\n");

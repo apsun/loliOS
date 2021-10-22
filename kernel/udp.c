@@ -14,6 +14,14 @@
 /* Maximum length of a UDP datagram body */
 #define UDP_MAX_LEN 1472
 
+/* UDP packet header structure */
+typedef struct {
+    be16_t be_src_port;
+    be16_t be_dest_port;
+    be16_t be_length;
+    be16_t be_checksum;
+} __packed udp_hdr_t;
+
 /* UDP-private socket state */
 typedef struct {
     /* Simple queue of incoming packets */
@@ -102,7 +110,7 @@ udp_send(net_sock_t *sock, skb_t *skb, ip_addr_t ip, uint16_t port)
 }
 
 /* UDP socket constructor */
-int
+static int
 udp_ctor(net_sock_t *sock)
 {
     udp_sock_t *udp = malloc(sizeof(udp_sock_t));
@@ -117,7 +125,7 @@ udp_ctor(net_sock_t *sock)
 }
 
 /* UDP socket destructor */
-void
+static void
 udp_dtor(net_sock_t *sock)
 {
     /* Release all queued packets */
@@ -136,7 +144,7 @@ udp_dtor(net_sock_t *sock)
  * bind() socketcall handler. Sets the local endpoint
  * address of the socket.
  */
-int
+static int
 udp_bind(net_sock_t *sock, const sock_addr_t *addr)
 {
     /* Copy address into kernelspace */
@@ -153,7 +161,7 @@ udp_bind(net_sock_t *sock, const sock_addr_t *addr)
  * address to send datagrams to, and also causes incoming
  * datagrams not from the given address to be discarded.
  */
-int
+static int
 udp_connect(net_sock_t *sock, const sock_addr_t *addr)
 {
     /* Copy address to kernelspace */
@@ -207,7 +215,7 @@ udp_matches_connected_addr(net_sock_t *sock, skb_t *skb)
  * from the socket. The sender's address will be copied to
  * addr if it is not null.
  */
-int
+static int
 udp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
 {
     /* Can only receive packets after bind() */
@@ -274,7 +282,7 @@ udp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
  * will be sent to the connected address if previously
  * set by connect().
  */
-int
+static int
 udp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *addr)
 {
     /* If addr is not null, override connected address */
@@ -323,4 +331,23 @@ udp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
     } else {
         return nbytes;
     }
+}
+
+/* UDP socket operations table */
+static const sock_ops_t sops_udp = {
+    .ctor = udp_ctor,
+    .dtor = udp_dtor,
+    .bind = udp_bind,
+    .connect = udp_connect,
+    .recvfrom = udp_recvfrom,
+    .sendto = udp_sendto,
+};
+
+/*
+ * Registers the UDP socket type.
+ */
+void
+udp_init(void)
+{
+    socket_register_type(SOCK_UDP, &sops_udp);
 }

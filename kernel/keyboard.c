@@ -16,6 +16,8 @@
 #define KC_C         0x2E
 #define KC_D         0x20
 #define KC_L         0x26
+#define KC_P         0x19
+#define KC_M         0x32
 #define KC_F1        0x3B
 #define KC_F2        0x3C
 #define KC_F3        0x3D
@@ -156,6 +158,10 @@ keycode_to_ctrl(uint8_t keycode)
             return KCTL_INTERRUPT;
         case KC_D: /* CTRL-D */
             return KCTL_EOF;
+        case KC_P: /* CTRL-P */
+            return KCTL_PANIC;
+        case KC_M: /* CTRL-M */
+            return KCTL_MEMDUMP;
         }
         break;
     case KMOD_ALT:
@@ -166,12 +172,6 @@ keycode_to_ctrl(uint8_t keycode)
             return KCTL_TERM2;
         case KC_F3: /* ALT-F3 */
             return KCTL_TERM3;
-        }
-        break;
-    case KMOD_CTRL | KMOD_ALT:
-        switch (keycode) {
-        case KC_DELETE: /* CTRL-ALT-DEL */
-            return KCTL_PANIC;
         }
         break;
     }
