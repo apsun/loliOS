@@ -725,21 +725,21 @@ terminal_open_streams(file_obj_t **files)
     in = file_obj_alloc(&terminal_tty_fops, OPEN_READ);
     if (in == NULL) {
         ret = -1;
-        goto error;
+        goto exit;
     }
 
     /* Create stdout stream */
     out = file_obj_alloc(&terminal_tty_fops, OPEN_WRITE);
     if (out == NULL) {
         ret = -1;
-        goto error;
+        goto exit;
     }
 
     /* Create stderr stream */
     err = file_obj_alloc(&terminal_tty_fops, OPEN_WRITE);
     if (err == NULL) {
         ret = -1;
-        goto error;
+        goto exit;
     }
 
     /* Bind to file descriptors */
@@ -749,9 +749,6 @@ terminal_open_streams(file_obj_t **files)
     ret = 0;
 
 exit:
-    return ret;
-
-error:
     if (err != NULL) {
         file_obj_release(err);
     }
@@ -761,7 +758,7 @@ error:
     if (in != NULL) {
         file_obj_release(in);
     }
-    goto exit;
+    return ret;
 }
 
 /*
