@@ -421,8 +421,10 @@ static void
 process_close(pcb_t *pcb)
 {
     vbe_release(pcb->fbmap);
+    pcb->fbmap = false;
     if (pcb->user_paddr != 0) {
         paging_page_free(pcb->user_paddr);
+        pcb->user_paddr = 0;
     }
     file_deinit(pcb->files);
     heap_clear(&pcb->heap);

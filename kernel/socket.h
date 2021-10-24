@@ -76,7 +76,7 @@ struct sock_ops {
 /* Registers a socket type */
 void socket_register_type(int type, const sock_ops_t *ops_table);
 
-/* Socket object alloc/free/retain/release functions */
+/* Socket object alloc/retain/release functions */
 net_sock_t *socket_obj_alloc(int type);
 net_sock_t *socket_obj_retain(net_sock_t *sock);
 void socket_obj_release(net_sock_t *sock);
