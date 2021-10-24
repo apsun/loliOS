@@ -669,7 +669,7 @@ mya_dump_state(void)
     mya_header_t *hdr = (mya_header_t *)KERNEL_HEAP_START;
     while (!mya_is_sentinel(curr, hdr)) {
         printf(
-            "0x%08x: size=%u used=%d\n",
+            "%p: size=%u used=%d\n",
             mya_header_to_data(hdr),
             mya_size(curr, hdr),
             mya_used(curr, hdr));

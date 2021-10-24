@@ -208,6 +208,29 @@ printf_do_char(printf_arg_t *a, char c)
 }
 
 /*
+ * Handles the %p printf case.
+ */
+static void
+printf_do_ptr(printf_arg_t *a, void *ptr)
+{
+    char utoa_buf[sizeof(void *) * 2 + 1];
+    utoa((unsigned int)ptr, utoa_buf, 16);
+
+    int pad_width = a->pad_width - strlen("0x") - sizeof(void *) * 2;
+    if (a->left_align) {
+        printf_append_string(a, "0x");
+        printf_pad(a, '0', sizeof(void *) * 2 - strlen(utoa_buf));
+        printf_append_string(a, utoa_buf);
+        printf_pad(a, ' ', pad_width);
+    } else {
+        printf_pad(a, ' ', pad_width);
+        printf_append_string(a, "0x");
+        printf_pad(a, '0', sizeof(void *) * 2 - strlen(utoa_buf));
+        printf_append_string(a, utoa_buf);
+    }
+}
+
+/*
  * Converts a string to uppercase.
  */
 static void
@@ -225,7 +248,7 @@ printf_stoupper(char *buf)
 static void
 printf_do_uint(printf_arg_t *a, unsigned int num, int radix, bool upper)
 {
-    char utoa_buf[64];
+    char utoa_buf[sizeof(int) * 8 + 1];
     utoa(num, utoa_buf, radix);
     if (upper) {
         printf_stoupper(utoa_buf);
@@ -247,7 +270,7 @@ printf_do_uint(printf_arg_t *a, unsigned int num, int radix, bool upper)
 static void
 printf_do_int(printf_arg_t *a, int num, int radix, bool upper)
 {
-    char utoa_buf[64];
+    char utoa_buf[sizeof(int) * 8 + 1];
     utoa((num < 0) ? -num : num, utoa_buf, radix);
     if (upper) {
         printf_stoupper(utoa_buf);
@@ -420,6 +443,11 @@ consume_format:
         /* Print a number in octal form */
         case 'o':
             printf_do_uint(&a, va_arg(args, unsigned int), 8, false);
+            break;
+
+        /* Print a pointer */
+        case 'p':
+            printf_do_ptr(&a, va_arg(args, void *));
             break;
 
         /* Print a single character */

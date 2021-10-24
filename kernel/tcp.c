@@ -32,8 +32,8 @@
     #define TCP_DEBUG_PRINT 0
 #endif
 #if TCP_DEBUG_PRINT
-    #define tcp_debugf(tcp, fmt, ...) debugf("tcp(0x%08x) " fmt, tcp, ## __VA_ARGS__)
-    #define skb_debugf(skb, fmt, ...) debugf("skb(0x%08x) " fmt, skb, ## __VA_ARGS__)
+    #define tcp_debugf(tcp, fmt, ...) debugf("tcp(%p) " fmt, tcp, ## __VA_ARGS__)
+    #define skb_debugf(skb, fmt, ...) debugf("skb(%p) " fmt, skb, ## __VA_ARGS__)
 #else
     #define tcp_debugf(...) ((void)0)
     #define skb_debugf(...) ((void)0)
@@ -878,7 +878,7 @@ tcp_outbox_insert(tcp_sock_t *tcp, skb_t *skb)
     list_add_tail(&pkt->list, &tcp->outbox);
 
     tcp->send_next_num += tcp_seg_len(skb);
-    tcp_debugf(tcp, "Added 0x%08x to outbox\n", pkt);
+    tcp_debugf(tcp, "Added %p to outbox\n", pkt);
     return pkt;
 }
 
@@ -947,7 +947,7 @@ tcp_outbox_insert_fin(tcp_sock_t *tcp)
 static void
 tcp_outbox_remove(tcp_sock_t *tcp, tcp_pkt_t *pkt)
 {
-    tcp_debugf(tcp, "Removing 0x%08x from outbox\n", pkt);
+    tcp_debugf(tcp, "Removing %p from outbox\n", pkt);
     list_del(&pkt->list);
     skb_release(pkt->skb);
     free(pkt);
@@ -1002,7 +1002,7 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
         }
     }
     list_add(&skb_retain(skb)->list, pos);
-    tcp_debugf(tcp, "Added 0x%08x to inbox\n", skb);
+    tcp_debugf(tcp, "Added %p to inbox\n", skb);
     return true;
 }
 
@@ -1012,7 +1012,7 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
 static void
 tcp_inbox_remove(tcp_sock_t *tcp, skb_t *skb)
 {
-    tcp_debugf(tcp, "Removing 0x%08x from inbox\n", skb);
+    tcp_debugf(tcp, "Removing %p from inbox\n", skb);
     list_del(&skb->list);
     skb_release(skb);
 }

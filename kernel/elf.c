@@ -172,7 +172,7 @@ elf_is_valid(int inode_idx, bool *out_compat)
     }
 
     if (hdr.magic != ELF_MAGIC) {
-        debugf("Not an ELF file (magic = %08x)\n", hdr.magic);
+        debugf("Not an ELF file (magic = 0x%08x)\n", hdr.magic);
         return false;
     }
 

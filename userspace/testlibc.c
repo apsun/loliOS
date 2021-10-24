@@ -324,11 +324,11 @@ test_longjmp(void)
 static void
 test_snprintf(void)
 {
-    char buf[8];
+    char buf[16];
     assert(snprintf(buf, sizeof(buf), "%s!", "Hello") == strlen("Hello!"));
     assert(strcmp(buf, "Hello!") == 0);
-    assert(snprintf(buf, sizeof(buf), "%s %s", "LONG", "STRING") == 11);
-    assert(strcmp(buf, "LONG ST") == 0);
+    assert(snprintf(buf, sizeof(buf), "%s %s", "SUPER LONG", "STRING") == 17);
+    assert(strcmp(buf, "SUPER LONG STRI") == 0);
     assert(snprintf(buf, 1, "wat") == 3);
     assert(strcmp(buf, "") == 0);
     assert(snprintf(buf, sizeof(buf), "%d", -10) == 3);
@@ -352,11 +352,15 @@ test_snprintf(void)
     assert(snprintf(buf, sizeof(buf), "%5d", -10) == 5);
     assert(strcmp(buf, "  -10") == 0);
     assert(snprintf(buf, sizeof(buf), "%025d", 10) == 25);
-    assert(strcmp(buf, "0000000") == 0);
+    assert(strcmp(buf, "000000000000000") == 0);
     assert(snprintf(buf, sizeof(buf), "%5s", "hi") == 5);
     assert(strcmp(buf, "   hi") == 0);
     assert(snprintf(buf, sizeof(buf), "%-5s", "hi") == 5);
     assert(strcmp(buf, "hi   ") == 0);
+    assert(snprintf(buf, sizeof(buf), "%5p", 0x1234abcd) == 10);
+    assert(strcmp(buf, "0x1234abcd") == 0);
+    assert(snprintf(buf, sizeof(buf), "%12p", 0x1234abcd) == 12);
+    assert(strcmp(buf, "  0x1234abcd") == 0);
     assert(snprintf(buf, sizeof(buf), "") == 0);
     assert(strcmp(buf, "") == 0);
 
