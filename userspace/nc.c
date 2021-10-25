@@ -9,15 +9,34 @@
 #define DNS_SERVER IP(10, 0, 2, 3)
 #define DNS_PORT 53
 
-/* Maximum number of bytes to send at once */
-#define MSS 1460
+#define DNS_TYPE_A 0x0001
+#define DNS_CLASS_IN 0x0001
+
+/* Maximum number of bytes in a DNS name */
+#define DNS_MAX_NAME_LEN 256
 
 /* How long to wait for a DNS reply */
 #define DNS_TIMEOUT 1000
 
+/* UDP and TCP MSS sizes */
+#define UDP_MAX_LEN 1472
+#define TCP_MAX_LEN 1460
+
 typedef struct {
     uint16_t be_id;
-    uint16_t be_flags;
+    union {
+        struct {
+            uint16_t rd     : 1;
+            uint16_t tc     : 1;
+            uint16_t aa     : 1;
+            uint16_t opcode : 4;
+            uint16_t qr     : 1;
+            uint16_t rcode  : 4;
+            uint16_t zero   : 3;
+            uint16_t ra     : 1;
+        };
+        uint16_t be_flags;
+    };
     uint16_t be_qdcount;
     uint16_t be_ancount;
     uint16_t be_nscount;
@@ -27,14 +46,14 @@ typedef struct {
 typedef struct {
     uint16_t be_qtype;
     uint16_t be_qclass;
-} __attribute__((packed)) dns_q_ftr_t;
+} __attribute__((packed)) dns_qhdr_t;
 
 typedef struct {
     uint16_t be_type;
     uint16_t be_class;
     uint32_t be_ttl;
     uint16_t be_rdlength;
-} __attribute__((packed)) dns_a_hdr_t;
+} __attribute__((packed)) dns_ahdr_t;
 
 typedef struct {
     char buf[128];
@@ -43,6 +62,22 @@ typedef struct {
     bool crlf : 1;
     char *argv;
 } args_t;
+
+typedef struct {
+    uint8_t data[UDP_MAX_LEN];
+    int length;
+    int offset;
+} dns_buf_t;
+
+/*
+ * Represents a binary-encoded domain name using the
+ * length-prefixed format, e.g. [3]www[6]google[3]com[0]
+ * where [N] represents (char)N.
+ */
+typedef struct {
+    uint8_t data[DNS_MAX_NAME_LEN];
+    int length;
+} dns_name_t;
 
 static volatile bool stop = false;
 
@@ -57,165 +92,340 @@ bswap16(uint16_t x)
 #define ntohs(x) bswap16(x)
 #define htons(x) bswap16(x)
 
-static uint8_t *
-dns_skip_hostname(uint8_t *bufp)
+static bool
+dns_buf_overflow(dns_buf_t *buf, int n)
 {
-    while (1) {
-        /* Find length of next segment */
-        uint8_t len = *bufp++;
-        if (len == 0) {
-            break;
-        }
-
-        /* Remainder of hostname is a compressed segment */
-        if ((len & 0xc0) == 0xc0) {
-            bufp++;
-            break;
-        }
-
-        /* Skip over segment */
-        bufp += len;
-    }
-
-    return bufp;
+    return buf->offset + n > buf->length;
 }
 
 static bool
-dns_parse_reply(uint8_t *buf, int cnt, ip_addr_t *ip)
+dns_name_equals(const dns_name_t *a, const dns_name_t *b)
 {
-    uint8_t *bufp = buf;
-
-    /* Validate header */
-    if (cnt < (int)sizeof(dns_hdr_t)) {
+    if (a->length != b->length) {
         return false;
     }
 
-    dns_hdr_t *hdr = (dns_hdr_t *)bufp;
-
-    /* Check that it's a recursive DNS reply (we're too lazy to do it ourselves) */
-    if ((ntohs(hdr->be_flags) & 0x8080) != 0x8080) {
-        return false;
-    }
-
-    /* Check that it's a reply for our single question */
-    if (ntohs(hdr->be_qdcount) != 1 || ntohs(hdr->be_ancount) == 0) {
-        return false;
-    }
-
-    bufp += sizeof(dns_hdr_t);
-
-    /* Skip query */
-    bufp = dns_skip_hostname(bufp);
-    bufp += sizeof(dns_q_ftr_t);
-
-    /* Find first A record in result */
-    int i;
-    for (i = 0; i < ntohs(hdr->be_ancount); ++i) {
-        bool valid = true;
-
-        /* Only look for compressed records referring to query hostname */
-        uint8_t len = *bufp;
-        if ((len & 0xc0) != 0xc0) {
-            bufp = dns_skip_hostname(bufp);
-            valid = false;
-        } else {
-            uint16_t off = ntohs(*(uint16_t *)bufp) & ~0xc000;
-            bufp += sizeof(uint16_t);
-            if (off != sizeof(dns_hdr_t)) {
-                valid = false;
-            }
+    int offset = 0;
+    while (1) {
+        uint8_t alen = a->data[offset];
+        uint8_t blen = b->data[offset];
+        if (alen != blen) {
+            return false;
         }
+        offset++;
 
-        /* Check answer header fields */
-        dns_a_hdr_t *ahdr = (dns_a_hdr_t *)bufp;
-        if (ntohs(ahdr->be_type) != 0x0001 ||
-            ntohs(ahdr->be_class) != 0x0001 ||
-            ntohs(ahdr->be_rdlength) != 4) {
-            valid = false;
-        }
-
-        /* Move to data field */
-        bufp += sizeof(dns_a_hdr_t);
-
-        /* Valid? Great! Get the first entry. */
-        if (valid) {
-            memcpy(&ip->bytes, bufp, 4);
+        if (alen == 0) {
             return true;
         }
 
-        /* Move to next answer */
-        bufp += ntohs(ahdr->be_rdlength);
+        if (memcmp(&a->data[offset], &b->data[offset], alen) != 0) {
+            return false;
+        }
+        offset += alen;
     }
-
-    return false;
 }
 
-static int
-dns_fill_query(uint8_t *buf, const char *hostname)
+static bool
+dns_name_parse_text(const char *hostname, dns_name_t *out_name)
 {
-    /*
-     * Query is in format [3]www[6]google[3]com[0],
-     * where [N] represents (char)N.
-     */
-    uint8_t *bufp = buf;
+    out_name->length = 0;
+
     const char *p = hostname;
-    int i;
     while (1) {
         /* Copy until . or end-of-string */
-        i = 0;
+        int seglen = 0;
         while (*p && *p != '.') {
-            /* Hyphen only allowed if not first/last character in segment */
             char c = *p++;
-            if (isalnum(c) || (c == '-' && i > 0 && (*p && *p != '.'))) {
-                bufp[++i] = c;
-            } else {
-                return -1;
+
+            /* Hyphen only allowed if not first/last character in segment */
+            if (!isalnum(c) && !(c == '-' && seglen > 0 && (*p && *p != '.'))) {
+                fprintf(stderr, "DNS invalid segment format\n");
+                return false;
             }
 
-            /* Each segment must be < 64B, overall < 256B */
-            if (i == 64 || (bufp - buf + i) == 256) {
-                return -1;
+            seglen++;
+            out_name->data[out_name->length + seglen] = c;
+
+            /*
+             * Each segment must be < 64B, and < 256B overall. We also need
+             * to leave space for the trailing 0 byte, hence the - 1.
+             */
+            if (seglen == 64 || out_name->length + seglen == DNS_MAX_NAME_LEN - 1) {
+                fprintf(stderr, "DNS segment or overall length too long\n");
+                return false;
             }
         }
 
         /* Empty segments are invalid */
-        if (i == 0) {
-            return -1;
+        if (seglen == 0) {
+            fprintf(stderr, "DNS empty segment\n");
+            return false;
         }
 
         /* Prepend length */
-        bufp[0] = i;
-        bufp += i + 1;
+        out_name->data[out_name->length] = seglen;
+        out_name->length += seglen + 1;
 
         /* If . then move to next segment, otherwise stop */
         if (*p == '.') {
             p++;
         } else {
-            *bufp++ = '\0';
-            break;
+            out_name->data[out_name->length++] = 0;
+            return true;
         }
     }
-
-    /* Fill in footer */
-    dns_q_ftr_t *ftr = (dns_q_ftr_t *)bufp;
-    ftr->be_qtype = htons(0x0001); /* A records */
-    ftr->be_qclass = htons(0x0001); /* Internet addr */
-    bufp += sizeof(*ftr);
-
-    return bufp - buf;
 }
 
-static void
-dns_fill_header(uint8_t *buf)
+static bool
+dns_name_parse_compressed(dns_buf_t *buf, dns_name_t *out_name)
 {
-    /* Fill out header */
-    dns_hdr_t *hdr = (dns_hdr_t *)buf;
-    hdr->be_id = htons(rand() & 0xffff);
-    hdr->be_flags = htons(0x0100); /* Recursive query: YES */
-    hdr->be_qdcount = htons(1); /* 1 question */
+    out_name->length = 0;
+
+    int pos = buf->offset;
+    bool compressed = false;
+    while (1) {
+        if (pos + 1 > buf->length) {
+            fprintf(stderr, "DNS domain name overflows input buffer\n");
+            return false;
+        }
+
+        uint8_t seglen = buf->data[pos];
+        if ((seglen & 0xc0) == 0xc0) {
+            if (pos + 2 > buf->length) {
+                fprintf(stderr, "DNS compressed length overflows input buffer\n");
+                return false;
+            }
+
+            int newpos = ((seglen & ~0xc0) << 8) | buf->data[pos + 1];
+            if (newpos >= pos) {
+                fprintf(stderr, "DNS compressed pointer points forward\n");
+                return false;
+            }
+
+            pos = newpos;
+            if (!compressed) {
+                buf->offset += 2;
+                compressed = true;
+            }
+        } else {
+            if (pos + seglen + 1 > buf->length) {
+                fprintf(stderr, "DNS domain name overflows input buffer\n");
+                return false;
+            }
+
+            if (out_name->length + seglen + 1 > DNS_MAX_NAME_LEN) {
+                fprintf(stderr, "DNS domain name is too long\n");
+                return false;
+            }
+
+            memcpy(&out_name->data[out_name->length], &buf->data[pos], seglen + 1);
+            out_name->length += seglen + 1;
+            pos += seglen + 1;
+            if (!compressed) {
+                buf->offset += seglen + 1;
+            }
+
+            if (seglen == 0) {
+                return true;
+            }
+        }
+    }
+}
+
+static bool
+dns_read_response_header(dns_buf_t *buf, uint16_t id, const dns_hdr_t **out_hdr)
+{
+    /* Read DNS header */
+    if (dns_buf_overflow(buf, sizeof(dns_hdr_t))) {
+        fprintf(stderr, "DNS header overflows input buffer\n");
+        return false;
+    }
+    dns_hdr_t *hdr = (dns_hdr_t *)&buf->data[buf->offset];
+    buf->offset += sizeof(dns_hdr_t);
+
+    /* Check that ID matches what we sent in the query */
+    if (ntohs(hdr->be_id) != id) {
+        fprintf(stderr, "DNS response ID mismatch\n");
+        return false;
+    }
+
+    /* Check that flags are good */
+    if (hdr->qr != 1 ||      /* Is a response */
+        hdr->opcode != 0 ||  /* Is a standard query */
+        hdr->tc != 0 ||      /* Was not truncated */
+        hdr->ra != 1 ||      /* Was recursive */
+        hdr->rcode != 0)     /* No error */
+    {
+        fprintf(stderr, "DNS flags are not good\n");
+        return false;
+    }
+
+    *out_hdr = hdr;
+    return true;
+}
+
+static bool
+dns_read_response_question(
+    dns_buf_t *buf,
+    const dns_hdr_t *hdr,
+    const dns_name_t *name)
+{
+    int i;
+    for (i = 0; i < ntohs(hdr->be_qdcount); ++i) {
+        /* Check that the question is for the domain name we queried */
+        dns_name_t qname;
+        if (!dns_name_parse_compressed(buf, &qname)) {
+            return false;
+        }
+        if (!dns_name_equals(name, &qname)) {
+            fprintf(stderr, "DNS question does not match queried domain name\n");
+            return false;
+        }
+
+        /* Read rest of question header */
+        if (dns_buf_overflow(buf, sizeof(dns_qhdr_t))) {
+            fprintf(stderr, "DNS question header overflows input buffer\n");
+            return false;
+        }
+        dns_qhdr_t *qhdr = (dns_qhdr_t *)&buf->data[buf->offset];
+        buf->offset += sizeof(dns_qhdr_t);
+
+        /*
+         * Check that the question matches the type (A record) and class
+         * (internet addr) we queried for.
+         */
+        if (ntohs(qhdr->be_qtype) != DNS_TYPE_A ||
+            ntohs(qhdr->be_qclass) != DNS_CLASS_IN)
+        {
+            fprintf(stderr, "DNS question header is not A record for IN addr\n");
+            return false;
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+static bool
+dns_read_response_answer(
+    dns_buf_t *buf,
+    const dns_hdr_t *hdr,
+    const dns_name_t *name,
+    ip_addr_t *out_ip)
+{
+    int i;
+    for (i = 0; i < ntohs(hdr->be_ancount); ++i) {
+        bool skip = false;
+
+        /* Check that the answer is for the domain name we queried */
+        dns_name_t aname;
+        if (!dns_name_parse_compressed(buf, &aname)) {
+            return false;
+        }
+        if (!dns_name_equals(name, &aname)) {
+            skip = true;
+        }
+
+        /* Read rest of answer header */
+        if (dns_buf_overflow(buf, sizeof(dns_ahdr_t))) {
+            fprintf(stderr, "DNS answer header overflows input buffer\n");
+            return false;
+        }
+        dns_ahdr_t *ahdr = (dns_ahdr_t *)&buf->data[buf->offset];
+        buf->offset += sizeof(dns_ahdr_t);
+
+        /*
+         * Check that the answer matches the type (A record) and class
+         * (internet addr) we queried for.
+         */
+        if (ntohs(ahdr->be_type) != DNS_TYPE_A ||
+            ntohs(ahdr->be_class) != DNS_CLASS_IN ||
+            ntohs(ahdr->be_rdlength) != sizeof(ip_addr_t))
+        {
+            skip = true;
+        }
+
+        /* If everything lines up, we have our IP address! */
+        if (dns_buf_overflow(buf, sizeof(ip_addr_t))) {
+            fprintf(stderr, "DNS answer data overflows input buffer\n");
+            return false;
+        }
+        if (!skip) {
+            memcpy(&out_ip->bytes, &buf->data[buf->offset], sizeof(ip_addr_t));
+            return true;
+        }
+        buf->offset += sizeof(ip_addr_t);
+    }
+
+    return false;
+}
+
+static bool
+dns_read_response(
+    dns_buf_t *buf,
+    const dns_name_t *name,
+    uint16_t id,
+    ip_addr_t *ip)
+{
+    const dns_hdr_t *hdr;
+    return
+        dns_read_response_header(buf, id, &hdr) &&
+        dns_read_response_question(buf, hdr, name) &&
+        dns_read_response_answer(buf, hdr, name, ip);
+}
+
+static bool
+dns_write_query_header(dns_buf_t *buf, uint16_t id)
+{
+    if (dns_buf_overflow(buf, sizeof(dns_hdr_t))) {
+        fprintf(stderr, "DNS query data overflows output buffer\n");
+        return false;
+    }
+    dns_hdr_t *hdr = (dns_hdr_t *)&buf->data[buf->offset];
+    buf->offset += sizeof(dns_hdr_t);
+
+    hdr->be_id = htons(id);
+    hdr->be_flags = htons(0);
+    hdr->qr = 0;
+    hdr->opcode = 0;
+    hdr->rd = 1;
+    hdr->be_qdcount = htons(1);
     hdr->be_ancount = htons(0);
     hdr->be_nscount = htons(0);
     hdr->be_arcount = htons(0);
+    return true;
+}
+
+static bool
+dns_write_query_question(dns_buf_t *buf, const dns_name_t *name)
+{
+    /* Emit binary domain name */
+    if (dns_buf_overflow(buf, name->length)) {
+        fprintf(stderr, "DNS query name overflows output buffer\n");
+        return false;
+    }
+    memcpy(&buf->data[buf->offset], name->data, name->length);
+    buf->offset += name->length;
+
+    /* Emit question header */
+    if (dns_buf_overflow(buf, sizeof(dns_qhdr_t))) {
+        fprintf(stderr, "DNS query header overflows output buffer\n");
+        return false;
+    }
+    dns_qhdr_t *qhdr = (dns_qhdr_t *)&buf->data[buf->offset];
+    buf->offset += sizeof(dns_qhdr_t);
+    qhdr->be_qtype = htons(DNS_TYPE_A);
+    qhdr->be_qclass = htons(DNS_CLASS_IN);
+    return true;
+}
+
+static bool
+dns_write_query(dns_buf_t *buf, const dns_name_t *name, uint16_t id)
+{
+    return
+        dns_write_query_header(buf, id) &&
+        dns_write_query_question(buf, name);
 }
 
 static bool
@@ -223,15 +433,7 @@ dns_resolve(const char *hostname, ip_addr_t *ip)
 {
     bool ret = false;
     int sockfd = -1;
-
-    /* FQDN is at most 255 characters + NUL, 512B is definitely enough */
-    uint8_t qbuf[512];
-    dns_fill_header(qbuf);
-    uint8_t *qquery = &qbuf[sizeof(dns_hdr_t)];
-    int qlen = dns_fill_query(qquery, hostname);
-    if (qlen < 0) {
-        goto cleanup;
-    }
+    dns_buf_t buf;
 
     /* DNS over UDP */
     sockfd = socket(SOCK_UDP);
@@ -239,9 +441,30 @@ dns_resolve(const char *hostname, ip_addr_t *ip)
         goto cleanup;
     }
 
+    /* Make socket non-blocking */
+    if (fcntl(sockfd, FCNTL_NONBLOCK, 1) < 0) {
+        goto cleanup;
+    }
+
+    /* Generate ID to match query with response */
+    uint16_t id = urand() & 0xffff;
+
+    /* Convert hostname from text to binary format */
+    dns_name_t name;
+    if (!dns_name_parse_text(hostname, &name)) {
+        goto cleanup;
+    }
+
+    /* Emit query */
+    buf.length = sizeof(buf.data);
+    buf.offset = 0;
+    if (!dns_write_query(&buf, &name, id)) {
+        goto cleanup;
+    }
+
     /* Send request */
     sock_addr_t addr = {.ip = DNS_SERVER, .port = DNS_PORT};
-    if (sendto(sockfd, qbuf, sizeof(dns_hdr_t) + qlen, &addr) < 0) {
+    if (sendto(sockfd, buf.data, buf.offset, &addr) < 0) {
         goto cleanup;
     }
 
@@ -249,19 +472,18 @@ dns_resolve(const char *hostname, ip_addr_t *ip)
     int start = monotime();
     int end = start + DNS_TIMEOUT;
 
-    /* Wait for reply */
-    uint8_t rbuf[0x600];
+    /* Wait for response */
     while (monotime() < end) {
-        int rcnt;
-        if ((rcnt = recvfrom(sockfd, rbuf, sizeof(rbuf), NULL)) != 0) {
-            if (rcnt == -EINTR || rcnt == -EAGAIN) {
-                continue;
-            } else if (rcnt < 0) {
-                goto cleanup;
-            } else {
-                ret = dns_parse_reply(rbuf, rcnt, ip);
-                break;
-            }
+        int rcnt = recvfrom(sockfd, &buf.data, sizeof(buf.data), NULL);
+        if (rcnt == -EINTR || rcnt == -EAGAIN) {
+            continue;
+        } else if (rcnt < 0) {
+            goto cleanup;
+        } else {
+            buf.length = rcnt;
+            buf.offset = 0;
+            ret = dns_read_response(&buf, &name, id, ip);
+            break;
         }
     }
 
@@ -442,7 +664,7 @@ nc_loop(ip_addr_t ip, uint16_t port, args_t *args)
     int ret = 1;
     int sockfd = -1;
     int listenfd = -1;
-    char send_buf[MSS];
+    char send_buf[TCP_MAX_LEN];
     char recv_buf[8192];
     int send_offset = 0;
     int recv_offset = 0;
