@@ -346,16 +346,18 @@ dns_read_response_answer(
             skip = true;
         }
 
-        /* If everything lines up, we have our IP address! */
+        /* Read IP address data */
         if (dns_buf_overflow(buf, sizeof(ip_addr_t))) {
             fprintf(stderr, "DNS answer data overflows input buffer\n");
             return false;
         }
+        void *ip = &buf->data[buf->offset];
+        buf->offset += sizeof(ip_addr_t);
+
         if (!skip) {
-            memcpy(&out_ip->bytes, &buf->data[buf->offset], sizeof(ip_addr_t));
+            memcpy(&out_ip->bytes, ip, sizeof(ip_addr_t));
             return true;
         }
-        buf->offset += sizeof(ip_addr_t);
     }
 
     return false;
@@ -366,13 +368,13 @@ dns_read_response(
     dns_buf_t *buf,
     const dns_name_t *name,
     uint16_t id,
-    ip_addr_t *ip)
+    ip_addr_t *out_ip)
 {
     const dns_hdr_t *hdr;
     return
         dns_read_response_header(buf, id, &hdr) &&
         dns_read_response_question(buf, hdr, name) &&
-        dns_read_response_answer(buf, hdr, name, ip);
+        dns_read_response_answer(buf, hdr, name, out_ip);
 }
 
 static bool
@@ -429,7 +431,7 @@ dns_write_query(dns_buf_t *buf, const dns_name_t *name, uint16_t id)
 }
 
 static bool
-dns_resolve(const char *hostname, ip_addr_t *ip)
+dns_resolve(const char *hostname, ip_addr_t *out_ip)
 {
     bool ret = false;
     int sockfd = -1;
@@ -482,7 +484,7 @@ dns_resolve(const char *hostname, ip_addr_t *ip)
         } else {
             buf.length = rcnt;
             buf.offset = 0;
-            ret = dns_read_response(&buf, &name, id, ip);
+            ret = dns_read_response(&buf, &name, id, out_ip);
             break;
         }
     }
@@ -493,7 +495,7 @@ cleanup:
 }
 
 static bool
-ip_parse(const char *str, ip_addr_t *ip)
+ip_parse(const char *str, ip_addr_t *out_ip)
 {
     int octets[4] = {0};
     int index = 0;
@@ -520,7 +522,7 @@ ip_parse(const char *str, ip_addr_t *ip)
         return false;
     }
     do {
-        ip->bytes[index] = octets[index];
+        out_ip->bytes[index] = octets[index];
     } while (index--);
     return true;
 }
