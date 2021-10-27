@@ -357,9 +357,9 @@ test_snprintf(void)
     assert(strcmp(buf, "   hi") == 0);
     assert(snprintf(buf, sizeof(buf), "%-5s", "hi") == 5);
     assert(strcmp(buf, "hi   ") == 0);
-    assert(snprintf(buf, sizeof(buf), "%5p", 0x1234abcd) == 10);
+    assert(snprintf(buf, sizeof(buf), "%5p", (void *)0x1234abcd) == 10);
     assert(strcmp(buf, "0x1234abcd") == 0);
-    assert(snprintf(buf, sizeof(buf), "%12p", 0x1234abcd) == 12);
+    assert(snprintf(buf, sizeof(buf), "%12p", (void *)0x1234abcd) == 12);
     assert(strcmp(buf, "  0x1234abcd") == 0);
     assert(snprintf(buf, sizeof(buf), "") == 0);
     assert(strcmp(buf, "") == 0);
