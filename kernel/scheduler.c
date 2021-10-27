@@ -79,12 +79,12 @@ scheduler_next_pcb(void)
 }
 
 /*
- * Yields the current process's execution and schedules
- * the next process to run. This should never be called
- * directly as it does not obey the normal cdecl ABI;
- * use scheduler_yield() instead.
+ * Yields the current process's timeslice and schedules
+ * the next process to run. Pass null for curr if the process
+ * is dying and will never be returned to.
  */
-__cdecl __noinline __used static void
+__attribute__((no_caller_saved_registers))
+__noinline static void
 scheduler_yield_impl(pcb_t *curr)
 {
     pcb_t *next = scheduler_next_pcb();
@@ -137,21 +137,14 @@ scheduler_yield_impl(pcb_t *curr)
 __cdecl int
 scheduler_yield(void)
 {
-    asm volatile(
-        "push %0;"
-        "call scheduler_yield_impl;"
-        "addl $4, %%esp;"
-        :
-        : "a"(get_executing_pcb())
-        : "ebx", "ecx", "edx", "esi", "edi", "memory");
+    scheduler_yield_impl(get_executing_pcb());
     return 0;
 }
 
 /*
- * Called when a process is about to die. Unlike yield(),
- * this does not bother saving the current process state
- * into the PCB, avoiding a use-after-free. This function
- * does not return.
+ * Called when a process is about to die. Unlike scheduler_yield(),
+ * this does not bother saving the current process state into the
+ * PCB, avoiding a use-after-free. This function does not return.
  */
 __noreturn void
 scheduler_exit(void)

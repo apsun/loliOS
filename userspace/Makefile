@@ -1,6 +1,6 @@
 CFLAGS += \
 	-std=gnu90 \
-	-m32 -march=i386 \
+	-m32 -march=i386 -mno-80387 \
 	-Wall -Wextra -Werror \
 	-Wno-unused-parameter \
 	-Wshadow \
