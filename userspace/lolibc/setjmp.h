@@ -12,7 +12,7 @@ typedef struct {
     uint32_t edi;
 } jmp_buf;
 
-__attribute__((cdecl)) void longjmp(jmp_buf env, int status);
+__attribute__((cdecl, noreturn)) void longjmp(jmp_buf env, int status);
 __attribute__((cdecl)) int __setjmp_ptr(jmp_buf *env);
 #define setjmp(env) __setjmp_ptr(&(env))
 
