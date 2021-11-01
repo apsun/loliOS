@@ -80,7 +80,7 @@ static pte_t page_table[1024];
  * in our page allocator. Just use a single flat bitmap with
  * one bit representing one page in the system.
  */
-static bitmap_declare(allocated_pages, MAX_PAGES);
+static bitmap_define(allocated_pages, MAX_PAGES);
 
 /*
  * Helpful macros to access page table stuff. Conventions:

@@ -42,10 +42,10 @@ __aligned(PROCESS_DATA_SIZE)
 static process_data_t process_data[MAX_PROCESSES];
 
 /* Sleep queue for processes wait()ing on another process */
-static list_declare(wait_queue);
+static list_define(wait_queue);
 
 /* Sleep queue for processes that called sleep() */
-static list_declare(sleep_queue);
+static list_define(sleep_queue);
 
 /*
  * Gets the PCB of the process with the given PID.

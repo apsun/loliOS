@@ -5,7 +5,7 @@
 #include "pit.h"
 
 /* Global list of timers, in order of time until expiry */
-static list_declare(timer_list);
+static list_define(timer_list);
 
 /*
  * Inserts a timer into its correct position in the global

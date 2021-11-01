@@ -40,7 +40,7 @@ typedef unsigned int bitmap_t;
 /*
  * Declares a new bitmap with the specified name and number of bits.
  */
-#define bitmap_declare(name, nbits) \
+#define bitmap_define(name, nbits) \
     bitmap_t name[bitmap_nunits(nbits)]
 
 /*

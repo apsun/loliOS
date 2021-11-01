@@ -7,7 +7,7 @@
 #include "skb.h"
 
 /* Packets that are waiting to be sent */
-static list_declare(loopback_queue);
+static list_define(loopback_queue);
 
 /* Forward declaration */
 static int loopback_send(net_iface_t *iface, skb_t *skb, ip_addr_t ip);

@@ -17,7 +17,7 @@ typedef struct list {
 /*
  * Declares a new empty linked list.
  */
-#define list_declare(name) \
+#define list_define(name) \
     list_t name = { .prev = &(name), .next = &(name) }
 
 /*
@@ -66,7 +66,7 @@ typedef struct list {
     for (pos = (head)->prev, prev = pos->prev; pos != (head); pos = prev, prev = pos->prev)
 
 /*
- * Dynamic version of list_declare. Initializes an empty list.
+ * Dynamic version of list_define. Initializes an empty list.
  */
 static inline void
 list_init(list_t *head)

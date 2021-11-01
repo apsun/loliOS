@@ -122,7 +122,7 @@ typedef struct {
     uint16_t offset_31_16;
 } __packed idt_desc_t;
 
-/* Some external descriptors declared in .S files */
+/* Some external descriptors defined in .S files */
 extern x86_desc_t gdt_desc;
 extern uint16_t ldt_desc;
 extern uint32_t ldt_size;

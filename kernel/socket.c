@@ -17,7 +17,7 @@
 static const sock_ops_t *sock_ops_tables[SOCK_TYPE_COUNT];
 
 /* Global list of sockets */
-static list_declare(socket_list);
+static list_define(socket_list);
 
 /* File operations syscall forward declarations */
 static int socket_read(file_obj_t *file, void *buf, int nbytes);

@@ -79,7 +79,7 @@ static volatile uint32_t rtc_counter = 0;
 /*
  * Scheduler queue for processes waiting for an RTC interrupt.
  */
-static list_declare(rtc_sleep_queue);
+static list_define(rtc_sleep_queue);
 
 /*
  * Reads the value of a RTC register. The reg

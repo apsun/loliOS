@@ -59,10 +59,10 @@ static int bits_per_sample = 8;
 static bool is_playing = false;
 
 /* Queue for writing audio samples */
-static list_declare(write_sleep_queue);
+static list_define(write_sleep_queue);
 
 /* Queue for waiting for audio playback to complete */
-static list_declare(read_sleep_queue);
+static list_define(read_sleep_queue);
 
 /* Writes a single byte to the SB16 DSP */
 static void

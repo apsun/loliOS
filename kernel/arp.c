@@ -61,7 +61,7 @@ typedef struct {
 } queue_pkt_t;
 
 /* ARP entry cache, in no particular order */
-static list_declare(arp_cache);
+static list_define(arp_cache);
 
 /*
  * Flushes all packets waiting for an ARP reply. If mac is

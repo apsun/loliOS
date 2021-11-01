@@ -277,7 +277,7 @@ typedef struct {
 #define seq(hdr) (ntohl((hdr)->be_seq_num))
 
 /* List of TCP sockets that have an ACK enqueued */
-static list_declare(ack_queue);
+static list_define(ack_queue);
 
 /* Forward declaration */
 static void tcp_start_rto_timeout(tcp_sock_t *tcp);

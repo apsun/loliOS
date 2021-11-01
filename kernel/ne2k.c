@@ -183,7 +183,7 @@ static int tx_buf = 0;
 static int tx_buf_len[2];
 
 /* Packets waiting to be sent */
-static list_declare(tx_queue);
+static list_define(tx_queue);
 
 /* Sets the remote DMA byte offset and count */
 static void
