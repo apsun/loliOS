@@ -38,7 +38,7 @@ typedef unsigned int bitmap_t;
     div_round_up(nbits, bitmap_bitsizeof(bitmap_t))
 
 /*
- * Declares a new bitmap with the specified name and number of bits.
+ * Defines a new bitmap with the specified name and number of bits.
  */
 #define bitmap_define(name, nbits) \
     bitmap_t name[bitmap_nunits(nbits)]

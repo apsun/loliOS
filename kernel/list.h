@@ -15,7 +15,7 @@ typedef struct list {
 } list_t;
 
 /*
- * Declares a new empty linked list.
+ * Defines a new empty linked list.
  */
 #define list_define(name) \
     list_t name = { .prev = &(name), .next = &(name) }
