@@ -615,12 +615,6 @@ test_tcp_full_window(void)
     assert(ret < (int)sizeof(buf));
     inflight = ret;
 
-    /* Verify that send window is kicking in */
-    nonblock(aconn, true);
-    ret = write(aconn, buf, sizeof(buf));
-    assert(ret == -EAGAIN);
-    nonblock(aconn, false);
-
     /* Drain receiving buffer */
     char tmp[16384];
     ret = read(b, tmp, sizeof(tmp));

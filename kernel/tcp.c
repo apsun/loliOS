@@ -464,14 +464,32 @@ tcp_in_rwnd(tcp_sock_t *tcp, uint32_t seq_num, int seg_len)
 
 /*
  * Returns the amount of available space in the send window.
- * May return a negative number if the outbox is fuller than
- * the send window.
+ * Always returns a non-negative number, even if the outbox
+ * is fuller than normal.
  */
 static int
 tcp_swnd_space(tcp_sock_t *tcp)
 {
-    uint32_t outbox_used = tcp->send_next_num - tcp->send_unack_num;
-    return (int)(tcp->send_wnd_size - outbox_used);
+    int outbox_used = (int)(tcp->send_next_num - tcp->send_unack_num);
+    int swnd_size = (int)tcp->send_wnd_size;
+    int space = max(swnd_size - outbox_used, 0);
+
+    /*
+     * Ensure that we always have at least one byte to write
+     * if the outbox is empty. This is to avoid the following
+     * deadlock scenario:
+     *
+     * 1. local -> remote [SEQ=0, LEN=500] received
+     * 2. remote -> local [ACK=500, WND=0] received
+     * 3. remote -> local [ACK=500, WND=500] lost
+     *
+     * If we never send any new data, we will never receive
+     * another window update.
+     */
+    if (space == 0 && outbox_used == 0) {
+        return 1;
+    }
+    return space;
 }
 
 /*
