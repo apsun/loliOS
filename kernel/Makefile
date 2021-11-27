@@ -26,7 +26,7 @@ OBJS = boot.o
 OBJS += $(filter-out boot.o,$(patsubst %.S,%.o,$(filter %.S,$(SRC))))
 OBJS += $(patsubst %.c,%.o,$(filter %.c,$(SRC)))
 
-bootimg: $(OBJS)
+bootimg: $(OBJS) memory.lds
 	$(CC) $(CFLAGS) $(OBJS) -Tmemory.lds -o $@
 
 .PHONY: clean
