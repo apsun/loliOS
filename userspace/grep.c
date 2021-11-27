@@ -123,7 +123,7 @@ main(void)
      * defaults to stdin).
      */
     char *space = strchr(args, ' ');
-    char *fname;
+    const char *fname;
     if (space == NULL) {
         fname = "-";
     } else {

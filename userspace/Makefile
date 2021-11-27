@@ -5,6 +5,7 @@ CFLAGS += \
 	-Wno-unused-parameter \
 	-Wshadow \
 	-Wpointer-arith \
+	-Wwrite-strings \
 	-ffreestanding \
 	-fno-builtin \
 	-fno-strict-aliasing \

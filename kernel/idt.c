@@ -104,7 +104,7 @@ dump_registers(int_regs_t *regs)
  * Reads a value off of the kernel stack and converts it into
  * a string.
  */
-static char *
+static const char *
 dump_callstack_utox(char buf[16], uint32_t *p)
 {
     if (!is_memory_accessible(p, sizeof(uint32_t), false, false)) {
