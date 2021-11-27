@@ -211,7 +211,7 @@ __cdecl int process_execute(
     intptr_t unused3,
     intptr_t unused4,
     int_regs_t *regs);
-__cdecl void process_halt(int status);
+__cdecl __noreturn void process_halt(int status);
 __cdecl int process_monosleep(int target);
 
 /* Unsets the global execution context for the specified process */

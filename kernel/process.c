@@ -1081,7 +1081,7 @@ process_halt_impl(int status)
  * Unlike Linux, if the parent dies, the process will be
  * reaped by the kernel. This never returns.
  */
-__cdecl void
+__cdecl __noreturn void
 process_halt(int status)
 {
     /*
