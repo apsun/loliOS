@@ -413,7 +413,7 @@ main(void)
         free_cmd(cmd);
         if (exit_code < 0) {
             fprintf(stderr, "Fatal error %d, exiting\n", exit_code);
-            return exit_code;
+            return 1;
         }
     }
 }
