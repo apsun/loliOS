@@ -97,25 +97,28 @@ fi
 if [ "${compat}" -eq 1 ]; then
     cp "${root_dir}/filesys_img" "${root_dir}/filesys_img.new"
 else
-    # Make binaries executable
-    chmod +x "${root_dir}/createfs.py"
-
     # Compile userspace programs
     make -j "$(nproc)" -C "${root_dir}/userspace"
     cp "${root_dir}/userspace/build/"* "${root_dir}/filesystem/"
 
     # Build filesystem image
     rm -f "${root_dir}/filesys_img.new"
-    "${root_dir}/createfs.py" -i "${root_dir}/filesystem" -o "${root_dir}/filesys_img.new"
+    python3 "${root_dir}/createfs.py" -i "${root_dir}/filesystem" -o "${root_dir}/filesys_img.new"
 fi
 
 # Build kernel executable
 make -j "$(nproc)" -C "${root_dir}/kernel"
 
-# Generate disk image
-chmod +x "${root_dir}/diskgen.sh"
+# Generate disk image (mount needs to be run as root)
 cp "${root_dir}/orig.img" "${root_dir}/disk.img"
-sudo "${root_dir}/diskgen.sh"
+temp_dir="$(mktemp -d)"
+trap 'rmdir "${temp_dir}"' EXIT
+sudo -s <<EOF
+mount -o loop,offset=32256 "${root_dir}/disk.img" "${temp_dir}"
+trap 'umount "${temp_dir}"' EXIT
+cp -f "${root_dir}/kernel/bootimg" "${temp_dir}/bootimg"
+cp -f "${root_dir}/filesys_img.new" "${temp_dir}/filesys_img"
+EOF
 
 # If netdebug is set, dump net traffic to /tmp/net.pcap
 netfilter=()

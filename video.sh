@@ -17,7 +17,7 @@ fi
 
 trap "exit 0" INT
 while :; do
-    "${root_dir}/elvi.py" \
+    python3 "${root_dir}/elvi.py" \
         --video-width "${video_width}" \
         --video-height "${video_height}" \
         --video-bits-per-pixel "${video_bits_per_pixel}" \
