@@ -77,7 +77,7 @@ if [ "$#" -gt 0 ] && [ "$1" = "debug" ]; then
     exit 0
 fi
 
-if [ ! -z "${optlevel}" ]; then
+if [ -n "${optlevel}" ]; then
     export CFLAGS="${CFLAGS-} -O${optlevel}"
 fi
 
