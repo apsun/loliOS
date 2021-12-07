@@ -28,7 +28,7 @@
 /* Check if the bit BIT in FLAGS is set. */
 #define CHECK_FLAG(flags, bit) ((flags) & (1 << (bit)))
 
-__noreturn void
+__noreturn __cdecl void
 entry(uint32_t magic, uint32_t addr)
 {
     /* Initialize terminals */
