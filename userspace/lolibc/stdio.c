@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <assert.h>
+#include <attrib.h>
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -922,7 +923,7 @@ consume_format:
                 goto consume_format;
             }
 
-            __attribute__((fallthrough));
+            __fallthrough;
         case '1':
         case '2':
         case '3':

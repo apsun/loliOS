@@ -1,3 +1,4 @@
+#include <attrib.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -41,7 +42,7 @@ typedef struct {
  */
 static volatile bool interrupted = false;
 
-__attribute__((cdecl)) static void
+__cdecl static void
 sigint_handler(int signum)
 {
     interrupted = true;

@@ -1,7 +1,7 @@
 #ifndef _MP1_H
 #define _MP1_H
 
-#define ASM_VISIBLE __attribute__((cdecl))
+#include <attrib.h>
 
 enum {
     IOCTL_ADD,
@@ -21,7 +21,7 @@ typedef struct blink {
     struct blink *next;
 } blink_t;
 
-ASM_VISIBLE void mp1_rtc_tasklet(int garbage);
-ASM_VISIBLE int mp1_ioctl(int arg, int cmd);
+__cdecl void mp1_rtc_tasklet(int garbage);
+__cdecl int mp1_ioctl(int arg, int cmd);
 
 #endif /* _MP1_H */

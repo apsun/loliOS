@@ -1,3 +1,4 @@
+#include <attrib.h>
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -41,19 +42,19 @@ typedef struct {
     uint16_t be_ancount;
     uint16_t be_nscount;
     uint16_t be_arcount;
-} __attribute__((packed)) dns_hdr_t;
+} __packed dns_hdr_t;
 
 typedef struct {
     uint16_t be_qtype;
     uint16_t be_qclass;
-} __attribute__((packed)) dns_qhdr_t;
+} __packed dns_qhdr_t;
 
 typedef struct {
     uint16_t be_type;
     uint16_t be_class;
     uint32_t be_ttl;
     uint16_t be_rdlength;
-} __attribute__((packed)) dns_ahdr_t;
+} __packed dns_ahdr_t;
 
 typedef struct {
     char buf[128];
@@ -654,7 +655,7 @@ sock_output(int sockfd, char *buf, int *count, sock_addr_t *addr)
     return ret;
 }
 
-__attribute__((cdecl)) static void
+__cdecl static void
 sigint_handler(int signum)
 {
     stop = true;

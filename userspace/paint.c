@@ -1,3 +1,4 @@
+#include <attrib.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -247,7 +248,7 @@ canvas_to_screen(int cx, int cy, int *sx, int *sy)
     *sy = SCREEN_HEIGHT - 1 - cy / SCALE_FACTOR_Y;
 }
 
-__attribute__((cdecl)) static void
+__cdecl static void
 sigint_handler(int signum)
 {
     haz_interrupt = true;

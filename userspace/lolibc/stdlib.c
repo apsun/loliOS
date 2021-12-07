@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <assert.h>
+#include <attrib.h>
 #include <stddef.h>
 #include <syscall.h>
 
@@ -30,7 +31,7 @@ atexit(void (*fn)(void))
  * Exits the program with the specified status code.
  * This will run any functions registered with atexit().
  */
-__attribute__((noreturn)) void
+__noreturn void
 exit(int status)
 {
     int i = atexit_count;
@@ -44,7 +45,7 @@ exit(int status)
  * Aborts the program. This does not run any functions
  * registered with atexit().
  */
-__attribute__((noreturn)) void
+__noreturn void
 abort(void)
 {
     kill(getpid(), SIGABRT);

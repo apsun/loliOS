@@ -1,6 +1,7 @@
 #ifndef _LOLIBC_SETJMP_H
 #define _LOLIBC_SETJMP_H
 
+#include <attrib.h>
 #include <stdint.h>
 
 typedef struct {
@@ -12,8 +13,8 @@ typedef struct {
     uint32_t edi;
 } jmp_buf;
 
-__attribute__((cdecl, noreturn)) void longjmp(jmp_buf env, int status);
-__attribute__((cdecl)) int __setjmp_ptr(jmp_buf *env);
+__cdecl __noreturn void longjmp(jmp_buf env, int status);
+__cdecl int __setjmp_ptr(jmp_buf *env);
 #define setjmp(env) __setjmp_ptr(&(env))
 
 #endif /* _LOLIBC_SETJMP_H */

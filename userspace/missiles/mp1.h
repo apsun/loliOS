@@ -1,7 +1,7 @@
 #ifndef _MP1_H
 #define _MP1_H
 
-#define ASM_VISIBLE __attribute__((cdecl))
+#include <attrib.h>
 
 enum {
     IOCTL_STARTGAME,
@@ -24,7 +24,7 @@ extern missile_t *mp1_missile_list;
 extern char base_alive[3];
 extern int mp1_score;
 
-ASM_VISIBLE void mp1_rtc_tasklet(int garbage);
-ASM_VISIBLE int mp1_ioctl(int arg, int cmd);
+__cdecl void mp1_rtc_tasklet(int garbage);
+__cdecl int mp1_ioctl(int arg, int cmd);
 
 #endif /* _MP1_H */

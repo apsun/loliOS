@@ -3,6 +3,7 @@
 #include "mp1-taux.h"
 #include "mp1-vga.h"
 #include <assert.h>
+#include <attrib.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <syscall.h>
@@ -228,7 +229,7 @@ update_taux_leds(int taux_fd, int ticks)
     }
 }
 
-ASM_VISIBLE int
+__cdecl int
 missile_explode(struct missile *m)
 {
     int exploded = 0;
@@ -251,7 +252,7 @@ missile_explode(struct missile *m)
     return exploded;
 }
 
-ASM_VISIBLE void
+__cdecl void
 mp1_notify_user(void)
 {
     int status;

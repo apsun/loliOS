@@ -1,5 +1,6 @@
 #include <string.h>
 #include <assert.h>
+#include <attrib.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -505,7 +506,7 @@ memset(void *s, unsigned char c, int n)
      */
     typedef struct {
         char bytes[8];
-    } __attribute__((packed)) word_t;
+    } __packed word_t;
 
     /* Align dest ptr to word boundary */
     unsigned char *sb = s;
@@ -558,7 +559,7 @@ memcpy(void *dest, const void *src, int n)
      */
     typedef struct {
         char bytes[8];
-    } __attribute__((packed)) word_t;
+    } __packed word_t;
 
     /* Align dest ptr to word boundary */
     unsigned char *db = dest;

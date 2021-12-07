@@ -1,5 +1,6 @@
 #if UBSAN_ENABLED
 
+#include <attrib.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -9,8 +10,8 @@ typedef struct {
     int col;
 } ubsan_source_loc_t;
 
-#define MAKE_UBSAN_HANDLER(name, ...) \
-    __attribute__((noreturn, used)) void           \
+#define MAKE_UBSAN_HANDLER(name, ...)              \
+    __noreturn __used void                         \
     __ubsan_handle_##name(void *s, ## __VA_ARGS__) \
     {                                              \
         ubsan_source_loc_t *source = s;            \

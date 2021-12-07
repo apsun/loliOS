@@ -1,4 +1,5 @@
 #include "mp1.h"
+#include <attrib.h>
 #include <setjmp.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -7,14 +8,14 @@
 
 static jmp_buf memcpy_env;
 
-__attribute__((cdecl)) static void
+__cdecl static void
 sigsegv_handler(int signum)
 {
     sigmask(SIGSEGV, SIGMASK_UNBLOCK);
     longjmp(memcpy_env, 1);
 }
 
-ASM_VISIBLE int
+__cdecl int
 mp1_copy_to_user(void *dest, const void *src, int n)
 {
     sigaction(SIGSEGV, sigsegv_handler);
@@ -29,19 +30,19 @@ mp1_copy_to_user(void *dest, const void *src, int n)
     return ret;
 }
 
-ASM_VISIBLE int
+__cdecl int
 mp1_copy_from_user(void *dest, const void *src, int n)
 {
     return mp1_copy_to_user(dest, src, n);
 }
 
-ASM_VISIBLE void *
+__cdecl void *
 mp1_malloc(size_t size)
 {
     return malloc(size);
 }
 
-ASM_VISIBLE void
+__cdecl void
 mp1_free(void *ptr)
 {
     free(ptr);
