@@ -103,7 +103,7 @@ int
 fs_create_file(const char *filename, dentry_t **dentry_out)
 {
     /* Check that filename will fit */
-    if (strlen(filename) > MAX_FILENAME_LEN) {
+    if (filename[0] == '\0' || strlen(filename) > MAX_FILENAME_LEN) {
         return -1;
     }
 
