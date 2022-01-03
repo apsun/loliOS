@@ -16,22 +16,22 @@
 #   <audio sample rate>
 #   <audio channel count>
 #   <audio bits per sample>
-#   <max audio size>
+#   <max audio size in bytes (rounded up to multiple of 4)>
 # }
 # repeat {
 #   <video data>
 #   <audio size>
 #   <audio data>
-#   <padding to 4B alignment>
+#   <padding to max audio size>
 # }
 #
 # Each body chunk contains the pixel data for one video frame,
 # followed by the size in bytes of the audio samples corresponding
-# to that video frame, and then finally the audio sample data.
-# The number of audio samples may vary from frame to frame, because
-# there can be a non-integer number of audio samples for each video
-# frame. All fields other than the pixel/sample data are 32-bit ints,
-# little endian.
+# to that video frame, and then finally the audio sample data padded
+# to the max audio size. The number of audio samples may vary from
+# frame to frame, because there can be a non-integer number of audio
+# samples for each video frame. All fields other than the pixel/sample
+# data are 32-bit ints, little endian.
 
 import argparse
 import fractions
@@ -76,9 +76,11 @@ frame_rate = fractions.Fraction(subprocess.run([
     "-i", input_path,
     "-select_streams", "v:0",
     "-print_format", "default=noprint_wrappers=1:nokey=1",
-    "-show_entries", f"stream=r_frame_rate",
+    "-show_entries", "stream=r_frame_rate",
 ], stdout=subprocess.PIPE, check=True, text=True).stdout)
+
 audio_samples_per_frame = args.audio_sample_rate / frame_rate
+max_audio_size = (math.ceil(audio_samples_per_frame) * audio_bytes_per_sample + 3) & -4
 
 video_stream = subprocess.Popen([
     "ffmpeg",
@@ -116,7 +118,7 @@ output_file.write(
         args.audio_sample_rate,
         args.audio_channel_count,
         args.audio_bits_per_sample,
-        math.ceil(audio_samples_per_frame) * audio_bytes_per_sample
+        max_audio_size,
     )
 )
 
@@ -132,8 +134,10 @@ while video_stream.stdout.readinto(video_buf):
 
     audio_buf = audio_stream.stdout.read(audio_bytes_to_read)
     audio_size = len(audio_buf)
+    audio_padding_size = max_audio_size - audio_size
     output_file.write(struct.pack("<I", audio_size))
-    output_file.write(audio_buf + b"\x00" * (-audio_size & 3))
+    output_file.write(audio_buf)
+    output_file.write(b"\x00" * audio_padding_size)
 
 video_stream.wait()
 audio_stream.terminate()

@@ -19,11 +19,6 @@
 #define ELVI_MAGIC 0x49564c45
 
 /*
- * Rounds x up to the next multiple of align.
- */
-#define ROUND_UP(x, align) (((x) + (align) - 1) & -(align))
-
-/*
  * ELVI format header definition.
  */
 typedef struct {
@@ -35,7 +30,15 @@ typedef struct {
     uint32_t audio_channel_count;
     uint32_t audio_bits_per_sample;
     uint32_t max_audio_size;
-} elvi_header_t;
+} __packed elvi_header_t;
+
+/*
+ * Combined audio size and sample data buffer.
+ */
+typedef struct {
+    uint32_t audio_size;
+    uint8_t audio_data[];
+} __packed elvi_audio_buf_t;
 
 /*
  * If true, user hit CTRL-C and we should be exiting gracefully.
@@ -73,7 +76,7 @@ play(int fd)
     int ret = 1;
     char error[256];
     elvi_header_t hdr;
-    char *audio_buf = NULL;
+    elvi_audio_buf_t *audio_buf = NULL;
     int soundfd = -1;
     char *fbmem = NULL;
 
@@ -90,14 +93,14 @@ play(int fd)
         goto exit;
     }
 
-    if (hdr.max_audio_size > INT_MAX - 3) {
+    if ((hdr.max_audio_size & 3) != 0 || hdr.max_audio_size > INT_MAX - sizeof(elvi_audio_buf_t)) {
         fprintf(stderr, "Invalid max audio size\n");
         goto exit;
     }
 
-    audio_buf = malloc(ROUND_UP(hdr.max_audio_size, 4));
+    audio_buf = malloc(sizeof(elvi_audio_buf_t) + hdr.max_audio_size);
     if (audio_buf == NULL) {
-        fprintf(stderr, "Invalid or too large max audio size\n");
+        fprintf(stderr, "Max audio size too large\n");
         goto exit;
     }
 
@@ -154,27 +157,21 @@ play(int fd)
             goto exit;
         }
 
-        /* Read size of audio samples are in this video frame */
-        uint32_t audio_size;
-        if (read_all(fd, &audio_size, sizeof(audio_size)) < (int)sizeof(audio_size)) {
-            FAIL("Could not read audio size\n");
-            goto exit;
-        }
-
-        if (audio_size > hdr.max_audio_size) {
-            FAIL("Audio size is larger than hdr.max_audio_size\n");
-            goto exit;
-        }
-
-        /* Read audio samples */
-        int audio_nread = (int)ROUND_UP(audio_size, 4);
+        /* Read audio size and samples */
+        int audio_nread = sizeof(elvi_audio_buf_t) + hdr.max_audio_size;
         if (read_all(fd, audio_buf, audio_nread) < audio_nread) {
             FAIL("Could not read audio samples\n");
             goto exit;
         }
 
+        if (audio_buf->audio_size > hdr.max_audio_size) {
+            FAIL("Audio size is larger than hdr.max_audio_size\n");
+            goto exit;
+        }
+
         /* Copy audio samples to sound device */
-        if (write(soundfd, audio_buf, audio_size) < (int)audio_size) {
+        int audio_size = (int)audio_buf->audio_size;
+        if (write(soundfd, audio_buf->audio_data, audio_size) < audio_size) {
             FAIL("Partial write of audio data\n");
             goto exit;
         }
