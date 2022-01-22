@@ -451,8 +451,7 @@ copy_from_user(void *dest, const void *src, int n)
         return NULL;
     }
 
-    memcpy(dest, src, n);
-    return dest;
+    return memcpy(dest, src, n);
 }
 
 /*
@@ -467,8 +466,7 @@ copy_to_user(void *dest, const void *src, int n)
         return NULL;
     }
 
-    memcpy(dest, src, n);
-    return dest;
+    return memcpy(dest, src, n);
 }
 
 /*
@@ -483,6 +481,5 @@ memset_user(void *s, unsigned char c, int n)
         return NULL;
     }
 
-    memset(s, c, n);
-    return s;
+    return memset(s, c, n);
 }
