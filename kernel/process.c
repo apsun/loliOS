@@ -56,7 +56,7 @@ static list_define(sleep_queue);
 pcb_t *
 get_pcb(int pid)
 {
-    if (pid <= 0 || pid > MAX_PROCESSES) {
+    if (pid <= 0 || pid >= MAX_PROCESSES) {
         return NULL;
     }
 
