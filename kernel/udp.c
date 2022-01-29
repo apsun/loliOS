@@ -9,7 +9,7 @@
 #include "ip.h"
 #include "socket.h"
 #include "ethernet.h"
-#include "scheduler.h"
+#include "wait.h"
 
 /* Maximum length of a UDP datagram body */
 #define UDP_MAX_LEN 1472
@@ -65,7 +65,7 @@ udp_handle_rx(net_iface_t *iface, skb_t *skb)
     /* Append SKB to inbox queue */
     udp_sock_t *udp = udp_sock(sock);
     list_add_tail(&skb_retain(skb)->list, &udp->inbox);
-    scheduler_wake_all(&udp->read_queue);
+    wait_queue_wake(&udp->read_queue);
     return 0;
 }
 
@@ -228,7 +228,7 @@ udp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
     skb_t *skb;
     while (1) {
         /* Wait for a packet to arrive in our inbox */
-        int can_read = BLOCKING_WAIT(
+        int can_read = WAIT_INTERRUPTIBLE(
             udp_can_read(udp),
             &udp->read_queue,
             socket_is_nonblocking(sock));

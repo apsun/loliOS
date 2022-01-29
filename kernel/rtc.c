@@ -6,7 +6,7 @@
 #include "irq.h"
 #include "file.h"
 #include "paging.h"
-#include "scheduler.h"
+#include "wait.h"
 
 /* RTC IO ports */
 #define RTC_PORT_INDEX 0x70
@@ -77,7 +77,7 @@ typedef struct {
 static volatile uint32_t rtc_counter = 0;
 
 /*
- * Scheduler queue for processes waiting for an RTC interrupt.
+ * Queue for processes waiting for an RTC interrupt.
  */
 static list_define(rtc_sleep_queue);
 
@@ -114,7 +114,7 @@ rtc_handle_irq(void)
     rtc_counter++;
 
     /* Wake all processes waiting for an interrupt */
-    scheduler_wake_all(&rtc_sleep_queue);
+    wait_queue_wake(&rtc_sleep_queue);
 }
 
 /*
@@ -161,7 +161,7 @@ rtc_read(file_obj_t *file, void *buf, int nbytes)
 
     /* Wait until we reach the next multiple of max ticks */
     uint32_t target_counter = next_multiple_of(rtc_counter, max_ticks);
-    return BLOCKING_WAIT(
+    return WAIT_INTERRUPTIBLE(
         (int32_t)(rtc_counter - target_counter) >= 0 ? 0 : -EAGAIN,
         &rtc_sleep_queue,
         file->nonblocking);

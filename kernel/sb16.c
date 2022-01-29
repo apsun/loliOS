@@ -8,7 +8,7 @@
 #include "paging.h"
 #include "irq.h"
 #include "dma.h"
-#include "scheduler.h"
+#include "wait.h"
 
 /* DMA channels */
 #define SB16_DMA8_CHANNEL 1
@@ -171,7 +171,7 @@ sb16_open(file_obj_t *file)
 static int
 sb16_read(file_obj_t *file, void *buf, int nbytes)
 {
-    return BLOCKING_WAIT(
+    return WAIT_INTERRUPTIBLE(
         is_playing ? -EAGAIN : 0,
         &read_sleep_queue,
         file->nonblocking);
@@ -228,7 +228,7 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
     }
 
     /* Wait until buffer is writable */
-    int to_write = BLOCKING_WAIT(
+    int to_write = WAIT_INTERRUPTIBLE(
         sb16_get_writable_count(nbytes),
         &write_sleep_queue,
         file->nonblocking);
@@ -351,10 +351,10 @@ sb16_handle_irq(void)
     /* If more samples arrived during playback, restart */
     if (audio_buf_count > 0) {
         sb16_start_playback();
-        scheduler_wake_all(&write_sleep_queue);
+        wait_queue_wake(&write_sleep_queue);
     } else {
         is_playing = false;
-        scheduler_wake_all(&read_sleep_queue);
+        wait_queue_wake(&read_sleep_queue);
     }
 }
 

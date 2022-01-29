@@ -23,7 +23,7 @@
 #include "ip.h"
 #include "ethernet.h"
 #include "mt19937.h"
-#include "scheduler.h"
+#include "wait.h"
 
 /*
  * Enable for verbose TCP logging. Warning: very verbose.
@@ -406,9 +406,9 @@ tcp_set_state(tcp_sock_t *tcp, tcp_state_t state)
      * Some operations may have become invalid when we
      * changed the socket state. Wake readers and writers.
      */
-    scheduler_wake_all(&tcp->accept_queue);
-    scheduler_wake_all(&tcp->read_queue);
-    scheduler_wake_all(&tcp->write_queue);
+    wait_queue_wake(&tcp->accept_queue);
+    wait_queue_wake(&tcp->read_queue);
+    wait_queue_wake(&tcp->write_queue);
 
     /* This must be done last, since release may free the socket */
     if (state == CLOSED) {
@@ -1276,7 +1276,7 @@ tcp_outbox_handle_rx_ack(tcp_sock_t *tcp, tcp_hdr_t *hdr)
      * their window size, wake writers.
      */
     if (tcp_swnd_space(tcp) > 0) {
-        scheduler_wake_all(&tcp->write_queue);
+        wait_queue_wake(&tcp->write_queue);
     }
 }
 
@@ -1372,7 +1372,7 @@ tcp_inbox_handle_rx_skb(tcp_sock_t *tcp, skb_t *skb)
 
     /* If we have any in-order data, wake readers */
     if (cmp(tcp->recv_next_num, tcp->recv_read_num) > 0) {
-        scheduler_wake_all(&tcp->read_queue);
+        wait_queue_wake(&tcp->read_queue);
     }
 
     /*
@@ -1631,7 +1631,7 @@ tcp_handle_new_connection(net_iface_t *iface, tcp_sock_t *tcp, skb_t *skb)
     tcp_add_backlog(tcp, conntcp);
 
     /* Wake anyone blocking on an accept() call */
-    scheduler_wake_all(&tcp->accept_queue);
+    wait_queue_wake(&tcp->accept_queue);
 
     ret = 0;
 
@@ -2014,7 +2014,7 @@ tcp_accept(net_sock_t *sock, sock_addr_t *addr)
     tcp = tcp_acquire(tcp_sock(sock));
 
     /* Wait for an incoming connection */
-    ret = BLOCKING_WAIT(
+    ret = WAIT_INTERRUPTIBLE(
         tcp_can_accept(tcp),
         &tcp->accept_queue,
         socket_is_nonblocking(sock));
@@ -2120,7 +2120,7 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
     tcp = tcp_acquire(tcp_sock(sock));
 
     /* Wait until there are packets to read */
-    ret = BLOCKING_WAIT(
+    ret = WAIT_INTERRUPTIBLE(
         tcp_can_read(tcp, nbytes),
         &tcp->read_queue,
         socket_is_nonblocking(sock));
@@ -2263,7 +2263,7 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
     tcp = tcp_acquire(tcp_sock(sock));
 
     /* Wait for space in outbox to write */
-    nbytes = BLOCKING_WAIT(
+    nbytes = WAIT_INTERRUPTIBLE(
         tcp_get_writable_bytes(tcp, nbytes),
         &tcp->write_queue,
         socket_is_nonblocking(sock));

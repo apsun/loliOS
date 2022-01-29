@@ -139,8 +139,7 @@ typedef struct {
     timer_t sleep_timer;
 
     /*
-     * List for use by the scheduler. Every process is either in a
-     * scheduler queue or a sleep queue.
+     * This process's node in the scheduler run queue.
      */
     list_t scheduler_list;
 

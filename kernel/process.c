@@ -10,6 +10,7 @@
 #include "timer.h"
 #include "x86_desc.h"
 #include "scheduler.h"
+#include "wait.h"
 #include "terminal.h"
 #include "vbe.h"
 
@@ -858,7 +859,7 @@ process_wait(int *pid)
     }
 
     /* Wait for a process to die and copy its PID */
-    return BLOCKING_WAIT(
+    return WAIT_INTERRUPTIBLE(
         process_wait_impl_user(pcb->pid, &kpid, pid),
         &wait_queue,
         false);
@@ -969,16 +970,11 @@ process_execute(
     child_pcb->group = child_pcb->pid;
     terminal_tcsetpgrp(child_pcb->group);
 
-    /*
-     * Wait for the child process to exit. We can't directly
-     * call process_wait() here, since that will abort early
-     * on signals, which we don't want.
-     */
-    int exit_code;
-    do {
-        scheduler_sleep(&wait_queue);
-        exit_code = process_wait_impl(parent_pcb->pid, &child_pcb->pid);
-    } while (exit_code == -EAGAIN);
+    /* Wait for the child process to exit, ignoring signals */
+    int exit_code = WAIT_UNINTERRUPTIBLE(
+        process_wait_impl(parent_pcb->pid, &child_pcb->pid),
+        &wait_queue,
+        false);
 
     /* Restore the original foreground group */
     terminal_tcsetpgrp(orig_tcpgrp);
@@ -1126,7 +1122,7 @@ process_monosleep(int target)
     /* Put ourselves to sleep */
     pcb_t *pcb = get_executing_pcb();
     timer_setup_abs(&pcb->sleep_timer, target, process_monosleep_callback);
-    scheduler_sleep(&sleep_queue);
+    WAIT_ONCE_INTERRUPTIBLE(&sleep_queue);
 
     /* We woke up, cancel timer in case we got woken early */
     timer_cancel(&pcb->sleep_timer);

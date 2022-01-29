@@ -5,7 +5,7 @@
 #include "process.h"
 #include "paging.h"
 #include "signal.h"
-#include "scheduler.h"
+#include "wait.h"
 #include "vga.h"
 #include "myalloc.h"
 
@@ -419,7 +419,7 @@ terminal_tty_read(file_obj_t *file, void *buf, int nbytes)
      * Wait until there's a newline/EOT in the buffer or we
      * have pending signals to handle
      */
-    nbytes = BLOCKING_WAIT(
+    nbytes = WAIT_INTERRUPTIBLE(
         terminal_check_kbd_input(term, nbytes),
         &input_buf->sleep_queue,
         file->nonblocking);
@@ -531,7 +531,7 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
 
     /* Wait until there's input to read */
     mouse_input_buf_t *input_buf = &term->mouse_input;
-    int max_read = BLOCKING_WAIT(
+    int max_read = WAIT_INTERRUPTIBLE(
         input_buf->count > 0 ? input_buf->count : -EAGAIN,
         &input_buf->sleep_queue,
         file->nonblocking);
@@ -604,7 +604,7 @@ terminal_eof(void)
     kbd_input_buf_t *input_buf = &term->kbd_input;
     if (input_buf->count < array_len(input_buf->buf)) {
         input_buf->buf[input_buf->count++] = EOT;
-        scheduler_wake_all(&input_buf->sleep_queue);
+        wait_queue_wake(&input_buf->sleep_queue);
     }
 }
 
@@ -657,7 +657,7 @@ handle_char_input(char c)
     }
 
     /* Wake all processes waiting on input to this terminal */
-    scheduler_wake_all(&input_buf->sleep_queue);
+    wait_queue_wake(&input_buf->sleep_queue);
 }
 
 /* Handles input from the keyboard */
@@ -694,7 +694,7 @@ terminal_handle_mouse_input(mouse_input_t input)
         input_buf->buf[input_buf->count++] = input.flags;
         input_buf->buf[input_buf->count++] = input.dx;
         input_buf->buf[input_buf->count++] = input.dy;
-        scheduler_wake_all(&input_buf->sleep_queue);
+        wait_queue_wake(&input_buf->sleep_queue);
     }
 }
 

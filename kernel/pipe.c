@@ -6,7 +6,7 @@
 #include "myalloc.h"
 #include "paging.h"
 #include "file.h"
-#include "scheduler.h"
+#include "wait.h"
 #include "signal.h"
 
 /*
@@ -69,7 +69,7 @@ pipe_read(file_obj_t *file, void *buf, int nbytes)
     }
 
     pipe_state_t *pipe = (pipe_state_t *)file->private;
-    int to_read = BLOCKING_WAIT(
+    int to_read = WAIT_INTERRUPTIBLE(
         pipe_get_readable_count(pipe, nbytes),
         &pipe->read_queue,
         file->nonblocking);
@@ -102,7 +102,7 @@ pipe_read(file_obj_t *file, void *buf, int nbytes)
     } while (to_read > 0);
 
     /* Buffer should have some space now, wake writers */
-    scheduler_wake_all(&pipe->write_queue);
+    wait_queue_wake(&pipe->write_queue);
 
     /* Return number of bytes read (unless no copies succeeded) */
     if (total_read == 0) {
@@ -155,7 +155,7 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
     }
 
     pipe_state_t *pipe = (pipe_state_t *)file->private;
-    int to_write = BLOCKING_WAIT(
+    int to_write = WAIT_INTERRUPTIBLE(
         pipe_get_writable_count(pipe, nbytes),
         &pipe->write_queue,
         file->nonblocking);
@@ -185,7 +185,7 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
     } while (to_write > 0);
 
     /* Now that we have some data in the pipe, wake up readers */
-    scheduler_wake_all(&pipe->read_queue);
+    wait_queue_wake(&pipe->read_queue);
 
     if (total_write == 0) {
         return -1;
@@ -219,8 +219,8 @@ pipe_close(file_obj_t *file)
         free(pipe);
     } else {
         pipe->half_closed = true;
-        scheduler_wake_all(&pipe->read_queue);
-        scheduler_wake_all(&pipe->write_queue);
+        wait_queue_wake(&pipe->read_queue);
+        wait_queue_wake(&pipe->write_queue);
     }
 }
 
