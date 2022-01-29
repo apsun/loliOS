@@ -26,7 +26,7 @@
             __ret = -EINTR;                                     \
             break;                                              \
         }                                                       \
-        scheduler_sleep(&(queue));                              \
+        scheduler_sleep(queue);                                 \
     }                                                           \
     __ret;                                                      \
 })

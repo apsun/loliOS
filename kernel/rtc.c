@@ -163,7 +163,7 @@ rtc_read(file_obj_t *file, void *buf, int nbytes)
     uint32_t target_counter = next_multiple_of(rtc_counter, max_ticks);
     return BLOCKING_WAIT(
         (int32_t)(rtc_counter - target_counter) >= 0 ? 0 : -EAGAIN,
-        rtc_sleep_queue,
+        &rtc_sleep_queue,
         file->nonblocking);
 }
 

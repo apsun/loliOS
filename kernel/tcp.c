@@ -2016,7 +2016,7 @@ tcp_accept(net_sock_t *sock, sock_addr_t *addr)
     /* Wait for an incoming connection */
     ret = BLOCKING_WAIT(
         tcp_can_accept(tcp),
-        tcp->accept_queue,
+        &tcp->accept_queue,
         socket_is_nonblocking(sock));
     if (ret < 0) {
         goto exit;
@@ -2122,7 +2122,7 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
     /* Wait until there are packets to read */
     ret = BLOCKING_WAIT(
         tcp_can_read(tcp, nbytes),
-        tcp->read_queue,
+        &tcp->read_queue,
         socket_is_nonblocking(sock));
     if (ret <= 0) {
         goto exit;
@@ -2265,7 +2265,7 @@ tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
     /* Wait for space in outbox to write */
     nbytes = BLOCKING_WAIT(
         tcp_get_writable_bytes(tcp, nbytes),
-        tcp->write_queue,
+        &tcp->write_queue,
         socket_is_nonblocking(sock));
     if (nbytes <= 0) {
         ret = nbytes;

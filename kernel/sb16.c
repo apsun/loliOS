@@ -173,7 +173,7 @@ sb16_read(file_obj_t *file, void *buf, int nbytes)
 {
     return BLOCKING_WAIT(
         is_playing ? -EAGAIN : 0,
-        read_sleep_queue,
+        &read_sleep_queue,
         file->nonblocking);
 }
 
@@ -230,7 +230,7 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
     /* Wait until buffer is writable */
     int to_write = BLOCKING_WAIT(
         sb16_get_writable_count(nbytes),
-        write_sleep_queue,
+        &write_sleep_queue,
         file->nonblocking);
     if (to_write <= 0) {
         return to_write;

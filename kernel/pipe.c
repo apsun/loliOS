@@ -71,7 +71,7 @@ pipe_read(file_obj_t *file, void *buf, int nbytes)
     pipe_state_t *pipe = (pipe_state_t *)file->private;
     int to_read = BLOCKING_WAIT(
         pipe_get_readable_count(pipe, nbytes),
-        pipe->read_queue,
+        &pipe->read_queue,
         file->nonblocking);
     if (to_read <= 0) {
         return to_read;
@@ -157,7 +157,7 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
     pipe_state_t *pipe = (pipe_state_t *)file->private;
     int to_write = BLOCKING_WAIT(
         pipe_get_writable_count(pipe, nbytes),
-        pipe->write_queue,
+        &pipe->write_queue,
         file->nonblocking);
     if (to_write < 0) {
         if (to_write == -EPIPE) {

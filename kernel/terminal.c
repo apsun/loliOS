@@ -421,7 +421,7 @@ terminal_tty_read(file_obj_t *file, void *buf, int nbytes)
      */
     nbytes = BLOCKING_WAIT(
         terminal_check_kbd_input(term, nbytes),
-        input_buf->sleep_queue,
+        &input_buf->sleep_queue,
         file->nonblocking);
     if (nbytes < 0) {
         return nbytes;
@@ -533,7 +533,7 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
     mouse_input_buf_t *input_buf = &term->mouse_input;
     int max_read = BLOCKING_WAIT(
         input_buf->count > 0 ? input_buf->count : -EAGAIN,
-        input_buf->sleep_queue,
+        &input_buf->sleep_queue,
         file->nonblocking);
     if (max_read < 0) {
         return max_read;

@@ -230,7 +230,7 @@ udp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
         /* Wait for a packet to arrive in our inbox */
         int can_read = BLOCKING_WAIT(
             udp_can_read(udp),
-            udp->read_queue,
+            &udp->read_queue,
             socket_is_nonblocking(sock));
         if (can_read < 0) {
             return can_read;

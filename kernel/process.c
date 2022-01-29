@@ -860,7 +860,7 @@ process_wait(int *pid)
     /* Wait for a process to die and copy its PID */
     return BLOCKING_WAIT(
         process_wait_impl_user(pcb->pid, &kpid, pid),
-        wait_queue,
+        &wait_queue,
         false);
 }
 
