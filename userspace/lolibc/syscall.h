@@ -48,7 +48,8 @@
 #define SYS_FBMAP       46
 #define SYS_FBUNMAP     47
 #define SYS_FBFLIP      48
-#define NUM_SYSCALL     48
+#define SYS_POLL        49
+#define NUM_SYSCALL     49
 
 #ifndef ASM
 
@@ -124,6 +125,13 @@ typedef struct {
     int length;
 } stat_t;
 
+/* poll.h */
+typedef struct {
+    int fd;
+    short events;
+    short revents;
+} pollfd_t;
+
 /* net.h */
 typedef struct {
     uint8_t bytes[4];
@@ -185,6 +193,7 @@ __cdecl int monosleep(int target);
 __cdecl int fbmap(void **ptr, int xres, int yres, int bpp);
 __cdecl int fbunmap(void *ptr);
 __cdecl int fbflip(void *ptr);
+__cdecl int poll(pollfd_t *pfd, int nfd);
 
 #endif /* ASM */
 

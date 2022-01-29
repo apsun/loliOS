@@ -51,7 +51,8 @@
 #define SYS_FBMAP       46
 #define SYS_FBUNMAP     47
 #define SYS_FBFLIP      48
-#define NUM_SYSCALL     48
+#define SYS_POLL        49
+#define NUM_SYSCALL     49
 
 #ifndef ASM
 

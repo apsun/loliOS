@@ -5,6 +5,7 @@
 #include "list.h"
 #include "file.h"
 #include "net.h"
+#include "wait.h"
 
 #define SOCK_TCP 0
 #define SOCK_UDP 1
@@ -13,7 +14,7 @@
 #ifndef ASM
 
 /* Forward declaration */
-typedef struct sock_ops sock_ops_t;
+struct sock_ops;
 
 /* Socket address */
 typedef struct {
@@ -27,7 +28,7 @@ typedef struct {
     list_t list;
 
     /* Socket operations table */
-    const sock_ops_t *ops_table;
+    const struct sock_ops *ops_table;
 
     /* Socket type (one of the SOCK_* constants) */
     int type;
@@ -60,7 +61,7 @@ typedef struct {
 /*
  * Socket operations table. All functions are optional.
  */
-struct sock_ops {
+typedef struct sock_ops {
     int (*ctor)(net_sock_t *sock);
     void (*dtor)(net_sock_t *sock);
     int (*bind)(net_sock_t *sock, const sock_addr_t *addr);
@@ -71,7 +72,8 @@ struct sock_ops {
     int (*sendto)(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *addr);
     int (*shutdown)(net_sock_t *sock);
     void (*close)(net_sock_t *sock);
-};
+    int (*poll)(net_sock_t *sock, wait_node_t *readq, wait_node_t *writeq);
+} sock_ops_t;
 
 /* Registers a socket type */
 void socket_register_type(int type, const sock_ops_t *ops_table);

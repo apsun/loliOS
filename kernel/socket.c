@@ -8,6 +8,7 @@
 #include "tcp.h"
 #include "udp.h"
 #include "mt19937.h"
+#include "wait.h"
 
 /* Lowest port number used for random local port numbers */
 #define EPHEMERAL_PORT_START 49152
@@ -23,12 +24,14 @@ static list_define(socket_list);
 static int socket_read(file_obj_t *file, void *buf, int nbytes);
 static int socket_write(file_obj_t *file, const void *buf, int nbytes);
 static void socket_close(file_obj_t *file);
+static int socket_poll(file_obj_t *file, wait_node_t *readq, wait_node_t *writeq);
 
 /* Network socket file ops */
 static const file_ops_t socket_fops = {
     .read = socket_read,
     .write = socket_write,
     .close = socket_close,
+    .poll = socket_poll,
 };
 
 /*
@@ -416,6 +419,16 @@ static int
 socket_write(file_obj_t *file, const void *buf, int nbytes)
 {
     FORWARD_SOCKETCALL(get_sock(file), sendto, buf, nbytes, NULL);
+}
+
+/*
+ * poll() syscall for socket files. Checks if the socket is
+ * ready to read/write and registers it for wakeup events.
+ */
+static int
+socket_poll(file_obj_t *file, wait_node_t *readq, wait_node_t *writeq)
+{
+    FORWARD_SOCKETCALL(get_sock(file), poll, readq, writeq);
 }
 
 #undef FORWARD_SOCKETCALL

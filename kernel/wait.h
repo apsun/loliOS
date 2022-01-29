@@ -16,25 +16,25 @@
  * interruptible is true and there are pending signals. If
  * nonblocking is true, this is the same as evaluating expr
  * directly.
- */
-#define WAIT_IMPL(expr, queue, nonblocking, interruptible) ({           \
-    int __ret;                                                          \
-    wait_node_t __wait;                                                 \
-    wait_node_init(&__wait, get_executing_pcb());                       \
-    wait_queue_add(&__wait, queue);                                     \
-    while (1) {                                                         \
-        __ret = (expr);                                                 \
-        if (__ret != -EAGAIN || (nonblocking)) {                        \
-            break;                                                      \
-        }                                                               \
-        if (interruptible && signal_has_pending(__wait.pcb->signals)) { \
-            __ret = -EINTR;                                             \
-            break;                                                      \
-        }                                                               \
-        scheduler_sleep();                                              \
-    }                                                                   \
-    wait_queue_remove(&__wait);                                         \
-    __ret;                                                              \
+*/
+#define WAIT_IMPL(expr, queue, nonblocking, interruptible) ({             \
+    int __ret;                                                            \
+    wait_node_t __wait;                                                   \
+    wait_node_init(&__wait, get_executing_pcb());                         \
+    wait_queue_add(&__wait, (queue));                                     \
+    while (1) {                                                           \
+        __ret = (expr);                                                   \
+        if (__ret != -EAGAIN || (nonblocking)) {                          \
+            break;                                                        \
+        }                                                                 \
+        if ((interruptible) && signal_has_pending(__wait.pcb->signals)) { \
+            __ret = -EINTR;                                               \
+            break;                                                        \
+        }                                                                 \
+        scheduler_sleep();                                                \
+    }                                                                     \
+    wait_queue_remove(&__wait);                                           \
+    __ret;                                                                \
 })
 
 /*
@@ -57,19 +57,21 @@
  * Waits for a wake signal from the queue or a signal, whichever
  * comes first.
  */
-#define WAIT_ONCE_INTERRUPTIBLE(queue) ({         \
-    wait_node_t __wait;                           \
-    wait_node_init(&__wait, get_executing_pcb()); \
-    wait_queue_add(&__wait, queue);               \
-    scheduler_sleep();                            \
-    wait_queue_remove(&__wait);                   \
+#define WAIT_ONCE_INTERRUPTIBLE(queue) ({           \
+    wait_node_t __wait;                             \
+    wait_node_init(&__wait, get_executing_pcb());   \
+    if (!signal_has_pending(__wait.pcb->signals)) { \
+        wait_queue_add(&__wait, (queue));           \
+        scheduler_sleep();                          \
+        wait_queue_remove(&__wait);                 \
+    }                                               \
 })
 
 /*
  * Wait queue node. Contains a pointer to the process to be
  * woken up when the queue is notified.
  */
-typedef struct {
+typedef struct wait_node {
     list_t list;
     pcb_t *pcb;
 } wait_node_t;
@@ -85,13 +87,22 @@ wait_node_init(wait_node_t *node, pcb_t *pcb)
 }
 
 /*
+ * Returns true iff the wait node is currently in a queue.
+ */
+static inline bool
+wait_node_in_queue(wait_node_t *node)
+{
+    return !list_empty(&node->list);
+}
+
+/*
  * Adds a node to the specified wait queue. The node must
  * not already be in a wait queue.
  */
 static inline void
 wait_queue_add(wait_node_t *node, list_t *queue)
 {
-    assert(list_empty(&node->list));
+    assert(!wait_node_in_queue(node));
     list_add(&node->list, queue);
 }
 

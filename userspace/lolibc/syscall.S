@@ -76,6 +76,7 @@ MAKE_SYS(monosleep, SYS_MONOSLEEP)
 MAKE_SYS(fbmap, SYS_FBMAP)
 MAKE_SYS(fbunmap, SYS_FBUNMAP)
 MAKE_SYS(fbflip, SYS_FBFLIP)
+MAKE_SYS(poll, SYS_POLL)
 
 .globl _start
 _start:

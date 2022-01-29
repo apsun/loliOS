@@ -60,6 +60,7 @@ syscall_jump_table:
     .long vbe_fbmap
     .long vbe_fbunmap
     .long vbe_fbflip
+    .long poll_poll
 .type syscall_jump_table, %object
 .size syscall_jump_table, .-syscall_jump_table
 

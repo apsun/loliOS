@@ -38,15 +38,16 @@
 
 #ifndef ASM
 
-/* Forward declaration */
-typedef struct file_ops file_ops_t;
+/* Forward declarations */
+struct file_ops;
+struct wait_node;
 
 /* File object structure */
 typedef struct {
     /*
      * File operations table for this file.
      */
-    const file_ops_t *ops_table;
+    const struct file_ops *ops_table;
 
     /*
      * Reference count of the file. When this reaches zero,
@@ -73,7 +74,7 @@ typedef struct {
 } file_obj_t;
 
 /* File operations table */
-struct file_ops {
+typedef struct file_ops {
     int (*open)(file_obj_t *file);
     int (*read)(file_obj_t *file, void *buf, int nbytes);
     int (*write)(file_obj_t *file, const void *buf, int nbytes);
@@ -81,7 +82,8 @@ struct file_ops {
     int (*ioctl)(file_obj_t *file, int req, intptr_t arg);
     int (*seek)(file_obj_t *file, int offset, int mode);
     int (*truncate)(file_obj_t *file, int length);
-};
+    int (*poll)(file_obj_t *file, struct wait_node *readq, struct wait_node *writeq);
+} file_ops_t;
 
 /* Result structure for stat() syscall */
 typedef struct stat {
