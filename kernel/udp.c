@@ -24,6 +24,9 @@ typedef struct {
 
 /* UDP-private socket state */
 typedef struct {
+    /* Back-pointer to the socket object */
+    net_sock_t *sock;
+
     /* Simple queue of incoming packets */
     list_t inbox;
 
@@ -31,8 +34,31 @@ typedef struct {
     list_t read_queue;
 } udp_sock_t;
 
-/* Obtains a udp_sock_t reference from a net_sock_t */
+/* Converts between udp_sock_t and net_sock_t */
 #define udp_sock(sock) ((udp_sock_t *)(sock)->private)
+#define net_sock(ucp) ((ucp)->sock)
+
+/*
+ * Checks whether the specified incoming packet should be
+ * accepted or dropped.
+ */
+static bool
+udp_matches_connected_addr(net_sock_t *sock, skb_t *skb)
+{
+    assert(sock->connected);
+
+    ip_hdr_t *ip_hdr = skb_network_header(skb);
+    if (!ip_equals(sock->remote.ip, ip_hdr->src_ip)) {
+        return false;
+    }
+
+    udp_hdr_t *udp_hdr = skb_transport_header(skb);
+    if (sock->remote.port != ntohs(udp_hdr->be_src_port)) {
+        return false;
+    }
+
+    return true;
+}
 
 /* Handles reception of a UDP datagram */
 int
@@ -59,6 +85,15 @@ udp_handle_rx(net_iface_t *iface, skb_t *skb)
     net_sock_t *sock = get_sock_by_local_addr(SOCK_UDP, dest_ip, dest_port);
     if (sock == NULL) {
         debugf("No UDP socket for (IP, port), dropping datagram\n");
+        return -1;
+    }
+
+    /*
+     * If we're connected and the packet didn't come from the address
+     * that we're connected to, drop it.
+     */
+    if (sock->connected && !udp_matches_connected_addr(sock, skb)) {
+        debugf("UDP socket is connected to different addr, dropping datagram\n");
         return -1;
     }
 
@@ -118,6 +153,7 @@ udp_ctor(net_sock_t *sock)
         debugf("Cannot allocate space for UDP data\n");
         return -1;
     }
+    udp->sock = sock;
     list_init(&udp->inbox);
     list_init(&udp->read_queue);
     sock->private = udp;
@@ -133,6 +169,7 @@ udp_dtor(net_sock_t *sock)
     list_t *pos, *next;
     list_for_each_safe(pos, next, &udp->inbox) {
         skb_t *skb = list_entry(pos, skb_t, list);
+        list_del(&skb->list);
         skb_release(skb);
     }
 
@@ -164,13 +201,30 @@ udp_bind(net_sock_t *sock, const sock_addr_t *addr)
 static int
 udp_connect(net_sock_t *sock, const sock_addr_t *addr)
 {
+    udp_sock_t *udp = udp_sock(sock);
+
     /* Copy address to kernelspace */
     sock_addr_t tmp;
     if (!copy_from_user(&tmp, addr, sizeof(sock_addr_t))) {
         return -1;
     }
 
-    return socket_connect_addr(sock, tmp.ip, tmp.port);
+    /* Set new remote addr */
+    int ret = socket_connect_addr(sock, tmp.ip, tmp.port);
+
+    /* Discard all packets not matching new remote addr */
+    if (ret >= 0) {
+        list_t *pos, *next;
+        list_for_each_safe(pos, next, &udp->inbox) {
+            skb_t *skb = list_entry(pos, skb_t, list);
+            if (!udp_matches_connected_addr(sock, skb)) {
+                list_del(&skb->list);
+                skb_release(skb);
+            }
+        }
+    }
+
+    return ret;
 }
 
 /*
@@ -180,34 +234,16 @@ udp_connect(net_sock_t *sock, const sock_addr_t *addr)
 static int
 udp_can_read(udp_sock_t *udp)
 {
+    /* Can only receive packets after bind() */
+    if (!net_sock(udp)->bound) {
+        return -1;
+    }
+
     if (list_empty(&udp->inbox)) {
         return -EAGAIN;
     }
+
     return 1;
-}
-
-/*
- * Checks whether the specified packet should be passed to
- * the user when calling recvfrom() on a connected socket.
- * As per the spec, only packets from the connected peer
- * will be accepted.
- */
-static bool
-udp_matches_connected_addr(net_sock_t *sock, skb_t *skb)
-{
-    assert(sock->connected);
-
-    ip_hdr_t *ip_hdr = skb_network_header(skb);
-    if (!ip_equals(sock->remote.ip, ip_hdr->src_ip)) {
-        return false;
-    }
-
-    udp_hdr_t *udp_hdr = skb_transport_header(skb);
-    if (sock->remote.port != ntohs(udp_hdr->be_src_port)) {
-        return false;
-    }
-
-    return true;
 }
 
 /*
@@ -218,38 +254,18 @@ udp_matches_connected_addr(net_sock_t *sock, skb_t *skb)
 static int
 udp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
 {
-    /* Can only receive packets after bind() */
-    if (!sock->bound) {
-        debugf("recvfrom() on unbound socket\n");
-        return -1;
-    }
-
     udp_sock_t *udp = udp_sock(sock);
-    skb_t *skb;
-    while (1) {
-        /* Wait for a packet to arrive in our inbox */
-        int can_read = WAIT_INTERRUPTIBLE(
-            udp_can_read(udp),
-            &udp->read_queue,
-            socket_is_nonblocking(sock));
-        if (can_read < 0) {
-            return can_read;
-        }
 
-        /*
-         * If we're unconnected, or the packet came from the address
-         * that we're connected to, accept the incoming packet.
-         */
-        skb = list_first_entry(&udp->inbox, skb_t, list);
-        if (!sock->connected || udp_matches_connected_addr(sock, skb)) {
-            break;
-        }
-
-        /* Otherwise, discard the packet */
-        list_del(&skb->list);
-        skb_release(skb);
+    /* Wait for a packet to arrive in our inbox */
+    int can_read = WAIT_INTERRUPTIBLE(
+        udp_can_read(udp),
+        &udp->read_queue,
+        socket_is_nonblocking(sock));
+    if (can_read < 0) {
+        return can_read;
     }
 
+    skb_t *skb = list_first_entry(&udp->inbox, skb_t, list);
     int len = skb_len(skb);
     nbytes = min(nbytes, len);
 
