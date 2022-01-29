@@ -2,6 +2,7 @@
 #include "types.h"
 #include "debug.h"
 #include "string.h"
+#include "math.h"
 #include "process.h"
 #include "paging.h"
 #include "signal.h"
@@ -361,8 +362,14 @@ terminal_clear(void)
  * or -EAGAIN if there is currently nothing to read.
  */
 static int
-terminal_check_kbd_input(terminal_t *term, int nbytes)
+terminal_tty_get_readable_bytes(terminal_t *term, int nbytes)
 {
+    if (nbytes < 0) {
+        return -1;
+    } else if (nbytes == 0) {
+        return 0;
+    }
+
     pcb_t *pcb = get_executing_pcb();
     kbd_input_buf_t *input_buf = &term->kbd_input;
 
@@ -406,24 +413,15 @@ terminal_check_kbd_input(terminal_t *term, int nbytes)
 static int
 terminal_tty_read(file_obj_t *file, void *buf, int nbytes)
 {
-    if (nbytes < 0) {
-        return -1;
-    } else if (nbytes == 0) {
-        return 0;
-    }
-
     terminal_t *term = get_executing_terminal();
     kbd_input_buf_t *input_buf = &term->kbd_input;
 
-    /*
-     * Wait until there's a newline/EOT in the buffer or we
-     * have pending signals to handle
-     */
+    /* Wait until there's a newline/EOT in the buffer */
     nbytes = WAIT_INTERRUPTIBLE(
-        terminal_check_kbd_input(term, nbytes),
+        terminal_tty_get_readable_bytes(term, nbytes),
         &input_buf->sleep_queue,
         file->nonblocking);
-    if (nbytes < 0) {
+    if (nbytes <= 0) {
         return nbytes;
     }
 
@@ -504,15 +502,11 @@ terminal_tty_write(file_obj_t *file, const void *buf, int nbytes)
 }
 
 /*
- * read() syscall handler for the mouse. Copies at most
- * nbytes worth of input events into buf (see mouse_input_t for
- * the meaning of the event data). It is possible to read
- * only part of an input event if nbytes is not a multiple
- * of sizeof(mouse_input_t) - the next read() will return
- * the remaining part of the event.
+ * Returns the number of readable bytes in the mouse input
+ * buffer, or -EAGAIN if the buffer is empty.
  */
 static int
-terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
+terminal_mouse_get_readable_bytes(terminal_t *term, int nbytes)
 {
     if (nbytes < 0) {
         return -1;
@@ -520,23 +514,18 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
         return 0;
     }
 
-    /* Check that caller is in the foreground group */
-    terminal_t *term = get_executing_terminal();
     pcb_t *pcb = get_executing_pcb();
+    mouse_input_buf_t *input_buf = &term->mouse_input;
+
+    /* Check that caller is in the foreground group */
     if (term->fg_group != pcb->group) {
         debugf("Attempting to read mouse from background group (fg=%d, curr=%d)\n",
             term->fg_group, pcb->group);
         return -1;
     }
 
-    /* Wait until there's input to read */
-    mouse_input_buf_t *input_buf = &term->mouse_input;
-    int max_read = WAIT_INTERRUPTIBLE(
-        input_buf->count > 0 ? input_buf->count : -EAGAIN,
-        &input_buf->sleep_queue,
-        file->nonblocking);
-    if (max_read < 0) {
-        return max_read;
+    if (input_buf->count == 0) {
+        return -EAGAIN;
     }
 
     /*
@@ -546,6 +535,7 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
      * read() ever returns 1 or 2, either the buffer is too small
      * or the previous read was partial.
      */
+    int max_read = input_buf->count;
     if (max_read % sizeof(mouse_input_t) != 0) {
         max_read = max_read % sizeof(mouse_input_t);
     }
@@ -557,8 +547,30 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
      * input, in which case we return a partial input instead
      * of failing or blocking forever.
      */
-    if (nbytes > max_read) {
-        nbytes = max_read;
+    return min(nbytes, max_read);
+}
+
+/*
+ * read() syscall handler for the mouse. Copies at most
+ * nbytes worth of input events into buf (see mouse_input_t for
+ * the meaning of the event data). It is possible to read
+ * only part of an input event if nbytes is not a multiple
+ * of sizeof(mouse_input_t) - the next read() will return
+ * the remaining part of the event.
+ */
+static int
+terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
+{
+    terminal_t *term = get_executing_terminal();
+    mouse_input_buf_t *input_buf = &term->mouse_input;
+
+    /* Wait until we have any events to read */
+    nbytes = WAIT_INTERRUPTIBLE(
+        terminal_mouse_get_readable_bytes(term, nbytes),
+        &input_buf->sleep_queue,
+        file->nonblocking);
+    if (nbytes <= 0) {
+        return nbytes;
     }
 
     /* Copy input buffer to userspace */
