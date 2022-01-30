@@ -129,6 +129,10 @@ static uint8_t taux_led_segments[4];
 /* Whether we should send a LED_SET packet when free (no pending ACKs) */
 static bool taux_set_led_pending = false;
 
+/* Holds unprocessed serial inputs */
+static uint8_t taux_inbox[12];
+static int taux_inbox_count = 0;
+
 /*
  * Converts a LED status value (from the TAUX_SET_LED
  * ioctl) to the LED segment format used by the taux
@@ -495,30 +499,30 @@ taux_handle_packet(uint8_t packet[3])
 static void
 taux_handle_irq(void)
 {
-    static uint8_t buf[12];
-    static int count = 0;
-
-    /* Consume all available data */
-    int read;
-    while ((read = serial_read_upto(TAUX_COM_PORT, &buf[count], sizeof(buf) - count)) > 0) {
-        /* Update number of chars now in the buffer */
-        count += read;
+    while (1) {
+        /* Consume all available data */
+        int max_read = sizeof(taux_inbox) - taux_inbox_count;
+        int count = serial_read_upto(TAUX_COM_PORT, &taux_inbox[taux_inbox_count], max_read);
+        if (count <= 0) {
+            break;
+        }
+        taux_inbox_count += count;
 
         /* Now scan for complete packets */
         int i;
-        for (i = 0; i < count - 2; ++i) {
+        for (i = 0; i < taux_inbox_count - 2; ++i) {
             /*
              * Align the "frame": first byte has high bit == 0,
              * next 2 have high bit == 1. If at any point the
              * alignment goes out of sync, just discard it
              * and find the next good reference point.
              */
-            if ((buf[i + 0] & 0x80) == 0 &&
-                (buf[i + 1] & 0x80) != 0 &&
-                (buf[i + 2] & 0x80) != 0) {
+            if ((taux_inbox[i + 0] & 0x80) == 0 &&
+                (taux_inbox[i + 1] & 0x80) != 0 &&
+                (taux_inbox[i + 2] & 0x80) != 0) {
 
                 /* Process the packet */
-                taux_handle_packet(&buf[i]);
+                taux_handle_packet(&taux_inbox[i]);
 
                 /* Skip over the other 2 bytes */
                 i += 2;
@@ -526,8 +530,8 @@ taux_handle_irq(void)
         }
 
         /* Shift over the remaining chars for the next iteration */
-        memmove(&buf[0], &buf[i], count - i);
-        count -= i;
+        memmove(&taux_inbox[0], &taux_inbox[i], taux_inbox_count - i);
+        taux_inbox_count -= i;
     }
 }
 
