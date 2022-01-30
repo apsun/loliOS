@@ -33,8 +33,14 @@ typedef struct {
  * end is still open.
  */
 static int
-pipe_get_readable_count(pipe_state_t *pipe, int nbytes)
+pipe_get_readable_bytes(pipe_state_t *pipe, int nbytes)
 {
+    if (nbytes < 0) {
+        return -1;
+    } else if (nbytes == 0) {
+        return 0;
+    }
+
     /* If the head comes before the tail, it must wrap around */
     int head = pipe->head;
     if (head < pipe->tail) {
@@ -42,9 +48,9 @@ pipe_get_readable_count(pipe_state_t *pipe, int nbytes)
     }
 
     /* Have something to read immediately? */
-    int to_read = min(nbytes, head - pipe->tail);
-    if (to_read > 0) {
-        return to_read;
+    nbytes = min(nbytes, head - pipe->tail);
+    if (nbytes > 0) {
+        return nbytes;
     }
 
     /* If write end is closed, treat as EOF */
@@ -62,19 +68,15 @@ pipe_get_readable_count(pipe_state_t *pipe, int nbytes)
 static int
 pipe_read(file_obj_t *file, void *buf, int nbytes)
 {
-    if (nbytes < 0) {
-        return -1;
-    } else if (nbytes == 0) {
-        return 0;
-    }
-
     pipe_state_t *pipe = (pipe_state_t *)file->private;
-    int to_read = WAIT_INTERRUPTIBLE(
-        pipe_get_readable_count(pipe, nbytes),
+    assert(pipe != NULL);
+
+    nbytes = WAIT_INTERRUPTIBLE(
+        pipe_get_readable_bytes(pipe, nbytes),
         &pipe->read_queue,
         file->nonblocking);
-    if (to_read <= 0) {
-        return to_read;
+    if (nbytes <= 0) {
+        return nbytes;
     }
 
     /*
@@ -87,7 +89,7 @@ pipe_read(file_obj_t *file, void *buf, int nbytes)
     char *bufp = buf;
     do {
         /* Read until the end of the buffer at most */
-        int this_read = min(to_read, PIPE_SIZE - pipe->tail);
+        int this_read = min(nbytes, PIPE_SIZE - pipe->tail);
 
         /* Copy this chunk to userspace */
         if (!copy_to_user(&bufp[total_read], &pipe->buf[pipe->tail], this_read)) {
@@ -97,9 +99,9 @@ pipe_read(file_obj_t *file, void *buf, int nbytes)
 
         /* Advance counters */
         total_read += this_read;
-        to_read -= this_read;
+        nbytes -= this_read;
         pipe->tail = (pipe->tail + this_read) % PIPE_SIZE;
-    } while (to_read > 0);
+    } while (nbytes > 0);
 
     /* Buffer should have some space now, wake writers */
     wait_queue_wake(&pipe->write_queue);
@@ -118,8 +120,14 @@ pipe_read(file_obj_t *file, void *buf, int nbytes)
  * -EAGAIN if the pipe is full.
  */
 static int
-pipe_get_writable_count(pipe_state_t *pipe, int nbytes)
+pipe_get_writable_bytes(pipe_state_t *pipe, int nbytes)
 {
+    if (nbytes < 0) {
+        return -1;
+    } else if (nbytes == 0) {
+        return 0;
+    }
+
     /* If the reader is gone, writes should fail */
     if (pipe->half_closed) {
         debugf("Writing to half-duplex pipe\n");
@@ -133,9 +141,9 @@ pipe_get_writable_count(pipe_state_t *pipe, int nbytes)
     }
 
     /* Have some space to write? */
-    int to_write = min(nbytes, tail - 1 - pipe->head);
-    if (to_write > 0) {
-        return to_write;
+    nbytes = min(nbytes, tail - 1 - pipe->head);
+    if (nbytes > 0) {
+        return nbytes;
     }
 
     return -EAGAIN;
@@ -148,29 +156,25 @@ pipe_get_writable_count(pipe_state_t *pipe, int nbytes)
 static int
 pipe_write(file_obj_t *file, const void *buf, int nbytes)
 {
-    if (nbytes < 0) {
-        return -1;
-    } else if (nbytes == 0) {
-        return 0;
-    }
-
     pipe_state_t *pipe = (pipe_state_t *)file->private;
-    int to_write = WAIT_INTERRUPTIBLE(
-        pipe_get_writable_count(pipe, nbytes),
+    assert(pipe != NULL);
+
+    nbytes = WAIT_INTERRUPTIBLE(
+        pipe_get_writable_bytes(pipe, nbytes),
         &pipe->write_queue,
         file->nonblocking);
-    if (to_write < 0) {
-        if (to_write == -EPIPE) {
+    if (nbytes <= 0) {
+        if (nbytes == -EPIPE) {
             signal_raise_executing(SIGPIPE);
         }
-        return to_write;
+        return nbytes;
     }
 
     int total_write = 0;
     const char *bufp = buf;
     do {
         /* Read until the end of the buffer at most */
-        int this_write = min(to_write, PIPE_SIZE - pipe->head);
+        int this_write = min(nbytes, PIPE_SIZE - pipe->head);
 
         /* Copy this chunk to kernelspace */
         if (!copy_from_user(&pipe->buf[pipe->head], &bufp[total_write], this_write)) {
@@ -180,9 +184,9 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
 
         /* Advance counters */
         total_write += this_write;
-        to_write -= this_write;
+        nbytes -= this_write;
         pipe->head = (pipe->head + this_write) % PIPE_SIZE;
-    } while (to_write > 0);
+    } while (nbytes > 0);
 
     /* Now that we have some data in the pipe, wake up readers */
     wait_queue_wake(&pipe->read_queue);
@@ -204,11 +208,10 @@ pipe_write(file_obj_t *file, const void *buf, int nbytes)
 static void
 pipe_close(file_obj_t *file)
 {
-    if (file->private == 0) {
+    pipe_state_t *pipe = (pipe_state_t *)file->private;
+    if (pipe == NULL) {
         return;
     }
-
-    pipe_state_t *pipe = (pipe_state_t *)file->private;
 
     /*
      * If both ends are closed, release the underlying pipe.
