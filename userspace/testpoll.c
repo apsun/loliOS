@@ -182,7 +182,6 @@ test_pipe_fork(void)
         ret = write(writefd, "foo", 3);
         assert(ret == 3);
 
-        sleep(monotime() + TIMEOUT_MS);
         exit(0);
     }
     assert(pid > 0);
@@ -241,7 +240,6 @@ test_tcp_fork(void)
         ret = write(b, "foo", 3);
         assert(ret == 3);
 
-        sleep(monotime() + TIMEOUT_MS);
         exit(0);
     }
     assert(pid > 0);
@@ -308,7 +306,6 @@ test_udp_fork(void)
         ret = sendto(b, "foo", 3, &a_addr);
         assert(ret == 3);
 
-        sleep(monotime() + TIMEOUT_MS);
         exit(0);
     }
     assert(pid > 0);

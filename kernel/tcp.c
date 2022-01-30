@@ -1044,8 +1044,9 @@ static void
 tcp_inbox_done(tcp_sock_t *tcp, skb_t *skb)
 {
     tcp_hdr_t *hdr = skb_transport_header(skb);
-    int len = tcp_seg_len(skb);
+    assert(tcp->read_closed || cmp(tcp->recv_read_num, seq(hdr)) >= 0);
 
+    int len = tcp_seg_len(skb);
     if (cmp(tcp->recv_read_num, seq(hdr) + len) < 0) {
         tcp->recv_read_num = seq(hdr) + len;
     }
@@ -1055,15 +1056,16 @@ tcp_inbox_done(tcp_sock_t *tcp, skb_t *skb)
 }
 
 /*
- * Used to drain the inbox if we know the user will never be
- * able to read its contents. This is used to free memory and
- * ensure the rwnd doesn't stay at zero forever.
+ * Attempts to consume as many packets as possible from the inbox
+ * that we are certain will not be needed by the user.
+ *
+ * If the socket read endpoint is closed, we consume all in-order
+ * packets, even if they were not read. Otherwise, we only consume
+ * in-order packets that have zero body length (SYN/FIN).
  */
 static void
 tcp_inbox_drain(tcp_sock_t *tcp)
 {
-    assert(tcp->read_closed);
-
     while (!list_empty(&tcp->inbox)) {
         skb_t *skb = list_first_entry(&tcp->inbox, skb_t, list);
         tcp_hdr_t *hdr = skb_transport_header(skb);
@@ -1073,6 +1075,14 @@ tcp_inbox_drain(tcp_sock_t *tcp)
          * so stop here.
          */
         if (cmp(seq(hdr), tcp->recv_next_num) > 0) {
+            break;
+        }
+
+        /*
+         * If the user still has a read endpoint open, we can only
+         * consume packets that have zero body length (SYN/FIN).
+         */
+        if (!tcp->read_closed && tcp_body_len(skb) > 0) {
             break;
         }
 
@@ -1360,28 +1370,21 @@ tcp_inbox_handle_rx_skb(tcp_sock_t *tcp, skb_t *skb)
                 tcp_restart_fin_timeout(tcp);
             }
         }
-
-        /*
-         * Automatically "read" packets with no data (i.e. SYN/FIN)
-         * to maintain the invariant that next_num > read_num implies
-         * there is at least one byte of data to read.
-         */
-        if (tcp_body_len(iskb) == 0) {
-            tcp_inbox_done(tcp, iskb);
-        }
     }
+
+    /*
+     * Automatically "read" packets with no data (i.e. SYN/FIN)
+     * to maintain the invariant that next_num > read_num implies
+     * there is at least one byte of data to read.
+     *
+     * This is also needed to ensure that packets are automatically
+     * purged if the user cannot read them.
+     */
+    tcp_inbox_drain(tcp);
 
     /* If we have any in-order data, wake readers */
     if (cmp(tcp->recv_next_num, tcp->recv_read_num) > 0) {
         wait_queue_wake(&tcp->read_queue);
-    }
-
-    /*
-     * If the socket file is closed, we need to drain the inbox on
-     * behalf of userspace.
-     */
-    if (tcp->read_closed) {
-        tcp_inbox_drain(tcp);
     }
 }
 
@@ -2172,6 +2175,13 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
         /* We're done with this packet, remove it and expand rwnd */
         tcp_inbox_done(tcp, skb);
     }
+
+    /*
+     * Automatically "read" packets with no data (here, only applies
+     * to FIN) to maintain the invariant that next_num > read_num
+     * implies there is at least one byte of data to read.
+     */
+    tcp_inbox_drain(tcp);
 
     /*
      * Only advertise window updates when we have at least
