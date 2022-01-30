@@ -8,6 +8,7 @@
 #include "file.h"
 #include "wait.h"
 #include "signal.h"
+#include "poll.h"
 
 /*
  * How much storage to allocate for the kernel buffer.
@@ -227,11 +228,37 @@ pipe_close(file_obj_t *file)
     }
 }
 
+/*
+ * poll() syscall handler for pipes. Sets the read and write
+ * bits depending on whether there is space in the pipe.
+ */
+static int
+pipe_poll(file_obj_t *file, wait_node_t *readq, wait_node_t *writeq)
+{
+    pipe_state_t *pipe = (pipe_state_t *)file->private;
+    assert(pipe != NULL);
+
+    int revents = 0;
+
+    revents |= POLL_READ(
+        pipe_get_readable_bytes(pipe, INT_MAX),
+        &pipe->read_queue,
+        readq);
+
+    revents |= POLL_WRITE(
+        pipe_get_writable_bytes(pipe, INT_MAX),
+        &pipe->write_queue,
+        writeq);
+
+    return revents;
+}
+
 /* Combined read/write file ops for pipe files */
 static const file_ops_t pipe_fops = {
     .read = pipe_read,
     .write = pipe_write,
     .close = pipe_close,
+    .poll = pipe_poll,
 };
 
 /*

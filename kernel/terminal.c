@@ -9,6 +9,7 @@
 #include "wait.h"
 #include "vga.h"
 #include "myalloc.h"
+#include "poll.h"
 
 /*
  * Executing terminal: the terminal corresponding to the currently
@@ -502,6 +503,28 @@ terminal_tty_write(file_obj_t *file, const void *buf, int nbytes)
 }
 
 /*
+ * poll() syscall handler for stdin/stdout. Sets the read bit
+ * if there is a full (\n-terminated) line in the keyboard buffer
+ * to read. The write bit is always set.
+ */
+static int
+terminal_tty_poll(file_obj_t *file, wait_node_t *readq, wait_node_t *writeq)
+{
+    int revents = 0;
+    terminal_t *term = get_executing_terminal();
+    kbd_input_buf_t *input_buf = &term->kbd_input;
+
+    revents |= POLL_READ(
+        terminal_tty_get_readable_bytes(term, INT_MAX),
+        &input_buf->sleep_queue,
+        readq);
+
+    revents |= OPEN_WRITE;
+
+    return revents;
+}
+
+/*
  * Returns the number of readable bytes in the mouse input
  * buffer, or -EAGAIN if the buffer is empty.
  */
@@ -587,6 +610,25 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
 
     /* Return the number of bytes copied into the buffer */
     return nbytes;
+}
+
+/*
+ * poll() syscall handler for the mouse. Sets the write bit if
+ * there are any events to read.
+ */
+static int
+terminal_mouse_poll(file_obj_t *file, wait_node_t *readq, wait_node_t *writeq)
+{
+    int revents = 0;
+    terminal_t *term = get_executing_terminal();
+    mouse_input_buf_t *input_buf = &term->mouse_input;
+
+    revents |= POLL_READ(
+        terminal_mouse_get_readable_bytes(term, INT_MAX),
+        &input_buf->sleep_queue,
+        readq);
+
+    return revents;
 }
 
 /*
@@ -714,11 +756,13 @@ terminal_handle_mouse_input(mouse_input_t input)
 static const file_ops_t terminal_tty_fops = {
     .read = terminal_tty_read,
     .write = terminal_tty_write,
+    .poll = terminal_tty_poll,
 };
 
 /* Mouse file ops */
 static const file_ops_t terminal_mouse_fops = {
     .read = terminal_mouse_read,
+    .poll = terminal_mouse_poll,
 };
 
 /*

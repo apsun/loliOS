@@ -103,7 +103,7 @@ exit:
 
 /*
  * poll() syscall handler. Waits for any of the input files
- * to be readable/writeable.
+ * to be readable/writable.
  *
  * If a file does not support a given operation, or the file
  * is opened without permissions to perform that operation,
@@ -133,4 +133,24 @@ poll_poll(pollfd_t *pfds, int nfds)
     }
 
     return ret;
+}
+
+/*
+ * Generic poll() file op handler that always returns ready
+ * for reads. Does not register for any wakeups.
+ */
+int
+poll_generic_rdonly(file_obj_t *file, wait_node_t *readq, wait_node_t *writeq)
+{
+    return OPEN_READ;
+}
+
+/*
+ * Generic poll() file op handler that always returns ready
+ * for reads and writes. Does not register for any wakeups.
+ */
+int
+poll_generic_rdwr(file_obj_t *file, wait_node_t *readq, wait_node_t *writeq)
+{
+    return OPEN_RDWR;
 }

@@ -6,6 +6,7 @@
 #include "bitmap.h"
 #include "file.h"
 #include "paging.h"
+#include "poll.h"
 
 /* Macros to access inode/data blocks */
 #define fs_dentry(idx) (&fs_boot_block->dir_entries[idx])
@@ -727,6 +728,7 @@ fs_generate_bitmaps(void)
 static const file_ops_t fs_dir_fops = {
     .open = fs_open,
     .read = fs_dir_read,
+    .poll = poll_generic_rdonly,
 };
 
 /* File (the real kind) file ops */
@@ -736,6 +738,7 @@ static const file_ops_t fs_file_fops = {
     .write = fs_file_write,
     .seek = fs_file_seek,
     .truncate = fs_file_truncate,
+    .poll = poll_generic_rdwr,
 };
 
 /* Initializes the filesystem */

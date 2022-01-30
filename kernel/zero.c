@@ -1,6 +1,7 @@
 #include "zero.h"
 #include "file.h"
 #include "paging.h"
+#include "poll.h"
 
 /*
  * read() syscall handler for the zero file. Fills the buffer
@@ -35,6 +36,7 @@ zero_write(file_obj_t *file, const void *buf, int nbytes)
 static const file_ops_t zero_fops = {
     .read = zero_read,
     .write = zero_write,
+    .poll = poll_generic_rdwr,
 };
 
 /*

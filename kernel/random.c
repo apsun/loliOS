@@ -4,6 +4,7 @@
 #include "file.h"
 #include "paging.h"
 #include "mt19937.h"
+#include "poll.h"
 
 /*
  * read() syscall handler for the random file. Fills the buffer
@@ -46,6 +47,7 @@ random_read(file_obj_t *file, void *buf, int nbytes)
 /* Random file type operations table */
 static const file_ops_t random_fops = {
     .read = random_read,
+    .poll = poll_generic_rdonly,
 };
 
 /*

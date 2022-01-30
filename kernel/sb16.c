@@ -9,6 +9,7 @@
 #include "irq.h"
 #include "dma.h"
 #include "wait.h"
+#include "poll.h"
 
 /* DMA channels */
 #define SB16_DMA8_CHANNEL 1
@@ -162,6 +163,16 @@ sb16_open(file_obj_t *file)
 }
 
 /*
+ * If both audio buffer slots have data, returns -EAGAIN,
+ * otherwise returns 0.
+ */
+static int
+sb16_can_read(void)
+{
+    return audio_buf_count == 0 ? 0 : -EAGAIN;
+}
+
+/*
  * SB16 read() syscall handler. Blocks until there is at least
  * one empty buffer slot (i.e. when both slots are full, waits
  * until the first one completes playback), then returns 0.
@@ -170,7 +181,7 @@ static int
 sb16_read(file_obj_t *file, void *buf, int nbytes)
 {
     return WAIT_INTERRUPTIBLE(
-        audio_buf_count == 0 ? 0 : -EAGAIN,
+        sb16_can_read(),
         &write_sleep_queue,
         file->nonblocking);
 }
@@ -324,6 +335,30 @@ sb16_ioctl(file_obj_t *file, int req, intptr_t arg)
     }
 }
 
+/*
+ * SB16 poll() syscall handler. Sets the read bit if there is
+ * an empty audio buffer. Sets the write bit if any bytes can
+ * be written. Note that if the read bit is set, the write bit
+ * is guaranteed to be set, but not necessarily vice versa.
+ */
+static int
+sb16_poll(file_obj_t *file, wait_node_t *readq, wait_node_t *writeq)
+{
+    int revents = 0;
+
+    revents |= POLL_READ(
+        sb16_can_read(),
+        &write_sleep_queue,
+        readq);
+
+    revents |= POLL_WRITE(
+        sb16_get_writable_bytes(INT_MAX),
+        &write_sleep_queue,
+        writeq);
+
+    return revents;
+}
+
 /* SB16 IRQ handler */
 static void
 sb16_handle_irq(void)
@@ -351,6 +386,7 @@ static const file_ops_t sb16_fops = {
     .write = sb16_write,
     .close = sb16_close,
     .ioctl = sb16_ioctl,
+    .poll = sb16_poll,
 };
 
 /* Initializes the Sound Blaster 16 device */

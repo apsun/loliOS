@@ -1,5 +1,6 @@
 #include "null.h"
 #include "file.h"
+#include "poll.h"
 
 /*
  * read() syscall handler for the null file. Always returns 0.
@@ -23,6 +24,7 @@ null_write(file_obj_t *file, const void *buf, int nbytes)
 static const file_ops_t null_fops = {
     .read = null_read,
     .write = null_write,
+    .poll = poll_generic_rdwr,
 };
 
 /*

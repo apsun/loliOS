@@ -50,6 +50,10 @@ typedef struct {
 /* poll() syscall handler */
 __cdecl int poll_poll(pollfd_t *pfd, int nfd);
 
+/* Generic wait-less poll handler implementations */
+int poll_generic_rdonly(file_obj_t *file, wait_node_t *readq, wait_node_t *writeq);
+int poll_generic_rdwr(file_obj_t *file, wait_node_t *readq, wait_node_t *writeq);
+
 #endif /* ASM */
 
 #endif /* _POLL_H */

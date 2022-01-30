@@ -24,6 +24,7 @@
 #include "ethernet.h"
 #include "mt19937.h"
 #include "wait.h"
+#include "poll.h"
 
 /*
  * Enable for verbose TCP logging. Warning: very verbose.
@@ -1978,7 +1979,7 @@ exit:
 /*
  * Checks whether there is an incoming connection that
  * can be accepted. Returns -EAGAIN if no connection,
- * < 0 on error, or >= 0 otherwise.
+ * < 0 on error, or > 0 otherwise.
  */
 static int
 tcp_can_accept(tcp_sock_t *tcp)
@@ -2344,6 +2345,41 @@ exit:
 }
 
 /*
+ * poll() syscall handler for TCP sockets. For listening sockets,
+ * sets the read bit if there are any pending connections to accept.
+ * For connected sockets, sets the read bit if there are any packets
+ * in the inbox, and the write bit if there is space in the outbox.
+ */
+static int
+tcp_poll(net_sock_t *sock, wait_node_t *readq, wait_node_t *writeq)
+{
+    int revents = 0;
+    tcp_sock_t *tcp = tcp_acquire(tcp_sock(sock));
+
+    if (sock->listening) {
+        revents |= POLL_READ(
+            tcp_can_accept(tcp),
+            &tcp->accept_queue,
+            readq);
+    } else if (sock->connected) {
+        revents |= POLL_READ(
+            tcp_can_read(tcp, INT_MAX),
+            &tcp->read_queue,
+            readq);
+
+        revents |= POLL_WRITE(
+            tcp_get_writable_bytes(tcp, INT_MAX),
+            &tcp->write_queue,
+            writeq);
+    }
+
+    if (tcp != NULL) {
+        tcp_release(tcp);
+    }
+    return revents;
+}
+
+/*
  * close() socketcall handler. Sends a FIN to the
  * remote endpoint and closes the writing end of the
  * socket. The socket will be inaccessible from userspace,
@@ -2370,6 +2406,7 @@ static const sock_ops_t sops_tcp = {
     .sendto = tcp_sendto,
     .shutdown = tcp_shutdown,
     .close = tcp_close,
+    .poll = tcp_poll,
 };
 
 /*

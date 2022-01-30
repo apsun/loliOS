@@ -10,6 +10,7 @@
 #include "socket.h"
 #include "ethernet.h"
 #include "wait.h"
+#include "poll.h"
 
 /* Maximum length of a UDP datagram body */
 #define UDP_MAX_LEN 1472
@@ -229,7 +230,7 @@ udp_connect(net_sock_t *sock, const sock_addr_t *addr)
 
 /*
  * Checks if there are any packets available to read. Returns
- * -EAGAIN if the inbox is empty, >= 0 otherwise.
+ * -EAGAIN if the inbox is empty, > 0 otherwise.
  */
 static int
 udp_can_read(udp_sock_t *udp)
@@ -349,6 +350,26 @@ udp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *add
     }
 }
 
+/*
+ * poll() socketcall handler. Sets the read bit if there are any
+ * packets in the inbox. The write bit is always set.
+ */
+static int
+udp_poll(net_sock_t *sock, wait_node_t *readq, wait_node_t *writeq)
+{
+    int revents = 0;
+    udp_sock_t *udp = udp_sock(sock);
+
+    revents |= POLL_READ(
+        udp_can_read(udp),
+        &udp->read_queue,
+        readq);
+
+    revents |= OPEN_WRITE;
+
+    return revents;
+}
+
 /* UDP socket operations table */
 static const sock_ops_t sops_udp = {
     .ctor = udp_ctor,
@@ -357,6 +378,7 @@ static const sock_ops_t sops_udp = {
     .connect = udp_connect,
     .recvfrom = udp_recvfrom,
     .sendto = udp_sendto,
+    .poll = udp_poll,
 };
 
 /*
