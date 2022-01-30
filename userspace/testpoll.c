@@ -9,6 +9,16 @@
 /* How long to wait for async operations */
 #define TIMEOUT_MS 50
 
+static int
+bind2(int fd, sock_addr_t *addr)
+{
+    int ret = bind(fd, addr);
+    if (ret == 0) {
+        ret = getsockname(fd, addr);
+    }
+    return ret;
+}
+
 static void
 test_pipe_rdwr(void)
 {
@@ -193,8 +203,67 @@ test_pipe_fork(void)
     ret = read(readfd, buf, sizeof(buf));
     assert(ret == 3);
 
+    ret = wait(&pid);
+    assert(ret == 0);
+
     close(readfd);
     close(writefd);
+}
+
+static void
+test_tcp_accept_fork(void)
+{
+    int ret;
+
+    /* Create listening socket */
+    int a = socket(SOCK_TCP);
+    assert(a >= 0);
+    fcntl(a, FCNTL_NONBLOCK, 1);
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    ret = bind2(a, &a_addr);
+    assert(ret == 0);
+    ret = listen(a, 64);
+    assert(ret == 0);
+
+    int pid = fork();
+    if (pid == 0) {
+        sleep(monotime() + TIMEOUT_MS);
+
+        /* Connect to listening socket */
+        int b = socket(SOCK_TCP);
+        assert(b >= 0);
+        fcntl(b, FCNTL_NONBLOCK, 1);
+        sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+        ret = bind2(b, &b_addr);
+        assert(ret == 0);
+        ret = connect(b, &a_addr);
+        assert(ret == 0);
+
+        sleep(monotime() + TIMEOUT_MS);
+
+        close(b);
+        exit(0);
+    }
+    assert(pid > 0);
+
+    /* Poll for incoming connection */
+    pollfd_t pfds[1];
+    pfds[0].fd = a;
+    pfds[0].events = OPEN_RDWR;
+    ret = poll(pfds, 1, -1);
+    assert(ret == 1);
+    assert(pfds[0].revents == OPEN_READ);
+
+    /* Accept incoming connection */
+    sock_addr_t tmp_addr;
+    int a_conn = accept(a, &tmp_addr);
+    assert(a_conn >= 0);
+
+    ret = wait(&pid);
+    assert(ret == 0);
+
+    close(a_conn);
+    close(a);
 }
 
 int
@@ -208,6 +277,7 @@ main(void)
     test_permissions();
     test_timeout();
     test_pipe_fork();
+    test_tcp_accept_fork();
     printf("All tests passed!\n");
     return 0;
 }
