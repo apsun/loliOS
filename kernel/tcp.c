@@ -800,9 +800,9 @@ tcp_outbox_transmit_unsent(tcp_sock_t *tcp)
  * Called when the FIN timeout expires. Closes the socket.
  */
 static void
-tcp_on_fin_timeout(timer_t *timer)
+tcp_on_fin_timeout(void *private)
 {
-    tcp_sock_t *tcp = tcp_acquire(timer_entry(timer, tcp_sock_t, fin_timer));
+    tcp_sock_t *tcp = tcp_acquire(private);
     if (tcp_in_state(tcp, CLOSED)) {
         goto exit;
     }
@@ -820,7 +820,7 @@ exit:
 static void
 tcp_restart_fin_timeout(tcp_sock_t *tcp)
 {
-    timer_setup(&tcp->fin_timer, TCP_FIN_TIMEOUT_MS, tcp_on_fin_timeout);
+    timer_setup(&tcp->fin_timer, TCP_FIN_TIMEOUT_MS, tcp, tcp_on_fin_timeout);
 }
 
 /*
@@ -829,9 +829,9 @@ tcp_restart_fin_timeout(tcp_sock_t *tcp)
  * the delay.
  */
 static void
-tcp_on_rto_timeout(timer_t *timer)
+tcp_on_rto_timeout(void *private)
 {
-    tcp_sock_t *tcp = tcp_acquire(timer_entry(timer, tcp_sock_t, rto_timer));
+    tcp_sock_t *tcp = tcp_acquire(private);
     if (tcp_in_state(tcp, CLOSED) || list_empty(&tcp->outbox)) {
         goto exit;
     }
@@ -863,7 +863,7 @@ tcp_stop_rto_timeout(tcp_sock_t *tcp)
 static void
 tcp_restart_rto_timeout(tcp_sock_t *tcp)
 {
-    timer_setup(&tcp->rto_timer, tcp->rto, tcp_on_rto_timeout);
+    timer_setup(&tcp->rto_timer, tcp->rto, tcp, tcp_on_rto_timeout);
 }
 
 /*
@@ -874,7 +874,7 @@ static void
 tcp_start_rto_timeout(tcp_sock_t *tcp)
 {
     if (!timer_is_active(&tcp->rto_timer)) {
-        timer_setup(&tcp->rto_timer, tcp->rto, tcp_on_rto_timeout);
+        timer_setup(&tcp->rto_timer, tcp->rto, tcp, tcp_on_rto_timeout);
     }
 }
 

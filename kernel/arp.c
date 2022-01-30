@@ -87,9 +87,9 @@ arp_queue_flush(arp_entry_t *entry, const mac_addr_t *mac)
  * lifetime. Removes the entry from the cache.
  */
 static void
-arp_on_cache_timeout(timer_t *timer)
+arp_on_cache_timeout(void *private)
 {
-    arp_entry_t *entry = timer_entry(timer, arp_entry_t, timeout);
+    arp_entry_t *entry = private;
     assert(list_empty(&entry->packet_queue));
     list_del(&entry->list);
     free(entry);
@@ -102,11 +102,11 @@ arp_on_cache_timeout(timer_t *timer)
  * associated with the request.
  */
 static void
-arp_on_resolve_timeout(timer_t *timer)
+arp_on_resolve_timeout(void *private)
 {
-    arp_entry_t *entry = timer_entry(timer, arp_entry_t, timeout);
+    arp_entry_t *entry = private;
     entry->state = ARP_UNREACHABLE;
-    timer_setup(&entry->timeout, ARP_CACHE_TIMEOUT_MS, arp_on_cache_timeout);
+    timer_setup(&entry->timeout, ARP_CACHE_TIMEOUT_MS, entry, arp_on_cache_timeout);
     arp_queue_flush(entry, NULL);
 }
 
@@ -156,10 +156,10 @@ arp_cache_insert(net_dev_t *dev, ip_addr_t ip, const mac_addr_t *mac)
     if (mac != NULL) {
         entry->mac_addr = *mac;
         entry->state = ARP_REACHABLE;
-        timer_setup(&entry->timeout, ARP_CACHE_TIMEOUT_MS, arp_on_cache_timeout);
+        timer_setup(&entry->timeout, ARP_CACHE_TIMEOUT_MS, entry, arp_on_cache_timeout);
     } else {
         entry->state = ARP_WAITING;
-        timer_setup(&entry->timeout, ARP_RESOLVE_TIMEOUT_MS, arp_on_resolve_timeout);
+        timer_setup(&entry->timeout, ARP_RESOLVE_TIMEOUT_MS, entry, arp_on_resolve_timeout);
     }
     return entry;
 }

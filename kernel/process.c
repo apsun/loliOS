@@ -303,11 +303,11 @@ process_iret(int_regs_t *regs, void *kernel_stack)
  * restarts the timer.
  */
 static void
-process_alarm_callback(timer_t *timer)
+process_alarm_callback(void *private)
 {
-    pcb_t *pcb = timer_entry(timer, pcb_t, alarm_timer);
+    pcb_t *pcb = private;
     signal_kill(pcb->pid, SIGALRM);
-    timer_setup(timer, SIGALRM_PERIOD_MS, process_alarm_callback);
+    timer_setup(&pcb->alarm_timer, SIGALRM_PERIOD_MS, pcb, process_alarm_callback);
 }
 
 /*
@@ -494,7 +494,7 @@ process_create_user(char *command, int terminal)
     signal_init(pcb->signals);
     heap_init_user(&pcb->heap, USER_HEAP_START, USER_HEAP_END);
     timer_init(&pcb->alarm_timer);
-    timer_setup(&pcb->alarm_timer, SIGALRM_PERIOD_MS, process_alarm_callback);
+    timer_setup(&pcb->alarm_timer, SIGALRM_PERIOD_MS, pcb, process_alarm_callback);
     timer_init(&pcb->sleep_timer);
     list_init(&pcb->scheduler_list);
 
@@ -662,7 +662,7 @@ process_exec_impl(pcb_t *pcb, int_regs_t *regs, const char *command)
     pcb->compat = compat;
     signal_init(pcb->signals);
     heap_clear(&pcb->heap);
-    timer_setup(&pcb->alarm_timer, SIGALRM_PERIOD_MS, process_alarm_callback);
+    timer_setup(&pcb->alarm_timer, SIGALRM_PERIOD_MS, pcb, process_alarm_callback);
 
     /* Reinitialize user register values with new entry point */
     process_fill_user_regs(regs, entry_point);
@@ -1093,9 +1093,9 @@ process_halt(int status)
  * Callback for process_monosleep(). Wakes the corresponding process.
  */
 static void
-process_monosleep_callback(timer_t *timer)
+process_monosleep_callback(void *private)
 {
-    pcb_t *pcb = timer_entry(timer, pcb_t, sleep_timer);
+    pcb_t *pcb = private;
     scheduler_wake(pcb);
 }
 
@@ -1121,7 +1121,7 @@ process_monosleep(int target)
 
     /* Put ourselves to sleep */
     pcb_t *pcb = get_executing_pcb();
-    timer_setup_abs(&pcb->sleep_timer, target, process_monosleep_callback);
+    timer_setup_abs(&pcb->sleep_timer, target, pcb, process_monosleep_callback);
     WAIT_ONCE_INTERRUPTIBLE(&sleep_queue);
 
     /* We woke up, cancel timer in case we got woken early */

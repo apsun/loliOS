@@ -41,9 +41,9 @@ timer_tick(int now)
             break;
         }
         list_del(&pending->list);
-        void (*callback)(timer_t *) = pending->callback;
+        void (*callback)(void *) = pending->callback;
         pending->callback = NULL;
-        callback(pending);
+        callback(pending->private);
     }
 }
 
@@ -89,13 +89,13 @@ timer_clone(timer_t *dest, timer_t *src)
  * callback will be cancelled and the timer rescheduled.
  */
 void
-timer_setup(timer_t *timer, int delay, void (*callback)(timer_t *))
+timer_setup(timer_t *timer, int delay, void *private, void (*callback)(void *))
 {
     assert(timer != NULL);
     assert(delay >= 0);
     assert(callback != NULL);
 
-    timer_setup_abs(timer, pit_monotime() + delay, callback);
+    timer_setup_abs(timer, pit_monotime() + delay, private, callback);
 }
 
 /*
@@ -104,7 +104,7 @@ timer_setup(timer_t *timer, int delay, void (*callback)(timer_t *))
  * be cancelled and the timer rescheduled.
  */
 void
-timer_setup_abs(timer_t *timer, int when, void (*callback)(timer_t *))
+timer_setup_abs(timer_t *timer, int when, void *private, void (*callback)(void *))
 {
     assert(timer != NULL);
     assert(when >= 0);
@@ -114,6 +114,7 @@ timer_setup_abs(timer_t *timer, int when, void (*callback)(timer_t *))
         list_del(&timer->list);
     }
     timer->when = when;
+    timer->private = private;
     timer->callback = callback;
     timer_insert_list(timer);
 }
