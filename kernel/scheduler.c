@@ -3,6 +3,7 @@
 #include "debug.h"
 #include "list.h"
 #include "process.h"
+#include "timer.h"
 
 /*
  * Active and inactive scheduler queues. The reason we
@@ -186,6 +187,35 @@ scheduler_sleep(void)
     pcb->state = PROCESS_STATE_SLEEPING;
     scheduler_remove(pcb);
     scheduler_yield();
+}
+
+/*
+ * Callback for scheduler_sleep_with_timeout() that wakes the
+ * sleeping process.
+ */
+static void
+scheduler_sleep_with_timeout_callback(void *private)
+{
+    pcb_t *pcb = private;
+    scheduler_wake(pcb);
+}
+
+/*
+ * Same as scheduler_sleep(), but will automatically wake up at the
+ * specified timeout (absolute monotonic time) if not woken up by
+ * another source.
+ */
+void
+scheduler_sleep_with_timeout(int timeout)
+{
+    assert(timeout >= 0);
+
+    pcb_t *pcb = get_executing_pcb();
+    timer_t timer;
+    timer_init(&timer);
+    timer_setup_abs(&timer, timeout, pcb, scheduler_sleep_with_timeout_callback);
+    scheduler_sleep();
+    timer_cancel(&timer);
 }
 
 /*

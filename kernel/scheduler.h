@@ -19,6 +19,9 @@ void scheduler_remove(pcb_t *pcb);
 /* Puts the currently executing process to sleep */
 void scheduler_sleep(void);
 
+/* Puts the currently executing process to sleep until a timeout */
+void scheduler_sleep_with_timeout(int timeout);
+
 /* Wakes the specified process */
 void scheduler_wake(pcb_t *pcb);
 

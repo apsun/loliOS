@@ -1086,16 +1086,6 @@ process_halt(int status)
 }
 
 /*
- * Callback for process_monosleep(). Wakes the corresponding process.
- */
-static void
-process_monosleep_callback(void *private)
-{
-    pcb_t *pcb = private;
-    scheduler_wake(pcb);
-}
-
-/*
  * Sleeps until the specified monotonic clock time (in milliseconds).
  * If target is earlier than the current time, the call will immediately
  * return 0. The sleep may be interrupted, in which case -EINTR will
@@ -1109,28 +1099,17 @@ process_monosleep(int target)
         return -1;
     }
 
-    /* Check if we're already past the target time */
-    int now = pit_monotime();
-    if (now >= target) {
-        return 0;
-    }
-
     /* Put ourselves to sleep */
-    pcb_t *pcb = get_executing_pcb();
-    timer_t timer;
-    timer_init(&timer);
-    timer_setup_abs(&timer, target, pcb, process_monosleep_callback);
-    WAIT_ONCE_INTERRUPTIBLE(&sleep_queue);
+    scheduler_sleep_with_timeout(target);
 
-    /* We woke up, cancel timer in case we got woken early */
-    timer_cancel(&timer);
-
-    /* Check if we slept long enough */
-    now = pit_monotime();
-    if (now >= target) {
+    /*
+     * If we slept for at least the requested amount of time, return
+     * 0. Otherwise, we must have been woken up by something else, so
+     * return -EINTR.
+     */
+    if (pit_monotime() >= target) {
         return 0;
     }
-
     return -EINTR;
 }
 
