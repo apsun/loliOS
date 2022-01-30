@@ -278,7 +278,7 @@ typedef struct {
 #define seq(hdr) (ntohl((hdr)->be_seq_num))
 
 /* List of TCP sockets that have an ACK enqueued */
-static list_define(ack_queue);
+static list_define(tcp_ack_queue);
 
 /* Forward declaration */
 static void tcp_start_rto_timeout(tcp_sock_t *tcp);
@@ -687,7 +687,7 @@ static void
 tcp_enqueue_ack(tcp_sock_t *tcp)
 {
     if (list_empty(&tcp->ack_queue)) {
-        list_add(&tcp->ack_queue, &ack_queue);
+        list_add(&tcp->ack_queue, &tcp_ack_queue);
     }
 }
 
@@ -698,7 +698,7 @@ void
 tcp_deliver_ack(void)
 {
     list_t *pos, *next;
-    list_for_each_safe(pos, next, &ack_queue) {
+    list_for_each_safe(pos, next, &tcp_ack_queue) {
         tcp_sock_t *tcp = tcp_acquire(list_entry(pos, tcp_sock_t, ack_queue));
         if (!tcp_in_state(tcp, CLOSED)) {
             tcp_send_ack(tcp);

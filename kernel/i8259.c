@@ -36,8 +36,8 @@
  * slave IRQ line enabled since we treat the slave
  * as part of the master PIC.
  */
-static uint8_t master_mask = MASK_ALL & ~(1 << IRQ_SLAVE);
-static uint8_t slave_mask  = MASK_ALL;
+static uint8_t i8259_master_mask = MASK_ALL & ~(1 << IRQ_SLAVE);
+static uint8_t i8259_slave_mask  = MASK_ALL;
 
 /* Initializes the 8259 PIC */
 void
@@ -60,8 +60,8 @@ i8259_init(void)
     outb(ICW4,       SLAVE_8259_PORT_DATA);
 
     /* Unmask interrupts */
-    outb(master_mask, MASTER_8259_PORT_DATA);
-    outb(slave_mask,  SLAVE_8259_PORT_DATA);
+    outb(i8259_master_mask, MASTER_8259_PORT_DATA);
+    outb(i8259_slave_mask,  SLAVE_8259_PORT_DATA);
 }
 
 /* Enables (unmasks) the specified IRQ */
@@ -71,12 +71,12 @@ i8259_enable_irq(int irq_num)
     assert(irq_num >= 0 && irq_num < 16);
     debugf("Enabling IRQ#%d\n", irq_num);
     if (irq_num < 8) {
-        master_mask &= ~(1 << irq_num);
-        outb(master_mask, MASTER_8259_PORT_DATA);
+        i8259_master_mask &= ~(1 << irq_num);
+        outb(i8259_master_mask, MASTER_8259_PORT_DATA);
     } else {
         int slave_irq_num = irq_num - 8;
-        slave_mask &= ~(1 << slave_irq_num);
-        outb(slave_mask, SLAVE_8259_PORT_DATA);
+        i8259_slave_mask &= ~(1 << slave_irq_num);
+        outb(i8259_slave_mask, SLAVE_8259_PORT_DATA);
     }
 }
 
@@ -87,12 +87,12 @@ i8259_disable_irq(int irq_num)
     assert(irq_num >= 0 && irq_num < 16);
     debugf("Disabling IRQ#%d\n", irq_num);
     if (irq_num < 8) {
-        master_mask |= (1 << irq_num);
-        outb(master_mask, MASTER_8259_PORT_DATA);
+        i8259_master_mask |= (1 << irq_num);
+        outb(i8259_master_mask, MASTER_8259_PORT_DATA);
     } else {
         int slave_irq_num = irq_num - 8;
-        slave_mask |= (1 << slave_irq_num);
-        outb(slave_mask, SLAVE_8259_PORT_DATA);
+        i8259_slave_mask |= (1 << slave_irq_num);
+        outb(i8259_slave_mask, SLAVE_8259_PORT_DATA);
     }
 }
 

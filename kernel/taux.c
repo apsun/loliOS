@@ -118,16 +118,16 @@ static const uint8_t alpha_to_segment_map[26] = {
 };
 
 /* Number of pending ACKs */
-static int pending_acks = 0;
+static int taux_pending_acks = 0;
 
 /* Holds the current pressed state of the buttons */
-static uint8_t button_status = 0;
+static uint8_t taux_button_status = 0;
 
 /* Holds the last converted value sent to the TAUX_SET_LED[_STR] ioctl */
-static uint8_t led_segments[4];
+static uint8_t taux_led_segments[4];
 
 /* Whether we should send a LED_SET packet when free (no pending ACKs) */
-static bool set_led_pending = false;
+static bool taux_set_led_pending = false;
 
 /*
  * Converts a LED status value (from the TAUX_SET_LED
@@ -225,7 +225,7 @@ static void
 taux_send_cmd(uint8_t cmd)
 {
     serial_write_blocking(TAUX_COM_PORT, cmd);
-    pending_acks++;
+    taux_pending_acks++;
 }
 
 /*
@@ -249,8 +249,8 @@ taux_send_cmd_set_led(uint8_t segs[4])
     for (i = 0; i < 6; ++i) {
         serial_write_blocking(TAUX_COM_PORT, buf[i]);
     }
-    pending_acks++;
-    set_led_pending = false;
+    taux_pending_acks++;
+    taux_set_led_pending = false;
 }
 
 /*
@@ -265,14 +265,14 @@ taux_ioctl_init(void)
      * but it's not really harmful to do it multiple times.
      * This is just to prevent spamming.
      */
-    if (pending_acks > 0) {
+    if (taux_pending_acks > 0) {
         return -1;
     }
 
     taux_send_cmd(MTCP_BIOC_ON);
     taux_send_cmd(MTCP_LED_USR);
     taux_send_cmd(MTCP_POLL);
-    taux_send_cmd_set_led(led_segments);
+    taux_send_cmd_set_led(taux_led_segments);
     return 0;
 }
 
@@ -283,12 +283,12 @@ static int
 taux_ioctl_set_led(intptr_t arg)
 {
     /* Convert and save the LED status */
-    taux_convert_set_led(arg, led_segments);
-    set_led_pending = true;
+    taux_convert_set_led(arg, taux_led_segments);
+    taux_set_led_pending = true;
 
     /* If we're not waiting for something else, send the packet immediately */
-    if (pending_acks == 0) {
-        taux_send_cmd_set_led(led_segments);
+    if (taux_pending_acks == 0) {
+        taux_send_cmd_set_led(taux_led_segments);
     }
 
     /* No way we can fail under normal circumstances */
@@ -309,15 +309,15 @@ taux_ioctl_set_led_str(intptr_t arg)
     }
 
     /* Convert the string to led segment format */
-    if (taux_convert_set_led_str(str, led_segments) < 0) {
+    if (taux_convert_set_led_str(str, taux_led_segments) < 0) {
         debugf("Invalid string format\n");
         return -1;
     }
-    set_led_pending = true;
+    taux_set_led_pending = true;
 
     /* If we're not waiting for something else, send the packet immediately */
-    if (pending_acks == 0) {
-        taux_send_cmd_set_led(led_segments);
+    if (taux_pending_acks == 0) {
+        taux_send_cmd_set_led(taux_led_segments);
     }
 
     return 0;
@@ -330,7 +330,7 @@ static int
 taux_ioctl_get_buttons(intptr_t arg)
 {
     uint8_t *ptr = (uint8_t *)arg;
-    if (!copy_to_user(ptr, &button_status, sizeof(button_status))) {
+    if (!copy_to_user(ptr, &taux_button_status, sizeof(taux_button_status))) {
         debugf("Invalid pointer; could not copy button status\n");
         return -1;
     }
@@ -344,21 +344,21 @@ static void
 taux_handle_ack(void)
 {
     /* One less ACK to worry about */
-    pending_acks--;
+    taux_pending_acks--;
 
     /*
      * This should never happen! If it does, our assumption
      * that we don't get any ACKs for commands sent before
      * a RESET is probably wrong.
      */
-    assert(pending_acks >= 0);
+    assert(taux_pending_acks >= 0);
 
     /*
      * If we have no more pending ACKs and someone tried to set the LEDs
      * while we were waiting, handle that now.
      */
-    if (pending_acks == 0 && set_led_pending) {
-        taux_send_cmd_set_led(led_segments);
+    if (taux_pending_acks == 0 && taux_set_led_pending) {
+        taux_send_cmd_set_led(taux_led_segments);
     }
 }
 
@@ -369,7 +369,7 @@ static void
 taux_handle_reset(void)
 {
     /* Assume RESET causes any in-flight commands to be dropped */
-    pending_acks = 0;
+    taux_pending_acks = 0;
 
     /* Re-initialize the taux controller */
     taux_ioctl_init();
@@ -389,7 +389,7 @@ taux_handle_bioc_event(uint8_t b, uint8_t c)
     button_status_new |= !(c & 0x4) << 5; /* Down    */
     button_status_new |= !(c & 0x2) << 6; /* Left    */
     button_status_new |= !(c & 0x8) << 7; /* Right   */
-    button_status = button_status_new;
+    taux_button_status = button_status_new;
 }
 
 /*

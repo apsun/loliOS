@@ -174,16 +174,16 @@ typedef struct {
 } __packed ne2k_hdr_t;
 
 /* Whether we're currently transmitting a packet */
-static bool tx_busy = false;
+static bool ne2k_tx_busy = false;
 
 /* Buffer number currently being transmitted */
-static int tx_buf = 0;
+static int ne2k_tx_buf = 0;
 
 /* Length of data in each tx buffer, 0 = free buffer */
-static int tx_buf_len[2];
+static int ne2k_tx_buf_len[2];
 
 /* Packets waiting to be sent */
-static list_define(tx_queue);
+static list_define(ne2k_tx_queue);
 
 /* Sets the remote DMA byte offset and count */
 static void
@@ -355,9 +355,9 @@ ne2k_reset(void)
     outb(NE2K_CMD_PAGE0 | NE2K_CMD_STOP, NE2K_CMD);
 
     /* Reset tx status */
-    tx_busy = false;
-    tx_buf_len[0] = 0;
-    tx_buf_len[1] = 0;
+    ne2k_tx_busy = false;
+    ne2k_tx_buf_len[0] = 0;
+    ne2k_tx_buf_len[1] = 0;
 
     /* Unmask interrupts */
     outb(0xff, NE2K_ISR);
@@ -444,17 +444,17 @@ ne2k_handle_rx(void)
 static void
 ne2k_begin_tx(void)
 {
-    int len = tx_buf_len[tx_buf];
+    int len = ne2k_tx_buf_len[ne2k_tx_buf];
     assert(len > 0);
-    assert(!tx_busy);
+    assert(!ne2k_tx_busy);
 
     /* Mask interrupts, busy = ON */
-    tx_busy = true;
+    ne2k_tx_busy = true;
 
     /* Set tx length and offset */
     outb((len >> 0) & 0xff, NE2K_TCNTLO);
     outb((len >> 8) & 0xff, NE2K_TCNTHI);
-    outb(NE2K_TX_START_PAGE + tx_buf * NE2K_PAGES_PER_PKT, NE2K_TPSR);
+    outb(NE2K_TX_START_PAGE + ne2k_tx_buf * NE2K_PAGES_PER_PKT, NE2K_TPSR);
 
     /* Go! */
     outb(NE2K_CMD_TRANS, NE2K_CMD);
@@ -469,7 +469,7 @@ ne2k_copy_to_tx(int buf, skb_t *skb)
 {
     int page = NE2K_TX_START_PAGE + buf * NE2K_PAGES_PER_PKT;
     ne2k_write_mem(page * NE2K_BYTES_PER_PAGE, skb_data(skb), skb_len(skb));
-    tx_buf_len[buf] = skb_len(skb);
+    ne2k_tx_buf_len[buf] = skb_len(skb);
 }
 
 /*
@@ -482,8 +482,8 @@ static void
 ne2k_handle_tx(void)
 {
     /* Mark current tx slot as free */
-    tx_busy = false;
-    tx_buf_len[tx_buf] = 0;
+    ne2k_tx_busy = false;
+    ne2k_tx_buf_len[ne2k_tx_buf] = 0;
 
     /*
      * If we have more packets to send, copy the first
@@ -491,16 +491,16 @@ ne2k_handle_tx(void)
      * is that there can only be a packet in the queue
      * if both tx buffers were full.
      */
-    if (!list_empty(&tx_queue)) {
-        skb_t *skb = list_first_entry(&tx_queue, skb_t, list);
-        ne2k_copy_to_tx(tx_buf, skb);
+    if (!list_empty(&ne2k_tx_queue)) {
+        skb_t *skb = list_first_entry(&ne2k_tx_queue, skb_t, list);
+        ne2k_copy_to_tx(ne2k_tx_buf, skb);
         list_del(&skb->list);
         skb_release(skb);
     }
 
     /* Begin transmitting the other tx slot */
-    tx_buf = !tx_buf;
-    if (tx_buf_len[tx_buf] > 0) {
+    ne2k_tx_buf = !ne2k_tx_buf;
+    if (ne2k_tx_buf_len[ne2k_tx_buf] > 0) {
         ne2k_begin_tx();
     }
 }
@@ -548,10 +548,10 @@ ne2k_send(net_dev_t *dev, skb_t *skb)
 {
     /* Find a free tx buffer to store our packet in */
     int buf;
-    if (!tx_busy) {
-        buf = tx_buf;
-    } else if (tx_buf_len[!tx_buf] == 0) {
-        buf = !tx_buf;
+    if (!ne2k_tx_busy) {
+        buf = ne2k_tx_buf;
+    } else if (ne2k_tx_buf_len[!ne2k_tx_buf] == 0) {
+        buf = !ne2k_tx_buf;
     } else {
         /*
          * Need to clone this SKB, since it's possible for a higher
@@ -565,7 +565,7 @@ ne2k_send(net_dev_t *dev, skb_t *skb)
             return -1;
         }
 
-        list_add_tail(&clone->list, &tx_queue);
+        list_add_tail(&clone->list, &ne2k_tx_queue);
         return 0;
     }
 
@@ -573,7 +573,7 @@ ne2k_send(net_dev_t *dev, skb_t *skb)
     ne2k_copy_to_tx(buf, skb);
 
     /* Begin transmission if device is not busy */
-    if (!tx_busy) {
+    if (!ne2k_tx_busy) {
         ne2k_begin_tx();
     }
 

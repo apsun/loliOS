@@ -3,8 +3,8 @@
 #include "debug.h"
 
 /* List of registered network interfaces */
-static net_iface_t *interfaces[2];
-static int num_interfaces = 0;
+static net_iface_t *net_interfaces[2];
+static int net_num_interfaces = 0;
 
 /*
  * Returns the interface corresponding to the specified
@@ -15,8 +15,8 @@ net_iface_t *
 net_get_interface(net_dev_t *dev)
 {
     int i;
-    for (i = 0; i < array_len(interfaces); ++i) {
-        net_iface_t *iface = interfaces[i];
+    for (i = 0; i < array_len(net_interfaces); ++i) {
+        net_iface_t *iface = net_interfaces[i];
         if (iface->dev == dev) {
             return iface;
         }
@@ -57,8 +57,8 @@ net_route(net_iface_t *iface, ip_addr_t ip, ip_addr_t *neigh_ip)
         iface_list = &iface;
         iface_count = 1;
     } else {
-        iface_list = interfaces;
-        iface_count = num_interfaces;
+        iface_list = net_interfaces;
+        iface_count = net_num_interfaces;
     }
 
     /* Find an interface with subnet matching specified IP address */
@@ -92,8 +92,8 @@ net_iface_t *
 net_find(ip_addr_t ip)
 {
     int i;
-    for (i = 0; i < num_interfaces; ++i) {
-        net_iface_t *iface = interfaces[i];
+    for (i = 0; i < net_num_interfaces; ++i) {
+        net_iface_t *iface = net_interfaces[i];
         if (ip_equals(iface->ip_addr, ip)) {
             return iface;
         }
@@ -107,6 +107,6 @@ net_find(ip_addr_t ip)
 void
 net_register_interface(net_iface_t *iface)
 {
-    assert(num_interfaces < array_len(interfaces));
-    interfaces[num_interfaces++] = iface;
+    assert(net_num_interfaces < array_len(net_interfaces));
+    net_interfaces[net_num_interfaces++] = iface;
 }

@@ -420,7 +420,7 @@ terminal_tty_read(file_obj_t *file, void *buf, int nbytes)
     /* Wait until there's a newline/EOT in the buffer */
     nbytes = WAIT_INTERRUPTIBLE(
         terminal_tty_get_readable_bytes(term, nbytes),
-        &input_buf->sleep_queue,
+        &input_buf->read_queue,
         file->nonblocking);
     if (nbytes <= 0) {
         return nbytes;
@@ -516,7 +516,7 @@ terminal_tty_poll(file_obj_t *file, wait_node_t *readq, wait_node_t *writeq)
 
     revents |= POLL_READ(
         terminal_tty_get_readable_bytes(term, INT_MAX),
-        &input_buf->sleep_queue,
+        &input_buf->read_queue,
         readq);
 
     revents |= OPEN_WRITE;
@@ -590,7 +590,7 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
     /* Wait until we have any events to read */
     nbytes = WAIT_INTERRUPTIBLE(
         terminal_mouse_get_readable_bytes(term, nbytes),
-        &input_buf->sleep_queue,
+        &input_buf->read_queue,
         file->nonblocking);
     if (nbytes <= 0) {
         return nbytes;
@@ -625,7 +625,7 @@ terminal_mouse_poll(file_obj_t *file, wait_node_t *readq, wait_node_t *writeq)
 
     revents |= POLL_READ(
         terminal_mouse_get_readable_bytes(term, INT_MAX),
-        &input_buf->sleep_queue,
+        &input_buf->read_queue,
         readq);
 
     return revents;
@@ -658,7 +658,7 @@ terminal_eof(void)
     kbd_input_buf_t *input_buf = &term->kbd_input;
     if (input_buf->count < array_len(input_buf->buf)) {
         input_buf->buf[input_buf->count++] = EOT;
-        wait_queue_wake(&input_buf->sleep_queue);
+        wait_queue_wake(&input_buf->read_queue);
     }
 }
 
@@ -711,7 +711,7 @@ handle_char_input(char c)
     }
 
     /* Wake all processes waiting on input to this terminal */
-    wait_queue_wake(&input_buf->sleep_queue);
+    wait_queue_wake(&input_buf->read_queue);
 }
 
 /* Handles input from the keyboard */
@@ -748,7 +748,7 @@ terminal_handle_mouse_input(mouse_input_t input)
         input_buf->buf[input_buf->count++] = input.flags;
         input_buf->buf[input_buf->count++] = input.dx;
         input_buf->buf[input_buf->count++] = input.dy;
-        wait_queue_wake(&input_buf->sleep_queue);
+        wait_queue_wake(&input_buf->read_queue);
     }
 }
 
@@ -895,8 +895,8 @@ terminal_init(void)
         term->fg_group = -1;
         term->kbd_input.count = 0;
         term->mouse_input.count = 0;
-        list_init(&term->kbd_input.sleep_queue);
-        list_init(&term->mouse_input.sleep_queue);
+        list_init(&term->kbd_input.read_queue);
+        list_init(&term->mouse_input.read_queue);
 
         if (i == display_terminal) {
             term->active_mem = (uint8_t *)VGA_TEXT_PAGE_START;

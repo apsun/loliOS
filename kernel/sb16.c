@@ -36,31 +36,31 @@
 #define SB16_HALF_BUFFER_SIZE 0x2000
 
 /* Tracks the single open sound file */
-static file_obj_t *open_device = NULL;
+static file_obj_t *sb16_open_device = NULL;
 
 /*
  * Sample data buffer (split into halves for gapless playback).
  * Needs to be word-aligned to perform 16-bit DMA.
  */
 __aligned(2)
-static uint8_t audio_buf[2][SB16_HALF_BUFFER_SIZE];
+static uint8_t sb16_buf[2][SB16_HALF_BUFFER_SIZE];
 
 /* Which buffer is being written to */
-static int audio_buf_flip = 0;
+static int sb16_buf_flip = 0;
 
 /* Number of bytes in the buffer being written to */
-static int audio_buf_count = 0;
+static int sb16_buf_count = 0;
 
 /* Playback parameters (default = 11kHz, mono, 8bit) */
-static int sample_rate = 11025;
-static int num_channels = 1;
-static int bits_per_sample = 8;
+static int sb16_sample_rate = 11025;
+static int sb16_num_channels = 1;
+static int sb16_bits_per_sample = 8;
 
 /* Whether there is currently audio being played */
-static bool is_playing = false;
+static bool sb16_is_playing = false;
 
 /* Queue for writing audio samples */
-static list_define(write_sleep_queue);
+static list_define(sb16_write_queue);
 
 /* Writes a single byte to the SB16 DSP */
 static void
@@ -96,8 +96,8 @@ static void
 sb16_write_sample_rate(void)
 {
     sb16_out(SB16_CMD_SAMPLE_RATE);
-    sb16_out((sample_rate >> 8) & 0xff);
-    sb16_out((sample_rate >> 0) & 0xff);
+    sb16_out((sb16_sample_rate >> 8) & 0xff);
+    sb16_out((sb16_sample_rate >> 0) & 0xff);
 }
 
 /* Begins audio playback, must not be called during playback */
@@ -106,15 +106,15 @@ sb16_start_playback(void)
 {
     uint8_t cmd = 0;
     uint8_t mode = 0;
-    uint16_t len = (uint16_t)audio_buf_count;
+    uint16_t len = (uint16_t)sb16_buf_count;
     uint8_t channel = 0;
 
-    if (bits_per_sample == 8) {
+    if (sb16_bits_per_sample == 8) {
         /* 8 bit unsigned output */
         channel = SB16_DMA8_CHANNEL;
         cmd |= SB16_CMD_BEGIN_CMD_8BIT;
         mode &= ~SB16_CMD_BEGIN_MODE_SIGNED;
-    } else if (bits_per_sample == 16) {
+    } else if (sb16_bits_per_sample == 16) {
         /* 16 bit signed output */
         channel = SB16_DMA16_CHANNEL;
         cmd |= SB16_CMD_BEGIN_CMD_16BIT;
@@ -122,10 +122,10 @@ sb16_start_playback(void)
         len /= 2;
     }
 
-    if (num_channels == 1) {
+    if (sb16_num_channels == 1) {
         /* Mono */
         mode &= ~SB16_CMD_BEGIN_MODE_STEREO;
-    } else if (num_channels == 2) {
+    } else if (sb16_num_channels == 2) {
         /* Stereo */
         mode |= SB16_CMD_BEGIN_MODE_STEREO;
         len /= 2;
@@ -141,11 +141,11 @@ sb16_start_playback(void)
     sb16_out((len >> 8) & 0xff);
 
     /* Start DMA transfer, swap to other buffer half */
-    dma_start(audio_buf[audio_buf_flip], audio_buf_count, channel, DMA_OP_READ | DMA_MODE_SINGLE);
-    audio_buf_flip = !audio_buf_flip;
-    audio_buf_count = 0;
+    dma_start(sb16_buf[sb16_buf_flip], sb16_buf_count, channel, DMA_OP_READ | DMA_MODE_SINGLE);
+    sb16_buf_flip = !sb16_buf_flip;
+    sb16_buf_count = 0;
 
-    is_playing = true;
+    sb16_is_playing = true;
 }
 
 /* Acquires exclusive access to the Sound Blaster 16 device */
@@ -153,12 +153,12 @@ static int
 sb16_open(file_obj_t *file)
 {
     /* Only allow one open sound file at a time, since no mixer support */
-    if (open_device != NULL) {
+    if (sb16_open_device != NULL) {
         debugf("Device busy, cannot open\n");
         return -1;
     }
 
-    open_device = file;
+    sb16_open_device = file;
     return 0;
 }
 
@@ -169,7 +169,7 @@ sb16_open(file_obj_t *file)
 static int
 sb16_can_read(void)
 {
-    return audio_buf_count == 0 ? 0 : -EAGAIN;
+    return sb16_buf_count == 0 ? 0 : -EAGAIN;
 }
 
 /*
@@ -182,7 +182,7 @@ sb16_read(file_obj_t *file, void *buf, int nbytes)
 {
     return WAIT_INTERRUPTIBLE(
         sb16_can_read(),
-        &write_sleep_queue,
+        &sb16_write_queue,
         file->nonblocking);
 }
 
@@ -194,17 +194,17 @@ static int
 sb16_get_writable_bytes(int nbytes)
 {
     /* Must write at least one complete sample */
-    if (nbytes < 0 || nbytes < bits_per_sample / 8) {
+    if (nbytes < 0 || nbytes < sb16_bits_per_sample / 8) {
         return -1;
     } else if (nbytes == 0) {
         return 0;
     }
 
     /* Limit writable bytes to one region */
-    nbytes = min(nbytes, SB16_HALF_BUFFER_SIZE - audio_buf_count);
+    nbytes = min(nbytes, SB16_HALF_BUFFER_SIZE - sb16_buf_count);
 
     /* If we're using the 16-bit DMA channel, nbytes must be even */
-    nbytes &= -(bits_per_sample / 8);
+    nbytes &= -(sb16_bits_per_sample / 8);
 
     /* Do we have anything to write? */
     if (nbytes > 0) {
@@ -212,7 +212,7 @@ sb16_get_writable_bytes(int nbytes)
     }
 
     /* If we can't write anything, the device must be busy */
-    assert(is_playing);
+    assert(sb16_is_playing);
 
     return -EAGAIN;
 }
@@ -228,20 +228,20 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
     /* Wait until buffer is writable */
     nbytes = WAIT_INTERRUPTIBLE(
         sb16_get_writable_bytes(nbytes),
-        &write_sleep_queue,
+        &sb16_write_queue,
         file->nonblocking);
     if (nbytes <= 0) {
         return nbytes;
     }
 
     /* Copy sample data into the audio buffer */
-    if (!copy_from_user(&audio_buf[audio_buf_flip][audio_buf_count], buf, nbytes)) {
+    if (!copy_from_user(&sb16_buf[sb16_buf_flip][sb16_buf_count], buf, nbytes)) {
         return -1;
     }
-    audio_buf_count += nbytes;
+    sb16_buf_count += nbytes;
 
     /* Start playback immediately if not already playing */
-    if (!is_playing) {
+    if (!sb16_is_playing) {
         sb16_start_playback();
     }
 
@@ -252,8 +252,8 @@ sb16_write(file_obj_t *file, const void *buf, int nbytes)
 static void
 sb16_close(file_obj_t *file)
 {
-    assert(file == open_device);
-    open_device = NULL;
+    assert(file == sb16_open_device);
+    sb16_open_device = NULL;
 }
 
 /* Sets the bits per sample playback parameter */
@@ -261,7 +261,7 @@ static int
 sb16_ioctl_set_bits_per_sample(intptr_t arg)
 {
     if (arg == 8 || arg == 16) {
-        bits_per_sample = arg;
+        sb16_bits_per_sample = arg;
         return 0;
     }
 
@@ -274,7 +274,7 @@ static int
 sb16_ioctl_set_num_channels(intptr_t arg)
 {
     if (arg == 1 || arg == 2) {
-        num_channels = arg;
+        sb16_num_channels = arg;
         return 0;
     }
 
@@ -293,7 +293,7 @@ sb16_ioctl_set_sample_rate(intptr_t arg)
     case 22050:
     case 32000:
     case 44100:
-        sample_rate = arg;
+        sb16_sample_rate = arg;
         sb16_write_sample_rate();
         return 0;
     default:
@@ -313,7 +313,7 @@ sb16_ioctl_set_sample_rate(intptr_t arg)
 static int
 sb16_ioctl(file_obj_t *file, int req, intptr_t arg)
 {
-    if (is_playing) {
+    if (sb16_is_playing) {
         debugf("Cannot change parameters during playback\n");
         return -1;
     }
@@ -348,12 +348,12 @@ sb16_poll(file_obj_t *file, wait_node_t *readq, wait_node_t *writeq)
 
     revents |= POLL_READ(
         sb16_can_read(),
-        &write_sleep_queue,
+        &sb16_write_queue,
         readq);
 
     revents |= POLL_WRITE(
         sb16_get_writable_bytes(INT_MAX),
-        &write_sleep_queue,
+        &sb16_write_queue,
         writeq);
 
     return revents;
@@ -364,18 +364,18 @@ static void
 sb16_handle_irq(void)
 {
     /* Acknowledge the interuupt */
-    if (bits_per_sample == 8) {
+    if (sb16_bits_per_sample == 8) {
         inb(SB16_PORT_INTACK_8BIT);
-    } else if (bits_per_sample == 16) {
+    } else if (sb16_bits_per_sample == 16) {
         inb(SB16_PORT_INTACK_16BIT);
     }
 
     /* If more samples arrived during playback, restart */
-    if (audio_buf_count > 0) {
+    if (sb16_buf_count > 0) {
         sb16_start_playback();
-        wait_queue_wake(&write_sleep_queue);
+        wait_queue_wake(&sb16_write_queue);
     } else {
-        is_playing = false;
+        sb16_is_playing = false;
     }
 }
 

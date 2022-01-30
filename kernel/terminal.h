@@ -16,14 +16,14 @@
 typedef struct {
     char buf[128];
     int count;
-    list_t sleep_queue;
+    list_t read_queue;
 } kbd_input_buf_t;
 
 /* Mouse input buffer */
 typedef struct {
     uint8_t buf[64];
     int count;
-    list_t sleep_queue;
+    list_t read_queue;
 } mouse_input_buf_t;
 
 /* Cursor position information */

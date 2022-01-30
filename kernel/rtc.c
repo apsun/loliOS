@@ -79,7 +79,7 @@ static volatile uint32_t rtc_counter = 0;
 /*
  * Queue for processes waiting for an RTC interrupt.
  */
-static list_define(rtc_sleep_queue);
+static list_define(rtc_read_queue);
 
 /*
  * Reads the value of a RTC register. The reg
@@ -114,7 +114,7 @@ rtc_handle_irq(void)
     rtc_counter++;
 
     /* Wake all processes waiting for an interrupt */
-    wait_queue_wake(&rtc_sleep_queue);
+    wait_queue_wake(&rtc_read_queue);
 }
 
 /*
@@ -163,7 +163,7 @@ rtc_read(file_obj_t *file, void *buf, int nbytes)
     uint32_t target_counter = next_multiple_of(rtc_counter, max_ticks);
     return WAIT_INTERRUPTIBLE(
         (int32_t)(rtc_counter - target_counter) >= 0 ? 0 : -EAGAIN,
-        &rtc_sleep_queue,
+        &rtc_read_queue,
         file->nonblocking);
 }
 

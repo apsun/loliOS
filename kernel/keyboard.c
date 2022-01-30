@@ -34,7 +34,7 @@
 #define NUM_KEYS 58
 
 /* Current pressed/toggled modifier key state */
-static kbd_modifiers_t modifiers = KMOD_NONE;
+static kbd_modifiers_t kbd_modifiers = KMOD_NONE;
 
 /*
  * Maps keycode values to printable characters. Data from:
@@ -83,9 +83,9 @@ static void
 set_modifier_bit(int bit, kbd_modifiers_t mask)
 {
     if (bit) {
-        modifiers |= mask;
+        kbd_modifiers |= mask;
     } else {
-        modifiers &= ~mask;
+        kbd_modifiers &= ~mask;
     }
 }
 
@@ -93,7 +93,7 @@ set_modifier_bit(int bit, kbd_modifiers_t mask)
 static void
 toggle_modifier_bit(kbd_modifiers_t mask)
 {
-    modifiers ^= mask;
+    kbd_modifiers ^= mask;
 }
 
 /*
@@ -133,7 +133,7 @@ keycode_to_modifier(uint8_t keycode)
 static int
 get_modifiers(void)
 {
-    kbd_modifiers_t mod = modifiers;
+    kbd_modifiers_t mod = kbd_modifiers;
     if (mod & (KMOD_CTRL))  mod |= KMOD_CTRL;
     if (mod & (KMOD_SHIFT)) mod |= KMOD_SHIFT;
     if (mod & (KMOD_ALT))   mod |= KMOD_ALT;
