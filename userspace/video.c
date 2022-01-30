@@ -104,7 +104,7 @@ play(int fd)
         goto exit;
     }
 
-    soundfd = create("sound", OPEN_WRITE);
+    soundfd = create("sound", OPEN_RDWR);
     if (soundfd < 0) {
         fprintf(stderr, "Could not open sound file\n");
         goto exit;
@@ -177,7 +177,7 @@ play(int fd)
         }
 
         /* Wait for previous frame's audio to complete playback */
-        if (write(soundfd, NULL, 0) < 0) {
+        if (read(soundfd, NULL, 0) < 0) {
             FAIL("Could not wait for audio sync\n");
             goto exit;
         }

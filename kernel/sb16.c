@@ -61,9 +61,6 @@ static bool is_playing = false;
 /* Queue for writing audio samples */
 static list_define(write_sleep_queue);
 
-/* Queue for waiting for audio playback to complete */
-static list_define(read_sleep_queue);
-
 /* Writes a single byte to the SB16 DSP */
 static void
 sb16_out(uint8_t value)
@@ -165,15 +162,16 @@ sb16_open(file_obj_t *file)
 }
 
 /*
- * SB16 read() syscall handler. Waits until audio playback
- * completes, then returns 0 (or -EINTR if signal is pending).
+ * SB16 read() syscall handler. Blocks until there is at least
+ * one empty buffer slot (i.e. when both slots are full, waits
+ * until the first one completes playback), then returns 0.
  */
 static int
 sb16_read(file_obj_t *file, void *buf, int nbytes)
 {
     return WAIT_INTERRUPTIBLE(
-        is_playing ? -EAGAIN : 0,
-        &read_sleep_queue,
+        audio_buf_count == 0 ? 0 : -EAGAIN,
+        &write_sleep_queue,
         file->nonblocking);
 }
 
@@ -182,26 +180,24 @@ sb16_read(file_obj_t *file, void *buf, int nbytes)
  * to the SB16 DMA buffer.
  */
 static int
-sb16_get_writable_count(int nbytes)
+sb16_get_writable_bytes(int nbytes)
 {
-    /* 0 means to check for an empty slot */
-    if (nbytes == 0) {
-        if (audio_buf_count == 0) {
-            return 0;
-        } else {
-            return -EAGAIN;
-        }
+    /* Must write at least one complete sample */
+    if (nbytes < 0 || nbytes < bits_per_sample / 8) {
+        return -1;
+    } else if (nbytes == 0) {
+        return 0;
     }
 
     /* Limit writable bytes to one region */
-    int to_write = min(nbytes, SB16_HALF_BUFFER_SIZE - audio_buf_count);
+    nbytes = min(nbytes, SB16_HALF_BUFFER_SIZE - audio_buf_count);
 
     /* If we're using the 16-bit DMA channel, nbytes must be even */
-    to_write &= -(bits_per_sample / 8);
+    nbytes &= -(bits_per_sample / 8);
 
     /* Do we have anything to write? */
-    if (to_write > 0) {
-        return to_write;
+    if (nbytes > 0) {
+        return nbytes;
     }
 
     /* If we can't write anything, the device must be busy */
@@ -214,40 +210,31 @@ sb16_get_writable_count(int nbytes)
  * SB16 write() syscall handler. If audio is not already
  * playing, this will begin playback. To set playback
  * parameters, use ioctl().
- *
- * If nbytes == 0, this blocks until there is at least one
- * empty buffer slot (i.e. when both slots are full, waits
- * until the first one completes playback), then returns 0.
  */
 static int
 sb16_write(file_obj_t *file, const void *buf, int nbytes)
 {
-    /* Must write at least one complete sample */
-    if (nbytes != 0 && nbytes < bits_per_sample / 8) {
-        return -1;
-    }
-
     /* Wait until buffer is writable */
-    int to_write = WAIT_INTERRUPTIBLE(
-        sb16_get_writable_count(nbytes),
+    nbytes = WAIT_INTERRUPTIBLE(
+        sb16_get_writable_bytes(nbytes),
         &write_sleep_queue,
         file->nonblocking);
-    if (to_write <= 0) {
-        return to_write;
+    if (nbytes <= 0) {
+        return nbytes;
     }
 
     /* Copy sample data into the audio buffer */
-    if (!copy_from_user(&audio_buf[audio_buf_flip][audio_buf_count], buf, to_write)) {
+    if (!copy_from_user(&audio_buf[audio_buf_flip][audio_buf_count], buf, nbytes)) {
         return -1;
     }
-    audio_buf_count += to_write;
+    audio_buf_count += nbytes;
 
     /* Start playback immediately if not already playing */
     if (!is_playing) {
         sb16_start_playback();
     }
 
-    return to_write;
+    return nbytes;
 }
 
 /* Releases exclusive access to the Sound Blaster 16 device */
@@ -354,7 +341,6 @@ sb16_handle_irq(void)
         wait_queue_wake(&write_sleep_queue);
     } else {
         is_playing = false;
-        wait_queue_wake(&read_sleep_queue);
     }
 }
 
