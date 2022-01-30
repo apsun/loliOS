@@ -193,7 +193,7 @@ __cdecl int monosleep(int target);
 __cdecl int fbmap(void **ptr, int xres, int yres, int bpp);
 __cdecl int fbunmap(void *ptr);
 __cdecl int fbflip(void *ptr);
-__cdecl int poll(pollfd_t *pfd, int nfd);
+__cdecl int poll(pollfd_t *pfd, int nfd, int timeout);
 
 #endif /* ASM */
 

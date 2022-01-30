@@ -48,7 +48,7 @@ typedef struct {
 } pollfd_t;
 
 /* poll() syscall handler */
-__cdecl int poll_poll(pollfd_t *pfd, int nfd);
+__cdecl int poll_poll(pollfd_t *pfd, int nfd, int timeout);
 
 /* Generic wait-less poll handler implementations */
 int poll_generic_rdonly(file_obj_t *file, wait_node_t *readq, wait_node_t *writeq);

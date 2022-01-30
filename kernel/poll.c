@@ -6,6 +6,7 @@
 #include "paging.h"
 #include "scheduler.h"
 #include "signal.h"
+#include "pit.h"
 
 /*
  * poll() syscall implementation.
@@ -22,7 +23,7 @@
  * we unregister all wait queue nodes and return.
  */
 static int
-poll_impl(pollfd_t *kpfds, int nfds)
+poll_impl(pollfd_t *kpfds, int nfds, int timeout)
 {
     int ret = 0;
     int i;
@@ -76,8 +77,8 @@ poll_impl(pollfd_t *kpfds, int nfds)
             }
         }
 
-        /* Stop polling if any files have events */
-        if (ret > 0) {
+        /* Stop polling if any files have events or we've hit the timeout */
+        if (ret > 0 || (timeout >= 0 && pit_monotime() >= timeout)) {
             break;
         }
 
@@ -87,8 +88,12 @@ poll_impl(pollfd_t *kpfds, int nfds)
             goto exit;
         }
 
-        /* Wait for one of the files to wake us */
-        scheduler_sleep();
+        /* Wait for one of the files or timeout to wake us */
+        if (timeout >= 0) {
+            scheduler_sleep_with_timeout(timeout);
+        } else {
+            scheduler_sleep();
+        }
     }
 
 exit:
@@ -103,7 +108,9 @@ exit:
 
 /*
  * poll() syscall handler. Waits for any of the input files
- * to be readable/writable.
+ * to be readable/writable, or until the given timeout (absolute
+ * monotonic time, or < 0 for infinite). Returns the number of
+ * files with events, or 0 if the poll timed out.
  *
  * If a file does not support a given operation, or the file
  * is opened without permissions to perform that operation,
@@ -111,7 +118,7 @@ exit:
  * Be warned, this may lead to deadlock!
  */
 __cdecl int
-poll_poll(pollfd_t *pfds, int nfds)
+poll_poll(pollfd_t *pfds, int nfds, int timeout)
 {
     if (nfds <= 0 || nfds > MAX_FILES) {
         debugf("Invalid value for nfds: %d\n", nfds);
@@ -125,10 +132,10 @@ poll_poll(pollfd_t *pfds, int nfds)
     }
 
     /* Do the actual poll logic with the kernel copy of pfds */
-    int ret = poll_impl(kpfds, nfds);
+    int ret = poll_impl(kpfds, nfds, timeout);
 
     /* Copy pfds with revent fields set back to userspace */
-    if (ret > 0 && !copy_to_user(pfds, kpfds, nfds * sizeof(pollfd_t))) {
+    if (ret >= 0 && !copy_to_user(pfds, kpfds, nfds * sizeof(pollfd_t))) {
         return -1;
     }
 
