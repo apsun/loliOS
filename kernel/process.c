@@ -583,7 +583,8 @@ process_clone(pcb_t *parent_pcb, int_regs_t *regs, bool clone_pages)
     file_clone(child_pcb->files, parent_pcb->files);
     signal_clone(child_pcb->signals, parent_pcb->signals);
     heap_init_user(&child_pcb->heap, USER_HEAP_START, USER_HEAP_END);
-    timer_clone(&child_pcb->alarm_timer, &parent_pcb->alarm_timer);
+    timer_init(&child_pcb->alarm_timer);
+    timer_setup(&child_pcb->alarm_timer, SIGALRM_PERIOD_MS, child_pcb, process_alarm_callback);
     list_init(&child_pcb->scheduler_list);
     strcpy(child_pcb->args, parent_pcb->args);
     child_pcb->regs = *regs;

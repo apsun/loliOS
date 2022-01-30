@@ -23,9 +23,6 @@ void timer_tick(int now);
 /* Initializes a timer object */
 void timer_init(timer_t *timer);
 
-/* Clones an existing timer object */
-void timer_clone(timer_t *dest, timer_t *src);
-
 /* Starts a new timer with the specified delay in milliseconds and callback */
 void timer_setup(timer_t *timer, int delay, void *private, void (*callback)(void *));
 

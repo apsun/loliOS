@@ -60,30 +60,6 @@ timer_init(timer_t *timer)
 }
 
 /*
- * Clones an existing timer. The destination timer must be
- * originally inactive.
- */
-void
-timer_clone(timer_t *dest, timer_t *src)
-{
-    assert(src != NULL);
-    assert(dest != NULL);
-    assert(dest->callback == NULL);
-
-    dest->callback = src->callback;
-    if (dest->callback != NULL) {
-        dest->when = src->when;
-
-        /*
-         * Since we know that the expiration times are the same,
-         * we can just directly add the new timer immediately
-         * adjacent to the original one.
-         */
-        list_add(&dest->list, &src->list);
-    }
-}
-
-/*
  * Activates a timer to expire after the specified delay in
  * milliseconds. If the timer is already active, the original
  * callback will be cancelled and the timer rescheduled.
