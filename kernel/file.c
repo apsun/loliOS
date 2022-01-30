@@ -436,10 +436,10 @@ file_fcntl_nonblock(file_obj_t *file, int req, intptr_t arg)
 }
 
 /*
-* fcntl() syscall handler. Similar to ioctl(), but is standardized
-* for all file objects. No more accidentally sending bogus ioctl()
-* calls to unknown objects.
-*/
+ * fcntl() syscall handler. Similar to ioctl(), but is standardized
+ * for all file objects. No more accidentally sending bogus ioctl()
+ * calls to unknown objects.
+ */
 __cdecl int
 file_fcntl(int fd, int req, intptr_t arg)
 {

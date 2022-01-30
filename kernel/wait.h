@@ -16,7 +16,7 @@
  * interruptible is true and there are pending signals. If
  * nonblocking is true, this is the same as evaluating expr
  * directly.
-*/
+ */
 #define WAIT_IMPL(expr, queue, nonblocking, interruptible) ({             \
     int __ret;                                                            \
     wait_node_t __wait;                                                   \
