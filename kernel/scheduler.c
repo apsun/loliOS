@@ -135,11 +135,10 @@ scheduler_yield_impl(pcb_t *curr)
  * Yields the current process's timeslice and schedules
  * the next process to run.
  */
-__cdecl int
+void
 scheduler_yield(void)
 {
     scheduler_yield_impl(get_executing_pcb());
-    return 0;
 }
 
 /*

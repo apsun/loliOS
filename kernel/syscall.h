@@ -40,14 +40,13 @@
 #define SYS_PIPE        35
 #define SYS_CREATE      36
 #define SYS_FCNTL       37
-#define SYS_YIELD       38
 #define SYS_SEEK        39
 #define SYS_TRUNCATE    40
 #define SYS_UNLINK      41
 #define SYS_STAT        42
 #define SYS_REALTIME    43
 #define SYS_MONOTIME    44
-#define SYS_SLEEP   45
+#define SYS_SLEEP       45
 #define SYS_FBMAP       46
 #define SYS_FBUNMAP     47
 #define SYS_FBFLIP      48

@@ -7,7 +7,7 @@
 #ifndef ASM
 
 /* Yields the current process's timeslice */
-__cdecl int scheduler_yield(void);
+void scheduler_yield(void);
 
 /* Permanently yields the current process's timeslice */
 __noreturn void scheduler_exit(void);
