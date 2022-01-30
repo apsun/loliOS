@@ -134,11 +134,6 @@ typedef struct {
     timer_t alarm_timer;
 
     /*
-     * Timer for the monosleep() syscall.
-     */
-    timer_t sleep_timer;
-
-    /*
      * This process's node in the scheduler run queue.
      */
     list_t scheduler_list;

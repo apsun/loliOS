@@ -430,7 +430,6 @@ process_close(pcb_t *pcb)
     file_deinit(pcb->files);
     heap_clear(&pcb->heap);
     timer_cancel(&pcb->alarm_timer);
-    timer_cancel(&pcb->sleep_timer);
     scheduler_remove(pcb);
 }
 
@@ -456,7 +455,6 @@ process_create_idle(void)
     signal_init(pcb->signals);
     heap_init_kernel(&pcb->heap, 0, 0, NULL);
     timer_init(&pcb->alarm_timer);
-    timer_init(&pcb->sleep_timer);
     list_init(&pcb->scheduler_list);
     process_fill_idle_regs(&pcb->regs);
 
@@ -495,7 +493,6 @@ process_create_user(char *command, int terminal)
     heap_init_user(&pcb->heap, USER_HEAP_START, USER_HEAP_END);
     timer_init(&pcb->alarm_timer);
     timer_setup(&pcb->alarm_timer, SIGALRM_PERIOD_MS, pcb, process_alarm_callback);
-    timer_init(&pcb->sleep_timer);
     list_init(&pcb->scheduler_list);
 
     /* Parse command and find the executable inode */
@@ -587,7 +584,6 @@ process_clone(pcb_t *parent_pcb, int_regs_t *regs, bool clone_pages)
     signal_clone(child_pcb->signals, parent_pcb->signals);
     heap_init_user(&child_pcb->heap, USER_HEAP_START, USER_HEAP_END);
     timer_clone(&child_pcb->alarm_timer, &parent_pcb->alarm_timer);
-    timer_init(&child_pcb->sleep_timer);
     list_init(&child_pcb->scheduler_list);
     strcpy(child_pcb->args, parent_pcb->args);
     child_pcb->regs = *regs;
@@ -1121,11 +1117,13 @@ process_monosleep(int target)
 
     /* Put ourselves to sleep */
     pcb_t *pcb = get_executing_pcb();
-    timer_setup_abs(&pcb->sleep_timer, target, pcb, process_monosleep_callback);
+    timer_t timer;
+    timer_init(&timer);
+    timer_setup_abs(&timer, target, pcb, process_monosleep_callback);
     WAIT_ONCE_INTERRUPTIBLE(&sleep_queue);
 
     /* We woke up, cancel timer in case we got woken early */
-    timer_cancel(&pcb->sleep_timer);
+    timer_cancel(&timer);
 
     /* Check if we slept long enough */
     now = pit_monotime();
