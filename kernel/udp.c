@@ -229,7 +229,7 @@ udp_connect(net_sock_t *sock, const sock_addr_t *addr)
 
 /*
  * Checks if there are any packets available to read. Returns
- * -EAGAIN if the inbox is empty, > 0 otherwise.
+ * -EAGAIN if the inbox is empty, >= 0 otherwise.
  */
 static int
 udp_can_read(udp_sock_t *udp)
@@ -261,7 +261,7 @@ udp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
         udp_can_read(udp),
         &udp->read_queue,
         socket_is_nonblocking(sock));
-    if (can_read < 0) {
+    if (can_read <= 0) {
         return can_read;
     }
 

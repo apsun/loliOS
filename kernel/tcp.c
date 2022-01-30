@@ -1978,12 +1978,13 @@ exit:
 /*
  * Checks whether there is an incoming connection that
  * can be accepted. Returns -EAGAIN if no connection,
- * < 0 on error, or > 0 otherwise.
+ * < 0 on error, or >= 0 otherwise.
  */
 static int
 tcp_can_accept(tcp_sock_t *tcp)
 {
-    if (!tcp_in_state(tcp, LISTEN)) {
+    /* Must be an open listening socket */
+    if (!net_sock(tcp)->listening || !tcp_in_state(tcp, LISTEN)) {
         return -1;
     }
 
@@ -2003,22 +2004,14 @@ static int
 tcp_accept(net_sock_t *sock, sock_addr_t *addr)
 {
     int ret;
-    tcp_sock_t *tcp = NULL;
-
-    /* Cannot call accept() on a non-listening socket */
-    if (!sock->listening) {
-        ret = -1;
-        goto exit;
-    }
-
-    tcp = tcp_acquire(tcp_sock(sock));
+    tcp_sock_t *tcp = tcp_acquire(tcp_sock(sock));
 
     /* Wait for an incoming connection */
     ret = WAIT_INTERRUPTIBLE(
         tcp_can_accept(tcp),
         &tcp->accept_queue,
         socket_is_nonblocking(sock));
-    if (ret < 0) {
+    if (ret <= 0) {
         goto exit;
     }
 
@@ -2061,6 +2054,11 @@ exit:
 static int
 tcp_can_read(tcp_sock_t *tcp, int nbytes)
 {
+    /* Standard error checks */
+    if (nbytes < 0 || !net_sock(tcp)->connected) {
+        return -1;
+    }
+
     /*
      * If the socket is closed due to an error (reset),
      * reading from it is a failure. If it's closed but under
@@ -2109,15 +2107,7 @@ static int
 tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
 {
     int ret;
-    tcp_sock_t *tcp = NULL;
-
-    /* Standard error checks */
-    if (nbytes < 0 || !sock->connected) {
-        ret = -1;
-        goto exit;
-    }
-
-    tcp = tcp_acquire(tcp_sock(sock));
+    tcp_sock_t *tcp = tcp_acquire(tcp_sock(sock));
 
     /* Wait until there are packets to read */
     ret = WAIT_INTERRUPTIBLE(
@@ -2220,6 +2210,11 @@ exit:
 static int
 tcp_get_writable_bytes(tcp_sock_t *tcp, int nbytes)
 {
+    /* Standard error checks */
+    if (nbytes < 0 || !net_sock(tcp)->connected) {
+        return -1;
+    }
+
     /* Reject if we've already closed the write end */
     if (tcp_in_state(tcp, LOCAL_FIN | CLOSED)) {
         return -1;
@@ -2252,15 +2247,7 @@ static int
 tcp_sendto(net_sock_t *sock, const void *buf, int nbytes, const sock_addr_t *addr)
 {
     int ret;
-    tcp_sock_t *tcp = NULL;
-
-    /* Standard error checks */
-    if (nbytes < 0 || !sock->connected) {
-        ret = -1;
-        goto exit;
-    }
-
-    tcp = tcp_acquire(tcp_sock(sock));
+    tcp_sock_t *tcp = tcp_acquire(tcp_sock(sock));
 
     /* Wait for space in outbox to write */
     nbytes = WAIT_INTERRUPTIBLE(
