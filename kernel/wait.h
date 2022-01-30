@@ -54,20 +54,6 @@
     WAIT_IMPL(expr, queue, nonblocking, false)
 
 /*
- * Waits for a wake signal from the queue or a signal, whichever
- * comes first.
- */
-#define WAIT_ONCE_INTERRUPTIBLE(queue) ({           \
-    wait_node_t __wait;                             \
-    wait_node_init(&__wait, get_executing_pcb());   \
-    if (!signal_has_pending(__wait.pcb->signals)) { \
-        wait_queue_add(&__wait, (queue));           \
-        scheduler_sleep();                          \
-        wait_queue_remove(&__wait);                 \
-    }                                               \
-})
-
-/*
  * Wait queue node. Contains a pointer to the process to be
  * woken up when the queue is notified.
  */
