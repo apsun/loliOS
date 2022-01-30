@@ -41,25 +41,42 @@ typedef struct {
 } wave_info_t;
 
 static int
+read_once(int fd, void *buf, int nbytes)
+{
+    int ret;
+    do {
+        ret = read(fd, buf, nbytes);
+    } while (ret == -EAGAIN || ret == -EINTR);
+    return ret;
+}
+
+static int
+write_once(int fd, const void *buf, int nbytes)
+{
+    int ret;
+    do {
+        ret = write(fd, buf, nbytes);
+    } while (ret == -EAGAIN || ret == -EINTR);
+    return ret;
+}
+
+static int
 read_all(int fd, void *buf, int nbytes)
 {
-    int total = 0;
-    int cnt;
     char *bufp = buf;
+    int total = 0;
     while (total < nbytes) {
-        cnt = read(fd, &bufp[total], nbytes - total);
-        if (cnt == -EINTR || cnt == -EAGAIN) {
-            cnt = 0;
-        } else if (cnt <= 0) {
+        int ret = read(fd, &bufp[total], nbytes - total);
+        if (ret == -EAGAIN || ret == -EINTR) {
+            continue;
+        } else if (ret < 0) {
+            return ret;
+        } else if (ret == 0) {
             break;
         }
-        total += cnt;
+        total += ret;
     }
-    if (total < nbytes) {
-        return -1;
-    } else {
-        return 0;
-    }
+    return total;
 }
 
 static int
@@ -67,31 +84,51 @@ eat_all(int fd, int nbytes)
 {
     char buf[1024];
     int total = 0;
-    int cnt;
     while (total < nbytes) {
-        int remaining = nbytes;
-        if (remaining > (int)sizeof(buf)) {
-            remaining = sizeof(buf);
+        int max_read = sizeof(buf);
+        if (max_read > nbytes - total) {
+            max_read = nbytes - total;
         }
-        cnt = read(fd, buf, remaining);
-        if (cnt == -EINTR || cnt == -EAGAIN) {
-            cnt = 0;
-        } else if (cnt <= 0) {
+
+        int ret = read(fd, buf, max_read);
+        if (ret == -EAGAIN || ret == -EINTR) {
+            continue;
+        } else if (ret < 0) {
+            return ret;
+        } else if (ret == 0) {
             break;
         }
-        total += cnt;
+        total += ret;
     }
-    if (total < nbytes) {
-        return -1;
+    return total;
+}
+
+static int
+read_exact(int fd, void *buf, int nbytes)
+{
+    int ret = read_all(fd, buf, nbytes);
+    if (ret < 0 || ret == nbytes) {
+        return ret;
     } else {
-        return 0;
+        return -1;
+    }
+}
+
+static int
+eat_exact(int fd, int nbytes)
+{
+    int ret = eat_all(fd, nbytes);
+    if (ret < 0 || ret == nbytes) {
+        return ret;
+    } else {
+        return -1;
     }
 }
 
 static int
 read_wave_info(int soundfd, wave_info_t *info)
 {
-    if (read_all(soundfd, &info->wave_hdr, sizeof(info->wave_hdr)) < 0) {
+    if (read_exact(soundfd, &info->wave_hdr, sizeof(info->wave_hdr)) < 0) {
         fprintf(stderr, "Could not read WAVE header\n");
         return -1;
     }
@@ -107,19 +144,19 @@ read_wave_info(int soundfd, wave_info_t *info)
 
     /* Find the format chunk */
     while (1) {
-        if (read_all(soundfd, &info->fmt_hdr, sizeof(info->fmt_hdr)) < 0) {
+        if (read_exact(soundfd, &info->fmt_hdr, sizeof(info->fmt_hdr)) < 0) {
             fprintf(stderr, "Could not read chunk header\n");
             return -1;
         }
 
         if (info->fmt_hdr.magic == FMT_MAGIC && info->fmt_hdr.size == 16) {
-            if (read_all(soundfd, &info->fmt, sizeof(info->fmt)) < 0) {
+            if (read_exact(soundfd, &info->fmt, sizeof(info->fmt)) < 0) {
                 fprintf(stderr, "Could not read format body\n");
                 return -1;
             }
             break;
         } else {
-            if (eat_all(soundfd, info->fmt_hdr.size) < 0) {
+            if (eat_exact(soundfd, info->fmt_hdr.size) < 0) {
                 fprintf(stderr, "Could not read chunk body\n");
                 return -1;
             }
@@ -128,7 +165,7 @@ read_wave_info(int soundfd, wave_info_t *info)
 
     /* Find the data chunk */
     while (1) {
-        if (read_all(soundfd, &info->data_hdr, sizeof(info->data_hdr)) < 0) {
+        if (read_exact(soundfd, &info->data_hdr, sizeof(info->data_hdr)) < 0) {
             fprintf(stderr, "Could not read chunk header\n");
             return -1;
         }
@@ -136,7 +173,7 @@ read_wave_info(int soundfd, wave_info_t *info)
         if (info->data_hdr.magic == DATA_MAGIC) {
             return 0;
         } else {
-            if (eat_all(soundfd, info->data_hdr.size) < 0) {
+            if (eat_exact(soundfd, info->data_hdr.size) < 0) {
                 fprintf(stderr, "Could not read chunk body\n");
                 return -1;
             }
@@ -215,7 +252,7 @@ main(void)
         goto cleanup;
     }
 
-    /* Allocate buffer to hold audio data */
+    /* Allocate buffer to hold the entire audio data (required for loop) */
     audio_data = malloc(data_size);
     if (audio_data == NULL) {
         fprintf(stderr, "Could not allocate space for audio data\n");
@@ -233,17 +270,16 @@ main(void)
                 if (to_read > CHUNK_SIZE) {
                     to_read = CHUNK_SIZE;
                 }
-                int cnt = read(soundfd, &audio_data[read_offset], to_read);
-                if (cnt == 0) {
+
+                int read_cnt = read_once(soundfd, &audio_data[read_offset], to_read);
+                if (read_cnt < 0) {
+                    fprintf(stderr, "read() returned %d\n", read_cnt);
+                    goto cleanup;
+                } else if (read_cnt == 0) {
                     fprintf(stderr, "File is truncated\n");
                     goto cleanup;
-                } else if (cnt == -EINTR || cnt == -EAGAIN) {
-                    cnt = 0;
-                } else if (cnt < 0) {
-                    fprintf(stderr, "Failed to read file\n");
-                    goto cleanup;
                 }
-                read_offset += cnt;
+                read_offset += read_cnt;
             }
 
             /* Push bytes from the buffer to the sound driver */
@@ -251,14 +287,12 @@ main(void)
             if (to_write > CHUNK_SIZE) {
                 to_write = CHUNK_SIZE;
             }
-            int cnt = write(devfd, &audio_data[write_offset], to_write);
-            if (cnt == -EINTR || cnt == -EAGAIN) {
-                cnt = 0;
-            } else if (cnt <= 0) {
-                fprintf(stderr, "Failed to write sample data\n");
+            int write_cnt = write_once(devfd, &audio_data[write_offset], to_write);
+            if (write_cnt < 0) {
+                fprintf(stderr, "write() returned %d\n", write_cnt);
                 goto cleanup;
             }
-            write_offset += cnt;
+            write_offset += write_cnt;
         }
     } while (loop);
 

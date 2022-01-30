@@ -27,7 +27,7 @@ main(void)
         if (r == 0) {
             break;
         } else if (r < 0 && r != -EINTR) {
-            printf("sleep() failed\n");
+            fprintf(stderr, "sleep() returned %d\n", r);
             goto cleanup;
         }
     }

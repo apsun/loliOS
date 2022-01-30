@@ -52,12 +52,12 @@ sigint_handler(int signum)
 }
 
 static int
-read_all(int fd, void *buf, int size)
+read_all(int fd, void *buf, int nbytes)
 {
     char *bufp = buf;
-    int offset = 0;
-    while (!interrupted && offset < size) {
-        int ret = read(fd, &bufp[offset], size - offset);
+    int total = 0;
+    while (!interrupted && total < nbytes) {
+        int ret = read(fd, &bufp[total], nbytes - total);
         if (ret == -EAGAIN || ret == -EINTR) {
             continue;
         } else if (ret < 0) {
@@ -65,9 +65,9 @@ read_all(int fd, void *buf, int size)
         } else if (ret == 0) {
             break;
         }
-        offset += ret;
+        total += ret;
     }
-    return offset;
+    return total;
 }
 
 static int

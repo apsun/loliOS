@@ -56,23 +56,21 @@ parse_args(args_t *args)
     }
 }
 
-/*
- * Writes all bytes in buf. Returns either size, or < 0 on error.
- */
 static int
-write_all(int fd, const char *buf, int size)
+write_all(int fd, const void *buf, int nbytes)
 {
-    int written = 0;
-    while (written < size) {
-        int ret = write(fd, &buf[written], size - written);
-        if (ret == -EINTR || ret == -EAGAIN) {
+    const char *bufp = buf;
+    int total = 0;
+    while (total < nbytes) {
+        int ret = write(fd, &bufp[total], nbytes - total);
+        if (ret == -EAGAIN || ret == -EINTR) {
             continue;
         } else if (ret < 0) {
             return ret;
         }
-        written += ret;
+        total += ret;
     }
-    return written;
+    return total;
 }
 
 /*

@@ -24,22 +24,32 @@ reset_stdin(void)
 }
 
 static int
-print_line(int fd, int *off)
+read_all(int fd, void *buf, int nbytes)
 {
-    /* Read one line worth of bytes from file */
-    uint8_t buf[LINE_LENGTH];
-    int num = 0;
-    int ret;
-    while (num < (int)sizeof(buf)) {
-        ret = read(fd, &buf[num], sizeof(buf) - num);
-        if (ret == -EINTR || ret == -EAGAIN) {
+    char *bufp = buf;
+    int total = 0;
+    while (total < nbytes) {
+        int ret = read(fd, &bufp[total], nbytes - total);
+        if (ret == -EAGAIN || ret == -EINTR) {
             continue;
-        } else if (ret < 0 || (ret == 0 && num == 0)) {
+        } else if (ret < 0) {
             return ret;
         } else if (ret == 0) {
             break;
         }
-        num += ret;
+        total += ret;
+    }
+    return total;
+}
+
+static int
+print_line(int fd, int *off)
+{
+    /* Read up to one line worth of bytes from file */
+    uint8_t buf[LINE_LENGTH];
+    int count = read_all(fd, buf, sizeof(buf));
+    if (count <= 0) {
+        return count;
     }
 
     /* Print offset */
@@ -47,17 +57,17 @@ print_line(int fd, int *off)
 
     /* Print bytes as hex */
     int i;
-    for (i = 0; i < num; ++i) {
+    for (i = 0; i < count; ++i) {
         printf("%02x ", buf[i]);
     }
 
     /* Align char view */
-    for (i = 0; i < LINE_LENGTH - num; ++i) {
+    for (i = 0; i < LINE_LENGTH - count; ++i) {
         printf("   ");
     }
 
     /* Print bytes as char */
-    for (i = 0; i < num; ++i) {
+    for (i = 0; i < count; ++i) {
         char c = buf[i];
         if (c < 32 || c >= 127) {
             putchar('.');
@@ -67,8 +77,8 @@ print_line(int fd, int *off)
     }
 
     putchar('\n');
-    *off += num;
-    return ret;
+    *off += count;
+    return count == sizeof(buf);
 }
 
 static int

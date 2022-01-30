@@ -5,89 +5,55 @@
 #include <syscall.h>
 
 static int
-input(int fd, char *buf, int buf_size, int *offset)
+read_once(int fd, void *buf, int nbytes)
 {
-    /* Check if we have space left to read */
-    int to_read = buf_size - *offset;
-    if (to_read == 0) {
-        return -EAGAIN;
-    }
-
-    /* Read data into buffer */
-    int ret = read(fd, &buf[*offset], to_read);
-    if (ret <= 0) {
-        return ret;
-    }
-
-    /* Advance offset */
-    *offset += ret;
+    int ret;
+    do {
+        ret = read(fd, buf, nbytes);
+    } while (ret == -EAGAIN || ret == -EINTR);
     return ret;
 }
 
 static int
-output(int fd, char *buf, int *count)
+write_all(int fd, const void *buf, int nbytes)
 {
-    /* Check if we have anything to write */
-    if (*count == 0) {
-        return -EAGAIN;
+    const char *bufp = buf;
+    int total = 0;
+    while (total < nbytes) {
+        int ret = write(fd, &bufp[total], nbytes - total);
+        if (ret == -EAGAIN || ret == -EINTR) {
+            continue;
+        } else if (ret < 0) {
+            return ret;
+        }
+        total += ret;
     }
-
-    /* Write out buffer contents */
-    int ret = write(fd, buf, *count);
-    if (ret <= 0) {
-        return ret;
-    }
-
-    /* Shift remaining bytes up */
-    memmove(&buf[0], &buf[ret], *count - ret);
-    *count -= ret;
-    return ret;
+    return total;
 }
 
 static int
 copy_stream(int outputfd, int inputfd)
 {
-    /*
-     * Buffer size of 8192 chosen because it happens to correlate
-     * with the TCP inbox size and the music buffer size.
-     */
     char buf[8192];
-    int offset = 0;
-    int read_cnt;
-    int write_cnt;
-    int total_copied = 0;
+    int total = 0;
     while (1) {
-        /* Read bytes from input stream */
-        read_cnt = input(inputfd, buf, sizeof(buf), &offset);
-        if (read_cnt < 0 && read_cnt != -EINTR && read_cnt != -EAGAIN) {
+        int read_cnt = read_once(inputfd, buf, sizeof(buf));
+        if (read_cnt < 0) {
             fprintf(stderr, "read() returned %d\n", read_cnt);
             return -1;
-        }
-
-        if (read_cnt == 0 && offset == 0) {
+        } else if (read_cnt == 0) {
             break;
         }
 
-        /* Write bytes to output stream */
-        write_cnt = output(outputfd, buf, &offset);
-        if (write_cnt < 0 && write_cnt != -EINTR && write_cnt != -EAGAIN) {
+        int write_cnt = write_all(outputfd, buf, read_cnt);
+        if (write_cnt < 0) {
             fprintf(stderr, "write() returned %d\n", write_cnt);
             return -1;
         }
-
-        if (write_cnt > 0) {
-            total_copied += write_cnt;
-        }
-
-        /* If we can't read or write, yield the rest of our timeslice */
-        bool cant_read = (read_cnt == -EAGAIN || offset == sizeof(buf));
-        bool cant_write = (write_cnt = -EAGAIN || (offset == 0 && write_cnt == 0));
-        if (cant_read && cant_write) {
-            yield();
-        }
+        total += write_cnt;
     }
 
-    return total_copied;
+    return total;
 }
 
 int
