@@ -360,7 +360,7 @@ tcp_dump_pkt(const char *prefix, skb_t *skb)
 __unused static const char *
 tcp_get_state_str(tcp_state_t state)
 {
-    static const char *names[] = {
+    static const char * const names[] = {
 #define ENTRY(x) #x
         ENTRY(LISTEN),
         ENTRY(SYN_SENT),

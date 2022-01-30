@@ -30,7 +30,7 @@
 } while (0)
 
 /* Exception number to name table */
-static const char *exception_names[NUM_EXC] = {
+static const char * const exception_names[NUM_EXC] = {
     "Divide error exception",
     "Debug exception",
     "Nonmaskable interrupt",

@@ -381,7 +381,7 @@ utoa(unsigned int value, char *buf, int radix)
     assert(buf != NULL);
     assert(radix >= 2 && radix <= 36);
 
-    static const char *lookup = "0123456789abcdefghijklmnopqrstuvwxyz";
+    static const char * const lookup = "0123456789abcdefghijklmnopqrstuvwxyz";
     char *bufp = buf;
     do {
         *bufp++ = lookup[value % radix];
