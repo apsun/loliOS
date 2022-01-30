@@ -63,8 +63,8 @@ fuzz(int fd)
             continue;
         }
 
-        /* Limit duration of monosleep() */
-        if (eax == SYS_MONOSLEEP && ebx > 100) {
+        /* Limit duration of sleep() */
+        if (eax == SYS_SLEEP && ebx > 100) {
             continue;
         }
 
@@ -98,7 +98,7 @@ main(void)
             return 1;
         } else if (pid > 0) {
             /* Wait up to 3 seconds before killing the fuzzer */
-            monosleep(monotime() + 3000);
+            sleep(monotime() + 3000);
             kill(pid, SIGKILL);
             while (wait(&pid) == -EINTR);
         } else {

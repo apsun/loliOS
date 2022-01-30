@@ -44,7 +44,7 @@
 #define SYS_STAT        42
 #define SYS_REALTIME    43
 #define SYS_MONOTIME    44
-#define SYS_MONOSLEEP   45
+#define SYS_SLEEP   45
 #define SYS_FBMAP       46
 #define SYS_FBUNMAP     47
 #define SYS_FBFLIP      48
@@ -189,7 +189,7 @@ __cdecl int unlink(const char *filename);
 __cdecl int stat(const char *filename, stat_t *buf);
 __cdecl int realtime(void);
 __cdecl int monotime(void);
-__cdecl int monosleep(int target);
+__cdecl int sleep(int target);
 __cdecl int fbmap(void **ptr, int xres, int yres, int bpp);
 __cdecl int fbunmap(void *ptr);
 __cdecl int fbflip(void *ptr);

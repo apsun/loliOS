@@ -1094,7 +1094,7 @@ process_halt(int status)
  * Otherwise, 0 will be returned to indicate a successful sleep.
  */
 __cdecl int
-process_monosleep(int target)
+process_sleep(int target)
 {
     if (target < 0) {
         return -1;

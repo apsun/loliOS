@@ -206,7 +206,7 @@ __cdecl int process_execute(
     intptr_t unused4,
     int_regs_t *regs);
 __cdecl __noreturn void process_halt(int status);
-__cdecl int process_monosleep(int target);
+__cdecl int process_sleep(int target);
 
 /* Unsets the global execution context for the specified process */
 void process_unset_context(pcb_t *pcb);

@@ -56,7 +56,7 @@ syscall_jump_table:
     .long file_stat
     .long rtc_realtime
     .long pit_monotime
-    .long process_monosleep
+    .long process_sleep
     .long vbe_fbmap
     .long vbe_fbunmap
     .long vbe_fbflip

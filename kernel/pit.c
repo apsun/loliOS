@@ -69,7 +69,7 @@ pit_handle_irq(void)
 /*
  * Returns the current monotonic clock time in milliseconds.
  * The result is only valid when compared with the result
- * of another call to monotime(), or as an input to monosleep().
+ * of another call to monotime(), or as an input to sleep().
  */
 __cdecl int
 pit_monotime(void)

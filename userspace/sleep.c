@@ -23,11 +23,11 @@ main(void)
     int target = now + delay * 1000;
 
     while (1) {
-        int r = monosleep(target);
+        int r = sleep(target);
         if (r == 0) {
             break;
         } else if (r < 0 && r != -EINTR) {
-            printf("monosleep() failed\n");
+            printf("sleep() failed\n");
             goto cleanup;
         }
     }

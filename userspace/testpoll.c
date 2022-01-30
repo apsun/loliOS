@@ -168,7 +168,7 @@ test_pipe_fork(void)
 
     int pid = fork();
     if (pid == 0) {
-        monosleep(monotime() + TIMEOUT_MS);
+        sleep(monotime() + TIMEOUT_MS);
 
         ret = write(writefd, "foo", 3);
         assert(ret == 3);
