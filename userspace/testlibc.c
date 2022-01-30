@@ -363,6 +363,12 @@ test_snprintf(void)
     assert(strcmp(buf, "  0x1234abcd") == 0);
     assert(snprintf(buf, sizeof(buf), "") == 0);
     assert(strcmp(buf, "") == 0);
+    assert(snprintf(buf, sizeof(buf), "%o", 0777) == 3);
+    assert(strcmp(buf, "777") == 0);
+    assert(snprintf(buf, sizeof(buf), "%b", 0x5) == 3);
+    assert(strcmp(buf, "101") == 0);
+    assert(snprintf(buf, sizeof(buf), "%05b", 0x5) == 5);
+    assert(strcmp(buf, "00101") == 0);
 
     char buf2[1];
     assert(snprintf(buf2, sizeof(buf2), "Hello!") == strlen("Hello!"));

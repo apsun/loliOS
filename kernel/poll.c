@@ -58,7 +58,7 @@ poll_impl(pollfd_t *kpfds, int nfds, int timeout)
 
             int events = pfd->events & OPEN_RDWR;
             if (events != pfd->events) {
-                debugf("Invalid poll event bits set: %x\n", pfd->events);
+                debugf("Invalid poll event bits set: %016b\n", pfd->events);
                 ret = -1;
                 goto exit;
             }

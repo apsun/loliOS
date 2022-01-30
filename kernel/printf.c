@@ -445,6 +445,11 @@ consume_format:
             printf_do_uint(&a, va_arg(args, unsigned int), 8, false);
             break;
 
+        /* Print a number in binary form */
+        case 'b':
+            printf_do_uint(&a, va_arg(args, unsigned int), 2, false);
+            break;
+
         /* Print a pointer */
         case 'p':
             printf_do_ptr(&a, va_arg(args, void *));

@@ -103,7 +103,7 @@ test_unknown_bits(void)
 
     pollfd_t pfds[1];
     pfds[0].fd = 0;
-    pfds[0].events = 9999;
+    pfds[0].events = 0xff;
     ret = poll(pfds, 1, -1);
     assert(ret < 0);
 }
