@@ -179,12 +179,10 @@ test_pipe_fork(void)
     int pid = fork();
     if (pid == 0) {
         sleep(monotime() + TIMEOUT_MS);
-
         ret = write(writefd, "foo", 3);
         assert(ret == 3);
 
-        close(readfd);
-        close(writefd);
+        sleep(monotime() + TIMEOUT_MS);
         exit(0);
     }
     assert(pid > 0);
@@ -211,7 +209,7 @@ test_pipe_fork(void)
 }
 
 static void
-test_tcp_accept_fork(void)
+test_tcp_fork(void)
 {
     int ret;
 
@@ -227,9 +225,8 @@ test_tcp_accept_fork(void)
 
     int pid = fork();
     if (pid == 0) {
-        sleep(monotime() + TIMEOUT_MS);
-
         /* Connect to listening socket */
+        sleep(monotime() + TIMEOUT_MS);
         int b = socket(SOCK_TCP);
         assert(b >= 0);
         fcntl(b, FCNTL_NONBLOCK, 1);
@@ -239,9 +236,12 @@ test_tcp_accept_fork(void)
         ret = connect(b, &a_addr);
         assert(ret == 0);
 
+        /* Send some data */
         sleep(monotime() + TIMEOUT_MS);
+        ret = write(b, "foo", 3);
+        assert(ret == 3);
 
-        close(b);
+        sleep(monotime() + TIMEOUT_MS);
         exit(0);
     }
     assert(pid > 0);
@@ -259,10 +259,77 @@ test_tcp_accept_fork(void)
     int a_conn = accept(a, &tmp_addr);
     assert(a_conn >= 0);
 
+    /* Poll for data */
+    pfds[0].fd = a_conn;
+    pfds[0].events = OPEN_READ;
+    ret = poll(pfds, 1, -1);
+    assert(ret == 1);
+    assert(pfds[0].revents == OPEN_READ);
+
+    /* Read the data */
+    char buf[3];
+    ret = read(a_conn, buf, sizeof(buf));
+    assert(ret == 3);
+    assert(memcmp(buf, "foo", 3) == 0);
+
     ret = wait(&pid);
     assert(ret == 0);
 
     close(a_conn);
+    close(a);
+}
+
+static void
+test_udp_fork(void)
+{
+    int ret;
+
+    /* Create read socket */
+    int a = socket(SOCK_UDP);
+    assert(a >= 0);
+    fcntl(a, FCNTL_NONBLOCK, 1);
+    sock_addr_t a_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+    ret = bind2(a, &a_addr);
+    assert(ret == 0);
+
+    int pid = fork();
+    if (pid == 0) {
+        /* Connect to socket */
+        sleep(monotime() + TIMEOUT_MS);
+        int b = socket(SOCK_UDP);
+        assert(b >= 0);
+        fcntl(b, FCNTL_NONBLOCK, 1);
+        sock_addr_t b_addr = {.ip = IP(127, 0, 0, 1), .port = 0};
+        ret = bind2(b, &b_addr);
+        assert(ret == 0);
+
+        /* Send some data */
+        sleep(monotime() + TIMEOUT_MS);
+        ret = sendto(b, "foo", 3, &a_addr);
+        assert(ret == 3);
+
+        sleep(monotime() + TIMEOUT_MS);
+        exit(0);
+    }
+    assert(pid > 0);
+
+    /* Poll for data */
+    pollfd_t pfds[1];
+    pfds[0].fd = a;
+    pfds[0].events = OPEN_READ;
+    ret = poll(pfds, 1, -1);
+    assert(ret == 1);
+    assert(pfds[0].revents == OPEN_READ);
+
+    /* Read the data */
+    char buf[3];
+    ret = read(a, buf, sizeof(buf));
+    assert(ret == 3);
+    assert(memcmp(buf, "foo", 3) == 0);
+
+    ret = wait(&pid);
+    assert(ret == 0);
+
     close(a);
 }
 
@@ -277,7 +344,8 @@ main(void)
     test_permissions();
     test_timeout();
     test_pipe_fork();
-    test_tcp_accept_fork();
+    test_tcp_fork();
+    test_udp_fork();
     printf("All tests passed!\n");
     return 0;
 }

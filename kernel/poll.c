@@ -69,7 +69,7 @@ poll_impl(pollfd_t *kpfds, int nfds, int timeout)
             /* Check for events and register in wait queues */
             wait_node_t *read_node = (events & OPEN_READ) ? &wait_nodes[i].read : NULL;
             wait_node_t *write_node = (events & OPEN_WRITE) ? &wait_nodes[i].write : NULL;
-            pfd->revents = file->ops_table->poll(file, read_node, write_node) & file->mode;
+            pfd->revents = file->ops_table->poll(file, read_node, write_node) & events;
 
             /* Return value = number of files with any event bits set */
             if (pfd->revents != 0) {
