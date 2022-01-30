@@ -21,7 +21,9 @@
     int __ret;                                                            \
     wait_node_t __wait;                                                   \
     wait_node_init(&__wait, get_executing_pcb());                         \
-    wait_queue_add(&__wait, (queue));                                     \
+    if ((queue) != NULL) {                                                \
+        wait_queue_add(&__wait, (queue));                                 \
+    }                                                                     \
     while (1) {                                                           \
         __ret = (expr);                                                   \
         if (__ret != -EAGAIN || (nonblocking)) {                          \
@@ -33,7 +35,9 @@
         }                                                                 \
         scheduler_sleep();                                                \
     }                                                                     \
-    wait_queue_remove(&__wait);                                           \
+    if ((queue) != NULL) {                                                \
+        wait_queue_remove(&__wait);                                       \
+    }                                                                     \
     __ret;                                                                \
 })
 

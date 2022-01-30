@@ -42,12 +42,6 @@ static pcb_t process_info[MAX_PROCESSES];
 __aligned(PROCESS_DATA_SIZE)
 static process_data_t process_data[MAX_PROCESSES];
 
-/* Sleep queue for processes wait()ing on another process */
-static list_define(wait_queue);
-
-/* Sleep queue for processes that called sleep() */
-static list_define(sleep_queue);
-
 /*
  * Gets the PCB of the process with the given PID.
  * This does NOT include the idle process. Note that
@@ -858,7 +852,7 @@ process_wait(int *pid)
     /* Wait for a process to die and copy its PID */
     return WAIT_INTERRUPTIBLE(
         process_wait_impl_user(pcb->pid, &kpid, pid),
-        &wait_queue,
+        NULL,
         false);
 }
 
@@ -970,7 +964,7 @@ process_execute(
     /* Wait for the child process to exit, ignoring signals */
     int exit_code = WAIT_UNINTERRUPTIBLE(
         process_wait_impl(parent_pcb->pid, &child_pcb->pid),
-        &wait_queue,
+        NULL,
         false);
 
     /* Restore the original foreground group */
