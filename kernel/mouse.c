@@ -30,20 +30,18 @@ mouse_handle_irq(void)
 void
 mouse_init(void)
 {
-    /* Enable PS/2 port */
+    /* Enable PS/2 port on controller */
     ps2_write_command(PS2_CMD_ENABLE_MOUSE);
 
-    /* Read config byte */
+    /* Enable interrupts on controller */
     ps2_write_command(PS2_CMD_READ_CONFIG);
     uint8_t config_byte = ps2_read_data_blocking();
-
-    /* Enable mouse interrupts */
     config_byte |= 0x02;
-
-    /* Write config byte */
     ps2_write_command(PS2_CMD_WRITE_CONFIG);
     ps2_write_data(config_byte);
 
-    /* Enable mouse packet streaming */
-    ps2_write_mouse(PS2_MOUSE_ENABLE);
+    /* Enable device */
+    ps2_write_command(PS2_CMD_NEXT_MOUSE);
+    ps2_write_data(PS2_MOUSE_ENABLE);
+    ps2_wait_ack();
 }

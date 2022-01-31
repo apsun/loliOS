@@ -300,17 +300,20 @@ keyboard_handle_irq(void)
 void
 keyboard_init(void)
 {
-    /* Enable PS/2 port */
+    /* Enable PS/2 port on controller */
     ps2_write_command(PS2_CMD_ENABLE_KEYBOARD);
 
-    /* Read config byte */
+    /* Enable interrupts on controller */
     ps2_write_command(PS2_CMD_READ_CONFIG);
     uint8_t config_byte = ps2_read_data_blocking();
-
-    /* Enable keyboard interrupts */
     config_byte |= 0x01;
-
-    /* Write config byte */
     ps2_write_command(PS2_CMD_WRITE_CONFIG);
     ps2_write_data(config_byte);
+
+    /*
+     * Spamming keys at startup seems to put the keyboard into
+     * a weird state, so reset it just in case.
+     */
+    ps2_write_data(PS2_KEYBOARD_RESET);
+    ps2_wait_ack();
 }

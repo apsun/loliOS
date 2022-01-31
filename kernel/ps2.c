@@ -103,27 +103,6 @@ ps2_wait_ack(void)
 }
 
 /*
- * Sends a byte to the PS/2 keyboard.
- */
-void
-ps2_write_keyboard(uint8_t data)
-{
-    ps2_write_data(data);
-    ps2_wait_ack();
-}
-
-/*
- * Sends a byte to the PS/2 mouse.
- */
-void
-ps2_write_mouse(uint8_t data)
-{
-    ps2_write_command(PS2_CMD_NEXT_MOUSE);
-    ps2_write_data(data);
-    ps2_wait_ack();
-}
-
-/*
  * Handler for keyboard and mouse IRQs.
  */
 static void
@@ -151,10 +130,14 @@ ps2_handle_irq(void)
 void
 ps2_init(void)
 {
-    /* Initialize keyboard */
-    keyboard_init();
+    /* Drain any leftover data in the output buffer */
+    int data;
+    while ((data = ps2_read_data_nonblocking()) != -EAGAIN) {
+        debugf("Discarding unknown data 0x%02x\n", data);
+    }
 
-    /* Initialize mouse */
+    /* Initialize devices */
+    keyboard_init();
     mouse_init();
 
     /* Register IRQ handlers */
