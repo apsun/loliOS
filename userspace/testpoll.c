@@ -46,6 +46,35 @@ test_pipe_rdwr(void)
 }
 
 static void
+test_pipe_duplicate_fd(void)
+{
+    int ret;
+
+    int readfd, writefd;
+    ret = pipe(&readfd, &writefd);
+    assert(ret >= 0);
+
+    ret = write(writefd, "foo", 3);
+    assert(ret == 3);
+
+    pollfd_t pfds[3];
+    pfds[0].fd = readfd;
+    pfds[0].events = OPEN_RDWR;
+    pfds[1].fd = readfd;
+    pfds[1].events = OPEN_RDWR;
+    pfds[2].fd = readfd;
+    pfds[2].events = OPEN_RDWR;
+    ret = poll(pfds, 3, -1);
+    assert(ret == 3);
+    assert(pfds[0].revents == OPEN_READ);
+    assert(pfds[1].revents == OPEN_READ);
+    assert(pfds[2].revents == OPEN_READ);
+
+    close(readfd);
+    close(writefd);
+}
+
+static void
 test_pipe_full_empty(void)
 {
     int ret;
@@ -334,6 +363,7 @@ int
 main(void)
 {
     test_pipe_rdwr();
+    test_pipe_duplicate_fd();
     test_pipe_full_empty();
     test_invalid_fd();
     test_unimplemented();
