@@ -613,7 +613,7 @@ terminal_mouse_read(file_obj_t *file, void *buf, int nbytes)
 }
 
 /*
- * poll() syscall handler for the mouse. Sets the write bit if
+ * poll() syscall handler for the mouse. Sets the read bit if
  * there are any events to read.
  */
 static int
