@@ -1,12 +1,13 @@
 #include "mp1-taux.h"
 #include <assert.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <syscall.h>
 
 void
 taux_display_str(int taux_fd, const char *str)
 {
-    if (ioctl(taux_fd, TAUX_SET_LED_STR, (int)str) < 0) {
+    if (ioctl(taux_fd, TAUX_SET_LED_STR, (intptr_t)str) < 0) {
         assert(0);
     }
 }
@@ -92,7 +93,7 @@ taux_get_input(int taux_fd)
 
     /* Get raw button data from driver... */
     int raw_buttons;
-    ioctl(taux_fd, TAUX_BUTTONS, (int)&raw_buttons);
+    ioctl(taux_fd, TAUX_BUTTONS, (intptr_t)&raw_buttons);
 
     /* ... and convert to normalized form */
     int buttons = 0;

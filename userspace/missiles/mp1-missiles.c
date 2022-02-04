@@ -6,6 +6,7 @@
 #include <attrib.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <syscall.h>
 
 #define MISSILE_CHAR '*'
@@ -85,7 +86,7 @@ spawn_missile(
     m.exploded = 0;
 
     /* Add it to the missile list */
-    mp1_ioctl((int)&m, IOCTL_ADDMISSILE);
+    mp1_ioctl((intptr_t)&m, IOCTL_ADDMISSILE);
 }
 
 static void
@@ -256,7 +257,7 @@ __cdecl void
 mp1_notify_user(void)
 {
     int status;
-    if (mp1_ioctl((int)&status, IOCTL_GETSTATUS) < 0) {
+    if (mp1_ioctl((intptr_t)&status, IOCTL_GETSTATUS) < 0) {
         assert(0);
     }
 

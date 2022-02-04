@@ -2,6 +2,7 @@
 #define _MP1_H
 
 #include <attrib.h>
+#include <stdint.h>
 
 enum {
     IOCTL_ADD,
@@ -22,6 +23,6 @@ typedef struct blink {
 } blink_t;
 
 __cdecl void mp1_rtc_tasklet(int garbage);
-__cdecl int mp1_ioctl(int arg, int cmd);
+__cdecl int mp1_ioctl(intptr_t arg, int cmd);
 
 #endif /* _MP1_H */

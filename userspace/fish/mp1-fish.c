@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <syscall.h>
 
 #define WAIT 100
@@ -59,7 +60,7 @@ add_frames(const char *f0, const char *f1)
                 b.on_char = (c0 == '\n') ? ' ' : c0;
                 b.off_char = (c1 == '\n') ? ' ' : c1;
                 b.location = row * SCREEN_WIDTH + col + LEFT_X;
-                mp1_ioctl((int)&b, IOCTL_ADD);
+                mp1_ioctl((intptr_t)&b, IOCTL_ADD);
             }
 
             col++;
@@ -110,7 +111,7 @@ main(void)
     b.on_length = 7;
     b.off_length = 6;
     b.location = 6 * SCREEN_WIDTH + LEFT_X + 20;
-    mp1_ioctl((int)&b, IOCTL_ADD);
+    mp1_ioctl((intptr_t)&b, IOCTL_ADD);
     run_loop(rtc_fd, WAIT);
 
     /* Sync I/M char */
