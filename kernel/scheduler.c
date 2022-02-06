@@ -189,14 +189,22 @@ scheduler_sleep(void)
 }
 
 /*
+ * Intrusive timer container for scheduler_sleep_with_timeout().
+ */
+typedef struct {
+    timer_t timer;
+    pcb_t *pcb;
+} scheduler_sleep_timer_t;
+
+/*
  * Callback for scheduler_sleep_with_timeout() that wakes the
  * sleeping process.
  */
 static void
-scheduler_sleep_with_timeout_callback(void *private)
+scheduler_sleep_with_timeout_callback(timer_t *timer)
 {
-    pcb_t *pcb = private;
-    scheduler_wake(pcb);
+    scheduler_sleep_timer_t *sleep_timer = timer_entry(timer, scheduler_sleep_timer_t, timer);
+    scheduler_wake(sleep_timer->pcb);
 }
 
 /*
@@ -209,12 +217,12 @@ scheduler_sleep_with_timeout(int timeout)
 {
     assert(timeout >= 0);
 
-    pcb_t *pcb = get_executing_pcb();
-    timer_t timer;
-    timer_init(&timer);
-    timer_setup_abs(&timer, timeout, pcb, scheduler_sleep_with_timeout_callback);
+    scheduler_sleep_timer_t sleep_timer;
+    timer_init(&sleep_timer.timer);
+    sleep_timer.pcb = get_executing_pcb();
+    timer_setup_abs(&sleep_timer.timer, timeout, scheduler_sleep_with_timeout_callback);
     scheduler_sleep();
-    timer_cancel(&timer);
+    timer_cancel(&sleep_timer.timer);
 }
 
 /*

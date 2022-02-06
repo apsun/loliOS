@@ -297,11 +297,11 @@ process_iret(int_regs_t *regs, void *kernel_stack)
  * restarts the timer.
  */
 static void
-process_alarm_callback(void *private)
+process_alarm_callback(timer_t *timer)
 {
-    pcb_t *pcb = private;
+    pcb_t *pcb = timer_entry(timer, pcb_t, alarm_timer);
     signal_kill(pcb->pid, SIGALRM);
-    timer_setup(&pcb->alarm_timer, SIGALRM_PERIOD_MS, pcb, process_alarm_callback);
+    timer_setup(timer, SIGALRM_PERIOD_MS, process_alarm_callback);
 }
 
 /*
@@ -486,7 +486,7 @@ process_create_user(char *command, int terminal)
     signal_init(pcb->signals);
     heap_init_user(&pcb->heap, USER_HEAP_START, USER_HEAP_END);
     timer_init(&pcb->alarm_timer);
-    timer_setup(&pcb->alarm_timer, SIGALRM_PERIOD_MS, pcb, process_alarm_callback);
+    timer_setup(&pcb->alarm_timer, SIGALRM_PERIOD_MS, process_alarm_callback);
     list_init(&pcb->scheduler_list);
 
     /* Parse command and find the executable inode */
@@ -577,8 +577,7 @@ process_clone(pcb_t *parent_pcb, int_regs_t *regs, bool clone_pages)
     file_clone(child_pcb->files, parent_pcb->files);
     signal_clone(child_pcb->signals, parent_pcb->signals);
     heap_init_user(&child_pcb->heap, USER_HEAP_START, USER_HEAP_END);
-    timer_init(&child_pcb->alarm_timer);
-    timer_setup(&child_pcb->alarm_timer, SIGALRM_PERIOD_MS, child_pcb, process_alarm_callback);
+    timer_clone(&child_pcb->alarm_timer, &parent_pcb->alarm_timer);
     list_init(&child_pcb->scheduler_list);
     strcpy(child_pcb->args, parent_pcb->args);
     child_pcb->regs = *regs;
@@ -653,7 +652,7 @@ process_exec_impl(pcb_t *pcb, int_regs_t *regs, const char *command)
     pcb->compat = compat;
     signal_init(pcb->signals);
     heap_clear(&pcb->heap);
-    timer_setup(&pcb->alarm_timer, SIGALRM_PERIOD_MS, pcb, process_alarm_callback);
+    timer_setup(&pcb->alarm_timer, SIGALRM_PERIOD_MS, process_alarm_callback);
 
     /* Reinitialize user register values with new entry point */
     process_fill_user_regs(regs, entry_point);

@@ -41,9 +41,9 @@ timer_tick(int now)
             break;
         }
         list_del(&pending->list);
-        void (*callback)(void *) = pending->callback;
+        void (*callback)(timer_t *) = pending->callback;
         pending->callback = NULL;
-        callback(pending->private);
+        callback(pending);
     }
 }
 
@@ -60,18 +60,42 @@ timer_init(timer_t *timer)
 }
 
 /*
+ * Clones an existing timer. The destination timer must be
+ * originally inactive.
+ */
+void
+timer_clone(timer_t *dest, timer_t *src)
+{
+    assert(src != NULL);
+    assert(dest != NULL);
+    assert(dest->callback == NULL);
+
+    dest->callback = src->callback;
+    if (dest->callback != NULL) {
+        dest->when = src->when;
+
+        /*
+         * Since we know that the expiration times are the same,
+         * we can just directly add the new timer immediately
+         * adjacent to the original one.
+         */
+        list_add(&dest->list, &src->list);
+    }
+}
+
+/*
  * Activates a timer to expire after the specified delay in
  * milliseconds. If the timer is already active, the original
  * callback will be cancelled and the timer rescheduled.
  */
 void
-timer_setup(timer_t *timer, int delay, void *private, void (*callback)(void *))
+timer_setup(timer_t *timer, int delay, void (*callback)(timer_t *))
 {
     assert(timer != NULL);
     assert(delay >= 0);
     assert(callback != NULL);
 
-    timer_setup_abs(timer, pit_monotime() + delay, private, callback);
+    timer_setup_abs(timer, pit_monotime() + delay, callback);
 }
 
 /*
@@ -80,7 +104,7 @@ timer_setup(timer_t *timer, int delay, void *private, void (*callback)(void *))
  * be cancelled and the timer rescheduled.
  */
 void
-timer_setup_abs(timer_t *timer, int when, void *private, void (*callback)(void *))
+timer_setup_abs(timer_t *timer, int when, void (*callback)(timer_t *))
 {
     assert(timer != NULL);
     assert(when >= 0);
@@ -90,7 +114,6 @@ timer_setup_abs(timer_t *timer, int when, void *private, void (*callback)(void *
         list_del(&timer->list);
     }
     timer->when = when;
-    timer->private = private;
     timer->callback = callback;
     timer_insert_list(timer);
 }
