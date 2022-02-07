@@ -988,9 +988,9 @@ tcp_inbox_insert(tcp_sock_t *tcp, skb_t *skb)
         return false;
     }
 
-    /* Discard retransmissions of packets we've already completely read */
+    /* Discard retransmissions of packets we've already fully read */
     if (cmp(seq(hdr) + len, tcp->recv_read_num) <= 0) {
-        tcp_debugf(tcp, "Retransmission of packet outside rwnd, dropping\n");
+        tcp_debugf(tcp, "Retransmission of fully read packet, dropping\n");
         return false;
     }
 
@@ -1058,10 +1058,6 @@ tcp_inbox_done(tcp_sock_t *tcp, skb_t *skb)
 /*
  * Attempts to consume as many packets as possible from the inbox
  * that we are certain will not be needed by the user.
- *
- * If the socket read endpoint is closed, we consume all in-order
- * packets, even if they were not read. Otherwise, we only consume
- * in-order packets that have zero body length (SYN/FIN).
  */
 static void
 tcp_inbox_drain(tcp_sock_t *tcp)
@@ -1080,9 +1076,12 @@ tcp_inbox_drain(tcp_sock_t *tcp)
 
         /*
          * If the user still has a read endpoint open, we can only
-         * consume packets that have zero body length (SYN/FIN).
+         * consume packets that have zero body length (SYN/FIN) or
+         * have been fully read.
          */
-        if (!tcp->read_closed && tcp_body_len(skb) > 0) {
+        if (!tcp->read_closed &&
+            cmp(seq(hdr) + tcp_body_len(skb), tcp->recv_read_num) > 0)
+        {
             break;
         }
 
@@ -1373,9 +1372,11 @@ tcp_inbox_handle_rx_skb(tcp_sock_t *tcp, skb_t *skb)
     }
 
     /*
-     * Automatically "read" packets with no data (i.e. SYN/FIN)
-     * to maintain the invariant that next_num > read_num implies
-     * there is at least one byte of data to read.
+     * Automatically "read" packets that have no useful data (i.e.
+     * SYN/FIN packets, or packets that overlap with others that
+     * were already fully read) to maintain the invariant that
+     * next_num > read_num implies there is at least one byte of
+     * data to read.
      *
      * This is also needed to ensure that packets are automatically
      * purged if the user cannot read them.
@@ -2177,9 +2178,11 @@ tcp_recvfrom(net_sock_t *sock, void *buf, int nbytes, sock_addr_t *addr)
     }
 
     /*
-     * Automatically "read" packets with no data (here, only applies
-     * to FIN) to maintain the invariant that next_num > read_num
-     * implies there is at least one byte of data to read.
+     * Automatically "read" packets that have no useful data (i.e.
+     * FIN packets, or packets that overlap with others that
+     * were already fully read) to maintain the invariant that
+     * next_num > read_num implies there is at least one byte of
+     * data to read.
      */
     tcp_inbox_drain(tcp);
 
