@@ -1,5 +1,5 @@
-#ifndef _MT19937_H
-#define _MT19937_H
+#ifndef _RAND_H
+#define _RAND_H
 
 #ifndef ASM
 
@@ -14,4 +14,4 @@ int rand(void);
 
 #endif /* ASM */
 
-#endif /* _MT19937_H */
+#endif /* _RAND_H */

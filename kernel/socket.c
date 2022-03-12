@@ -7,7 +7,7 @@
 #include "net.h"
 #include "tcp.h"
 #include "udp.h"
-#include "mt19937.h"
+#include "rand.h"
 #include "wait.h"
 
 /* Lowest port number used for random local port numbers */

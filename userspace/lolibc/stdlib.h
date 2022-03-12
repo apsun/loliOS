@@ -3,7 +3,7 @@
 
 #include <attrib.h>
 #include <myalloc.h>
-#include <mt19937.h>
+#include <rand.h>
 
 int atexit(void (*fn)(void));
 __noreturn void exit(int status);

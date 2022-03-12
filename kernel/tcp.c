@@ -22,7 +22,7 @@
 #include "net.h"
 #include "ip.h"
 #include "ethernet.h"
-#include "mt19937.h"
+#include "rand.h"
 #include "wait.h"
 #include "poll.h"
 

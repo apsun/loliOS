@@ -3,7 +3,7 @@
 #include "math.h"
 #include "file.h"
 #include "paging.h"
-#include "mt19937.h"
+#include "rand.h"
 #include "poll.h"
 
 /*

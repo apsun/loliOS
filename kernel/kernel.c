@@ -21,7 +21,7 @@
 #include "zero.h"
 #include "random.h"
 #include "vbe.h"
-#include "mt19937.h"
+#include "rand.h"
 #include "tcp.h"
 #include "udp.h"
 
