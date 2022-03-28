@@ -161,8 +161,21 @@ typedef struct {
 } pcb_t;
 
 /* Iterator-like API for get_next_pcb() */
-#define process_for_each(pcb) \
-    for (pcb = NULL; (pcb = get_next_pcb(pcb)) != NULL;)
+#define process_for_each(pcb)     \
+    for (                         \
+        pcb = get_next_pcb(NULL); \
+        pcb != NULL;              \
+        pcb = get_next_pcb(pcb))
+
+/*
+ * Iterator-like API for get_next_pcb(), safe for usage if the pcb
+ * may be invalidated during traversal.
+ */
+#define process_for_each_safe(pcb, next)                    \
+    for (                                                   \
+        pcb = get_next_pcb(NULL), next = get_next_pcb(pcb); \
+        pcb != NULL;                                        \
+        pcb = next, next = get_next_pcb(pcb))
 
 /* Gets a PCB by its process ID */
 pcb_t *get_pcb(int pid);

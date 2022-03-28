@@ -998,14 +998,9 @@ process_halt_impl(int status)
     /*
      * Orphan any processes created by this process,
      * and reap the ones that have already exited.
-     *
-     * Warning: This is only safe because "freeing"
-     * a PCB just sets its PID to an invalid value.
-     * If one day we use malloc and free, this will
-     * cause a use-after-free when moving to the next PCB.
      */
-    pcb_t *other_pcb;
-    process_for_each(other_pcb) {
+    pcb_t *other_pcb, *next_pcb;
+    process_for_each_safe(other_pcb, next_pcb) {
         if (other_pcb->parent_pid == child_pcb->pid) {
             other_pcb->parent_pid = -1;
             if (other_pcb->state == PROCESS_STATE_ZOMBIE) {
