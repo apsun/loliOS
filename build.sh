@@ -92,7 +92,7 @@ if [ "${ubsan}" -eq 1 ]; then
 fi
 
 if [ "${lto}" -eq 1 ]; then
-    export CFLAGS="${CFLAGS-} -flto"
+    export CFLAGS="${CFLAGS-} -flto=auto"
 fi
 
 # If compat mode is set, use the original filesystem image,
