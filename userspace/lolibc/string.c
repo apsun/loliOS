@@ -561,28 +561,17 @@ memcpy(void *dest, const void *src, int n)
         char bytes[8];
     } __packed word_t;
 
-    /* Align dest ptr to word boundary */
-    unsigned char *db = dest;
-    const unsigned char *sb = src;
-    int nalign = -(uintptr_t)db & (sizeof(word_t) - 1);
-    if (n >= nalign) {
-        n -= nalign;
-        while (nalign--) {
-            *db++ = *sb++;
-        }
-    }
-
     /* Do a fast word-by-word copy */
-    word_t *dw = (word_t *)db;
-    const word_t *sw = (const word_t *)sb;
+    word_t *dw = (word_t *)dest;
+    const word_t *sw = (const word_t *)src;
     int nword = n / sizeof(word_t);
     while (nword--) {
         *dw++ = *sw++;
     }
 
     /* Handle trailing bytes at the end with a byte-by-byte copy */
-    db = (unsigned char *)dw;
-    sb = (const unsigned char *)sw;
+    unsigned char *db = (unsigned char *)dw;
+    const unsigned char *sb = (const unsigned char *)sw;
     int ntrailing = n & (sizeof(word_t) - 1);
     while (ntrailing--) {
         *db++ = *sb++;
