@@ -221,14 +221,8 @@ __cdecl int process_execute(
 __cdecl __noreturn void process_halt(int status);
 __cdecl int process_sleep(int target);
 
-/* Unsets the global execution context for the specified process */
-void process_unset_context(pcb_t *pcb);
-
-/* Sets the global execution context for the specified process */
-void process_set_context(pcb_t *pcb);
-
-/* Runs the specified process by jumping into userspace */
-__noreturn void process_run(pcb_t *pcb);
+/* Changes the global execution context from curr to next */
+void process_switch(pcb_t *curr, pcb_t *next);
 
 /* Halts the executing process with the specified status code */
 __noreturn void process_halt_impl(int status);

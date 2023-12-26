@@ -83,52 +83,30 @@ scheduler_next_pcb(void)
  * Yields the current process's timeslice and schedules
  * the next process to run. Pass null for curr if the process
  * is dying and will never be returned to.
+ *
+ * The noinline attribute is necessary since we need the registers
+ * to be saved at exactly the start of the function and restored
+ * at exactly the end.
  */
-__attribute__((no_caller_saved_registers))
 __noinline static void
-scheduler_yield_impl(pcb_t *curr)
+scheduler_yield_impl(pcb_t *curr, pcb_t *next)
 {
-    pcb_t *next = scheduler_next_pcb();
-    if (curr == next) {
-        return;
-    }
-
-    /*
-     * Save current stack pointer so we can switch back to this
-     * stack frame, and unset process execution context in
-     * preparation for the next process.
-     */
-    if (curr != NULL) {
-        asm volatile(
-            "movl %%esp, %0;"
-            "movl %%ebp, %1;"
-            : "=g"(curr->scheduler_esp),
-              "=g"(curr->scheduler_ebp));
-
-        process_unset_context(curr);
-    }
-
-    if (next->state == PROCESS_STATE_NEW) {
-        /*
-         * Since the process has not been run yet, its saved
-         * scheduler ESP/EBP are invalid. Just execute it directly
-         * on top of the current stack; the extra garbage
-         * will be ignored the next time the current process
-         * is scheduled.
-         */
-        process_run(next);
-    } else if (next->state == PROCESS_STATE_RUNNING) {
-        /* Set global execution context */
-        process_set_context(next);
-
-        /* Switch to the other process's stack frame */
-        asm volatile(
-            "movl %0, %%esp;"
-            "movl %1, %%ebp;"
-            :
-            : "r"(next->scheduler_esp),
-              "r"(next->scheduler_ebp));
-    }
+    asm volatile(
+        "testl %0, %0;"
+        "jz 1f;"
+        "movl %%esp, %c2(%0);"
+        "movl %%ebp, %c3(%0);"
+        "1:"
+        "pushl %1;"
+        "pushl %0;"
+        "call process_switch;"
+        "movl %c2(%1), %%esp;"
+        "movl %c3(%1), %%ebp;"
+        : "+S"(curr),
+          "+D"(next)
+        : "i"(offsetof(pcb_t, scheduler_esp)),
+          "i"(offsetof(pcb_t, scheduler_ebp))
+        : "memory", "cc", "eax", "ebx", "ecx", "edx");
 }
 
 /*
@@ -138,7 +116,13 @@ scheduler_yield_impl(pcb_t *curr)
 void
 scheduler_yield(void)
 {
-    scheduler_yield_impl(get_executing_pcb());
+    pcb_t *curr = get_executing_pcb();
+    pcb_t *next = scheduler_next_pcb();
+    if (curr == next) {
+        return;
+    }
+
+    scheduler_yield_impl(curr, next);
 }
 
 /*
@@ -149,7 +133,8 @@ scheduler_yield(void)
 __noreturn void
 scheduler_exit(void)
 {
-    scheduler_yield_impl(NULL);
+    pcb_t *next = scheduler_next_pcb();
+    scheduler_yield_impl(NULL, next);
     panic("Should not return from scheduler_exit()\n");
 }
 

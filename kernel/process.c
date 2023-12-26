@@ -245,7 +245,7 @@ get_kernel_base_esp(pcb_t *pcb)
 /*
  * Unsets the global execution context for the specified process.
  */
-void
+static void
 process_unset_context(pcb_t *pcb)
 {
     heap_unmap(&pcb->heap);
@@ -254,7 +254,7 @@ process_unset_context(pcb_t *pcb)
 /*
  * Sets the global execution context for the specified process.
  */
-void
+static void
 process_set_context(pcb_t *pcb)
 {
     paging_map_user_page(pcb->user_paddr);
@@ -309,7 +309,7 @@ process_alarm_callback(timer_t *timer)
  * function does not return. The process must be in the NEW
  * state.
  */
-__noreturn void
+__noreturn static void
 process_run(pcb_t *pcb)
 {
     assert(pcb != NULL);
@@ -324,6 +324,30 @@ process_run(pcb_t *pcb)
 
     /* Perform a fake IRET on behalf of the process */
     process_iret(&pcb->regs, (void *)get_kernel_base_esp(pcb));
+}
+
+/*
+ * Changes the global execution context from the specified "current"
+ * process to the "next" process. If the process is newly created,
+ * it will be directly executed and this function will not return.
+ */
+__used void
+process_switch(pcb_t *curr, pcb_t *next)
+{
+    assert(next != NULL);
+    assert(next->pid >= 0);
+
+    if (curr != NULL) {
+        process_unset_context(curr);
+    }
+
+    if (next->state == PROCESS_STATE_NEW) {
+        process_run(next);
+    } else if (next->state == PROCESS_STATE_RUNNING) {
+        process_set_context(next);
+    } else {
+        panic("Unexpected state %d in process_switch()\n", next->state);
+    }
 }
 
 /*
