@@ -6,75 +6,28 @@
 #include "timer.h"
 
 /*
- * Active and inactive scheduler queues. The reason we
- * have two queues is to simplify tracking of which
- * process needs to be executed next. As we dequeue tasks
- * from the active queue and enqueue them into the inactive
- * queue, we essentially mark them as "already executed".
- * Once every task has had an opportunity to execute, we
- * "clear" the mark by swapping the queues.
- *
+ * Queue of processes waiting to be scheduled.
  * Note that the idle task is not in these queues, and is
  * only scheduled when there are no other processes to run.
  */
-static list_t scheduler_queues[2];
-static int scheduler_active = 0;
+static list_t scheduler_queue;
 
 /*
- * Returns the currently active scheduler queue.
- */
-static list_t *
-scheduler_active_queue(void)
-{
-    return &scheduler_queues[scheduler_active];
-}
-
-/*
- * Returns the currently inactive scheduler queue.
- */
-static list_t *
-scheduler_inactive_queue(void)
-{
-    return &scheduler_queues[!scheduler_active];
-}
-
-/*
- * Pops the next process scheduled to be executed
- * off the active queue. If the active queue becomes
- * empty as a result, this will also swap the active
- * and inactive queues.
+ * Returns the next process to be scheduled and moves it to the
+ * back of the queue.
  */
 static pcb_t *
 scheduler_next_pcb(void)
 {
-    /*
-     * Swap the queues if we've finished processing
-     * everything in the active queue (inactive queue
-     * becomes the active queue and vise versa). We
-     * can't do this at the end since it's possible
-     * to pull processes out of the active queue when
-     * putting them to sleep.
-     */
-    if (list_empty(scheduler_active_queue())) {
-        /*
-         * If we _really_ have nothing to run, schedule
-         * the idle process.
-         */
-        if (list_empty(scheduler_inactive_queue())) {
-            return get_idle_pcb();
-        }
-        scheduler_active = !scheduler_active;
+    /* If no processes to run, schedule the idle task */
+    if (list_empty(&scheduler_queue)) {
+        return get_idle_pcb();
     }
 
-    /* Pop the first process from the active queue */
-    list_t *active_queue = scheduler_active_queue();
-    assert(!list_empty(active_queue));
-    pcb_t *pcb = list_first_entry(active_queue, pcb_t, scheduler_list);
+    /* Pop the first process from the queue and move it to the end */
+    pcb_t *pcb = list_first_entry(&scheduler_queue, pcb_t, scheduler_list);
     list_del(&pcb->scheduler_list);
-
-    /* Move it to the inactive queue */
-    list_t *inactive_queue = scheduler_inactive_queue();
-    list_add_tail(&pcb->scheduler_list, inactive_queue);
+    list_add_tail(&pcb->scheduler_list, &scheduler_queue);
 
     return pcb;
 }
@@ -145,7 +98,7 @@ void
 scheduler_add(pcb_t *pcb)
 {
     assert(pcb->pid > 0);
-    list_add_tail(&pcb->scheduler_list, scheduler_inactive_queue());
+    list_add_tail(&pcb->scheduler_list, &scheduler_queue);
 }
 
 /*
@@ -229,6 +182,5 @@ scheduler_wake(pcb_t *pcb)
 void
 scheduler_init(void)
 {
-    list_init(&scheduler_queues[0]);
-    list_init(&scheduler_queues[1]);
+    list_init(&scheduler_queue);
 }
