@@ -25,9 +25,6 @@ void scheduler_sleep_with_timeout(int timeout);
 /* Wakes the specified process */
 void scheduler_wake(pcb_t *pcb);
 
-/* Initializes the scheduler */
-void scheduler_init(void);
-
 #endif /* ASM */
 
 #endif /* _SCHEDULER_H */

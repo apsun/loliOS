@@ -186,9 +186,6 @@ entry(uint32_t magic, uint32_t addr)
     printf("Initializing RTC...\n");
     rtc_init();
 
-    printf("Initializing scheduler...\n");
-    scheduler_init();
-
     printf("Initializing processes...\n");
     process_init();
 

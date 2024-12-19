@@ -10,7 +10,7 @@
  * Note that the idle task is not in these queues, and is
  * only scheduled when there are no other processes to run.
  */
-static list_t scheduler_queue;
+static list_define(scheduler_queue);
 
 /*
  * Returns the next process to be scheduled and moves it to the
@@ -174,13 +174,4 @@ scheduler_wake(pcb_t *pcb)
         scheduler_add(pcb);
         pcb->state = PROCESS_STATE_RUNNING;
     }
-}
-
-/*
- * Initializes the scheduler.
- */
-void
-scheduler_init(void)
-{
-    list_init(&scheduler_queue);
 }
