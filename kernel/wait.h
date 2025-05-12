@@ -11,6 +11,19 @@
 #ifndef ASM
 
 /*
+ * Workaround for a false positive warning in GCC that incorrectly
+ * thinks that the pointer to the wait queue node escapes the local scope.
+ */
+#if defined(__GNUC__) && !defined(__clang__)
+#define WAIT_IMPL_wait_queue_add(wait, queue) \
+    _Pragma("GCC diagnostic ignored \"-Wdangling-pointer\"") \
+    wait_queue_add(wait, queue)
+#else
+#define WAIT_IMPL_wait_queue_add(wait, queue) \
+    wait_queue_add(wait, queue)
+#endif
+
+/*
  * Evaluates expr in a loop, waiting for it to return a value
  * other than -EAGAIN. The loop is terminated prematurely if
  * interruptible is true and there are pending signals. If
@@ -22,7 +35,7 @@
     wait_node_t __wait;                                                   \
     wait_node_init(&__wait, get_executing_pcb());                         \
     if ((queue) != NULL) {                                                \
-        wait_queue_add(&__wait, (queue));                                 \
+        WAIT_IMPL_wait_queue_add(&__wait, (queue));                       \
     }                                                                     \
     while (1) {                                                           \
         __ret = (expr);                                                   \
