@@ -30,7 +30,7 @@
 /*
  * Global counter used for monotonic time.
  */
-static uint32_t pit_counter = 0;
+static volatile uint32_t pit_counter = 0;
 
 /*
  * Sets the interrupt frequency of the PIT. The argument

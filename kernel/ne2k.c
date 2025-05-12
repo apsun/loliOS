@@ -174,13 +174,13 @@ typedef struct {
 } __packed ne2k_hdr_t;
 
 /* Whether we're currently transmitting a packet */
-static bool ne2k_tx_busy = false;
+static volatile bool ne2k_tx_busy = false;
 
 /* Buffer number currently being transmitted */
-static int ne2k_tx_buf = 0;
+static volatile int ne2k_tx_buf = 0;
 
 /* Length of data in each tx buffer, 0 = free buffer */
-static int ne2k_tx_buf_len[2];
+static volatile int ne2k_tx_buf_len[2];
 
 /* Packets waiting to be sent */
 static list_define(ne2k_tx_queue);

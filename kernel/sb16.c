@@ -46,18 +46,18 @@ __aligned(2)
 static uint8_t sb16_buf[2][SB16_HALF_BUFFER_SIZE];
 
 /* Which buffer is being written to */
-static int sb16_buf_flip = 0;
+static volatile int sb16_buf_flip = 0;
 
 /* Number of bytes in the buffer being written to */
-static int sb16_buf_count = 0;
+static volatile int sb16_buf_count = 0;
+
+/* Whether there is currently audio being played */
+static volatile bool sb16_is_playing = false;
 
 /* Playback parameters (default = 11kHz, mono, 8bit) */
 static int sb16_sample_rate = 11025;
 static int sb16_num_channels = 1;
 static int sb16_bits_per_sample = 8;
-
-/* Whether there is currently audio being played */
-static bool sb16_is_playing = false;
 
 /* Queue for writing audio samples */
 static list_define(sb16_write_queue);
